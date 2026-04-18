@@ -1,0 +1,362 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../prisma/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  staff
+  technician
+}
+
+enum TokoStatus {
+  active
+  inactive
+}
+
+enum SubscriptionPlan {
+  free
+  premium
+  enterprise
+}
+
+enum TokoUserRole {
+  owner
+}
+
+enum ServiceStatus {
+  received
+  repairing
+  done
+  picked_up
+  failed
+}
+
+enum ItemType {
+  sparepart
+  service
+}
+
+enum PaymentStatus {
+  unpaid
+  paid
+}
+
+//////////////////////
+// MODELS
+//////////////////////
+
+model Toko {
+  id        String     @id @default(uuid())
+  name      String
+  address   String?
+  phone     String?
+  logoUrl   String?
+  status    TokoStatus @default(active)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  userAssignments  UserToko[]
+  spareparts       Sparepart[]
+  servicePricelists ServicePricelist[]
+  services         Service[]
+
+  @@index([status])
+  @@map("toko")
+}
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  password      String?
+  role          UserRole @default(admin)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  sessions       Session[]
+  accounts       Account[]
+  tokoAssignments UserToko[]
+  subscription   Subscription?
+  createdServices  Service[]    @relation("ServiceCreatedBy")
+  assignedServices Service[]    @relation("ServiceTechnician")
+  serviceLogs      ServiceLog[]
+
+  @@index([role])
+  @@map("user")
+}
+
+model UserToko {
+  userId   String
+  tokoId   String
+  role     TokoUserRole @default(owner)
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tokoId])
+  @@index([userId])
+  @@index([tokoId])
+  @@map("user_toko")
+}
+
+model Subscription {
+  id        String           @id @default(uuid())
+  userId    String           @unique
+  plan      SubscriptionPlan @default(free)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscription")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// Global Brand model (not toko-specific) - available across all tokos
+model Brand {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hpCatalogs HpCatalog[]
+
+  @@map("brand")
+}
+
+// Global HpCatalog model (not toko-specific) - available across all tokos
+model HpCatalog {
+  id          String   @id @default(uuid())
+  brandId     String
+  modelName   String
+  modelNumber String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  brand           Brand                    @relation(fields: [brandId], references: [id])
+  services        Service[]
+  compatibilities SparepartCompatibility[]
+
+  @@unique([brandId, modelName])
+  @@index([brandId, modelName])
+  @@map("hp_catalog")
+}
+
+model Sparepart {
+  id           String  @id @default(uuid())
+  name         String
+  defaultPrice Int
+  stock        Int     @default(0)
+  isUniversal  Boolean @default(false)
+  tokoId       String
+
+  toko            Toko                     @relation(fields: [tokoId], references: [id])
+  compatibilities SparepartCompatibility[]
+  serviceItems    ServiceItem[]
+
+  @@unique([tokoId, name])
+  @@index([tokoId])
+  @@map("sparepart")
+}
+
+model SparepartCompatibility {
+  hpCatalogId String
+  sparepartId String
+
+  hpCatalog HpCatalog @relation(fields: [hpCatalogId], references: [id])
+  sparepart Sparepart @relation(fields: [sparepartId], references: [id])
+
+  @@id([hpCatalogId, sparepartId])
+  @@map("sparepart_compatibility")
+}
+
+model ServicePricelist {
+  id           String @id @default(uuid())
+  title        String
+  defaultPrice Int
+  tokoId       String
+
+  toko Toko @relation(fields: [tokoId], references: [id])
+
+  @@unique([tokoId, title])
+  @@index([tokoId])
+  @@map("service_pricelist")
+}
+
+model Service {
+  id String @id @default(uuid())
+
+  tokoId      String
+  hpCatalogId String
+
+  // 👇 role dipisah
+  createdById  String
+  technicianId String?
+
+  imei            String?
+  customerName    String?
+  noWa            String
+  complaint       String
+  passwordPattern String?
+  note            String?
+
+  status ServiceStatus @default(received)
+
+  checkinAt  DateTime  @default(now())
+  assignedAt DateTime?
+  doneAt     DateTime?
+  checkoutAt DateTime?
+
+  // 👇 anti double WA
+  doneNotifiedAt DateTime?
+
+  toko      Toko      @relation(fields: [tokoId], references: [id])
+  hpCatalog HpCatalog @relation(fields: [hpCatalogId], references: [id])
+
+  createdBy  User  @relation("ServiceCreatedBy", fields: [createdById], references: [id])
+  technician User? @relation("ServiceTechnician", fields: [technicianId], references: [id])
+
+  items   ServiceItem[]
+  invoice Invoice?
+
+  logs          ServiceLog[]
+  notifications NotificationLog[]
+
+  @@index([tokoId])
+  @@index([status])
+  @@index([checkinAt])
+  @@index([noWa])
+  @@index([technicianId])
+  @@map("service")
+}
+
+model ServiceItem {
+  id        String @id @default(uuid())
+  serviceId String
+
+  type        ItemType
+  referenceId String?
+
+  name  String
+  qty   Int    @default(1)
+  price Int
+
+  service   Service    @relation(fields: [serviceId], references: [id])
+  sparepart Sparepart? @relation(fields: [referenceId], references: [id], map: "service_item_sparepart_fk")
+
+  @@index([serviceId])
+  @@index([type])
+  @@map("service_item")
+}
+
+model Invoice {
+  id        String @id @default(uuid())
+  serviceId String @unique
+
+  grandTotal    Int
+  paymentStatus PaymentStatus @default(unpaid)
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@map("invoice")
+}
+
+//////////////////////
+// LOGGING & NOTIF
+//////////////////////
+
+model ServiceLog {
+  id        String @id @default(uuid())
+  serviceId String
+  userId    String
+
+  action   String
+  oldValue String?
+  newValue String?
+
+  createdAt DateTime @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([serviceId])
+  @@map("service_log")
+}
+
+model NotificationLog {
+  id        String @id @default(uuid())
+  serviceId String
+
+  type   String // contoh: WA_DONE
+  status String // success / failed
+
+  payload Json?
+
+  createdAt DateTime @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@index([serviceId])
+  @@map("notification_log")
+}
