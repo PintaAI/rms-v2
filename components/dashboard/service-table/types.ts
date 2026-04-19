@@ -85,6 +85,7 @@ export interface ServiceTableProps {
   onMarkPaid?: (invoiceId: string, serviceId: string) => void;
   onCall?: (phone: string, service: ServiceTableItem) => void;
   onPickup?: (serviceId: string) => void;
+  onTake?: (serviceId: string) => void;
   onRowClick?: (service: ServiceTableItem) => void;
   tokoId?: string;
   disableAssignment?: boolean;

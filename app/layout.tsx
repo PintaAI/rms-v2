@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-provider";
+import { RiLoader2Fill } from "@remixicon/react";
+
 
 const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -46,9 +49,17 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <Suspense
+            fallback={
+              <div className="min-h-full flex flex-1 items-center justify-center">
+                <RiLoader2Fill className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            }
+          >
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>

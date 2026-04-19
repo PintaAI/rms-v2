@@ -5,14 +5,16 @@ import {
   SidebarGroupContent,
   SidebarMenu,
 } from "@/components/ui/sidebar";
-import { RiDashboardLine, RiTaskLine, RiArchiveLine, RiCheckLine, RiCloseCircleLine } from "@remixicon/react";
-import { NavItem, NavGroup } from "../nav-item";
+import { RiDashboardLine, RiTaskLine, RiArchiveLine, RiCheckLine, RiCloseCircleLine, RiFolderLine, RiToolsLine, RiHistoryLine } from "@remixicon/react";
+import { NavItem, NavFilterGroup } from "../nav-item";
+import type { TechnicianTaskStats } from "@/actions/service";
 
 interface TeknisiNavProps {
   tokoid: string;
+  taskStats?: TechnicianTaskStats | null;
 }
 
-export function TeknisiNav({ tokoid }: TeknisiNavProps) {
+export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
   return (
     <SidebarGroup>
       <SidebarGroupContent>
@@ -22,20 +24,44 @@ export function TeknisiNav({ tokoid }: TeknisiNavProps) {
             icon={<RiDashboardLine />}
             label="Overview"
           />
-          <NavGroup
+          <NavFilterGroup
             title="Task"
             icon={<RiTaskLine />}
             defaultOpen={true}
             items={[
               {
-                href: `/${tokoid}/teknisi/task?status=done`,
-                icon: <RiCheckLine />,
-                label: "Selesai",
+                href: `/${tokoid}/teknisi/task`,
+                icon: <RiFolderLine />,
+                label: "Semua",
               },
               {
-                href: `/${tokoid}/teknisi/task?status=failed`,
+                href: `/${tokoid}/teknisi/task?status=tersedia`,
+                icon: <RiTaskLine />,
+                label: "Tersedia",
+                badge: taskStats?.tersedia,
+              },
+              {
+                href: `/${tokoid}/teknisi/task?status=repairing`,
+                icon: <RiToolsLine />,
+                label: "Dikerjakan",
+                badge: taskStats?.repairing,
+              },
+              {
+                href: `/${tokoid}/teknisi/task?status=selesai`,
+                icon: <RiCheckLine />,
+                label: "Selesai",
+                badge: taskStats?.selesai,
+              },
+              {
+                href: `/${tokoid}/teknisi/task?status=gagal`,
                 icon: <RiCloseCircleLine />,
                 label: "Gagal",
+                badge: taskStats?.gagal,
+              },
+              {
+                href: `/${tokoid}/teknisi/task?status=history`,
+                icon: <RiHistoryLine />,
+                label: "History",
               },
             ]}
           />

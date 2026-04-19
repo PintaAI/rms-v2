@@ -66,6 +66,7 @@ export interface ServiceStats {
   done: number;
   pickedUp: number;
   failed: number;
+  history?: number;
 }
 
 export interface TechnicianStats {
@@ -1006,5 +1007,86 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
   } catch (error) {
     console.error("Error paying invoice:", error);
     return { success: false, error: "Failed to pay invoice" };
+  }
+}
+
+export interface TechnicianTaskStats {
+  tersedia: number;
+  repairing: number;
+  selesai: number;
+  gagal: number;
+  history: number;
+  total: number;
+}
+
+export async function getNavBadgeStats(tokoId: string): Promise<ActionResultWithData<ServiceStats>> {
+  try {
+    const { user, tokoIds } = await getSessionAndTokos();
+    if (!user) return { success: false, error: "Unauthorized" };
+    if (!tokoIds.includes(tokoId)) return { success: false, error: "Access denied" };
+
+    const [received, repairing, done, picked_up, failed, history, total] = await Promise.all([
+      prisma.service.count({ where: { tokoId, status: "received" } }),
+      prisma.service.count({ where: { tokoId, status: "repairing" } }),
+      prisma.service.count({ where: { tokoId, status: "done" } }),
+      prisma.service.count({ where: { tokoId, status: "picked_up" } }),
+      prisma.service.count({ where: { tokoId, status: "failed" } }),
+      prisma.service.count({ where: { tokoId, status: { in: ["done", "picked_up", "failed"] } } }),
+      prisma.service.count({ where: { tokoId } }),
+    ]);
+
+    return {
+      success: true,
+      data: { received, repairing, done, pickedUp: picked_up, failed, history, total },
+    };
+  } catch (error) {
+    console.error("Error fetching nav badge stats:", error);
+    return { success: false, error: "Failed to fetch stats" };
+  }
+}
+
+export async function getTechnicianTaskBadgeStats(
+  tokoId: string
+): Promise<ActionResultWithData<TechnicianTaskStats>> {
+  try {
+    const headersList = await headers();
+    const session = await auth.api.getSession({ headers: headersList });
+    if (!session?.user) return { success: false, error: "Unauthorized" };
+
+    const userTokoAssignments = await prisma.userToko.findMany({
+      where: { userId: session.user.id },
+      select: { tokoId: true },
+    });
+    const tokoIds = userTokoAssignments.map((a) => a.tokoId);
+    if (!tokoIds.includes(tokoId)) return { success: false, error: "Access denied" };
+
+    const [tersedia, repairing, selesai, gagal, history, total] = await Promise.all([
+      prisma.service.count({
+        where: { tokoId, status: "received", technicianId: null },
+      }),
+      prisma.service.count({
+        where: { technicianId: session.user.id, status: "repairing" },
+      }),
+      prisma.service.count({
+        where: { technicianId: session.user.id, status: { in: ["done", "picked_up"] } },
+      }),
+      prisma.service.count({
+        where: { technicianId: session.user.id, status: "failed" },
+      }),
+      prisma.service.count({
+        where: { technicianId: session.user.id, status: { in: ["done", "picked_up", "failed"] } },
+      }),
+      prisma.service.count({
+        where: { technicianId: session.user.id },
+      }),
+    ]);
+
+    return {
+      success: true,
+      data: { tersedia, repairing, selesai, gagal, history, total },
+    };
+  } catch (error) {
+    console.error("Error fetching technician task stats:", error);
+    return { success: false, error: "Failed to fetch stats" };
   }
 }

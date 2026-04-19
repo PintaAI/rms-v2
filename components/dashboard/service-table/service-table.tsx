@@ -23,6 +23,7 @@ import {
   RiPhoneLine,
   RiCheckLine,
   RiMoneyDollarCircleLine,
+  RiTaskLine,
 } from "@remixicon/react";
 import type { ServiceTableProps, ServiceTableItem, ColumnKey, ColumnConfig, ColumnsInput } from "./types";
 import { columnHeaders, getColumnRenderer } from "./columns";
@@ -51,6 +52,7 @@ export function ServiceTable({
   onMarkPaid,
   onCall,
   onPickup,
+  onTake,
   onRowClick,
   tokoId,
   disableAssignment,
@@ -64,7 +66,8 @@ export function ServiceTable({
   const showDropdownActions = onEdit || onDelete;
   const showCompletedActions = onCall || onPickup;
   const showMarkPaid = onMarkPaid;
-  const hasActions = showDropdownActions || showCompletedActions || showMarkPaid;
+  const showTakeTask = onTake;
+  const hasActions = showDropdownActions || showCompletedActions || showMarkPaid || showTakeTask;
 
   const getEmptyColSpan = () => {
     return effectiveColumns.length + (hasActions ? 1 : 0);
@@ -113,6 +116,16 @@ export function ServiceTable({
               {hasActions && (
                 <TableCell>
                   <div className="flex flex-col gap-2">
+                    {onTake && service.status === "received" && !service.technician && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); onTake(service.id); }}
+                      >
+                        <RiTaskLine className="h-4 w-4 mr-1" />
+                        Ambil
+                      </Button>
+                    )}
                     {showMarkPaid && service.invoice?.paymentStatus === "unpaid" && (
                       <Button
                         variant="outline"
@@ -133,7 +146,7 @@ export function ServiceTable({
                         whatsapp
                       </Button>
                     )}
-                    {onPickup && (
+                    {onPickup && (service.status === "done" || service.status === "failed") && (
                       <Button
                         variant="default"
                         size="sm"

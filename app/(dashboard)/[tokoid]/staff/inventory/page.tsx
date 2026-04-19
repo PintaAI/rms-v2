@@ -1,4 +1,4 @@
-import { InventoryTabs } from "@/components/dashboard/inventory-tabs";
+import { StaffSparepartTable } from "@/components/dashboard/staff-sparepart-table";
 
 export default async function StaffInventoryPage({
   params,
@@ -9,8 +9,8 @@ export default async function StaffInventoryPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Inventory</h1>
-      <InventoryTabs tokoId={tokoid} readOnly={true} />
+      <h1 className="text-2xl font-semibold">Sparepart</h1>
+      <StaffSparepartTable tokoId={tokoid} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
 import {
   DropdownMenu,
@@ -9,9 +10,23 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { RiLogoutBoxRLine, RiUserLine } from "@remixicon/react";
+import { RiLogoutBoxRLine, RiUserLine, RiSettings3Line, RiPaletteLine } from "@remixicon/react";
+import { Badge } from "@/components/ui/badge";
+import { ModeToggle } from "@/components/theme-toggle";
+
+function getRoleBadgeVariant(role: string): "default" | "secondary" | "outline" {
+  switch (role) {
+    case "admin":
+      return "default";
+    case "staff":
+      return "secondary";
+    default:
+      return "outline";
+  }
+}
 
 export function UserInfo() {
+  const router = useRouter();
   const { data: session, isPending } = useSession();
 
   if (isPending) {
@@ -52,9 +67,9 @@ export function UserInfo() {
         )}
         <div className="flex flex-col items-start">
           <span className="text-sm font-medium">{user.name}</span>
-          <span className="text-xs text-muted-foreground capitalize">
+          <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
             {user.role}
-          </span>
+          </Badge>
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
@@ -64,6 +79,21 @@ export function UserInfo() {
             <span className="text-xs text-muted-foreground">{user.email}</span>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => router.push("/settings")}
+          className="cursor-pointer"
+        >
+          <RiSettings3Line />
+          Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem className="cursor-pointer flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <RiPaletteLine />
+            Theme
+          </span>
+          <ModeToggle />
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

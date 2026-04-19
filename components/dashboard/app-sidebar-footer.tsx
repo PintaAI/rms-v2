@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { RiUserLine, RiLogoutBoxRLine, RiSettings3Line } from "@remixicon/react";
+import { RiUserLine, RiLogoutBoxRLine, RiSettings3Line, RiPaletteLine } from "@remixicon/react";
 import {
   SidebarFooter,
   SidebarMenu,
@@ -19,10 +19,13 @@ import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { ModeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/components/auth-provider";
+import { UserSettings } from "@/components/ui/user-settings";
+import { useState } from "react";
 
 export function AppSidebarFooter() {
   const router = useRouter();
   const { user } = useAuth();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleSignOut = async () => {
     localStorage.removeItem("onboard_completed");
@@ -63,7 +66,7 @@ export function AppSidebarFooter() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem
-                  onClick={() => router.push("/settings")}
+                  onClick={() => setSettingsOpen(true)}
                   className="cursor-pointer"
                 >
                   <RiSettings3Line className="size-4" />
@@ -71,6 +74,7 @@ export function AppSidebarFooter() {
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer flex items-center justify-between">
                   <span className="flex items-center gap-2">
+                    <RiPaletteLine className="size-4" />
                     Tema
                   </span>
                   <ModeToggle />
@@ -87,6 +91,7 @@ export function AppSidebarFooter() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <UserSettings open={settingsOpen} onOpenChange={setSettingsOpen} user={user} />
     </>
   );
 }

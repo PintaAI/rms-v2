@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useEffect, useState } from "react";
 import Image from "next/image";
 import { RiStore2Line, RiArrowDownSLine, RiLoader4Line } from "@remixicon/react";
 import {
@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 
@@ -30,9 +31,15 @@ export function AppSidebarHeader({
   tokoList,
 }: AppSidebarHeaderProps) {
   const router = useRouter();
+  const { isTokoLoading } = useAuth();
   const [isPending, startTransition] = useTransition();
+  const [mounted, setMounted] = useState(false);
   const currentToko = tokoList?.find((t) => t.id === tokoid);
   const canSwitchToko = userRole === "admin" && tokoList && tokoList.length > 1;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleTokoSwitch = (newTokoId: string) => {
     startTransition(() => {
@@ -59,11 +66,18 @@ export function AppSidebarHeader({
     );
   };
 
+  const showLoading = !mounted || isTokoLoading;
+
   return (
     <SidebarHeader>
       <SidebarMenu>
         <SidebarMenuItem>
-          {canSwitchToko ? (
+          {showLoading ? (
+            <SidebarMenuButton disabled>
+              <Skeleton className="size-8 rounded" />
+              <Skeleton className="h-4 w-24" />
+            </SidebarMenuButton>
+          ) : canSwitchToko ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">

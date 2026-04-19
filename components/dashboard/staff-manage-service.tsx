@@ -4,18 +4,11 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { ServiceTable } from "@/components/dashboard/service-table";
 import { ServicesForm } from "@/components/dashboard/services-form";
-import { ServiceTaskCard } from "@/components/dashboard/service-task-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { deleteService, getService, payInvoice, pickupService } from "@/actions";
-import type { ServiceListItem, ServiceDetail } from "@/actions";
+import { deleteService, payInvoice, pickupService } from "@/actions";
+import type { ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/service-table/types";
 import {
   RiInboxLine,
@@ -24,6 +17,7 @@ import {
   RiLogoutBoxLine,
   RiCloseLine,
   RiAddLine,
+  RiHistoryLine,
 } from "@remixicon/react";
 
 interface ServiceStats {
@@ -32,10 +26,11 @@ interface ServiceStats {
   done: number;
   picked_up: number;
   failed: number;
+  history: number;
   total: number;
 }
 
-interface ManageServiceProps {
+interface StaffManageServiceProps {
   allServices: ServiceListItem[];
   initialStats: ServiceStats;
   tokoId: string;
@@ -68,12 +63,12 @@ function StatsCard({
   );
 }
 
-export function ManageService({
+export function StaffManageService({
   allServices,
   initialStats,
   tokoId,
   pageSize,
-}: ManageServiceProps) {
+}: StaffManageServiceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const statusFilter = searchParams.get("status");
@@ -86,9 +81,6 @@ export function ManageService({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ServiceListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   const pendingMutationsRef = useRef(0);
 
@@ -100,7 +92,7 @@ export function ManageService({
     }
   }, [allServices, initialStats]);
 
-const filteredServices = useMemo(() => {
+  const filteredServices = useMemo(() => {
     if (!statusFilter) return services;
     const filterStatuses = statusFilter.split(",");
     return services.filter((s) => filterStatuses.includes(s.status));
@@ -315,38 +307,6 @@ const filteredServices = useMemo(() => {
     setCurrentPage(newPage);
   }, []);
 
-  const handleAssignTech = useCallback(() => {
-    router.refresh();
-  }, [router]);
-
-  const handleRowClick = useCallback(async (service: ServiceTableItem) => {
-    setIsLoadingDetail(true);
-    setDetailDialogOpen(true);
-    
-    const result = await getService(service.id);
-    if (result.success && result.data) {
-      setSelectedService(result.data);
-    }
-    setIsLoadingDetail(false);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
-    setDetailDialogOpen(false);
-    setSelectedService(null);
-  }, []);
-
-  const handleRefreshDetail = useCallback(() => {
-    if (selectedService) {
-      getService(selectedService.id).then((result) => {
-        if (result.success && result.data) {
-          setSelectedService(result.data);
-        }
-      });
-    }
-    router.refresh();
-  }, [selectedService, router]);
-
-  // Reset to page 1 when filter changes
   const prevStatusFilterRef = useRef(statusFilter);
   useEffect(() => {
     if (prevStatusFilterRef.current !== statusFilter) {
@@ -355,7 +315,7 @@ const filteredServices = useMemo(() => {
     }
   }, [statusFilter]);
 
-const getPageTitle = () => {
+  const getPageTitle = () => {
     if (!statusFilter) return "Semua Service";
     if (statusFilter === "received") return "Service Masuk";
     if (statusFilter === "repairing") return "Service Proses";
@@ -380,7 +340,7 @@ const getPageTitle = () => {
         </Button>
       </div>
 
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-7">
         <StatsCard
           title="Masuk"
           value={stats.received}
@@ -409,6 +369,11 @@ const getPageTitle = () => {
           variant={stats.failed > 0 ? "warning" : "default"}
         />
         <StatsCard
+          title="History"
+          value={stats.history}
+          icon={<RiHistoryLine className="h-3 w-3" />}
+        />
+        <StatsCard
           title="Total"
           value={stats.total}
           icon={<RiInboxLine className="h-3 w-3" />}
@@ -419,16 +384,15 @@ const getPageTitle = () => {
         <CardContent className="pt-6">
           <ServiceTable
             services={tableServices}
-            preset="adminActive"
+            preset="staffActive"
             emptyMessage={`Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`}
-            onEdit={statusFilter === "done" || statusFilter === "failed" ? undefined : handleEdit}
-            onDelete={statusFilter === "done" || statusFilter === "failed" ? undefined : handleDelete}
-            onAssignTech={handleAssignTech}
-            onMarkPaid={handleMarkPaid}
-            onPickup={handlePickup}
-            onCall={statusFilter === "done" || statusFilter === "failed" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
-            onRowClick={handleRowClick}
+            onEdit={statusFilter === "done" || statusFilter === "failed" || statusFilter === "picked_up" ? undefined : handleEdit}
+            onDelete={statusFilter === "done" || statusFilter === "failed" || statusFilter === "picked_up" ? undefined : handleDelete}
+            onMarkPaid={!statusFilter ? undefined : handleMarkPaid}
+            onPickup={!statusFilter ? undefined : handlePickup}
+            onCall={statusFilter === "done" || statusFilter === "failed" || statusFilter === "picked_up" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
             tokoId={tokoId}
+            disableAssignment={true}
           />
 
           {totalPages > 1 && (
@@ -498,30 +462,6 @@ const getPageTitle = () => {
         description={`Are you sure you want to delete service for ${deleteTarget?.customerName || "this customer"}?`}
         isLoading={isDeleting}
       />
-
-      <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <SheetContent side="bottom" className="h-[90vh] rounded-t-lg p-2 max-w-4xl mx-auto overflow-y-auto">
-          <SheetHeader className="p-2 flex items-center justify-between">
-            <SheetTitle className="font-bold" >Detail servis</SheetTitle>
-            <p className="text-sm text-muted-foreground">tambahkan detail servis</p>
-          </SheetHeader>
-          {isLoadingDetail && (
-            <div className="flex items-center justify-center py-8">
-              <p className="text-muted-foreground">Loading service details...</p>
-            </div>
-          )}
-          {!isLoadingDetail && selectedService && (
-            <ServiceTaskCard
-              task={selectedService as any}
-              variant={["done", "picked_up", "failed"].includes(selectedService.status) ? "completed" : "active"}
-              onRefresh={handleRefreshDetail}
-              onStatusChange={(newStatus) => {
-                router.refresh();
-              }}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

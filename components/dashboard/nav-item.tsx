@@ -93,7 +93,7 @@ export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupPro
 interface NavFilterGroupProps {
   title: string;
   icon?: ReactNode;
-  items: { href: string; icon?: ReactNode; label: string }[];
+  items: { href: string; icon?: ReactNode; label: string; badge?: number }[];
   defaultOpen?: boolean;
 }
 
@@ -157,6 +157,11 @@ export function NavFilterGroup({ title, icon, items, defaultOpen = true }: NavFi
               >
                 {item.icon}
                 <span>{item.label}</span>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className="ml-auto bg-destructive text-background dark:text-foreground text-[0.625rem] font-medium rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                    {item.badge}
+                  </span>
+                )}
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
           ))}

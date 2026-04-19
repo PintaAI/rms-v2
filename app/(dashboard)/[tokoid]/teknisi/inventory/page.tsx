@@ -1,4 +1,4 @@
-import { InventoryTabs } from "@/components/dashboard/inventory-tabs";
+import { TeknisiSparepartTable } from "@/components/dashboard/teknisi-sparepart-table";
 
 export default async function TeknisiInventoryPage({
   params,
@@ -10,7 +10,7 @@ export default async function TeknisiInventoryPage({
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Inventory</h1>
-      <InventoryTabs tokoId={tokoid} readOnly={true} />
+      <TeknisiSparepartTable tokoId={tokoid} />
     </div>
   );
 }

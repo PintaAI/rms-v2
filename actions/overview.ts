@@ -247,9 +247,30 @@ export async function getAdminOverview(
   }
 }
 
+export interface StaffOverviewStats {
+  services: {
+    total: number;
+    received: number;
+    repairing: number;
+    done: number;
+    daily: number;
+    weekly: number;
+    monthly: number;
+  };
+  inventory: {
+    totalSpareparts: number;
+    lowStockCount: number;
+  };
+}
+
+export interface StaffOverviewData {
+  stats: StaffOverviewStats;
+  recentServices: ServiceListItem[];
+}
+
 export async function getStaffOverview(
   tokoId?: string
-): Promise<ActionResultWithData<{ stats: { total: number; received: number; done: number; daily: number }; recentServices: ServiceListItem[] }>> {
+): Promise<ActionResultWithData<StaffOverviewData>> {
   try {
     const { user, tokoIds } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
@@ -258,13 +279,19 @@ export async function getStaffOverview(
     if (!targetTokoId) return { success: false, error: "No toko found" };
     if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
 
-    const { dailyStart } = getTimeRanges();
+    const { dailyStart, weeklyStart, monthlyStart } = getTimeRanges();
 
-    const [total, received, done, dailyCount, recentServices] = await Promise.all([
+    const [total, received, repairing, done, pickedUp, dailyCount, weeklyCount, monthlyCount, totalSpareparts, lowStockCount, recentServices] = await Promise.all([
       prisma.service.count({ where: { tokoId: targetTokoId } }),
       prisma.service.count({ where: { tokoId: targetTokoId, status: "received" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: { in: ["done", "picked_up"] } } }),
+      prisma.service.count({ where: { tokoId: targetTokoId, status: "repairing" } }),
+      prisma.service.count({ where: { tokoId: targetTokoId, status: "done" } }),
+      prisma.service.count({ where: { tokoId: targetTokoId, status: "picked_up" } }),
       prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } } }),
+      prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } } }),
+      prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: monthlyStart } } }),
+      prisma.sparepart.count({ where: { tokoId: targetTokoId } }),
+      prisma.sparepart.count({ where: { tokoId: targetTokoId, stock: { lte: 5 } } }),
       prisma.service.findMany({
         where: { tokoId: targetTokoId },
         orderBy: { checkinAt: "desc" },
@@ -273,10 +300,26 @@ export async function getStaffOverview(
       }),
     ]);
 
+    const stats: StaffOverviewStats = {
+      services: {
+        total,
+        received,
+        repairing,
+        done: done + pickedUp,
+        daily: dailyCount,
+        weekly: weeklyCount,
+        monthly: monthlyCount,
+      },
+      inventory: {
+        totalSpareparts,
+        lowStockCount,
+      },
+    };
+
     return {
       success: true,
       data: {
-        stats: { total, received, done, daily: dailyCount },
+        stats,
         recentServices: recentServices.map(mapServiceToListItem),
       },
     };

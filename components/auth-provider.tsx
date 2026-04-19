@@ -25,14 +25,16 @@ interface AuthContextValue {
   isLoading: boolean;
   isTokoLoading: boolean;
   refetchTokoList: () => Promise<void>;
+  refetchSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   tokoList: [],
   isLoading: true,
-  isTokoLoading: false,
+  isTokoLoading: true,
   refetchTokoList: async () => {},
+  refetchSession: async () => {},
 });
 
 export function useAuth() {
@@ -50,9 +52,9 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, refetch } = useSession();
   const [tokoList, setTokoList] = useState<TokoItem[]>([]);
-  const [isTokoLoading, setIsTokoLoading] = useState(false);
+  const [isTokoLoading, setIsTokoLoading] = useState(true);
   const redirectingRef = useRef(false);
 
   const fetchTokoList = useCallback(async () => {
@@ -68,6 +70,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsTokoLoading(false);
     }
   }, [session?.user]);
+
+  const refetchSession = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   useEffect(() => {
     fetchTokoList();
@@ -148,6 +154,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoading,
         isTokoLoading,
         refetchTokoList: fetchTokoList,
+        refetchSession,
       }}
     >
       {children}

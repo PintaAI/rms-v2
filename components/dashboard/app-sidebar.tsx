@@ -10,12 +10,15 @@ import { AdminNav } from "./nav/admin-nav";
 import { StaffNav } from "./nav/staff-nav";
 import { TeknisiNav } from "./nav/teknisi-nav";
 import { useAuth } from "@/components/auth-provider";
+import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
 
 interface AppSidebarProps {
   tokoid: string;
+  serviceStats?: ServiceStats | null;
+  technicianTaskStats?: TechnicianTaskStats | null;
 }
 
-export function AppSidebar({ tokoid }: AppSidebarProps) {
+export function AppSidebar({ tokoid, serviceStats, technicianTaskStats }: AppSidebarProps) {
   const { user, tokoList } = useAuth();
 
   return (
@@ -26,9 +29,9 @@ export function AppSidebar({ tokoid }: AppSidebarProps) {
         tokoList={tokoList}
       />
       <SidebarContent>
-        {user?.role === "admin" && <AdminNav tokoid={tokoid} />}
-        {user?.role === "staff" && <StaffNav tokoid={tokoid} />}
-        {user?.role === "technician" && <TeknisiNav tokoid={tokoid} />}
+        {user?.role === "admin" && <AdminNav tokoid={tokoid} serviceStats={serviceStats} />}
+        {user?.role === "staff" && <StaffNav tokoid={tokoid} serviceStats={serviceStats} />}
+        {user?.role === "technician" && <TeknisiNav tokoid={tokoid} taskStats={technicianTaskStats} />}
       </SidebarContent>
       <AppSidebarFooter />
     </Sidebar>
