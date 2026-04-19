@@ -1,4 +1,4 @@
-import { ManageToko } from "@/components/dashboard/manage-toko";
+import { ManageToko } from "@/components/dashboard/admin/manage-toko";
 
 export default async function AdminTokoPage({
   params,

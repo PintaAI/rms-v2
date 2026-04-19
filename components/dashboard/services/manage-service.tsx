@@ -10,13 +10,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ServiceTable } from "@/components/dashboard/service-table";
-import { ServicesForm } from "@/components/dashboard/services-form";
-import { ServiceTaskCard } from "@/components/dashboard/service-task-card";
+import { ServiceTable } from "@/components/dashboard/services/service-table";
+import { ServicesForm } from "@/components/dashboard/services/services-form";
+import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { deleteService, getService, payInvoice, pickupService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
-import type { ServiceTableItem } from "@/components/dashboard/service-table/types";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
 import {
   RiInboxLine,
   RiToolsLine,

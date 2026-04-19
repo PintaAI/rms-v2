@@ -1,6 +1,6 @@
 "use client";
 
-import { AuthCard } from "@/components/auth-card";
+import { AuthCard } from "@/components/auth/auth-card";
 import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";

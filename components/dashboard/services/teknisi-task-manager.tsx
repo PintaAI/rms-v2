@@ -10,11 +10,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ServiceTable } from "@/components/dashboard/service-table";
-import { ServiceTaskCard } from "@/components/dashboard/service-task-card";
+import { ServiceTable } from "@/components/dashboard/services/service-table";
+import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
 import { takeService, getService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
-import type { ServiceTableItem } from "@/components/dashboard/service-table/types";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
 import {
   RiTaskLine,
   RiCheckLine,

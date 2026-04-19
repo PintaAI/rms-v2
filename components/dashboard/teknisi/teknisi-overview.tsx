@@ -11,7 +11,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { ServiceTaskCard } from "@/components/dashboard/service-task-card";
+import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
 import { takeService, getService } from "@/actions";
 import type { TechnicianStats, ServiceListItem, ServiceDetail } from "@/actions/service";
 import {

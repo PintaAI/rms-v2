@@ -27,7 +27,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { changePassword, updateProfile, uploadAvatar } from "@/actions"
-import { useAuth } from "@/components/auth-provider"
+import { useAuth } from "@/components/auth/auth-provider"
 import {
   RiUserLine,
   RiLockPasswordLine,

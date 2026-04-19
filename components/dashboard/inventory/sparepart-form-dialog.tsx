@@ -41,7 +41,7 @@ import {
   updateSparepart,
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
-import { MultiDeviceInput, type HpCatalogOption } from "@/components/dashboard/multi-device-input";
+import { MultiDeviceInput, type HpCatalogOption } from "@/components/shared/multi-device-input";
 
 interface SparepartFormProps {
   open: boolean;

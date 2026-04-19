@@ -19,7 +19,7 @@ import {
   RiCheckLine,
 } from "@remixicon/react";
 import { getTechniciansByToko, assignTechnician } from "@/actions";
-import type { ServiceTableItem } from "@/components/dashboard/service-table";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 
 interface Technician {
   id: string;

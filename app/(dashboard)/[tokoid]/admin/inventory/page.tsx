@@ -1,4 +1,4 @@
-import { InventoryTabs } from "@/components/dashboard/inventory-tabs";
+import { InventoryTabs } from "@/components/dashboard/inventory/inventory-tabs";
 
 export default async function AdminInventoryPage({
   params,

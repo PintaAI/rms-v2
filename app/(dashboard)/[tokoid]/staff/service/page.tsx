@@ -1,5 +1,5 @@
 import { getServiceList } from "@/actions/service";
-import { StaffManageService } from "@/components/dashboard/staff-manage-service";
+import { StaffManageService } from "@/components/dashboard/services/staff-manage-service";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";

@@ -1,5 +1,5 @@
 import { getAvailableTasks, getMyTasks } from "@/actions/service";
-import { TeknisiTaskManager } from "@/components/dashboard/teknisi-task-manager";
+import { TeknisiTaskManager } from "@/components/dashboard/services/teknisi-task-manager";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";

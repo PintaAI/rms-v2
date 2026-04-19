@@ -1,5 +1,5 @@
 import { getStaffOverview } from "@/actions/overview";
-import { StaffOverviewClient } from "@/components/dashboard/staff-overview";
+import { StaffOverviewClient } from "@/components/dashboard/staff/staff-overview";
 
 export default async function StaffOverviewPage({
   params,

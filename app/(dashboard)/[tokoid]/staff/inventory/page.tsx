@@ -1,4 +1,4 @@
-import { StaffSparepartTable } from "@/components/dashboard/staff-sparepart-table";
+import { StaffSparepartTable } from "@/components/dashboard/inventory/staff-sparepart-table";
 
 export default async function StaffInventoryPage({
   params,

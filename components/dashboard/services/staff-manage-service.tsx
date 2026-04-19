@@ -4,12 +4,12 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ServiceTable } from "@/components/dashboard/service-table";
-import { ServicesForm } from "@/components/dashboard/services-form";
+import { ServiceTable } from "@/components/dashboard/services/service-table";
+import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { deleteService, payInvoice, pickupService } from "@/actions";
 import type { ServiceListItem } from "@/actions";
-import type { ServiceTableItem } from "@/components/dashboard/service-table/types";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
 import {
   RiInboxLine,
   RiToolsLine,

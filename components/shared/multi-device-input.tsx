@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { searchDevices, createDevice } from "@/actions";
 import { getBrandIcon } from "@/lib/brand-icons";
-import { HpCatalogOption } from "@/components/dashboard/device-input";
+import { HpCatalogOption } from "@/components/shared/device-input";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

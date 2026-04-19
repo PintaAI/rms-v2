@@ -23,8 +23,8 @@ import {
   type SparepartWithCompatibilities,
   type ServicePricelist,
 } from "@/actions/inventory";
-import { SparepartFormDialog } from "@/components/dashboard/sparepart-form-dialog";
-import { ServicePricelistFormDialog } from "@/components/dashboard/service-pricelist-form-dialog";
+import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
+import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
 import {
   RiAddLine,
   RiEditLine,

@@ -6,10 +6,10 @@ import {
 } from "@/components/ui/sidebar";
 import { AppSidebarHeader } from "./app-sidebar-header";
 import { AppSidebarFooter } from "./app-sidebar-footer";
-import { AdminNav } from "./nav/admin-nav";
-import { StaffNav } from "./nav/staff-nav";
-import { TeknisiNav } from "./nav/teknisi-nav";
-import { useAuth } from "@/components/auth-provider";
+import { AdminNav } from "../nav/admin-nav";
+import { StaffNav } from "../nav/staff-nav";
+import { TeknisiNav } from "../nav/teknisi-nav";
+import { useAuth } from "@/components/auth/auth-provider";
 import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
 
 interface AppSidebarProps {

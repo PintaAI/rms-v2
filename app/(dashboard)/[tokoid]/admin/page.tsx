@@ -1,5 +1,5 @@
 import { getAdminOverview } from "@/actions/overview";
-import { AdminOverviewClient } from "@/components/dashboard/admin-overview";
+import { AdminOverviewClient } from "@/components/dashboard/admin/admin-overview";
 
 export default async function AdminOverviewPage({
   params,

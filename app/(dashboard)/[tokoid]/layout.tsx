@@ -1,9 +1,9 @@
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import { AppSidebar } from "@/components/dashboard/layout/app-sidebar";
 import { Separator } from "@/components/ui/separator";
-import { DynamicBreadcrumb } from "@/components/dashboard/dynamic-breadcrumb";
-import { UserInfo } from "@/components/user-info";
-import { LiveClock } from "@/components/live-clock";
+import { DynamicBreadcrumb } from "@/components/dashboard/layout/dynamic-breadcrumb";
+import { UserInfo } from "@/components/shared/user-info";
+import { LiveClock } from "@/components/shared/live-clock";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getNavBadgeStats, getTechnicianTaskBadgeStats } from "@/actions/service";

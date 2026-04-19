@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ServiceTable } from "@/components/dashboard/service-table";
-import { ServicesForm } from "@/components/dashboard/services-form";
+import { ServiceTable } from "@/components/dashboard/services/service-table";
+import { ServicesForm } from "@/components/dashboard/services/services-form";
 import type { AdminOverviewData } from "@/actions/overview";
-import type { ServiceTableItem } from "@/components/dashboard/service-table/types";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
 import {
   RiInboxLine,
   RiToolsLine,

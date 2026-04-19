@@ -19,7 +19,7 @@ import {
   deleteSparepart,
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
-import { SparepartFormDialog } from "@/components/dashboard/sparepart-form-dialog";
+import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
 import {
   RiAddLine,
   RiEditLine,

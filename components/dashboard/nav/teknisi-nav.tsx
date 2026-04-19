@@ -6,7 +6,7 @@ import {
   SidebarMenu,
 } from "@/components/ui/sidebar";
 import { RiDashboardLine, RiTaskLine, RiArchiveLine, RiCheckLine, RiCloseCircleLine, RiFolderLine, RiToolsLine, RiHistoryLine } from "@remixicon/react";
-import { NavItem, NavFilterGroup } from "../nav-item";
+import { NavItem, NavFilterGroup } from "./nav-item";
 import type { TechnicianTaskStats } from "@/actions/service";
 
 interface TeknisiNavProps {
@@ -33,6 +33,7 @@ export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
                 href: `/${tokoid}/teknisi/task`,
                 icon: <RiFolderLine />,
                 label: "Semua",
+                badge: taskStats?.total,
               },
               {
                 href: `/${tokoid}/teknisi/task?status=tersedia`,

@@ -1,5 +1,5 @@
 import { getKaryawanList, getKaryawanStats } from "@/actions/karyawan";
-import { ManageKaryawan } from "@/components/dashboard/manage-karyawan";
+import { ManageKaryawan } from "@/components/dashboard/admin/manage-karyawan";
 
 export default async function AdminKaryawanPage({
   params,

@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import { ModeToggle } from "@/components/theme-toggle";
-import { useAuth } from "@/components/auth-provider";
+import { ModeToggle } from "@/components/shared/theme-toggle";
+import { useAuth } from "@/components/auth/auth-provider";
 import { UserSettings } from "@/components/ui/user-settings";
 import { useState } from "react";
 

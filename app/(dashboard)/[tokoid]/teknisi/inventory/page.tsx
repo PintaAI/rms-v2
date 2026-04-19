@@ -1,4 +1,4 @@
-import { TeknisiSparepartTable } from "@/components/dashboard/teknisi-sparepart-table";
+import { TeknisiSparepartTable } from "@/components/dashboard/inventory/teknisi-sparepart-table";
 
 export default async function TeknisiInventoryPage({
   params,

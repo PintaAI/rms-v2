@@ -24,7 +24,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createService, updateService } from "@/actions";
 import type { ServiceListItem as ServiceListItemType } from "@/actions";
-import type { ServiceTableItem } from "@/components/dashboard/service-table/types";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
 import {
   Dialog,
   DialogContent,
@@ -36,8 +36,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { PatternLock } from "@/components/pattern-lock";
-import { DeviceInput, HpCatalogOption } from "./device-input";
+import { PatternLock } from "@/components/shared/pattern-lock";
+import { DeviceInput, HpCatalogOption } from "@/components/shared/device-input";
 
 
 interface ServiceFormData {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/components/auth-provider";
+import { useAuth } from "@/components/auth/auth-provider";
 import { getRoleRedirectPath } from "@/lib/redirect-by-role";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";

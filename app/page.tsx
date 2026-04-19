@@ -1,6 +1,6 @@
 import { getServerSession } from "@/lib/auth";
-import { ClientSession } from "@/components/client-session";
-import { UserInfo } from "@/components/user-info";
+import { ClientSession } from "@/components/providers/client-session";
+import { UserInfo } from "@/components/shared/user-info";
 
 export default async function Home() {
   const serverSession = await getServerSession();

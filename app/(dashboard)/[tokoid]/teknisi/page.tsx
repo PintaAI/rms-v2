@@ -1,5 +1,5 @@
 import { getTechnicianDashboard } from "@/actions/service";
-import { TeknisiOverview } from "@/components/dashboard/teknisi-overview";
+import { TeknisiOverview } from "@/components/dashboard/teknisi/teknisi-overview";
 
 export default async function TeknisiOverviewPage({
   params,

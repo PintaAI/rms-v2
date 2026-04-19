@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/auth-provider";
-import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { useAuth } from "@/components/auth/auth-provider";
+import { OnboardingWizard } from "@/components/shared/onboarding-wizard";
 
 export default function OnboardPage() {
   const router = useRouter();

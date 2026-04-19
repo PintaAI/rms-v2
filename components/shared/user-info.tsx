@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RiLogoutBoxRLine, RiUserLine, RiSettings3Line, RiPaletteLine } from "@remixicon/react";
 import { Badge } from "@/components/ui/badge";
-import { ModeToggle } from "@/components/theme-toggle";
+import { ModeToggle } from "@/components/shared/theme-toggle";
 
 function getRoleBadgeVariant(role: string): "default" | "secondary" | "outline" {
   switch (role) {

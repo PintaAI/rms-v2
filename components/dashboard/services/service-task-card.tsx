@@ -87,14 +87,14 @@ import {
   RiCheckDoubleLine,
   RiCloseCircleLine,
 } from "@remixicon/react";
-import { PatternLock } from "@/components/pattern-lock";
+import { PatternLock } from "@/components/shared/pattern-lock";
 import {
   updateStatus,
   removeItem,
   getCompatibleSpareparts,
   getServicePricelists,
 } from "@/actions";
-import { AddRepairItemForm } from "@/components/dashboard/add-repair-item-form";
+import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
 
 // Status badge colors
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {

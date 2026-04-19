@@ -6,7 +6,7 @@ import {
   SidebarMenu,
 } from "@/components/ui/sidebar";
 import { RiDashboardLine, RiToolsLine, RiBox1Line, RiInboxLine, RiProgress1Line, RiCheckLine, RiLogoutBoxLine, RiCloseLine, RiHistoryLine } from "@remixicon/react";
-import { NavItem, NavFilterGroup } from "../nav-item";
+import { NavItem, NavFilterGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
 
 interface StaffNavProps {
