@@ -22,7 +22,6 @@ import {
   RiToolsLine,
   RiCheckDoubleLine,
   RiLogoutBoxLine,
-  RiCloseLine,
   RiAddLine,
   RiArrowRightLine,
 } from "@remixicon/react";
@@ -401,9 +400,8 @@ const getPageTitle = () => {
     if (!statusFilter) return "Semua Service";
     if (statusFilter === "received") return "Service Masuk";
     if (statusFilter === "repairing") return "Service Proses";
-    if (statusFilter === "done") return "Service Selesai";
+    if (statusFilter === "done,failed" || statusFilter === "failed,done") return "Service Selesai & Gagal";
     if (statusFilter === "picked_up") return "Service Diambil";
-    if (statusFilter === "failed") return "Service Gagal";
     return "Service";
   };
 
@@ -427,7 +425,7 @@ const getPageTitle = () => {
       </div>
 
       <section className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <StatsCard
             title="Masuk"
             value={stats.received}
@@ -443,23 +441,17 @@ const getPageTitle = () => {
             variant="accent"
           />
           <StatsCard
-            title="Selesai"
-            value={stats.done}
+            title="Selesai & Gagal"
+            value={stats.done + stats.failed}
             icon={<RiCheckDoubleLine className="h-4 w-4" />}
-            description="siap diambil"
-            variant="success"
+            description={`${stats.done} selesai, ${stats.failed} gagal`}
+            variant={stats.failed > 0 ? "warning" : "success"}
           />
           <StatsCard
             title="Diambil"
             value={stats.picked_up}
             icon={<RiLogoutBoxLine className="h-4 w-4" />}
             description="sudah selesai"
-          />
-          <StatsCard
-            title="Gagal"
-            value={stats.failed}
-            icon={<RiCloseLine className="h-4 w-4" />}
-            variant={stats.failed > 0 ? "warning" : "default"}
           />
           <StatsCard
             title="Total"
@@ -477,12 +469,12 @@ const getPageTitle = () => {
               services={tableServices}
               preset="adminActive"
               emptyMessage={`Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`}
-              onEdit={statusFilter === "done" || statusFilter === "failed" ? undefined : handleEdit}
-              onDelete={statusFilter === "done" || statusFilter === "failed" ? undefined : handleDelete}
+              onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleEdit}
+              onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleDelete}
               onAssignTech={handleAssignTech}
               onMarkPaid={handleMarkPaid}
-              onPickup={handlePickup}
-              onCall={statusFilter === "done" || statusFilter === "failed" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
+              onPickup={statusFilter ? handlePickup : undefined}
+              onCall={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
               onRowClick={handleRowClick}
               tokoId={tokoId}
             />

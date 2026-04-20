@@ -93,7 +93,7 @@ export function AppSidebarHeader({
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   tooltip={currentToko?.name || "Pilih Toko"}
-                  className="relative group-data-[collapsible=icon]:!p-0 h-auto py-3 overflow-hidden data-[state=open]:bg-sidebar-accent/80 data-[state=open]:text-sidebar-accent-foreground transition-all duration-300 hover:bg-sidebar-accent/50 group"
+                  className="relative border border-border group-data-[collapsible=icon]:!p-0 h-auto py-3 overflow-hidden data-[state=open]:bg-sidebar-accent/80 data-[state=open]:text-sidebar-accent-foreground transition-all duration-300 hover:bg-sidebar-accent/50 group"
                 >
                   <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-transparent via-primary/60 to-transparent opacity-0 group-hover:opacity-100 group-data-[state=open]:opacity-100 transition-all duration-300 group-data-[collapsible=icon]:hidden" />
                   <div className="absolute -top-6 -right-6 w-12 h-12 bg-primary/5 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-all duration-300 group-data-[collapsible=icon]:hidden" />
@@ -111,14 +111,14 @@ export function AppSidebarHeader({
                   <RiArrowDownSLine className="size-4 ml-auto transition-transform duration-300 group-data-[state=open]:rotate-180 group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64 p-1.5">
+               <DropdownMenuContent align="start" className="w-64 p-1.5 space-y-2">
                 {tokoList?.map((toko) => {
                   const isSelected = toko.id === tokoid;
                   return (
                     <DropdownMenuItem
                       key={toko.id}
                       onClick={() => handleTokoSwitch(toko.id)}
-                      className={`relative p-2.5 border border-border rounded-lg overflow-hidden transition-all duration-300 ${isSelected ? "bg-gradient-to-r from-primary/10 via-primary/5 to-transparent" : ""} hover:bg-sidebar-accent/80`}
+                      className={`relative p-2.5 rounded-lg overflow-hidden transition-all duration-300 ${isSelected ? "bg-gradient-to-r from-primary/10 via-primary/5 to-transparent" : ""} hover:bg-sidebar-accent/80`}
                       disabled={isPending}
                     >
                       {isSelected && (

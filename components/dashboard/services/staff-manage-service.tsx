@@ -15,7 +15,6 @@ import {
   RiToolsLine,
   RiCheckLine,
   RiLogoutBoxLine,
-  RiCloseLine,
   RiAddLine,
   RiHistoryLine,
 } from "@remixicon/react";
@@ -319,9 +318,8 @@ export function StaffManageService({
     if (!statusFilter) return "Semua Service";
     if (statusFilter === "received") return "Service Masuk";
     if (statusFilter === "repairing") return "Service Proses";
-    if (statusFilter === "done") return "Service Selesai";
+    if (statusFilter === "done,failed" || statusFilter === "failed,done") return "Service Selesai & Gagal";
     if (statusFilter === "picked_up") return "Service Diambil";
-    if (statusFilter === "failed") return "Service Gagal";
     return "Service";
   };
 
@@ -340,7 +338,7 @@ export function StaffManageService({
         </Button>
       </div>
 
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-7">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         <StatsCard
           title="Masuk"
           value={stats.received}
@@ -352,21 +350,15 @@ export function StaffManageService({
           icon={<RiToolsLine className="h-3 w-3" />}
         />
         <StatsCard
-          title="Selesai"
-          value={stats.done}
+          title="Selesai & Gagal"
+          value={stats.done + stats.failed}
           icon={<RiCheckLine className="h-3 w-3" />}
-          variant="success"
+          variant={stats.failed > 0 ? "warning" : "success"}
         />
         <StatsCard
           title="Diambil"
           value={stats.picked_up}
           icon={<RiLogoutBoxLine className="h-3 w-3" />}
-        />
-        <StatsCard
-          title="Gagal"
-          value={stats.failed}
-          icon={<RiCloseLine className="h-3 w-3" />}
-          variant={stats.failed > 0 ? "warning" : "default"}
         />
         <StatsCard
           title="History"
@@ -386,11 +378,11 @@ export function StaffManageService({
             services={tableServices}
             preset="staffActive"
             emptyMessage={`Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`}
-            onEdit={statusFilter === "done" || statusFilter === "failed" || statusFilter === "picked_up" ? undefined : handleEdit}
-            onDelete={statusFilter === "done" || statusFilter === "failed" || statusFilter === "picked_up" ? undefined : handleDelete}
+            onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleEdit}
+            onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleDelete}
             onMarkPaid={!statusFilter ? undefined : handleMarkPaid}
             onPickup={!statusFilter ? undefined : handlePickup}
-            onCall={statusFilter === "done" || statusFilter === "failed" || statusFilter === "picked_up" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
+            onCall={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
             tokoId={tokoId}
             disableAssignment={true}
           />

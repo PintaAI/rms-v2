@@ -5,7 +5,7 @@ import {
   SidebarGroupContent,
   SidebarMenu,
 } from "@/components/ui/sidebar";
-import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine, RiCloseLine } from "@remixicon/react";
+import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine } from "@remixicon/react";
 import { NavItem, NavFilterGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
 
@@ -54,23 +54,16 @@ export function AdminNav({ tokoid, serviceStats }: AdminNavProps) {
                 badgeVariant: "accent",
               },
               {
-                href: `/${tokoid}/admin/service?status=done`,
+                href: `/${tokoid}/admin/service?status=done,failed`,
                 icon: <RiCheckLine />,
-                label: "Selesai",
-                badge: serviceStats?.done,
+                label: "Selesai & Gagal",
+                badge: (serviceStats?.done || 0) + (serviceStats?.failed || 0),
                 badgeVariant: "success",
-              },
-              {
-                href: `/${tokoid}/admin/service?status=failed`,
-                icon: <RiCloseLine />,
-                label: "Gagal",
-                badge: serviceStats?.failed,
-                badgeVariant: "destructive",
               },
               {
                 href: `/${tokoid}/admin/service?status=picked_up`,
                 icon: <RiLogoutBoxLine />,
-                label: "Diambil",
+                label: "Sudah Diambil",
                 badge: serviceStats?.pickedUp,
                 badgeVariant: "outline",
               },

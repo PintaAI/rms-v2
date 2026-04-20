@@ -20,7 +20,7 @@ import {
   RiMoreLine,
   RiPencilLine,
   RiDeleteBinLine,
-  RiPhoneLine,
+  RiWhatsappLine,
   RiCheckLine,
   RiMoneyDollarCircleLine,
   RiTaskLine,
@@ -79,6 +79,21 @@ export function ServiceTable({
     onCall?.(phone, service);
   };
 
+  const getRowStatusClass = (statusColor: ReturnType<typeof getStatusColor>) => {
+    switch (statusColor) {
+      case "success":
+        return "bg-green-500/[0.04] hover:bg-green-500/[0.08]";
+      case "accent":
+        return "bg-sky-500/[0.04] hover:bg-sky-500/[0.08]";
+      case "destructive":
+        return "bg-destructive/[0.04] hover:bg-destructive/[0.08]";
+      case "secondary":
+        return "bg-muted/25 hover:bg-muted/35";
+      default:
+        return "bg-border/10 hover:bg-border/20";
+    }
+  };
+
 return (
     <TooltipProvider>
       <Table>
@@ -113,7 +128,8 @@ return (
                 key={service.id}
                 className={`
                   group transition-all duration-200
-                  ${onRowClick ? "cursor-pointer hover:bg-muted/50" : "hover:bg-muted/30"}
+                  ${getRowStatusClass(statusColor)}
+                  ${onRowClick ? "cursor-pointer" : ""}
                 `}
                 onClick={() => onRowClick?.(service)}
               >
@@ -137,9 +153,8 @@ return (
                     <div className="flex flex-col gap-2">
                       {onTake && service.status === "received" && !service.technician && (
                         <Button
-                          variant="default"
                           size="sm"
-                          className="h-7 text-xs bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-sm shadow-primary/10"
+                          className="h-7 text-xs bg-chart-2 hover:bg-chart-2/80 text-primary-foreground shadow-sm"
                           onClick={(e) => { e.stopPropagation(); onTake(service.id); }}
                         >
                           <RiTaskLine className="h-3.5 w-3.5 mr-1" />
@@ -148,9 +163,8 @@ return (
                       )}
                       {showMarkPaid && service.invoice?.paymentStatus === "unpaid" && (
                         <Button
-                          variant="outline"
                           size="sm"
-                          className="h-7 text-xs border-success/30 bg-success/5 hover:bg-success/10 text-chart-1"
+                          className="h-7 text-xs bg-chart-1 hover:bg-chart-1/80 text-primary-foreground shadow-sm"
                           onClick={(e) => { e.stopPropagation(); onMarkPaid(service.invoice!.id, service.id); }}
                         >
                           <RiMoneyDollarCircleLine className="h-3.5 w-3.5 mr-1" />
@@ -159,24 +173,24 @@ return (
                       )}
                       {onCall && (
                         <Button
-                          variant="outline"
                           size="sm"
-                          className="h-7 text-xs"
+                          className="h-7 border border-green-200 bg-green-100 text-xs text-green-700 hover:bg-green-200 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/60"
                           onClick={(e) => { e.stopPropagation(); handleCallClick(service.noWa, service); }}
                         >
-                          <RiPhoneLine className="h-3.5 w-3.5 mr-1" />
-                          Hubungi WhatsApp
+                          <RiWhatsappLine className="h-3.5 w-3.5 mr-1" />
+                          WhatsApp
                         </Button>
                       )}
                       {onPickup && (service.status === "done" || service.status === "failed") && (
                         <Button
-                          variant="default"
                           size="sm"
-                          className="h-7 text-xs bg-gradient-to-r from-primary to-primary/90"
+                          className={`h-7 text-xs shadow-sm ${
+                            "bg-muted/60 text-foreground hover:bg-muted/80 dark:bg-muted/30 dark:hover:bg-muted/50"
+                          }`}
                           onClick={(e) => { e.stopPropagation(); onPickup(service.id); }}
                         >
                           <RiCheckLine className="h-3.5 w-3.5 mr-1" />
-                          Tandai Diambil
+                          Picked up
                         </Button>
                       )}
                       {showDropdownActions && (

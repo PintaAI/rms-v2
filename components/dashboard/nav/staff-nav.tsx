@@ -5,7 +5,7 @@ import {
   SidebarGroupContent,
   SidebarMenu,
 } from "@/components/ui/sidebar";
-import { RiDashboardLine, RiToolsLine, RiBox1Line, RiInboxLine, RiProgress1Line, RiCheckLine, RiLogoutBoxLine, RiCloseLine, RiHistoryLine } from "@remixicon/react";
+import { RiDashboardLine, RiToolsLine, RiBox1Line, RiInboxLine, RiProgress1Line, RiCheckLine, RiLogoutBoxLine } from "@remixicon/react";
 import { NavItem, NavFilterGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
 
@@ -48,17 +48,11 @@ export function StaffNav({ tokoid, serviceStats }: StaffNavProps) {
                 badge: serviceStats?.repairing,
               },
               {
-                href: `/${tokoid}/staff/service?status=done`,
+                href: `/${tokoid}/staff/service?status=done,failed`,
                 icon: <RiCheckLine />,
-                label: "Selesai",
-                badge: serviceStats?.done,
+                label: "Selesai & Gagal",
+                badge: (serviceStats?.done || 0) + (serviceStats?.failed || 0),
                 badgeVariant: "success",
-              },
-              {
-                href: `/${tokoid}/staff/service?status=failed`,
-                icon: <RiCloseLine />,
-                label: "Gagal",
-                badge: serviceStats?.failed,
               },
               {
                 href: `/${tokoid}/staff/service?status=picked_up`,
