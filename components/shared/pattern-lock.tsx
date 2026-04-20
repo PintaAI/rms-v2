@@ -24,11 +24,11 @@ interface PatternLockProps {
   onPatternChange?: (pattern: number[]) => void;
   /** External error state to show error styling */
   error?: boolean;
-  /** Custom error color */
+  /** Custom error color (CSS variable name or hex) */
   errorColor?: string;
-  /** Custom primary/accent color */
+  /** Custom primary/accent color (CSS variable name or hex) */
   primaryColor?: string;
-  /** Custom inactive color */
+  /** Custom inactive color (CSS variable name or hex) */
   inactiveColor?: string;
   /** Delay in ms before auto-reset after completion */
   resetDelay?: number;

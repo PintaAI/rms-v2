@@ -1,13 +1,13 @@
 import { put, del, head, list, copy } from "@vercel/blob";
 
 // Custom token name for this project
-const BLOB_TOKEN = process.env.rms_READ_WRITE_TOKEN;
+const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
 /**
  * Vercel Blob Storage Utility
  *
  * This module provides helper functions for interacting with Vercel Blob Storage.
- * Make sure to set rms_READ_WRITE_TOKEN in your environment variables.
+ * Make sure to set BLOB_READ_WRITE_TOKEN in your environment variables.
  *
  * @see https://vercel.com/docs/storage/vercel-blob
  */

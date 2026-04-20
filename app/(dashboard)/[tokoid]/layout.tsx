@@ -40,13 +40,13 @@ export default async function DashboardLayout({ children, params }: DashboardLay
     <SidebarProvider>
       <AppSidebar tokoid={tokoid} serviceStats={serviceStats} technicianTaskStats={technicianTaskStats} />
       <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-4">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger />
+        <header className="flex h-16 shrink-0 items-start justify-between gap-2 pt-4 px-4 bg-background/95">
+          <div className="flex gap-2">
+            <SidebarTrigger data-tour="sidebar-trigger" />
             <Separator orientation="vertical" className="h-6" />
             <DynamicBreadcrumb />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 self-center">
             <LiveClock />
             <UserInfo />
           </div>

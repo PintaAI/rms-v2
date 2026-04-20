@@ -15,11 +15,13 @@ export const statusIcons: Record<StatusKey, React.ComponentType<{ className?: st
   failed: RiCloseLine,
 };
 
-export const statusColors: Record<StatusKey, "default" | "secondary" | "destructive" | "outline"> = {
+export type StatusColor = "secondary" | "accent" | "success" | "outline" | "destructive";
+
+export const statusColors: Record<StatusKey, StatusColor> = {
   received: "secondary",
-  repairing: "default",
-  done: "outline",
-  picked_up: "default",
+  repairing: "accent",
+  done: "success",
+  picked_up: "outline",
   failed: "destructive",
 };
 
@@ -31,9 +33,9 @@ export const statusLabels: Record<StatusKey, string> = {
   failed: "gagal service",
 };
 
-export const paymentStatusColors: Record<PaymentStatusKey, "default" | "secondary" | "destructive" | "outline"> = {
+export const paymentStatusColors: Record<PaymentStatusKey, "success" | "destructive"> = {
   unpaid: "destructive",
-  paid: "default",
+  paid: "success",
 };
 
 export function formatDate(date: Date | null | undefined): string {
@@ -56,7 +58,7 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export function getStatusColor(status: string): "default" | "secondary" | "destructive" | "outline" {
+export function getStatusColor(status: string): StatusColor {
   return statusColors[status as StatusKey] || "outline";
 }
 
@@ -68,8 +70,8 @@ export function getStatusIcon(status: string): React.ComponentType<{ className?:
   return statusIcons[status as StatusKey] || null;
 }
 
-export function getPaymentStatusColor(status: string): "default" | "secondary" | "destructive" | "outline" {
-  return paymentStatusColors[status as PaymentStatusKey] || "outline";
+export function getPaymentStatusColor(status: string): "success" | "destructive" {
+  return paymentStatusColors[status as PaymentStatusKey] || "destructive";
 }
 
 export function formatWhatsApp(phone: string): string {

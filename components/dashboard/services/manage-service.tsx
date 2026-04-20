@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -20,10 +20,11 @@ import type { ServiceTableItem } from "@/components/dashboard/services/service-t
 import {
   RiInboxLine,
   RiToolsLine,
-  RiCheckLine,
+  RiCheckDoubleLine,
   RiLogoutBoxLine,
   RiCloseLine,
   RiAddLine,
+  RiArrowRightLine,
 } from "@remixicon/react";
 
 interface ServiceStats {
@@ -42,29 +43,70 @@ interface ManageServiceProps {
   pageSize: number;
 }
 
-function StatsCard({
-  title,
-  value,
-  icon,
-  variant = "default",
-}: {
+type StatsVariant = "default" | "primary" | "success" | "warning" | "accent";
+
+interface StatsCardProps {
   title: string;
   value: number;
   icon: React.ReactNode;
-  variant?: "default" | "warning" | "success";
-}) {
+  description?: string;
+  variant?: StatsVariant;
+}
+
+function StatsCard({ title, value, icon, description, variant = "default" }: StatsCardProps) {
+  const bgStyles: Record<StatsVariant, string> = {
+    default: "bg-card",
+    primary: "bg-gradient-to-br from-primary/5 via-card to-primary/[0.02]",
+    success: "bg-gradient-to-br from-chart-1/5 via-card to-chart-1/[0.02]",
+    warning: "bg-gradient-to-br from-destructive/5 via-card to-destructive/[0.02]",
+    accent: "bg-gradient-to-br from-sky-500/5 via-card to-sky-500/[0.02]",
+  };
+
+  const accentColors: Record<StatsVariant, string> = {
+    default: "bg-border",
+    primary: "bg-primary",
+    success: "bg-chart-1",
+    warning: "bg-destructive",
+    accent: "bg-sky-500",
+  };
+
+  const iconBgStyles: Record<StatsVariant, string> = {
+    default: "bg-muted",
+    primary: "bg-primary/10",
+    success: "bg-chart-1/10",
+    warning: "bg-destructive/10",
+    accent: "bg-sky-500/10",
+  };
+
+  const iconTextStyles: Record<StatsVariant, string> = {
+    default: "text-muted-foreground",
+    primary: "text-primary",
+    success: "text-chart-1",
+    warning: "text-destructive",
+    accent: "text-sky-500",
+  };
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <div className="h-6 w-6 rounded-lg bg-muted flex items-center justify-center">
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
+    <div
+      className={`relative ${bgStyles[variant]} rounded-xl border border-border/50 overflow-hidden group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/10 hover:border-border/80`}
+    >
+      <div className={`absolute top-0 left-0 w-1 h-full ${accentColors[variant]} transition-all duration-300 opacity-80 group-hover:w-1.5 group-hover:opacity-100`} />
+      <div className={`absolute top-3 right-3 w-8 h-8 rounded-md ${iconBgStyles[variant]} flex items-center justify-center ${iconTextStyles[variant]} transition-all duration-300 group-hover:scale-115 group-hover:rounded-lg`}>
+        {icon}
+      </div>
+      <div className={`absolute top-0 right-0 w-20 h-20 ${accentColors[variant]}/5 rounded-full blur-2xl transition-all duration-300 group-hover:w-28 group-hover:h-28 group-hover:opacity-80`} />
+      <div className="pl-5 pr-4 pt-5 pb-5 relative z-10">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest transition-colors duration-300 group-hover:text-muted-foreground/90">{title}</p>
+        <div className="mt-2 text-3xl font-black tracking-tight text-foreground tabular-nums transition-transform duration-300 group-hover:scale-[1.02]">{value}</div>
+        {description && (
+          <p className="text-xs text-muted-foreground/80 mt-1.5 flex items-center gap-1 transition-colors duration-300 group-hover:text-muted-foreground/90">
+            <RiArrowRightLine className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-0.5" />
+            {description}
+          </p>
+        )}
+      </div>
+      <div className={`absolute bottom-0 left-0 right-0 h-px ${accentColors[variant]}/20 transition-all duration-300 group-hover:h-0.5 group-hover:opacity-40`} />
+    </div>
   );
 }
 
@@ -366,117 +408,132 @@ const getPageTitle = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{getPageTitle()}</h1>
-          <p className="text-sm text-muted-foreground">
-            Halaman {currentPage} dari {totalPages || 1} ({filteredServices.length} dari {services.length} total)
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="h-5 w-1 bg-primary rounded-full" />
+          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{getPageTitle()}</h2>
+          <span className="text-xs text-muted-foreground/60">
+            Halaman {currentPage} dari {totalPages || 1} ({filteredServices.length} dari {services.length})
+          </span>
         </div>
-        <Button onClick={() => { setEditData(null); setFormOpen(true); }}>
-          <RiAddLine className="h-4 w-4 mr-1" />
+        <Button
+          onClick={() => { setEditData(null); setFormOpen(true); }}
+          className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+        >
+          <RiAddLine className="h-4 w-4 mr-1.5" />
           New Service
         </Button>
       </div>
 
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-        <StatsCard
-          title="Masuk"
-          value={stats.received}
-          icon={<RiInboxLine className="h-3 w-3" />}
-        />
-        <StatsCard
-          title="Proses"
-          value={stats.repairing}
-          icon={<RiToolsLine className="h-3 w-3" />}
-        />
-        <StatsCard
-          title="Selesai"
-          value={stats.done}
-          icon={<RiCheckLine className="h-3 w-3" />}
-          variant="success"
-        />
-        <StatsCard
-          title="Diambil"
-          value={stats.picked_up}
-          icon={<RiLogoutBoxLine className="h-3 w-3" />}
-        />
-        <StatsCard
-          title="Gagal"
-          value={stats.failed}
-          icon={<RiCloseLine className="h-3 w-3" />}
-          variant={stats.failed > 0 ? "warning" : "default"}
-        />
-        <StatsCard
-          title="Total"
-          value={stats.total}
-          icon={<RiInboxLine className="h-3 w-3" />}
-        />
-      </div>
-
-      <Card>
-        <CardContent className="pt-6">
-          <ServiceTable
-            services={tableServices}
-            preset="adminActive"
-            emptyMessage={`Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`}
-            onEdit={statusFilter === "done" || statusFilter === "failed" ? undefined : handleEdit}
-            onDelete={statusFilter === "done" || statusFilter === "failed" ? undefined : handleDelete}
-            onAssignTech={handleAssignTech}
-            onMarkPaid={handleMarkPaid}
-            onPickup={handlePickup}
-            onCall={statusFilter === "done" || statusFilter === "failed" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
-            onRowClick={handleRowClick}
-            tokoId={tokoId}
+      <section className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+          <StatsCard
+            title="Masuk"
+            value={stats.received}
+            icon={<RiInboxLine className="h-4 w-4" />}
+            description="menunggu teknisi"
+            variant="primary"
           />
+          <StatsCard
+            title="Proses"
+            value={stats.repairing}
+            icon={<RiToolsLine className="h-4 w-4" />}
+            description="sedang diperbaiki"
+            variant="accent"
+          />
+          <StatsCard
+            title="Selesai"
+            value={stats.done}
+            icon={<RiCheckDoubleLine className="h-4 w-4" />}
+            description="siap diambil"
+            variant="success"
+          />
+          <StatsCard
+            title="Diambil"
+            value={stats.picked_up}
+            icon={<RiLogoutBoxLine className="h-4 w-4" />}
+            description="sudah selesai"
+          />
+          <StatsCard
+            title="Gagal"
+            value={stats.failed}
+            icon={<RiCloseLine className="h-4 w-4" />}
+            variant={stats.failed > 0 ? "warning" : "default"}
+          />
+          <StatsCard
+            title="Total"
+            value={stats.total}
+            icon={<RiInboxLine className="h-4 w-4" />}
+            description="semua service"
+          />
+        </div>
+      </section>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => handlePageChange(currentPage - 1)}
-              >
-                Previous
-              </Button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={currentPage === pageNum ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePageChange(pageNum)}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
+      <section>
+        <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
+          <CardContent className="p-0">
+            <ServiceTable
+              services={tableServices}
+              preset="adminActive"
+              emptyMessage={`Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`}
+              onEdit={statusFilter === "done" || statusFilter === "failed" ? undefined : handleEdit}
+              onDelete={statusFilter === "done" || statusFilter === "failed" ? undefined : handleDelete}
+              onAssignTech={handleAssignTech}
+              onMarkPaid={handleMarkPaid}
+              onPickup={handlePickup}
+              onCall={statusFilter === "done" || statusFilter === "failed" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
+              onRowClick={handleRowClick}
+              tokoId={tokoId}
+            />
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 px-6 py-4 border-t border-border/50 bg-muted/30">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                >
+                  Next
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => handlePageChange(currentPage + 1)}
-              >
-                Next
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       <ServicesForm
         open={formOpen}

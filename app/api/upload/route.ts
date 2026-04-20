@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Check if blob storage is configured
     if (!isBlobConfigured()) {
       return NextResponse.json(
-        { error: "Blob storage is not configured. Set rms_READ_WRITE_TOKEN environment variable." },
+        { error: "Blob storage is not configured. Set BLOB_READ_WRITE_TOKEN environment variable." },
         { status: 500 }
       );
     }
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     if (!isBlobConfigured()) {
       console.error("[Upload API] Blob storage is not configured");
       return NextResponse.json(
-        { error: "Blob storage is not configured. Set rms_READ_WRITE_TOKEN environment variable." },
+        { error: "Blob storage is not configured. Set BLOB_READ_WRITE_TOKEN environment variable." },
         { status: 500 }
       );
     }
@@ -177,7 +177,7 @@ export async function PUT(request: NextRequest) {
     // Check if blob storage is configured
     if (!isBlobConfigured()) {
       return NextResponse.json(
-        { error: "Blob storage is not configured. Set rms_READ_WRITE_TOKEN environment variable." },
+        { error: "Blob storage is not configured. Set BLOB_READ_WRITE_TOKEN environment variable." },
         { status: 500 }
       );
     }
@@ -229,7 +229,7 @@ export async function DELETE(request: NextRequest) {
     // Check if blob storage is configured
     if (!isBlobConfigured()) {
       return NextResponse.json(
-        { error: "Blob storage is not configured. Set rms_READ_WRITE_TOKEN environment variable." },
+        { error: "Blob storage is not configured. Set BLOB_READ_WRITE_TOKEN environment variable." },
         { status: 500 }
       );
     }

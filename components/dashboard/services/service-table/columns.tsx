@@ -4,7 +4,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getBrandIcon } from "@/lib/brand-icons";
-import { RiUserStarLine, RiUserLine, RiCheckLine } from "@remixicon/react";
+import { RiUserStarLine, RiUserLine, RiCheckLine, RiCalendarLine, RiCheckDoubleLine, RiLogoutBoxLine } from "@remixicon/react";
 import type { ServiceTableItem, ColumnKey } from "./types";
 import { formatDate, formatCurrency, getStatusColor, getStatusLabel, getPaymentStatusColor, getStatusIcon } from "./utils";
 import { TechnicianDropdown } from "./technician-dropdown";
@@ -31,13 +31,13 @@ export const columnHeaders: Record<ColumnKey, string> = {
 
 export function renderCustomerCell(service: ServiceTableItem): React.ReactNode {
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+    <div className="flex items-center gap-3">
+      <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center text-primary transition-all duration-200">
         <RiUserLine className="h-4 w-4" />
       </div>
-      <div className="flex flex-col">
-        <span className="font-medium">{service.customerName || "-"}</span>
-        <span className="text-xs text-muted-foreground">{service.noWa}</span>
+      <div className="flex flex-col min-w-0">
+        <span className="font-semibold truncate">{service.customerName || "-"}</span>
+        <span className="text-xs text-muted-foreground truncate">{service.noWa}</span>
       </div>
     </div>
   );
@@ -45,13 +45,13 @@ export function renderCustomerCell(service: ServiceTableItem): React.ReactNode {
 
 export function renderDeviceCell(service: ServiceTableItem): React.ReactNode {
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground">
+    <div className="flex items-center gap-3">
+      <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center text-muted-foreground transition-all duration-200">
         {getBrandIcon(service.hpCatalog.brand.name)}
       </div>
-      <div>
-        <div className="font-medium">{service.hpCatalog.brand.name}</div>
-        <div className="text-xs text-muted-foreground">{service.hpCatalog.modelName}</div>
+      <div className="min-w-0">
+        <div className="font-semibold truncate">{service.hpCatalog.brand.name}</div>
+        <div className="text-xs text-muted-foreground truncate">{service.hpCatalog.modelName}</div>
       </div>
     </div>
   );
@@ -90,17 +90,21 @@ export function renderNoteCell(service: ServiceTableItem): React.ReactNode {
 export function renderCreatedByCell(service: ServiceTableItem): React.ReactNode {
   if (service.createdBy?.name) {
     return (
-      <Badge variant="default">
-        <RiUserStarLine className="h-3 w-3 mr-1" />
-        {service.createdBy.name}
-      </Badge>
+      <div className="flex items-center gap-2">
+        <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+          <RiUserStarLine className="h-3 w-3 text-primary" />
+        </div>
+        <span className="font-medium text-sm">{service.createdBy.name}</span>
+      </div>
     );
   }
   return (
-    <Badge variant="secondary">
-      <RiUserLine className="h-3 w-3 mr-1" />
-      Unknown
-    </Badge>
+    <div className="flex items-center gap-2">
+      <div className="h-6 w-6 rounded-lg bg-muted/50 flex items-center justify-center">
+        <RiUserLine className="h-3 w-3 text-muted-foreground" />
+      </div>
+      <span className="text-sm text-muted-foreground">Unknown</span>
+    </div>
   );
 }
 
@@ -133,18 +137,22 @@ export function renderTechnicianCell(
 
   if (service.technician) {
     return (
-      <Badge variant="default">
-        <RiUserStarLine className="h-3 w-3 mr-1" />
-        {service.technician.name}
-      </Badge>
+      <div className="flex items-center gap-2">
+        <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center">
+          <RiUserStarLine className="h-3 w-3 text-sky-500" />
+        </div>
+        <span className="font-medium text-sm">{service.technician.name}</span>
+      </div>
     );
   }
 
   return (
-    <Badge variant="secondary">
-      <RiUserLine className="h-3 w-3 mr-1" />
-      Unassigned
-    </Badge>
+    <div className="flex items-center gap-2">
+      <div className="h-6 w-6 rounded-lg bg-muted/50 flex items-center justify-center">
+        <RiUserLine className="h-3 w-3 text-muted-foreground" />
+      </div>
+      <span className="text-sm text-muted-foreground">Unassigned</span>
+    </div>
   );
 }
 
@@ -153,30 +161,49 @@ export function renderInvoiceCell(service: ServiceTableItem): React.ReactNode {
     return <span className="text-muted-foreground">-</span>;
   }
 
+  const isPaid = service.invoice.paymentStatus === "paid";
+
   return (
-    <div className="flex flex-col">
-      <span className="text-sm font-medium">{formatCurrency(service.invoice.grandTotal)}</span>
-      <Badge
-        variant={getPaymentStatusColor(service.invoice.paymentStatus)}
-        className="w-fit mt-1"
-      >
-        {service.invoice.paymentStatus === "paid" && <RiCheckLine className="h-3 w-3 mr-1" />}
-        {service.invoice.paymentStatus}
-      </Badge>
+    <div className="flex flex-col gap-1">
+      <span className="text-sm font-semibold tabular-nums">{formatCurrency(service.invoice.grandTotal)}</span>
+      <div className="flex items-center gap-1">
+        {isPaid && <RiCheckLine className="h-3 w-3 text-chart-1" />}
+        <Badge
+          variant={getPaymentStatusColor(service.invoice.paymentStatus)}
+          className="text-[0.6rem]"
+        >
+          {isPaid ? "Paid" : "Unpaid"}
+        </Badge>
+      </div>
     </div>
   );
 }
 
 export function renderCheckinAtCell(service: ServiceTableItem): React.ReactNode {
-  return <span className="text-muted-foreground">{formatDate(service.checkinAt)}</span>;
+  return (
+    <div className="flex items-center gap-2">
+      <RiCalendarLine className="h-3.5 w-3.5 text-muted-foreground" />
+      <span className="text-xs text-muted-foreground">{formatDate(service.checkinAt)}</span>
+    </div>
+  );
 }
 
 export function renderDoneAtCell(service: ServiceTableItem): React.ReactNode {
-  return <span className="text-muted-foreground">{formatDate(service.doneAt)}</span>;
+  return (
+    <div className="flex items-center gap-2">
+      <RiCheckDoubleLine className="h-3.5 w-3.5 text-green-600" />
+      <span className="text-xs text-muted-foreground">{formatDate(service.doneAt)}</span>
+    </div>
+  );
 }
 
 export function renderCheckoutAtCell(service: ServiceTableItem): React.ReactNode {
-  return <span className="text-muted-foreground">{formatDate(service.checkoutAt)}</span>;
+  return (
+    <div className="flex items-center gap-2">
+      <RiLogoutBoxLine className="h-3.5 w-3.5 text-primary" />
+      <span className="text-xs text-muted-foreground">{formatDate(service.checkoutAt)}</span>
+    </div>
+  );
 }
 
 export function getColumnRenderer(

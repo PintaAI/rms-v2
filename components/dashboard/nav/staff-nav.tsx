@@ -52,6 +52,7 @@ export function StaffNav({ tokoid, serviceStats }: StaffNavProps) {
                 icon: <RiCheckLine />,
                 label: "Selesai",
                 badge: serviceStats?.done,
+                badgeVariant: "success",
               },
               {
                 href: `/${tokoid}/staff/service?status=failed`,

@@ -28,7 +28,7 @@ import {
 import type { ServiceTableProps, ServiceTableItem, ColumnKey, ColumnConfig, ColumnsInput } from "./types";
 import { columnHeaders, getColumnRenderer } from "./columns";
 import { resolvePreset, columnPresets } from "./presets";
-import { formatWhatsApp } from "./utils";
+import { formatWhatsApp, getStatusColor } from "./utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 function normalizeColumns(columns?: ColumnsInput): ColumnKey[] {
@@ -79,114 +79,138 @@ export function ServiceTable({
     onCall?.(phone, service);
   };
 
-  return (
+return (
     <TooltipProvider>
       <Table>
       <TableHeader>
-        <TableRow>
+        <TableRow className="hover:bg-transparent border-border/50">
           {effectiveColumns.map((colKey) => (
-            <TableHead key={colKey}>{columnHeaders[colKey]}</TableHead>
+            <TableHead key={colKey} className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground h-9">
+              {columnHeaders[colKey]}
+            </TableHead>
           ))}
-          {hasActions && <TableHead>Actions</TableHead>}
+          {hasActions && <TableHead className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Actions</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
         {services.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={getEmptyColSpan()} className="h-24 text-center">
+            <TableCell colSpan={getEmptyColSpan()} className="h-24 text-center text-muted-foreground">
               {emptyMessage}
             </TableCell>
           </TableRow>
         ) : (
-          services.map((service) => (
-            <TableRow
-              key={service.id}
-              className={onRowClick ? "cursor-pointer hover:bg-muted/50" : ""}
-              onClick={() => onRowClick?.(service)}
-            >
-              {effectiveColumns.map((colKey) => (
-                <TableCell key={colKey}>
-                  {getColumnRenderer(colKey, {
-                    onAssignTech,
-                    tokoId,
-                    disableAssignment,
-                  })(service)}
-                </TableCell>
-              ))}
-              {hasActions && (
-                <TableCell>
-                  <div className="flex flex-col gap-2">
-                    {onTake && service.status === "received" && !service.technician && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); onTake(service.id); }}
-                      >
-                        <RiTaskLine className="h-4 w-4 mr-1" />
-                        Ambil
-                      </Button>
+          services.map((service) => {
+            const statusColor = getStatusColor(service.status);
+            const indicatorClass = 
+              statusColor === 'success' ? 'bg-green-500/60 group-hover:bg-green-500' :
+              statusColor === 'accent' ? 'bg-sky-500/60 group-hover:bg-sky-500' :
+              statusColor === 'destructive' ? 'bg-destructive/60 group-hover:bg-destructive' :
+              statusColor === 'secondary' ? 'bg-muted-foreground/40 group-hover:bg-muted-foreground/60' :
+              'bg-border group-hover:bg-border/80';
+            return (
+              <TableRow
+                key={service.id}
+                className={`
+                  group transition-all duration-200
+                  ${onRowClick ? "cursor-pointer hover:bg-muted/50" : "hover:bg-muted/30"}
+                `}
+                onClick={() => onRowClick?.(service)}
+              >
+                {effectiveColumns.map((colKey, index) => (
+                  <TableCell 
+                    key={colKey}
+                    className={index === 0 ? "relative pl-4" : ""}
+                  >
+                    {index === 0 && (
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${indicatorClass} rounded-full transition-all duration-200 group-hover:w-1.5`} />
                     )}
-                    {showMarkPaid && service.invoice?.paymentStatus === "unpaid" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); onMarkPaid(service.invoice!.id, service.id); }}
-                      >
-                        <RiMoneyDollarCircleLine className="h-4 w-4 mr-1" />
-                        Bayar
-                      </Button>
-                    )}
-                    {onCall && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); handleCallClick(service.noWa, service); }}
-                      >
-                        <RiPhoneLine className="h-4 w-4 mr-1" />
-                        whatsapp
-                      </Button>
-                    )}
-                    {onPickup && (service.status === "done" || service.status === "failed") && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); onPickup(service.id); }}
-                      >
-                        <RiCheckLine className="h-4 w-4 mr-1" />
-                        Diambil
-                      </Button>
-                    )}
-                    {showDropdownActions && (
-                      <DropdownMenu>
-<DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                           <Button variant="ghost" size="icon">
-                             <RiMoreLine className="h-4 w-4" />
-                           </Button>
-                         </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {onEdit && (
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(service); }}>
-                              <RiPencilLine className="h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                          )}
-                          {onDelete && service.invoice?.paymentStatus !== "paid" && (
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={(e) => { e.stopPropagation(); onDelete(service); }}
-                            >
-                              <RiDeleteBinLine className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-                </TableCell>
-              )}
-            </TableRow>
-          ))
+                    {getColumnRenderer(colKey, {
+                      onAssignTech,
+                      tokoId,
+                      disableAssignment,
+                    })(service)}
+                  </TableCell>
+                ))}
+                {hasActions && (
+                  <TableCell>
+                    <div className="flex flex-col gap-2">
+                      {onTake && service.status === "received" && !service.technician && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-7 text-xs bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-sm shadow-primary/10"
+                          onClick={(e) => { e.stopPropagation(); onTake(service.id); }}
+                        >
+                          <RiTaskLine className="h-3.5 w-3.5 mr-1" />
+                          Ambil
+                        </Button>
+                      )}
+                      {showMarkPaid && service.invoice?.paymentStatus === "unpaid" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs border-success/30 bg-success/5 hover:bg-success/10 text-chart-1"
+                          onClick={(e) => { e.stopPropagation(); onMarkPaid(service.invoice!.id, service.id); }}
+                        >
+                          <RiMoneyDollarCircleLine className="h-3.5 w-3.5 mr-1" />
+                          Bayar
+                        </Button>
+                      )}
+                      {onCall && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={(e) => { e.stopPropagation(); handleCallClick(service.noWa, service); }}
+                        >
+                          <RiPhoneLine className="h-3.5 w-3.5 mr-1" />
+                          Hubungi WhatsApp
+                        </Button>
+                      )}
+                      {onPickup && (service.status === "done" || service.status === "failed") && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-7 text-xs bg-gradient-to-r from-primary to-primary/90"
+                          onClick={(e) => { e.stopPropagation(); onPickup(service.id); }}
+                        >
+                          <RiCheckLine className="h-3.5 w-3.5 mr-1" />
+                          Tandai Diambil
+                        </Button>
+                      )}
+                      {showDropdownActions && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted">
+                              <RiMoreLine className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-[120px]">
+                            {onEdit && (
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(service); }}>
+                                <RiPencilLine className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            {onDelete && service.invoice?.paymentStatus !== "paid" && (
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={(e) => { e.stopPropagation(); onDelete(service); }}
+                              >
+                                <RiDeleteBinLine className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            );
+          })
         )}
       </TableBody>
       </Table>

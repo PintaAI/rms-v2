@@ -9,7 +9,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   RiUserLine,
   RiUserStarLine,
@@ -17,6 +16,7 @@ import {
   RiLoader4Line,
   RiArrowDownSLine,
   RiCheckLine,
+  RiAddLine,
 } from "@remixicon/react";
 import { getTechniciansByToko, assignTechnician } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
@@ -86,23 +86,27 @@ export function TechnicianDropdown({
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 px-2 data-[state=open]:bg-muted"
+          className="h-auto px-2 py-1 data-[state=open]:bg-muted/50 transition-all duration-200"
           disabled={isUpdating || isDisabled}
         >
           {isUpdating ? (
-            <RiLoader4Line className="h-4 w-4 animate-spin" />
+            <RiLoader4Line className="h-3.5 w-3.5 animate-spin" />
           ) : currentTechnician ? (
-            <Badge variant="default" className="font-normal">
-              <RiUserStarLine className="h-3 w-3 mr-1" />
-              {currentTechnician.name}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 rounded-md bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center">
+                <RiUserStarLine className="h-3 w-3 text-sky-500" />
+              </div>
+              <span className="font-medium text-sm">{currentTechnician.name}</span>
+            </div>
           ) : (
-            <Badge variant="secondary" className="font-normal">
-              <RiUserLine className="h-3 w-3 mr-1" />
-              Unassigned
-            </Badge>
+            <div className="flex items-center gap-2">
+              <div className="h-5 w-5 rounded-md bg-muted/50 flex items-center justify-center">
+                <RiUserLine className="h-3 w-3 text-muted-foreground" />
+              </div>
+              <span className="text-sm text-muted-foreground">Unassigned</span>
+            </div>
           )}
-          {!isDisabled && <RiArrowDownSLine className="h-3 w-3 ml-1 text-muted-foreground" />}
+          {!isDisabled && <RiArrowDownSLine className="h-3 w-3 ml-0.5 text-muted-foreground" />}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56" onClick={(e) => e.stopPropagation()}>
@@ -113,7 +117,9 @@ export function TechnicianDropdown({
           </div>
         ) : technicians.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-4 text-sm text-muted-foreground">
-            <RiUserLine className="h-6 w-6 mb-2 opacity-50" />
+            <div className="h-10 w-10 rounded-xl bg-muted/50 flex items-center justify-center mb-2">
+              <RiUserLine className="h-5 w-5 opacity-50" />
+            </div>
             No technicians available
           </div>
         ) : (
@@ -121,7 +127,7 @@ export function TechnicianDropdown({
             {currentTechnician && (
               <DropdownMenuItem
                 onClick={() => handleAssign(null)}
-                className="text-destructive focus:text-destructive"
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
               >
                 <RiCloseLine className="h-4 w-4 mr-2" />
                 Unassign
@@ -132,14 +138,22 @@ export function TechnicianDropdown({
               <DropdownMenuItem
                 key={tech.id}
                 onClick={() => handleAssign(tech.id)}
+                className="flex items-center gap-3"
               >
-                {tech.id === currentTechnician?.id && (
-                  <RiCheckLine className="h-4 w-4 mr-2 text-primary" />
-                )}
-                <div className="flex flex-col">
-                  <span>{tech.name}</span>
+                <div className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
+                  tech.id === currentTechnician?.id 
+                    ? 'bg-gradient-to-br from-accent/15 to-accent/5' 
+                    : 'bg-muted/50'
+                }`}>
+                  {tech.id === currentTechnician?.id 
+                    ? <RiCheckLine className="h-3.5 w-3.5 text-primary" />
+                    : <RiAddLine className="h-3.5 w-3.5 text-muted-foreground" />
+                  }
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-medium truncate">{tech.name}</span>
                   {tech.id !== currentTechnician?.id && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground truncate">
                       {tech.email}
                     </span>
                   )}

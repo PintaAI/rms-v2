@@ -11,6 +11,7 @@ interface TokoItem {
   status: string;
   role: string;
   logoUrl: string | null;
+  address: string | null;
 }
 
 interface AuthContextValue {

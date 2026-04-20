@@ -93,9 +93,17 @@ export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupPro
 interface NavFilterGroupProps {
   title: string;
   icon?: ReactNode;
-  items: { href: string; icon?: ReactNode; label: string; badge?: number }[];
+  items: { href: string; icon?: ReactNode; label: string; badge?: number; badgeVariant?: "secondary" | "accent" | "success" | "destructive" | "outline" }[];
   defaultOpen?: boolean;
 }
+
+const badgeVariants = {
+  secondary: "bg-muted/80 text-muted-foreground",
+  accent: "bg-gradient-to-r from-sky-500/20 to-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20",
+  success: "bg-gradient-to-r from-green-500/20 to-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20",
+  destructive: "bg-gradient-to-r from-destructive/20 to-destructive/10 text-destructive border border-destructive/20",
+  outline: "bg-muted/50 text-muted-foreground border border-border/50",
+};
 
 export function NavFilterGroup({ title, icon, items, defaultOpen = true }: NavFilterGroupProps) {
   const pathname = usePathname();
@@ -158,7 +166,7 @@ export function NavFilterGroup({ title, icon, items, defaultOpen = true }: NavFi
                 {item.icon}
                 <span>{item.label}</span>
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="ml-auto bg-destructive text-background dark:text-foreground text-[0.625rem] font-medium rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                  <span className={`ml-auto ${badgeVariants[item.badgeVariant || "secondary"]} text-[0.65rem] font-semibold rounded-md px-2 py-0.5 min-w-[1.5rem] text-center tabular-nums shadow-sm transition-all duration-300`}>
                     {item.badge}
                   </span>
                 )}

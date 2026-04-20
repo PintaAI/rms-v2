@@ -8,7 +8,7 @@ import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypeStringify from "rehype-stringify";
 import { visit } from "unist-util-visit";
-import type { Root, Code } from "mdast";
+import type { Root, Code, Paragraph } from "mdast";
 
 function remarkMermaid() {
   return (tree: Root) => {
@@ -16,6 +16,28 @@ function remarkMermaid() {
       if (node.lang === "mermaid") {
         (node as unknown as { type: string; value: string }).type = "html";
         node.value = `<pre class="mermaid">${node.value}</pre>`;
+      }
+    });
+  };
+}
+
+function remarkDemoBlocks() {
+  return (tree: Root) => {
+    visit(tree, "paragraph", (node: Paragraph, index, parent) => {
+      if (!parent || index === null) return;
+      
+      const textContent = node.children
+        .filter((child) => child.type === "text")
+        .map((child) => (child as { value: string }).value)
+        .join("");
+      
+      const demoMatch = textContent.match(/^:::demo\s+(\w+)\s*(?::::)?$/);
+      if (demoMatch) {
+        const componentName = demoMatch[1];
+        (parent.children as unknown as Array<{ type: string; value: string }>)[index] = {
+          type: "html",
+          value: `<div data-demo="${componentName}"></div>`,
+        };
       }
     });
   };
@@ -121,6 +143,7 @@ export async function parseMarkdown(content: string): Promise<string> {
       .use(remarkParse)
       .use(remarkGfm)
       .use(remarkMermaid)
+      .use(remarkDemoBlocks)
       .use(remarkRehype, { allowDangerousHtml: true })
       .use(rehypeSlug)
       .use(rehypeAutolinkHeadings)
@@ -131,6 +154,11 @@ export async function parseMarkdown(content: string): Promise<string> {
     console.error("Error parsing markdown:", error);
     return content;
   }
+}
+
+export function getDemoComponents(content: string): string[] {
+  const matches = content.matchAll(/:::demo\s+(\w+)\s*:::/g);
+  return Array.from(matches, (m) => m[1]);
 }
 
 /**

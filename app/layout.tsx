@@ -1,23 +1,27 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Plus_Jakarta_Sans, Merriweather, Manrope } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { TourProvider } from "@/lib/tour-context";
+import { DevTools } from "@/components/debug/dev-tools";
 import { RiLoader2Fill } from "@remixicon/react";
 
-
-const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-sans" });
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const fontSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
+  variable: "--font-sans",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const fontSerif = Merriweather({
   subsets: ["latin"],
+  variable: "--font-serif",
+});
+
+const fontMono = Manrope({
+  subsets: ["latin"],
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
@@ -36,10 +40,10 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn(
         "h-full antialiased",
-        geistSans.variable,
-        geistMono.variable,
-        "font-sans",
-        ibmPlexSans.variable
+        fontSans.variable,
+        fontSerif.variable,
+        fontMono.variable,
+        "font-sans"
       )}
     >
       <body className="min-h-full flex flex-col">
@@ -57,7 +61,10 @@ export default function RootLayout({
             }
           >
             <AuthProvider>
-              {children}
+              <TourProvider>
+                {children}
+                <DevTools />
+              </TourProvider>
             </AuthProvider>
           </Suspense>
         </ThemeProvider>

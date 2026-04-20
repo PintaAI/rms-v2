@@ -713,7 +713,6 @@ export function ServiceTaskCard({
                 animationKey={animationKey}
                 disabled
                 showPatternNumbers
-                primaryColor="#22c55e"
               />
             </div>
             {localTask.passwordPattern ? (

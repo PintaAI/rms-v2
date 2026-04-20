@@ -1,6 +1,7 @@
 import { getServerSession } from "@/lib/auth";
 import { ClientSession } from "@/components/providers/client-session";
 import { UserInfo } from "@/components/shared/user-info";
+import { RiBook2Line } from "@remixicon/react";
 
 export default async function Home() {
   const serverSession = await getServerSession();

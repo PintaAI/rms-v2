@@ -22,6 +22,14 @@ Service ticket adalah record yang menyimpan semua informasi terkait satu unit se
 | **Items** | Tidak | Daftar biaya (sparepart + jasa) |
 | **Invoice** | Otomatis | Total biaya + status pembayaran |
 
+**Contoh tampilan daftar service:**
+
+:::demo ServiceTable
+
+**Contoh tampilan service ticket detail:**
+
+:::demo ServiceCard
+
 ---
 
 ## Membuat Service Ticket Baru

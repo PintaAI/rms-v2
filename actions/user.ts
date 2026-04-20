@@ -25,6 +25,7 @@ export async function getUserTokoList() {
           name: true,
           status: true,
           logoUrl: true,
+          address: true,
         },
       },
     },
@@ -36,6 +37,7 @@ export async function getUserTokoList() {
     status: a.toko.status,
     role: a.role,
     logoUrl: a.toko.logoUrl,
+    address: a.toko.address,
   }));
 }
 

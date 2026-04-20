@@ -11,7 +11,8 @@ import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypeStringify from "rehype-stringify";
 import { visit } from "unist-util-visit";
-import type { Root, Code } from "mdast";
+import type { Root, Code, Paragraph } from "mdast";
+import { createRoot } from "react-dom/client";
 import {
   Sidebar,
   SidebarContent,
@@ -28,6 +29,13 @@ import {
 } from "@/components/ui/sidebar";
 import { RiBook2Line, RiFlowChart, RiUserSettingsLine, RiTicketLine, RiArchiveLine, RiMoneyDollarCircleLine, RiStoreLine, RiFileLine } from "@remixicon/react";
 import { TableOfContents } from "./table-of-contents";
+import {
+  StatusBadgeDemo,
+  ServiceCardDemo,
+  ServiceTableDemo,
+  InvoiceDemo,
+  SidebarNavDemo,
+} from "./demo-components";
 
 interface DocFile {
   slug: string;
@@ -40,6 +48,14 @@ interface H2Heading {
   href: string;
 }
 
+const demoComponentsMap: Record<string, React.ComponentType> = {
+  StatusBadge: StatusBadgeDemo,
+  ServiceCard: ServiceCardDemo,
+  ServiceTable: ServiceTableDemo,
+  Invoice: InvoiceDemo,
+  SidebarNav: SidebarNavDemo,
+};
+
 function remarkMermaid() {
   return (tree: Root) => {
     visit(tree, "code", (node: Code) => {
@@ -51,11 +67,34 @@ function remarkMermaid() {
   };
 }
 
+function remarkDemoBlocks() {
+  return (tree: Root) => {
+    visit(tree, "paragraph", (node: Paragraph, index, parent) => {
+      if (!parent || index === null) return;
+      
+      const textContent = node.children
+        .filter((child) => child.type === "text")
+        .map((child) => (child as { value: string }).value)
+        .join("");
+      
+      const demoMatch = textContent.match(/^:::demo\s+(\w+)\s*(?::::)?$/);
+      if (demoMatch) {
+        const componentName = demoMatch[1];
+        (parent.children as unknown as Array<{ type: string; value: string }>)[index] = {
+          type: "html",
+          value: `<div data-demo="${componentName}"></div>`,
+        };
+      }
+    });
+  };
+}
+
 function parseMarkdown(content: string): Promise<string> {
   return unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMermaid)
+    .use(remarkDemoBlocks)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeSlug)
     .use(rehypeAutolinkHeadings)
@@ -117,9 +156,20 @@ function getIconComponent(iconName: string) {
   useEffect(() => {
     if (!html || !contentRef.current) return;
     contentRef.current.innerHTML = html;
+    
     import("mermaid").then((m) => {
       m.default.initialize({ startOnLoad: false, theme: "neutral" });
       m.default.run({ querySelector: ".mermaid" }).catch(() => {});
+    });
+
+    const demoElements = contentRef.current.querySelectorAll("[data-demo]");
+    demoElements.forEach((el) => {
+      const componentName = el.getAttribute("data-demo");
+      if (componentName && demoComponentsMap[componentName]) {
+        const DemoComponent = demoComponentsMap[componentName];
+        const root = createRoot(el as HTMLElement);
+        root.render(<DemoComponent />);
+      }
     });
   }, [html]);
 

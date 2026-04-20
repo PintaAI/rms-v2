@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getTokoById, updateToko, deleteToko, createToko } from "@/actions/toko";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardAction } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -292,90 +292,100 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
   }, []);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Manage Toko</h1>
-          <p className="text-sm text-muted-foreground">
-            {tokoList.length} toko registered
-          </p>
+<div className="space-y-8">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-black tracking-tight">Manage Toko</h1>
+              <div className="h-6 w-1 bg-primary rounded-full" />
+            </div>
+            <p className="text-sm text-muted-foreground/70">{tokoList.length} toko registered</p>
+          </div>
+          <Button onClick={() => setCreateDialogOpen(true)} className="bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30">
+            <RiAddLine className="h-4 w-4 mr-1.5" />
+            Add Toko
+          </Button>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <RiAddLine className="size-4" />
-          Add Toko
-        </Button>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {tokoList.map((toko) => (
-          <Card key={toko.id} className={toko.id === tokoid ? "ring-2 ring-primary" : ""}>
-            <CardHeader>
-              <div className="flex items-start gap-3">
-                {toko.logoUrl ? (
-                  <Image
-                    src={toko.logoUrl}
-                    alt={toko.name}
-                    width={48}
-                    height={48}
-                    className="size-12 rounded-lg object-cover border bg-muted"
-                  />
-                ) : (
-                  <div className="size-12 rounded-lg bg-muted flex items-center justify-center border">
-                    <RiStore2Line className="size-6 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="truncate">{toko.name}</CardTitle>
-                  <CardDescription>
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {tokoList.map((toko) => {
+            const isCurrent = toko.id === tokoid;
+            const variant = isCurrent ? "primary" : "default";
+            const bgStyles: Record<string, string> = {
+              default: "bg-card",
+              primary: "bg-gradient-to-br from-primary/5 via-card to-primary/[0.02]",
+            };
+            const accentColors: Record<string, string> = {
+              default: "bg-border",
+              primary: "bg-primary",
+            };
+
+            return (
+              <div
+                key={toko.id}
+                onClick={() => toko.id !== tokoid && handleSwitchToko(toko.id)}
+                className={`relative ${bgStyles[variant]} rounded-xl border border-border/50 overflow-hidden group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/10 hover:border-border/80 ${toko.id !== tokoid ? "cursor-pointer" : ""}`}
+              >
+                <div className={`absolute top-0 left-0 w-1 h-full ${accentColors[variant]} transition-all duration-300 opacity-80 group-hover:w-1.5 group-hover:opacity-100`} />
+                <div className={`absolute top-3 right-3 w-12 h-12 rounded-xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center border border-border/50 transition-all duration-300 group-hover:scale-105 group-hover:rounded-2xl`}>
+                  {toko.logoUrl ? (
+                    <Image
+                      src={toko.logoUrl}
+                      alt={toko.name}
+                      width={48}
+                      height={48}
+                      className="size-10 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <RiStore2Line className="size-5 text-muted-foreground transition-transform duration-300 group-hover:scale-110" />
+                  )}
+                </div>
+                <div className={`absolute top-0 right-0 w-20 h-20 ${accentColors[variant]}/5 rounded-full blur-2xl transition-all duration-300 group-hover:w-28 group-hover:h-28 group-hover:opacity-80`} />
+                <div className="pl-5 pr-4 pt-5 pb-4 relative z-10">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest transition-colors duration-300 group-hover:text-muted-foreground/90">Toko</p>
+                  <div className="mt-2 text-xl font-black tracking-tight text-foreground truncate transition-transform duration-300 group-hover:scale-[1.02]">{toko.name}</div>
+                  {toko.address && (
+                    <p className="text-xs text-muted-foreground/70 mt-1 truncate">{toko.address}</p>
+                  )}
+                  <div className="mt-2 flex items-center gap-2">
                     <Badge variant={toko.status === "active" ? "default" : "secondary"} className="text-xs">
                       {toko.status}
                     </Badge>
-                  </CardDescription>
+                    {isCurrent && (
+                      <div className="flex items-center gap-1 text-xs text-primary">
+                        <RiCheckLine className="size-3" />
+                        <span className="font-medium">Current</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); handleEdit(toko.id); }}
+                      className="transition-all duration-200 hover:bg-muted/80"
+                    >
+                      <RiEditLine className="size-3" />
+                    </Button>
+                    {tokoList.length > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(toko.id); }}
+                        className="text-destructive hover:text-destructive transition-all duration-200 hover:bg-destructive/10 hover:border-destructive/30"
+                      >
+                        <RiDeleteBinLine className="size-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
+                <div className={`absolute bottom-0 left-0 right-0 h-px ${accentColors[variant]}/20 transition-all duration-300 group-hover:h-0.5 group-hover:opacity-40`} />
               </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {toko.id === tokoid && (
-                <div className="flex items-center gap-1 text-xs text-primary mb-2">
-                  <RiCheckLine className="size-3" />
-                  <span>Current</span>
-                </div>
-              )}
-            </CardContent>
-            <CardAction className="p-4 pt-0 flex gap-2">
-              {toko.id !== tokoid && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleSwitchToko(toko.id)}
-                >
-                  Switch
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEdit(toko.id)}
-              >
-                <RiEditLine className="size-3" />
-                Edit
-              </Button>
-              {tokoList.length > 1 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDelete(toko.id)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <RiDeleteBinLine className="size-3" />
-                </Button>
-              )}
-            </CardAction>
-          </Card>
-        ))}
-      </div>
+            );
+          })}
+        </section>
 
-      <Dialog open={createDialogOpen} onOpenChange={(open) => { if (!open) resetCreateForm(); setCreateDialogOpen(open); }}>
+        <Dialog open={createDialogOpen} onOpenChange={(open) => { if (!open) resetCreateForm(); setCreateDialogOpen(open); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add New Toko</DialogTitle>

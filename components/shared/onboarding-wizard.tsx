@@ -7,9 +7,11 @@ import { createTokoWithUsers } from "@/actions/toko";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Field, FieldLabel, FieldContent, FieldError } from "@/components/ui/field";
-import { RiStore2Line, RiMapPinLine, RiPhoneLine, RiUserLine, RiMailLine, RiLockPasswordLine, RiLoader4Line, RiAddLine, RiCloseLine, RiImageLine } from "@remixicon/react";
+import { RiStore2Line, RiMapPinLine, RiPhoneLine, RiUserLine, RiMailLine, RiLockPasswordLine, RiLoader4Line, RiAddLine, RiCloseLine, RiImageLine, RiPaletteLine, RiTeamLine } from "@remixicon/react";
 import { cn } from "@/lib/utils";
+import { setThemeMode, type ThemeMode } from "@/lib/theme-preference";
 
 interface UserData {
   name: string;
@@ -35,8 +37,10 @@ const initialData: WizardData = {
   logoFile: null,
   address: "",
   phone: "",
+  hasEmployees: false,
   staff: [],
   technician: [],
+  themeMode: "dynamic",
 };
 
 const steps = [
@@ -142,6 +146,10 @@ export function OnboardingWizard() {
     }
 
     if (currentStep === 3) {
+      if (!data.hasEmployees) {
+        return true;
+      }
+      
       for (const staff of data.staff) {
         if (!staff.name.trim() || !staff.email.trim() || !staff.password) {
           setError("All staff fields are required");
@@ -232,6 +240,7 @@ export function OnboardingWizard() {
       }
 
       localStorage.setItem("onboard_completed", "true");
+      setThemeMode(data.themeMode);
       await refetchTokoList();
       router.push(`/${result.tokoId}/admin`);
     } catch (err) {
@@ -316,7 +325,7 @@ export function OnboardingWizard() {
                         type="button"
                         onClick={() => {
                           setLogoPreview(null);
-                          setData(prev => ({ ...prev, logoFile: null, logoUrl: "" }));
+                          setData(prev => ({ ...prev, logoFile: null, logoUrl: "", themeMode: "default" }));
                         }}
                         className="absolute -top-1 -right-1 size-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
                       >
@@ -333,6 +342,32 @@ export function OnboardingWizard() {
                     accept="image/*"
                     onChange={handleLogoChange}
                     className="flex-1"
+                  />
+                </div>
+              </FieldContent>
+            </Field>
+
+            <Field>
+              <FieldLabel>Tema Dinamis</FieldLabel>
+              <FieldContent>
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-2">
+                    <RiPaletteLine className="size-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm">Ekstrak warna dari logo</p>
+                      <p className="text-xs text-muted-foreground">
+                        {logoPreview 
+                          ? "Warna akan diambil dari logo yang diupload" 
+                          : "Upload logo untuk menggunakan tema dinamis"}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={data.themeMode === "dynamic"}
+                    onCheckedChange={(checked) => 
+                      setData(prev => ({ ...prev, themeMode: checked ? "dynamic" : "default" }))
+                    }
+                    disabled={!logoPreview}
                   />
                 </div>
               </FieldContent>
@@ -378,133 +413,199 @@ export function OnboardingWizard() {
         {/* Step 3: Staff & Technician */}
         {currentStep === 3 && (
           <div className="space-y-6">
-            {/* Staff Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">Staff</h3>
-                <Button variant="outline" size="sm" onClick={addStaff}>
-                  <RiAddLine className="size-3" />
-                  Add Staff
-                </Button>
-              </div>
+            <Field>
+              <FieldLabel>Apakah tokonya ada karyawan selain pemilik?</FieldLabel>
+              <FieldContent>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setData(prev => ({ ...prev, hasEmployees: false, staff: [], technician: [] }))}
+                    className={cn(
+                      "flex-1 p-4 rounded-lg border-2 transition-all text-left",
+                      !data.hasEmployees 
+                        ? "border-primary bg-primary/5" 
+                        : "border-muted-foreground/30 hover:border-muted-foreground/50"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "size-8 rounded-full flex items-center justify-center",
+                        !data.hasEmployees ? "bg-primary text-primary-foreground" : "bg-muted"
+                      )}>
+                        <RiUserLine className="size-4" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Tidak ada</p>
+                        <p className="text-xs text-muted-foreground">Pemilik saja</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setData(prev => ({ ...prev, hasEmployees: true }))}
+                    className={cn(
+                      "flex-1 p-4 rounded-lg border-2 transition-all text-left",
+                      data.hasEmployees 
+                        ? "border-primary bg-primary/5" 
+                        : "border-muted-foreground/30 hover:border-muted-foreground/50"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "size-8 rounded-full flex items-center justify-center",
+                        data.hasEmployees ? "bg-primary text-primary-foreground" : "bg-muted"
+                      )}>
+                        <RiTeamLine className="size-4" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Ada karyawan</p>
+                        <p className="text-xs text-muted-foreground">Staff & Teknisi</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </FieldContent>
+            </Field>
 
-              {data.staff.length === 0 && (
-                <p className="text-xs text-muted-foreground">No staff added. Click "Add Staff" to add one.</p>
-              )}
-
-              {data.staff.map((staff, index) => (
-                <div key={index} className="p-3 rounded-lg border space-y-3">
+            {data.hasEmployees && (
+              <>
+                {/* Staff Section */}
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium">Staff #{index + 1}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => removeStaff(index)}
-                    >
-                      <RiCloseLine className="size-3" />
+                    <h3 className="text-sm font-medium">Staff</h3>
+                    <Button variant="outline" size="sm" onClick={addStaff}>
+                      <RiAddLine className="size-3" />
+                      Add Staff
                     </Button>
                   </div>
 
-                  <div className="grid gap-3">
-                    <div className="relative">
-                      <Input
-                        value={staff.name}
-                        onChange={(e) => updateStaff(index, "name", e.target.value)}
-                        placeholder="Name"
-                        className="pl-10"
-                      />
-                      <RiUserLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    </div>
+                  {data.staff.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No staff added. Click "Add Staff" to add one.</p>
+                  )}
 
-                    <div className="relative">
-                      <Input
-                        type="email"
-                        value={staff.email}
-                        onChange={(e) => updateStaff(index, "email", e.target.value)}
-                        placeholder="Email"
-                        className="pl-10"
-                      />
-                      <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    </div>
+                  {data.staff.map((staff, index) => (
+                    <div key={index} className="p-3 rounded-lg border space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium">Staff #{index + 1}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => removeStaff(index)}
+                        >
+                          <RiCloseLine className="size-3" />
+                        </Button>
+                      </div>
 
-                    <div className="relative">
-                      <Input
-                        type="password"
-                        value={staff.password}
-                        onChange={(e) => updateStaff(index, "password", e.target.value)}
-                        placeholder="Password"
-                        className="pl-10"
-                      />
-                      <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                      <div className="grid gap-3">
+                        <div className="relative">
+                          <Input
+                            value={staff.name}
+                            onChange={(e) => updateStaff(index, "name", e.target.value)}
+                            placeholder="Name"
+                            className="pl-10"
+                          />
+                          <RiUserLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                        </div>
+
+                        <div className="relative">
+                          <Input
+                            type="email"
+                            value={staff.email}
+                            onChange={(e) => updateStaff(index, "email", e.target.value)}
+                            placeholder="Email"
+                            className="pl-10"
+                          />
+                          <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                        </div>
+
+                        <div className="relative">
+                          <Input
+                            type="password"
+                            value={staff.password}
+                            onChange={(e) => updateStaff(index, "password", e.target.value)}
+                            placeholder="Password"
+                            className="pl-10"
+                          />
+                          <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Technician Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">Technician</h3>
-                <Button variant="outline" size="sm" onClick={addTechnician}>
-                  <RiAddLine className="size-3" />
-                  Add Technician
-                </Button>
-              </div>
-
-              {data.technician.length === 0 && (
-                <p className="text-xs text-muted-foreground">No technician added. Click "Add Technician" to add one.</p>
-              )}
-
-              {data.technician.map((tech, index) => (
-                <div key={index} className="p-3 rounded-lg border space-y-3">
+                {/* Technician Section */}
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium">Technician #{index + 1}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => removeTechnician(index)}
-                    >
-                      <RiCloseLine className="size-3" />
+                    <h3 className="text-sm font-medium">Technician</h3>
+                    <Button variant="outline" size="sm" onClick={addTechnician}>
+                      <RiAddLine className="size-3" />
+                      Add Technician
                     </Button>
                   </div>
 
-                  <div className="grid gap-3">
-                    <div className="relative">
-                      <Input
-                        value={tech.name}
-                        onChange={(e) => updateTechnician(index, "name", e.target.value)}
-                        placeholder="Name"
-                        className="pl-10"
-                      />
-                      <RiUserLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    </div>
+                  {data.technician.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No technician added. Click "Add Technician" to add one.</p>
+                  )}
 
-                    <div className="relative">
-                      <Input
-                        type="email"
-                        value={tech.email}
-                        onChange={(e) => updateTechnician(index, "email", e.target.value)}
-                        placeholder="Email"
-                        className="pl-10"
-                      />
-                      <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    </div>
+                  {data.technician.map((tech, index) => (
+                    <div key={index} className="p-3 rounded-lg border space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium">Technician #{index + 1}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => removeTechnician(index)}
+                        >
+                          <RiCloseLine className="size-3" />
+                        </Button>
+                      </div>
 
-                    <div className="relative">
-                      <Input
-                        type="password"
-                        value={tech.password}
-                        onChange={(e) => updateTechnician(index, "password", e.target.value)}
-                        placeholder="Password"
-                        className="pl-10"
-                      />
-                      <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                      <div className="grid gap-3">
+                        <div className="relative">
+                          <Input
+                            value={tech.name}
+                            onChange={(e) => updateTechnician(index, "name", e.target.value)}
+                            placeholder="Name"
+                            className="pl-10"
+                          />
+                          <RiUserLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                        </div>
+
+                        <div className="relative">
+                          <Input
+                            type="email"
+                            value={tech.email}
+                            onChange={(e) => updateTechnician(index, "email", e.target.value)}
+                            placeholder="Email"
+                            className="pl-10"
+                          />
+                          <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                        </div>
+
+                        <div className="relative">
+                          <Input
+                            type="password"
+                            value={tech.password}
+                            onChange={(e) => updateTechnician(index, "password", e.target.value)}
+                            placeholder="Password"
+                            className="pl-10"
+                          />
+                          <RiLockPasswordLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
+
+            {!data.hasEmployees && (
+              <div className="p-4 rounded-lg bg-muted/50 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Anda bisa menambahkan karyawan kapan saja melalui menu Pengaturan.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -524,6 +625,10 @@ export function OnboardingWizard() {
                     <img src={logoPreview} alt="Logo" className="size-8 rounded object-cover" />
                   </div>
                 )}
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Theme:</span>
+                  <span className="font-medium capitalize">{data.themeMode === "dynamic" ? "Dinamis" : "Default"}</span>
+                </div>
                 {data.address && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Address:</span>
@@ -536,6 +641,14 @@ export function OnboardingWizard() {
                     <span>{data.phone}</span>
                   </div>
                 )}
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Karyawan:</span>
+                  <span className="font-medium">
+                    {data.hasEmployees 
+                      ? `${data.staff.length + data.technician.length} orang`
+                      : "Pemilik saja"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -585,7 +698,7 @@ export function OnboardingWizard() {
 
         {currentStep < 4 && (
           <div className="flex gap-2">
-            {(currentStep === 2 || currentStep === 3) && (
+            {currentStep === 2 && (
               <Button variant="ghost" onClick={handleSkip} disabled={isSubmitting}>
                 Skip
               </Button>

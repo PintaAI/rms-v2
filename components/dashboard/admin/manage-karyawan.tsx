@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,36 +33,80 @@ import {
   RiLoader4Line,
   RiDeleteBinLine,
   RiCheckLine,
+  RiArrowRightLine,
 } from "@remixicon/react";
+
+type StatsVariant = "default" | "primary" | "success" | "warning" | "accent";
+
+interface StatsCardProps {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  description?: string;
+  variant?: StatsVariant;
+}
+
+function StatsCard({ title, value, icon, description, variant = "default" }: StatsCardProps) {
+  const bgStyles: Record<StatsVariant, string> = {
+    default: "bg-card",
+    primary: "bg-gradient-to-br from-primary/5 via-card to-primary/[0.02]",
+    success: "bg-gradient-to-br from-chart-1/5 via-card to-chart-1/[0.02]",
+    warning: "bg-gradient-to-br from-destructive/5 via-card to-destructive/[0.02]",
+    accent: "bg-gradient-to-br from-sky-500/5 via-card to-sky-500/[0.02]",
+  };
+
+  const accentColors: Record<StatsVariant, string> = {
+    default: "bg-border",
+    primary: "bg-primary",
+    success: "bg-chart-1",
+    warning: "bg-destructive",
+    accent: "bg-sky-500",
+  };
+
+  const iconBgStyles: Record<StatsVariant, string> = {
+    default: "bg-muted",
+    primary: "bg-primary/10",
+    success: "bg-chart-1/10",
+    warning: "bg-destructive/10",
+    accent: "bg-sky-500/10",
+  };
+
+  const iconTextStyles: Record<StatsVariant, string> = {
+    default: "text-muted-foreground",
+    primary: "text-primary",
+    success: "text-chart-1",
+    warning: "text-destructive",
+    accent: "text-sky-500",
+  };
+
+  return (
+    <div
+      className={`relative ${bgStyles[variant]} rounded-xl border border-border/50 overflow-hidden group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/10 hover:border-border/80`}
+    >
+      <div className={`absolute top-0 left-0 w-1 h-full ${accentColors[variant]} transition-all duration-300 opacity-80 group-hover:w-1.5 group-hover:opacity-100`} />
+      <div className={`absolute top-3 right-3 w-8 h-8 rounded-md ${iconBgStyles[variant]} flex items-center justify-center ${iconTextStyles[variant]} transition-all duration-300 group-hover:scale-115 group-hover:rounded-lg`}>
+        {icon}
+      </div>
+      <div className={`absolute top-0 right-0 w-20 h-20 ${accentColors[variant]}/5 rounded-full blur-2xl transition-all duration-300 group-hover:w-28 group-hover:h-28 group-hover:opacity-80`} />
+      <div className="pl-5 pr-4 pt-5 pb-5 relative z-10">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest transition-colors duration-300 group-hover:text-muted-foreground/90">{title}</p>
+        <div className="mt-2 text-3xl font-black tracking-tight text-foreground tabular-nums transition-transform duration-300 group-hover:scale-[1.02]">{value}</div>
+        {description && (
+          <p className="text-xs text-muted-foreground/80 mt-1.5 flex items-center gap-1 transition-colors duration-300 group-hover:text-muted-foreground/90">
+            <RiArrowRightLine className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-0.5" />
+            {description}
+          </p>
+        )}
+      </div>
+      <div className={`absolute bottom-0 left-0 right-0 h-px ${accentColors[variant]}/20 transition-all duration-300 group-hover:h-0.5 group-hover:opacity-40`} />
+    </div>
+  );
+}
 
 interface ManageKaryawanProps {
   initialKaryawan: KaryawanItem[];
   initialStats: KaryawanStats;
   tokoId: string;
-}
-
-function StatsCard({
-  title,
-  value,
-  icon,
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <div className="h-6 w-6 rounded-lg bg-muted flex items-center justify-center">
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
-  );
 }
 
 export function ManageKaryawan({
@@ -154,81 +198,105 @@ export function ManageKaryawan({
   }, [tokoId, deleteTarget]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {success && (
         <div className="p-3 rounded-lg bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 text-sm flex items-center gap-2">
           <RiCheckLine className="size-4" />
           {success}
         </div>
       )}
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatsCard title="Staff" value={stats.staff} icon={<RiUserLine className="size-4" />} />
-        <StatsCard
-          title="Technician"
-          value={stats.technician}
-          icon={<RiUserStarLine className="size-4" />}
-        />
-        <StatsCard title="Total" value={stats.total} icon={<RiUserLine className="size-4" />} />
-      </div>
 
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">Daftar Karyawan</h2>
-        <Button onClick={() => setAddDialogOpen(true)}>
-          <RiAddLine className="size-4" />
-          Tambah Karyawan
-        </Button>
-      </div>
+      <section className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-3">
+          <StatsCard
+            title="Staff"
+            value={stats.staff}
+            icon={<RiUserLine className="h-4 w-4" />}
+            description="karyawan staff"
+            variant="primary"
+          />
+          <StatsCard
+            title="Technician"
+            value={stats.technician}
+            icon={<RiUserStarLine className="h-4 w-4" />}
+            description="teknisi"
+            variant="accent"
+          />
+          <StatsCard
+            title="Total"
+            value={stats.total}
+            icon={<RiUserLine className="h-4 w-4" />}
+            description="semua karyawan"
+          />
+        </div>
+      </section>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nama</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {karyawan.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    Belum ada karyawan. Klik &quot;Tambah Karyawan&quot; untuk menambah.
-                  </TableCell>
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="h-5 w-1 bg-primary rounded-full" />
+            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Daftar Karyawan</h2>
+          </div>
+          <Button
+            onClick={() => setAddDialogOpen(true)}
+            className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+          >
+            <RiAddLine className="h-4 w-4 mr-1.5" />
+            Tambah Karyawan
+          </Button>
+        </div>
+
+        <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Email</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Role</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[80px]">Aksi</TableHead>
                 </TableRow>
-              ) : (
-                karyawan.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.name}</TableCell>
-                    <TableCell>{item.email}</TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                          item.role === "staff"
-                            ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                            : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                        }`}
-                      >
-                        {item.role === "staff" ? "Staff" : "Technician"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleDeleteClick(item)}
-                      >
-                        <RiDeleteBinLine className="size-4 text-destructive" />
-                      </Button>
+              </TableHeader>
+              <TableBody>
+                {karyawan.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                      Belum ada karyawan. Klik &quot;Tambah Karyawan&quot; untuk menambah.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                ) : (
+                  karyawan.map((item) => (
+                    <TableRow key={item.id} className="border-border/50">
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>{item.email}</TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                            item.role === "staff"
+                              ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                              : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                          }`}
+                        >
+                          {item.role === "staff" ? "Staff" : "Technician"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleDeleteClick(item)}
+                        >
+                          <RiDeleteBinLine className="size-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </section>
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent>

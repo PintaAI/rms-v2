@@ -20,32 +20,7 @@ Invoice dibuat sejak service ticket dibuat, namun:
 
 ## Struktur Invoice
 
-### Komponen Invoice
 
-```
-┌─────────────────────────────────────────────┐
-│           INVOICE SERVIS                    │
-├─────────────────────────────────────────────┤
-│ Ticket ID: SRV-2024-001                     │
-│ Customer: Ahmad (08123456789)               │
-│ Device: Samsung Galaxy A12                  │
-│ Teknisi: Budi                               │
-├─────────────────────────────────────────────┤
-│ ITEMS:                                      │
-│                                             │
-│ 1. LCD Samsung A12 (Sparepart)              │
-│    Rp 250.000 × 1 = Rp 250.000              │
-│                                             │
-│ 2. Jasa Ganti LCD (Jasa)                    │
-│    Rp 150.000 × 1 = Rp 150.000              │
-│                                             │
-│ 3. Ongkos Pasang (Jasa)                     │
-│    Rp 50.000 × 1 = Rp 50.000                │
-├─────────────────────────────────────────────┤
-│ GRAND TOTAL: Rp 450.000                     │
-│ Status: Unpaid                              │
-└─────────────────────────────────────────────┘
-```
 
 ### Item dalam Invoice
 
@@ -59,13 +34,9 @@ Setiap item memiliki:
 | **Quantity** | Jumlah (untuk sparepart) |
 | **Subtotal** | Harga × Quantity |
 
-### Grand Total
+**Contoh tampilan invoice:**
 
-Dihitung otomatis dari sum semua item:
-
-```
-Grand Total = Sum (Harga × Quantity) untuk semua item
-```
+:::demo Invoice
 
 ---
 

@@ -19,6 +19,8 @@ flowchart LR
 
 ## Penjelasan Status
 
+:::demo StatusBadge
+
 ### 1. Masuk (Received)
 
 **Kapan terjadi?**

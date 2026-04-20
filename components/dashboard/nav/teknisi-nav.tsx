@@ -52,6 +52,7 @@ export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
                 icon: <RiCheckLine />,
                 label: "Selesai",
                 badge: taskStats?.selesai,
+                badgeVariant: "success",
               },
               {
                 href: `/${tokoid}/teknisi/task?status=gagal`,

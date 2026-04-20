@@ -47,6 +47,10 @@ flowchart TD
 
 *Staff hanya bisa hapus servis yang belum diambil dan belum dibayar
 
+**Tampilan sidebar untuk setiap role:**
+
+:::demo SidebarNav
+
 ---
 
 ## Admin

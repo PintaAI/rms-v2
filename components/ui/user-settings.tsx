@@ -25,9 +25,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { changePassword, updateProfile, uploadAvatar } from "@/actions"
 import { useAuth } from "@/components/auth/auth-provider"
+import { getThemeMode, setThemeMode, type ThemeMode } from "@/lib/theme-preference"
 import {
   RiUserLine,
   RiLockPasswordLine,
@@ -35,9 +37,10 @@ import {
   RiBankCard2Line,
   RiPencilLine,
   RiLoader4Line,
+  RiPaletteLine,
 } from "@remixicon/react"
 
-type SettingsTab = "profile" | "password" | "billing" | "premium"
+type SettingsTab = "profile" | "password" | "billing" | "premium" | "appearance"
 
 interface UserSettingsProps {
   open: boolean
@@ -53,6 +56,7 @@ interface UserSettingsProps {
 const menuItems: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: "profile", label: "Profile", icon: <RiUserLine /> },
   { id: "password", label: "Password", icon: <RiLockPasswordLine /> },
+  { id: "appearance", label: "Tampilan", icon: <RiPaletteLine /> },
   { id: "billing", label: "Billing", icon: <RiBankCard2Line /> },
   { id: "premium", label: "Upgrade to Premium", icon: <RiVipCrownLine /> },
 ]
@@ -371,6 +375,49 @@ function PremiumSettings() {
   )
 }
 
+function AppearanceSettings() {
+  const [dynamicTheme, setDynamicTheme] = React.useState<ThemeMode>("dynamic")
+
+  React.useEffect(() => {
+    setDynamicTheme(getThemeMode())
+  }, [])
+
+  const handleToggle = (checked: boolean) => {
+    const newMode: ThemeMode = checked ? "dynamic" : "default"
+    setDynamicTheme(newMode)
+    setThemeMode(newMode)
+    toast.success(`Tema ${checked ? "dinamis" : "default"} aktif`)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <p className="font-medium">Tema Dinamis</p>
+            <p className="text-xs text-muted-foreground">
+              Ekstrak warna dari logo toko untuk tema aplikasi
+            </p>
+          </div>
+          <Switch checked={dynamicTheme === "dynamic"} onCheckedChange={handleToggle} />
+        </div>
+      </div>
+      <Separator />
+      <div className="space-y-2">
+        <p className="font-medium text-sm">Tema Default</p>
+        <p className="text-xs text-muted-foreground">
+          Warna statis dari konfigurasi default aplikasi
+        </p>
+        <div className="flex gap-2 mt-2">
+          <div className="size-8 rounded-md bg-primary" title="Primary" />
+          <div className="size-8 rounded-md bg-secondary border" title="Secondary" />
+          <div className="size-8 rounded-md bg-accent border" title="Accent" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function UserSettings({ open, onOpenChange, user }: UserSettingsProps) {
   const [activeTab, setActiveTab] = React.useState<SettingsTab>("profile")
 
@@ -387,6 +434,8 @@ export function UserSettings({ open, onOpenChange, user }: UserSettingsProps) {
         return <ProfileSettings user={user} onSuccess={() => onOpenChange(false)} />
       case "password":
         return <PasswordSettings onSuccess={() => onOpenChange(false)} />
+      case "appearance":
+        return <AppearanceSettings />
       case "billing":
         return <BillingSettings />
       case "premium":
