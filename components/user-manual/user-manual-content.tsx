@@ -70,7 +70,7 @@ function remarkMermaid() {
 function remarkDemoBlocks() {
   return (tree: Root) => {
     visit(tree, "paragraph", (node: Paragraph, index, parent) => {
-      if (!parent || index === null) return;
+      if (!parent || index == null) return;
       
       const textContent = node.children
         .filter((child) => child.type === "text")

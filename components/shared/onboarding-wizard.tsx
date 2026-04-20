@@ -25,8 +25,10 @@ interface WizardData {
   logoFile: File | null;
   address: string;
   phone: string;
+  hasEmployees: boolean;
   staff: UserData[];
   technician: UserData[];
+  themeMode: ThemeMode;
 }
 
 const initialUserData: UserData = { name: "", email: "", password: "" };

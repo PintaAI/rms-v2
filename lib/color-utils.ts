@@ -143,8 +143,8 @@ export function generateThemeColorsFromPalette(swatches: SwatchMap): ThemeColors
   const lightAccent = clampLuminance(accentOklch, 0.88, 0.95);
 
   const darkPrimary = clampLuminance(primaryOklch, 0.85, 0.95);
-  const darkSecondary = darkMuted?.color
-    ? clampLuminance(colorToOklch(darkMuted.color), 0.20, 0.35)
+  const darkSecondary = darkMuted
+    ? clampLuminance(colorToOklch(darkMuted), 0.20, 0.35)
     : adjustLuminance(adjustChroma(secondaryOklch, 0.02), 0.25);
   const darkAccent = clampLuminance(darkAccentOklch, 0.20, 0.35);
 

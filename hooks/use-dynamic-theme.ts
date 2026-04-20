@@ -190,12 +190,12 @@ export function useDynamicTheme(logoUrl: string | null | undefined): void {
 
           if (DEBUG_ENABLED) {
             const debugSwatches = [
-              swatchToDebugInfo("Vibrant", result.swatches.Vibrant?.color),
-              swatchToDebugInfo("Muted", result.swatches.Muted?.color),
-              swatchToDebugInfo("LightVibrant", result.swatches.LightVibrant?.color),
-              swatchToDebugInfo("DarkVibrant", result.swatches.DarkVibrant?.color),
-              swatchToDebugInfo("DarkMuted", result.swatches.DarkMuted?.color),
-              swatchToDebugInfo("LightMuted", result.swatches.LightMuted?.color),
+              swatchToDebugInfo("Vibrant", result.swatches.Vibrant?.color ?? null),
+              swatchToDebugInfo("Muted", result.swatches.Muted?.color ?? null),
+              swatchToDebugInfo("LightVibrant", result.swatches.LightVibrant?.color ?? null),
+              swatchToDebugInfo("DarkVibrant", result.swatches.DarkVibrant?.color ?? null),
+              swatchToDebugInfo("DarkMuted", result.swatches.DarkMuted?.color ?? null),
+              swatchToDebugInfo("LightMuted", result.swatches.LightMuted?.color ?? null),
             ].filter(Boolean);
 
             setDebugSwatches(debugSwatches as { name: string; hex: string; oklch: string }[]);

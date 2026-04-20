@@ -222,14 +222,14 @@ export function ThemeDebugPanel() {
             <div className="text-xs font-medium text-foreground mb-2">CSS Variables (Light)</div>
             <div className="p-2 rounded-lg bg-muted/20 space-y-0.5">
               {Object.entries(info.themeVariables.light).map(([key, value]) => (
-                <VariableRow key={key} name={key} oldValue="default" value={value} />
+                <VariableRow key={key} name={key} oldValue="default" newValue={value} />
               ))}
             </div>
 
             <div className="text-xs font-medium text-foreground mt-3 mb-2">CSS Variables (Dark)</div>
             <div className="p-2 rounded-lg bg-muted/20 space-y-0.5">
               {Object.entries(info.themeVariables.dark).map(([key, value]) => (
-                <VariableRow key={key} name={key} oldValue="default" value={value} />
+                <VariableRow key={key} name={key} oldValue="default" newValue={value} />
               ))}
             </div>
           </div>
