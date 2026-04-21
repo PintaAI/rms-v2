@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,18 +44,25 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
   const [deletingSparepart, setDeletingSparepart] = useState<SparepartWithCompatibilities | null>(null);
   const [isDeletingSparepart, setIsDeletingSparepart] = useState(false);
 
-  const loadSpareparts = useCallback(async () => {
-    setIsLoadingSpareparts(true);
-    const result = await getSpareparts(tokoId);
-    if (result.success && result.data) {
-      setSpareparts(result.data);
-    }
-    setIsLoadingSpareparts(false);
-  }, [tokoId]);
-
   useEffect(() => {
-    loadSpareparts();
-  }, [loadSpareparts]);
+    let active = true;
+
+    const load = async () => {
+      setIsLoadingSpareparts(true);
+      const result = await getSpareparts(tokoId);
+      if (!active) return;
+      if (result.success && result.data) {
+        setSpareparts(result.data);
+      }
+      setIsLoadingSpareparts(false);
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [tokoId]);
 
   const filteredSpareparts = spareparts.filter((sp) =>
     sp.name.toLowerCase().includes(sparepartSearch.toLowerCase())
@@ -111,10 +118,16 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium">Sparepart</h2>
-        <Button onClick={handleAddSparepart}>
-          <RiAddLine className="size-4" />
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-5 w-1 rounded-full bg-primary" />
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Sparepart</h2>
+        </div>
+        <Button
+          onClick={handleAddSparepart}
+          className="bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30"
+        >
+          <RiAddLine className="size-4 mr-1.5" />
           Add Sparepart
         </Button>
       </div>
@@ -129,96 +142,98 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
         />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
         <CardContent className="p-0">
           {isLoadingSpareparts ? (
             <div className="p-8 flex items-center justify-center">
               <RiLoader4Line className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Stock</TableHead>
-                  <TableHead>Compatibility</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSpareparts.length === 0 ? (
+            <div className="overflow-hidden">
+              <Table>
+                <TableHeader className="bg-muted/30">
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                      {sparepartSearch
-                        ? "No spareparts found matching your search"
-                        : "No spareparts yet. Click \"Add Sparepart\" to add one."}
-                    </TableCell>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Stock</TableHead>
+                    <TableHead>Compatibility</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredSpareparts.map((sparepart) => (
-                    <TableRow key={sparepart.id}>
-                      <TableCell className="font-medium">{sparepart.name}</TableCell>
-                      <TableCell>{formatPrice(sparepart.defaultPrice)}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            sparepart.stock <= 0
-                              ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                              : sparepart.stock <= 5
-                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
-                              : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
-                          }
-                        >
-                          {sparepart.stock}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {sparepart.isUniversal ? (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                            Universal
-                          </Badge>
-                        ) : sparepart.compatibilities.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {sparepart.compatibilities.slice(0, 3).map((c) => (
-                              <Badge key={c.hpCatalogId} variant="outline" className="text-xs">
-                                {c.hpCatalog.brand.name} {c.hpCatalog.modelName}
-                              </Badge>
-                            ))}
-                            {sparepart.compatibilities.length > 3 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{sparepart.compatibilities.length - 3} more
-                              </Badge>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleEditSparepart(sparepart)}
-                          >
-                            <RiEditLine className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleDeleteSparepartClick(sparepart)}
-                          >
-                            <RiDeleteBinLine className="size-4 text-destructive" />
-                          </Button>
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredSpareparts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">
+                        {sparepartSearch
+                          ? "No spareparts found matching your search"
+                          : "No spareparts yet. Click \"Add Sparepart\" to add one."}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredSpareparts.map((sparepart) => (
+                      <TableRow key={sparepart.id}>
+                        <TableCell className="font-medium">{sparepart.name}</TableCell>
+                        <TableCell>{formatPrice(sparepart.defaultPrice)}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={
+                              sparepart.stock <= 0
+                                ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
+                                : sparepart.stock <= 5
+                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
+                                : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
+                            }
+                          >
+                            {sparepart.stock}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {sparepart.isUniversal ? (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                              Universal
+                            </Badge>
+                          ) : sparepart.compatibilities.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {sparepart.compatibilities.slice(0, 3).map((c) => (
+                                <Badge key={c.hpCatalogId} variant="outline" className="text-xs">
+                                  {c.hpCatalog.brand.name} {c.hpCatalog.modelName}
+                                </Badge>
+                              ))}
+                              {sparepart.compatibilities.length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{sparepart.compatibilities.length - 3} more
+                                </Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleEditSparepart(sparepart)}
+                            >
+                              <RiEditLine className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleDeleteSparepartClick(sparepart)}
+                            >
+                              <RiDeleteBinLine className="size-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

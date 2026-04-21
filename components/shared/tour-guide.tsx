@@ -2,7 +2,7 @@
 
 import { Joyride } from "react-joyride";
 import type { EventData, Step, TooltipRenderProps } from "react-joyride";
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -122,11 +122,7 @@ function TourTooltip({
 }
 
 export function TourGuide({ run, steps, onComplete, onSkip }: TourGuideProps) {
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  const isClient = typeof window !== "undefined";
 
   const handleEvent = useCallback(
     (data: EventData) => {

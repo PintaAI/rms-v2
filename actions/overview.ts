@@ -90,7 +90,33 @@ const serviceSelectBase = {
   },
 };
 
-function mapServiceToListItem(service: any): ServiceListItem {
+type OverviewServiceItem = {
+  id: string;
+  customerName: string | null;
+  noWa: string;
+  complaint: string;
+  status: ServiceStatus;
+  checkinAt: Date;
+  doneAt: Date | null;
+  checkoutAt: Date | null;
+  passwordPattern: string | null;
+  imei: string | null;
+  note: string | null;
+  hpCatalog: {
+    id: string;
+    modelName: string;
+    brand: { name: string };
+  };
+  technician: { id: string; name: string } | null;
+  createdBy: { name: string } | null;
+  invoice: {
+    id: string;
+    grandTotal: number;
+    paymentStatus: PaymentStatus;
+  } | null;
+};
+
+function mapServiceToListItem(service: OverviewServiceItem): ServiceListItem {
   return {
     id: service.id,
     hpCatalogId: service.hpCatalog.id,

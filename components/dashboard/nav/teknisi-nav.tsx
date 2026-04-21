@@ -15,6 +15,49 @@ interface TeknisiNavProps {
 }
 
 export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
+  const taskItems = [
+    {
+      href: `/${tokoid}/teknisi/task`,
+      icon: <RiFolderLine />,
+      label: "Semua",
+      badge: taskStats?.total,
+    },
+    {
+      href: `/${tokoid}/teknisi/task?status=tersedia`,
+      icon: <RiTaskLine />,
+      label: "Tersedia",
+      badge: taskStats?.tersedia,
+      badgeVariant: "secondary" as const,
+    },
+    {
+      href: `/${tokoid}/teknisi/task?status=repairing`,
+      icon: <RiToolsLine />,
+      label: "Dikerjakan",
+      badge: taskStats?.repairing,
+      badgeVariant: "accent" as const,
+    },
+    {
+      href: `/${tokoid}/teknisi/task?status=selesai`,
+      icon: <RiCheckLine />,
+      label: "Selesai",
+      badge: taskStats?.selesai,
+      badgeVariant: "success" as const,
+    },
+    {
+      href: `/${tokoid}/teknisi/task?status=gagal`,
+      icon: <RiCloseCircleLine />,
+      label: "Gagal",
+      badge: taskStats?.gagal,
+      badgeVariant: "destructive" as const,
+    },
+    {
+      href: `/${tokoid}/teknisi/task?status=history`,
+      icon: <RiHistoryLine />,
+      label: "History",
+      badgeVariant: "outline" as const,
+    },
+  ];
+
   return (
     <SidebarGroup>
       <SidebarGroupContent>
@@ -28,44 +71,7 @@ export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
             title="Task"
             icon={<RiTaskLine />}
             defaultOpen={true}
-            items={[
-              {
-                href: `/${tokoid}/teknisi/task`,
-                icon: <RiFolderLine />,
-                label: "Semua",
-                badge: taskStats?.total,
-              },
-              {
-                href: `/${tokoid}/teknisi/task?status=tersedia`,
-                icon: <RiTaskLine />,
-                label: "Tersedia",
-                badge: taskStats?.tersedia,
-              },
-              {
-                href: `/${tokoid}/teknisi/task?status=repairing`,
-                icon: <RiToolsLine />,
-                label: "Dikerjakan",
-                badge: taskStats?.repairing,
-              },
-              {
-                href: `/${tokoid}/teknisi/task?status=selesai`,
-                icon: <RiCheckLine />,
-                label: "Selesai",
-                badge: taskStats?.selesai,
-                badgeVariant: "success",
-              },
-              {
-                href: `/${tokoid}/teknisi/task?status=gagal`,
-                icon: <RiCloseCircleLine />,
-                label: "Gagal",
-                badge: taskStats?.gagal,
-              },
-              {
-                href: `/${tokoid}/teknisi/task?status=history`,
-                icon: <RiHistoryLine />,
-                label: "History",
-              },
-            ]}
+            items={taskItems}
           />
           <NavItem
             href={`/${tokoid}/teknisi/inventory`}

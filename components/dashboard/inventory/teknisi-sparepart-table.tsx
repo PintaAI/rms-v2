@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -27,18 +27,25 @@ export function TeknisiSparepartTable({ tokoId }: TeknisiSparepartTableProps) {
   const [sparepartSearch, setSparepartSearch] = useState("");
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(true);
 
-  const loadSpareparts = useCallback(async () => {
-    setIsLoadingSpareparts(true);
-    const result = await getSpareparts(tokoId);
-    if (result.success && result.data) {
-      setSpareparts(result.data);
-    }
-    setIsLoadingSpareparts(false);
-  }, [tokoId]);
-
   useEffect(() => {
-    loadSpareparts();
-  }, [loadSpareparts]);
+    let active = true;
+
+    const load = async () => {
+      setIsLoadingSpareparts(true);
+      const result = await getSpareparts(tokoId);
+      if (!active) return;
+      if (result.success && result.data) {
+        setSpareparts(result.data);
+      }
+      setIsLoadingSpareparts(false);
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [tokoId]);
 
   const filteredSpareparts = spareparts.filter((sp) =>
     sp.name.toLowerCase().includes(sparepartSearch.toLowerCase())

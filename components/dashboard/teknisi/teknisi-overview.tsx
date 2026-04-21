@@ -1,24 +1,32 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
-import { takeService, getService } from "@/actions";
-import type { TechnicianStats, ServiceListItem, ServiceDetail } from "@/actions/service";
+import { useAuth } from "@/components/auth/auth-provider";
 import {
-  RiTaskLine,
+  OverviewSectionHeader,
+  OverviewStatsCard,
+} from "@/components/dashboard/shared/overview-cards";
+import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
+import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
+import { getService, takeService } from "@/actions";
+import type { ServiceDetail, ServiceListItem, TechnicianStats } from "@/actions/service";
+import {
+  RiArrowRightLine,
   RiCheckLine,
-  RiCloseCircleLine,
   RiLoader4Line,
+  RiStore2Line,
+  RiTaskLine,
   RiToolsLine,
 } from "@remixicon/react";
 
@@ -27,44 +35,6 @@ interface TeknisiOverviewProps {
   availableServices: ServiceListItem[];
   myTasks: ServiceDetail[];
   tokoId: string;
-}
-
-function StatsCard({
-  title,
-  value,
-  icon,
-  description,
-  variant = "default",
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  description?: string;
-  variant?: "default" | "warning" | "success" | "info";
-}) {
-  const bgColors = {
-    default: "bg-muted",
-    warning: "bg-red-100 dark:bg-red-950",
-    success: "bg-green-100 dark:bg-green-950",
-    info: "bg-blue-100 dark:bg-blue-950",
-  };
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <div className={`h-6 w-6 rounded-lg ${bgColors[variant]} flex items-center justify-center`}>
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="text-xs text-muted-foreground mt-1">{description}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
 }
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -99,19 +69,43 @@ export function TeknisiOverview({
   tokoId,
 }: TeknisiOverviewProps) {
   const router = useRouter();
+  const { tokoList, user } = useAuth();
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isTakingTask, setIsTakingTask] = useState<string | null>(null);
+  const [pendingTakeoverTask, setPendingTakeoverTask] = useState<ServiceListItem | null>(null);
+  const currentToko = tokoList.find((t) => t.id === tokoId);
 
-  const handleTakeTask = useCallback(async (serviceId: string) => {
+  const submitTakeTask = useCallback(async (serviceId: string) => {
     setIsTakingTask(serviceId);
     const result = await takeService(serviceId);
     setIsTakingTask(null);
     if (result.success) {
       router.refresh();
     }
+    return result;
   }, [router]);
+
+  const handleTakeTask = useCallback((service: ServiceListItem) => {
+    if (service.technician && service.technician.id !== user?.id) {
+      setPendingTakeoverTask(service);
+      return;
+    }
+
+    void submitTakeTask(service.id);
+  }, [submitTakeTask, user?.id]);
+
+  const handleConfirmTakeover = useCallback(async () => {
+    if (!pendingTakeoverTask) {
+      return;
+    }
+
+    const result = await submitTakeTask(pendingTakeoverTask.id);
+    if (result.success) {
+      setPendingTakeoverTask(null);
+    }
+  }, [pendingTakeoverTask, submitTakeTask]);
 
   const handleOpenTask = useCallback(async (taskId: string) => {
     setIsLoadingDetail(true);
@@ -121,11 +115,6 @@ export function TeknisiOverview({
       setSelectedTask(result.data);
     }
     setIsLoadingDetail(false);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
-    setDetailDialogOpen(false);
-    setSelectedTask(null);
   }, []);
 
   const handleRefreshDetail = useCallback(() => {
@@ -140,78 +129,120 @@ export function TeknisiOverview({
   }, [selectedTask, router]);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Teknisi Overview</h1>
+    <div className="space-y-8">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-black tracking-tight">Teknisi Overview</h1>
+            <div className="h-6 w-1 rounded-full bg-primary" />
+            <div className="flex items-center gap-2">
+              {currentToko?.logoUrl ? (
+                <Image
+                  src={currentToko.logoUrl}
+                  alt={currentToko.name}
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 rounded-md object-cover"
+                />
+              ) : (
+                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-muted">
+                  <RiStore2Line className="h-3 w-3 text-muted-foreground" />
+                </div>
+              )}
+              <span className="text-sm font-medium text-muted-foreground">{currentToko?.name || "Toko"}</span>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground/70">Ringkasan task teknisi dan antrian servis saat ini</p>
+        </div>
 
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-        <StatsCard
-          title="Task Tersedia"
-          value={stats.availableCount}
-          icon={<RiTaskLine className="h-3 w-3" />}
-          description="Task yang bisa diambil"
-          variant="info"
-        />
-        <StatsCard
-          title="Sedang Proses"
-          value={stats.inProgressCount}
-          icon={<RiToolsLine className="h-3 w-3" />}
-          description="Task yang sedang dikerjakan"
-        />
-        <StatsCard
-          title="Selesai"
-          value={stats.doneCount}
-          icon={<RiCheckLine className="h-3 w-3" />}
-          description="Task yang sudah selesai"
-          variant="success"
-        />
-        <StatsCard
-          title="Total Assigned"
-          value={stats.totalAssigned}
-          icon={<RiTaskLine className="h-3 w-3" />}
-          description="Total task yang pernah diambil"
-        />
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/${tokoId}/teknisi/task`)}
+          className="shrink-0"
+        >
+          <RiArrowRightLine className="mr-1.5 h-4 w-4" />
+          Task Manager
+        </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
+      <section className="space-y-4">
+        <OverviewSectionHeader title="Status Task" colorClass="bg-primary" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <OverviewStatsCard
+            title="Task Tersedia"
+            value={stats.availableCount}
+            icon={<RiTaskLine className="h-4 w-4" />}
+            description="Task yang bisa diambil atau takeover"
+            variant="primary"
+          />
+          <OverviewStatsCard
+            title="Sedang Proses"
+            value={stats.inProgressCount}
+            icon={<RiToolsLine className="h-4 w-4" />}
+            description="Task yang sedang dikerjakan"
+            variant="accent"
+          />
+          <OverviewStatsCard
+            title="Selesai"
+            value={stats.doneCount}
+            icon={<RiCheckLine className="h-4 w-4" />}
+            description="Task yang sudah selesai"
+            variant="success"
+          />
+          <OverviewStatsCard
+            title="Total Assigned"
+            value={stats.totalAssigned}
+            icon={<RiTaskLine className="h-4 w-4" />}
+            description="Total task yang pernah diambil"
+          />
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
+          <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
             <CardTitle className="flex items-center justify-between">
-              <span>Task Tersedia</span>
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-1 rounded-full bg-primary" />
+                <span className="text-lg font-bold">Task Tersedia</span>
+              </div>
               <Badge variant="outline">{availableServices.length}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4">
             {availableServices.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Tidak ada task tersedia saat ini.</p>
+              <p className="text-sm text-muted-foreground">Tidak ada task yang bisa diambil atau takeover saat ini.</p>
             ) : (
               <div className="space-y-3">
                 {availableServices.slice(0, 5).map((service) => (
                   <div
                     key={service.id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+                    className="flex items-center justify-between rounded-xl border border-border/50 bg-card p-3"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
                         {service.hpCatalog.brand.name} {service.hpCatalog.modelName}
                       </p>
-                      <p className="text-sm text-muted-foreground truncate">
+                      <p className="truncate text-sm text-muted-foreground">
                         {service.customerName || "No name"} • {service.complaint.slice(0, 30)}...
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(service.checkinAt)}
-                      </p>
+                      {service.technician && (
+                        <p className="text-xs text-muted-foreground">Ditangani {service.technician.name}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">{formatDate(service.checkinAt)}</p>
                     </div>
                     <Button
                       size="sm"
-                      onClick={() => handleTakeTask(service.id)}
+                      onClick={() => handleTakeTask(service)}
                       disabled={isTakingTask === service.id}
+                      className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80"
                     >
                       {isTakingTask === service.id ? (
                         <RiLoader4Line className="h-4 w-4 animate-spin" />
                       ) : (
-                        <RiTaskLine className="h-4 w-4 mr-1" />
+                        <RiTaskLine className="mr-1 h-4 w-4" />
                       )}
-                      Ambil
+                      {service.technician && service.technician.id !== user?.id ? "Takeover" : "Ambil"}
                     </Button>
                   </div>
                 ))}
@@ -221,6 +252,7 @@ export function TeknisiOverview({
                     className="w-full"
                     onClick={() => router.push(`/${tokoId}/teknisi/task?status=tersedia`)}
                   >
+                    <RiArrowRightLine className="mr-1.5 h-4 w-4" />
                     Lihat semua ({availableServices.length})
                   </Button>
                 )}
@@ -229,32 +261,35 @@ export function TeknisiOverview({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
+          <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
             <CardTitle className="flex items-center justify-between">
-              <span>My Tasks</span>
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-1 rounded-full bg-sky-500" />
+                <span className="text-lg font-bold">My Tasks</span>
+              </div>
               <Badge variant="outline">{myTasks.length}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4">
             {myTasks.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Tidak ada task yang sedang dikerjakan.</p>
+              <p className="text-sm text-muted-foreground">Tidak ada task yang sedang dikerjakan.</p>
             ) : (
               <div className="space-y-3">
                 {myTasks.slice(0, 5).map((task) => (
                   <div
                     key={task.id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 cursor-pointer hover:bg-muted/50"
+                    className="flex cursor-pointer items-center justify-between rounded-xl border border-border/50 bg-card p-3 transition-colors hover:bg-muted/30"
                     onClick={() => handleOpenTask(task.id)}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-2 truncate font-medium">
                         {task.hpCatalog.brand.name} {task.hpCatalog.modelName}
                         <Badge variant={statusColors[task.status] || "outline"}>
                           {statusLabels[task.status] || task.status}
                         </Badge>
                       </p>
-                      <p className="text-sm text-muted-foreground truncate">
+                      <p className="truncate text-sm text-muted-foreground">
                         {task.customerName || "No name"} • {task.complaint.slice(0, 30)}...
                       </p>
                     </div>
@@ -269,6 +304,7 @@ export function TeknisiOverview({
                     className="w-full"
                     onClick={() => router.push(`/${tokoId}/teknisi/task`)}
                   >
+                    <RiArrowRightLine className="mr-1.5 h-4 w-4" />
                     Lihat semua ({myTasks.length})
                   </Button>
                 )}
@@ -276,11 +312,11 @@ export function TeknisiOverview({
             )}
           </CardContent>
         </Card>
-      </div>
+      </section>
 
       <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <SheetContent side="bottom" className="h-[90vh] rounded-t-lg p-2 max-w-4xl mx-auto overflow-y-auto">
-          <SheetHeader className="p-2 flex items-center justify-between">
+        <SheetContent side="bottom" className="mx-auto h-[90vh] max-w-4xl overflow-y-auto rounded-t-lg p-2">
+          <SheetHeader className="flex items-center justify-between p-2">
             <SheetTitle className="font-bold">Detail Task</SheetTitle>
             <p className="text-sm text-muted-foreground">kelola task servis</p>
           </SheetHeader>
@@ -292,8 +328,14 @@ export function TeknisiOverview({
           {!isLoadingDetail && selectedTask && (
             <div className="p-2">
               <ServiceTaskCard
-                task={selectedTask as any}
-                variant={["done", "picked_up", "failed"].includes(selectedTask.status) ? "completed" : "active"}
+                task={selectedTask}
+                variant={
+                  selectedTask.status === "done" ||
+                  selectedTask.status === "picked_up" ||
+                  selectedTask.status === "failed"
+                    ? "completed"
+                    : "active"
+                }
                 onRefresh={handleRefreshDetail}
                 onStatusChange={() => router.refresh()}
               />
@@ -301,6 +343,21 @@ export function TeknisiOverview({
           )}
         </SheetContent>
       </Sheet>
+
+      <TakeoverConfirmDialog
+        open={Boolean(pendingTakeoverTask)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingTakeoverTask(null);
+          }
+        }}
+        onConfirm={handleConfirmTakeover}
+        technicianName={pendingTakeoverTask?.technician?.name || "teknisi lain"}
+        serviceLabel={pendingTakeoverTask
+          ? `${pendingTakeoverTask.hpCatalog.brand.name} ${pendingTakeoverTask.hpCatalog.modelName}`
+          : "Task ini"}
+        isLoading={pendingTakeoverTask ? isTakingTask === pendingTakeoverTask.id : false}
+      />
     </div>
   );
 }

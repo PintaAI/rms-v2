@@ -46,6 +46,21 @@ enum ItemType {
   service
 }
 
+enum ActivityType {
+  service_created
+  service_updated
+  service_status_changed
+  service_assigned
+  service_taken_over
+  invoice_created
+  invoice_paid
+  sparepart_created
+  sparepart_updated
+  sparepart_deleted
+  sparepart_stock_in
+  sparepart_stock_out
+}
+
 enum PaymentStatus {
   unpaid
   paid
@@ -69,6 +84,7 @@ model Toko {
   spareparts       Sparepart[]
   servicePricelists ServicePricelist[]
   services         Service[]
+  activities       ActivityLog[]
 
   @@index([status])
   @@map("toko")
@@ -90,7 +106,7 @@ model User {
   subscription   Subscription?
   createdServices  Service[]    @relation("ServiceCreatedBy")
   assignedServices Service[]    @relation("ServiceTechnician")
-  serviceLogs      ServiceLog[]
+  activities      ActivityLog[]
 
   @@index([role])
   @@map("user")
@@ -278,8 +294,7 @@ model Service {
   items   ServiceItem[]
   invoice Invoice?
 
-  logs          ServiceLog[]
-  notifications NotificationLog[]
+  activities ActivityLog[]
 
   @@index([tokoId])
   @@index([status])
@@ -326,37 +341,25 @@ model Invoice {
 // LOGGING & NOTIF
 //////////////////////
 
-model ServiceLog {
+model ActivityLog {
   id        String @id @default(uuid())
-  serviceId String
+  tokoId    String
+  serviceId String?
   userId    String
 
-  action   String
-  oldValue String?
-  newValue String?
-
-  createdAt DateTime @default(now())
-
-  service Service @relation(fields: [serviceId], references: [id])
-  user    User    @relation(fields: [userId], references: [id])
-
-  @@index([serviceId])
-  @@map("service_log")
-}
-
-model NotificationLog {
-  id        String @id @default(uuid())
-  serviceId String
-
-  type   String // contoh: WA_DONE
-  status String // success / failed
-
+  type    ActivityType
+  title   String
   payload Json?
 
   createdAt DateTime @default(now())
 
-  service Service @relation(fields: [serviceId], references: [id])
+  toko    Toko    @relation(fields: [tokoId], references: [id])
+  service Service? @relation(fields: [serviceId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 
+  @@index([tokoId])
   @@index([serviceId])
-  @@map("notification_log")
+  @@index([userId])
+  @@index([type])
+  @@map("activity_log")
 }

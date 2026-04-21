@@ -67,18 +67,19 @@ export function PatternLock({
   const [isDrawing, setIsDrawing] = useState(false);
   const [mousePosition, setMousePosition] = useState<Point | null>(null);
   const [internalError, setInternalError] = useState(false);
-  const [animatedPattern, setAnimatedPattern] = useState<number[]>([]);
+  const [animationStep, setAnimationStep] = useState(() =>
+    animatePattern && externalPattern ? 0 : (externalPattern?.length ?? 0)
+  );
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Animation effect for displaying pattern
   useEffect(() => {
     if (animatePattern && externalPattern && externalPattern.length > 0) {
-      setAnimatedPattern([]);
       let index = 0;
       const interval = setInterval(() => {
         if (index < externalPattern.length) {
-          setAnimatedPattern(externalPattern.slice(0, index + 1));
+          setAnimationStep(index + 1);
           index++;
         } else {
           clearInterval(interval);
@@ -86,15 +87,15 @@ export function PatternLock({
       }, 150); // 150ms per dot animation
       
       return () => clearInterval(interval);
-    } else if (externalPattern) {
-      setAnimatedPattern(externalPattern);
-    } else {
-      setAnimatedPattern([]);
     }
   }, [animatePattern, externalPattern, animationKey]);
 
   // Use animated pattern for display mode, internal pattern for interactive mode
-  const pattern = externalPattern !== undefined ? animatedPattern : internalPattern;
+  const pattern = externalPattern !== undefined
+    ? animatePattern
+      ? externalPattern.slice(0, animationStep)
+      : externalPattern
+    : internalPattern;
 
   // Combine internal and external error states
   const hasError = externalError || internalError;

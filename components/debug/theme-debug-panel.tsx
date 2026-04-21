@@ -106,18 +106,11 @@ export function ThemeDebugPanel() {
     };
   }, []);
 
-  useEffect(() => {
+  const refreshTourState = useCallback(() => {
     setTourState({
       tourCompleted: localStorage.getItem("tour_completed"),
       onboardCompleted: localStorage.getItem("onboard_completed"),
     });
-  }, [isOpen]);
-
-  const handleRefresh = useCallback(() => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("rms_theme_cache");
-      window.location.reload();
-    }
   }, []);
 
   const handleStartTour = useCallback(() => {
@@ -147,7 +140,10 @@ export function ThemeDebugPanel() {
   if (!isOpen) {
     return (
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          refreshTourState();
+          setIsOpen(true);
+        }}
         className="fixed bottom-4 right-4 z-[9999] p-2 rounded-full bg-background/80 border border-border shadow-lg hover:bg-muted/50 transition-colors"
         title="Open Theme Debug"
       >

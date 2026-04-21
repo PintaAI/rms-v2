@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { signIn, signUp } from "@/lib/auth-client";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -80,13 +79,11 @@ export function AuthCard({
   showGoogleAuth = true,
   className,
 }: AuthCardProps) {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
   
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [loginErrors, setLoginErrors] = useState<ValidationErrors>({});
   const [loginServerError, setLoginServerError] = useState<string | undefined>();
   const [loginIsLoading, setLoginIsLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -96,7 +93,6 @@ export function AuthCard({
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
-  const [registerErrors, setRegisterErrors] = useState<ValidationErrors>({});
   const [registerServerError, setRegisterServerError] = useState<string | undefined>();
   const [registerIsLoading, setRegisterIsLoading] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
@@ -119,46 +115,19 @@ export function AuthCard({
     confirmPassword: false,
   });
 
-  // Real-time validation for login
-  React.useEffect(() => {
-    if (loginTouched.email) {
-      setLoginErrors((prev) => ({ ...prev, email: validateEmail(loginEmail) }));
-    }
-  }, [loginEmail, loginTouched.email]);
+  const loginErrors: ValidationErrors = {
+    email: loginTouched.email ? validateEmail(loginEmail) : undefined,
+    password: loginTouched.password ? validatePassword(loginPassword) : undefined,
+  };
 
-  React.useEffect(() => {
-    if (loginTouched.password) {
-      setLoginErrors((prev) => ({ ...prev, password: validatePassword(loginPassword) }));
-    }
-  }, [loginPassword, loginTouched.password]);
-
-  // Real-time validation for register
-  React.useEffect(() => {
-    if (registerTouched.name) {
-      setRegisterErrors((prev) => ({ ...prev, name: validateName(registerName) }));
-    }
-  }, [registerName, registerTouched.name]);
-
-  React.useEffect(() => {
-    if (registerTouched.email) {
-      setRegisterErrors((prev) => ({ ...prev, email: validateEmail(registerEmail) }));
-    }
-  }, [registerEmail, registerTouched.email]);
-
-  React.useEffect(() => {
-    if (registerTouched.password) {
-      setRegisterErrors((prev) => ({ ...prev, password: validatePassword(registerPassword) }));
-    }
-  }, [registerPassword, registerTouched.password]);
-
-  React.useEffect(() => {
-    if (registerTouched.confirmPassword) {
-      setRegisterErrors((prev) => ({
-        ...prev,
-        confirmPassword: validateConfirmPassword(registerPassword, registerConfirmPassword),
-      }));
-    }
-  }, [registerPassword, registerConfirmPassword, registerTouched.confirmPassword]);
+  const registerErrors: ValidationErrors = {
+    name: registerTouched.name ? validateName(registerName) : undefined,
+    email: registerTouched.email ? validateEmail(registerEmail) : undefined,
+    password: registerTouched.password ? validatePassword(registerPassword) : undefined,
+    confirmPassword: registerTouched.confirmPassword
+      ? validateConfirmPassword(registerPassword, registerConfirmPassword)
+      : undefined,
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,7 +138,6 @@ export function AuthCard({
       email: validateEmail(loginEmail),
       password: validatePassword(loginPassword),
     };
-    setLoginErrors(errors);
     setLoginTouched({ email: true, password: true });
 
     if (Object.values(errors).some((error) => error !== undefined)) {
@@ -212,7 +180,6 @@ export function AuthCard({
       password: validatePassword(registerPassword),
       confirmPassword: validateConfirmPassword(registerPassword, registerConfirmPassword),
     };
-    setRegisterErrors(errors);
     setRegisterTouched({ name: true, email: true, password: true, confirmPassword: true });
 
     if (Object.values(errors).some((error) => error !== undefined)) {
@@ -262,14 +229,12 @@ export function AuthCard({
 
   const switchToRegister = () => {
     setActiveTab("register");
-    setLoginErrors({});
     setLoginServerError(undefined);
     setLoginTouched({ email: false, password: false });
   };
 
   const switchToLogin = () => {
     setActiveTab("login");
-    setRegisterErrors({});
     setRegisterServerError(undefined);
     setRegisterTouched({ name: false, email: false, password: false, confirmPassword: false });
   };
@@ -387,8 +352,8 @@ export function AuthCard({
               </>
             )}
 
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              Don't have an account?{" "}
+              <p className="mt-4 text-center text-sm text-muted-foreground">
+              Don&apos;t have an account?{" "}
               <button
                 type="button"
                 onClick={switchToRegister}

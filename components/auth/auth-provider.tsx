@@ -77,8 +77,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [refetch]);
 
   useEffect(() => {
-    fetchTokoList();
-  }, [fetchTokoList]);
+    let active = true;
+
+    const load = async () => {
+      if (!session?.user) return;
+
+      setIsTokoLoading(true);
+      try {
+        const list = await getUserTokoList();
+        if (active) {
+          setTokoList(list);
+        }
+      } catch (error) {
+        console.error("Failed to fetch toko list:", error);
+      } finally {
+        if (active) {
+          setIsTokoLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user]);
 
   useEffect(() => {
     if (isPending || redirectingRef.current) return;

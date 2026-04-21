@@ -90,6 +90,8 @@ export interface TechnicianDashboardData {
   myTasks: ServiceDetail[];
 }
 
+const technicianAvailableStatuses: ServiceStatus[] = ["received", "repairing"];
+
 const serviceSelectBase = {
   id: true,
   customerName: true,
@@ -133,7 +135,33 @@ const serviceItemSelect = {
   referenceId: true,
 };
 
-function mapServiceToListItem(service: any): ServiceListItem {
+type ServiceWithSelectBase = {
+  id: string;
+  customerName: string | null;
+  noWa: string;
+  complaint: string;
+  status: ServiceStatus;
+  checkinAt: Date;
+  doneAt: Date | null;
+  checkoutAt: Date | null;
+  passwordPattern: string | null;
+  imei: string | null;
+  note: string | null;
+  hpCatalog: {
+    id: string;
+    modelName: string;
+    brand: { name: string };
+  };
+  technician: { id: string; name: string } | null;
+  createdBy: { name: string } | null;
+  invoice: {
+    id: string;
+    grandTotal: number;
+    paymentStatus: PaymentStatus;
+  } | null;
+};
+
+function mapServiceToListItem(service: ServiceWithSelectBase): ServiceListItem {
   return {
     id: service.id,
     hpCatalogId: service.hpCatalog.id,
@@ -380,11 +408,10 @@ export async function getAvailableTasks(
     const services = await prisma.service.findMany({
       where: {
         tokoId: targetTokoId,
-        status: "received",
-        technicianId: null,
+        status: { in: technicianAvailableStatuses },
+        OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
       },
       orderBy: { checkinAt: "asc" },
-      take: 10,
       select: serviceSelectBase,
     });
 
@@ -467,7 +494,11 @@ export async function getMyStats(): Promise<ActionResultWithData<TechnicianStats
     const [totalAssigned, availableCount, inProgressCount, doneCount] = await Promise.all([
       prisma.service.count({ where: { technicianId: user.id } }),
       prisma.service.count({
-        where: { tokoId: userTokoId, status: "received", technicianId: null },
+        where: {
+          tokoId: userTokoId,
+          status: { in: technicianAvailableStatuses },
+          OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
+        },
       }),
       prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
       prisma.service.count({
@@ -485,13 +516,16 @@ export async function getMyStats(): Promise<ActionResultWithData<TechnicianStats
   }
 }
 
-export async function getTechnicianDashboard(): Promise<ActionResultWithData<TechnicianDashboardData>> {
+export async function getTechnicianDashboard(
+  tokoId?: string
+): Promise<ActionResultWithData<TechnicianDashboardData>> {
   try {
     const { user, tokoIds } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
 
-    const userTokoId = tokoIds[0];
+    const userTokoId = tokoId ?? tokoIds[0];
     if (!userTokoId) return { success: false, error: "No toko found" };
+    if (!tokoIds.includes(userTokoId)) return { success: false, error: "Access denied" };
 
     const [
       totalAssigned,
@@ -503,14 +537,22 @@ export async function getTechnicianDashboard(): Promise<ActionResultWithData<Tec
     ] = await Promise.all([
       prisma.service.count({ where: { technicianId: user.id } }),
       prisma.service.count({
-        where: { tokoId: userTokoId, status: "received", technicianId: null },
+        where: {
+          tokoId: userTokoId,
+          status: { in: technicianAvailableStatuses },
+          OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
+        },
       }),
       prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
       prisma.service.count({
         where: { technicianId: user.id, status: { in: ["done", "picked_up"] } },
       }),
       prisma.service.findMany({
-        where: { tokoId: userTokoId, status: "received", technicianId: null },
+        where: {
+          tokoId: userTokoId,
+          status: { in: technicianAvailableStatuses },
+          OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
+        },
         orderBy: { checkinAt: "asc" },
         take: 10,
         select: serviceSelectBase,
@@ -722,19 +764,19 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
 
-    if (service.status !== "received") {
-      return { success: false, error: "Service is not available" };
+    if (!technicianAvailableStatuses.includes(service.status)) {
+      return { success: false, error: "Service is not available for takeover" };
     }
 
-    if (service.technicianId) {
-      return { success: false, error: "Service already has a technician" };
+    if (service.technicianId === user.id) {
+      return { success: false, error: "Service is already assigned to you" };
     }
 
     await prisma.service.update({
       where: { id: serviceId },
       data: {
         technicianId: user.id,
-        status: "repairing",
+        status: service.status === "received" && !service.technicianId ? "repairing" : undefined,
         assignedAt: new Date(),
       },
     });
@@ -1062,7 +1104,11 @@ export async function getTechnicianTaskBadgeStats(
 
     const [tersedia, repairing, selesai, gagal, history, total] = await Promise.all([
       prisma.service.count({
-        where: { tokoId, status: "received", technicianId: null },
+        where: {
+          tokoId,
+          status: { in: technicianAvailableStatuses },
+          OR: [{ technicianId: null }, { technicianId: { not: session.user.id } }],
+        },
       }),
       prisma.service.count({
         where: { technicianId: session.user.id, status: "repairing" },

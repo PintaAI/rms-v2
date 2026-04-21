@@ -1,5 +1,6 @@
 import { getAdminOverview } from "@/actions/overview";
-import { AdminOverviewClient } from "@/components/dashboard/admin/admin-overview";
+import { getUserTokoList } from "@/actions/user";
+import { AdminOverview } from "@/components/dashboard/admin/admin-overview";
 
 export default async function AdminOverviewPage({
   params,
@@ -7,7 +8,10 @@ export default async function AdminOverviewPage({
   params: Promise<{ tokoid: string }>;
 }) {
   const { tokoid } = await params;
-  const result = await getAdminOverview(tokoid);
+  const [result, tokoList] = await Promise.all([
+    getAdminOverview(tokoid),
+    getUserTokoList(),
+  ]);
 
   if (!result.success || !result.data) {
     return (
@@ -20,5 +24,7 @@ export default async function AdminOverviewPage({
     );
   }
 
-  return <AdminOverviewClient initialData={result.data} tokoId={tokoid} />;
+  const currentToko = tokoList.find((toko) => toko.id === tokoid);
+
+  return <AdminOverview data={result.data} tokoId={tokoid} currentToko={currentToko} />;
 }

@@ -151,14 +151,14 @@ return (
                 {hasActions && (
                   <TableCell>
                     <div className="flex flex-col gap-2">
-                      {onTake && service.status === "received" && !service.technician && (
+                      {onTake && (service.status === "received" || service.status === "repairing") && (
                         <Button
                           size="sm"
                           className="h-7 text-xs bg-chart-2 hover:bg-chart-2/80 text-primary-foreground shadow-sm"
                           onClick={(e) => { e.stopPropagation(); onTake(service.id); }}
                         >
                           <RiTaskLine className="h-3.5 w-3.5 mr-1" />
-                          Ambil
+                          {service.technician ? "Takeover" : "Ambil"}
                         </Button>
                       )}
                       {showMarkPaid && service.invoice?.paymentStatus === "unpaid" && (

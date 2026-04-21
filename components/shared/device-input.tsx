@@ -47,18 +47,12 @@ export function DeviceInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const isSelected = useMemo(() => {
-    return value && `${value.brandName} ${value.modelName}` === query;
-  }, [value, query]);
+  const selectedLabel = value ? `${value.brandName} ${value.modelName}` : "";
+  const displayQuery = showInput ? query : selectedLabel;
 
-  useEffect(() => {
-    if (value) {
-      setQuery(`${value.brandName} ${value.modelName}`);
-      setShowInput(false);
-    } else {
-      setShowInput(true);
-    }
-  }, [value]);
+  const isSelected = useMemo(() => {
+    return !!value && selectedLabel === displayQuery;
+  }, [value, selectedLabel, displayQuery]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -70,48 +64,47 @@ export function DeviceInput({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const debouncedSearch = useCallback(async (searchQuery: string) => {
+  useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    if (!searchQuery.trim() || isSelected) {
-      setResults([]);
-      setShowDropdown(false);
+    if (!query.trim() || isSelected) {
+      queueMicrotask(() => {
+        setResults([]);
+        setShowDropdown(false);
+      });
       return;
     }
 
-    setShowDropdown(true);
+    let active = true;
+    queueMicrotask(() => {
+      setShowDropdown(true);
+    });
 
     searchTimeoutRef.current = setTimeout(async () => {
       setIsSearching(true);
-      const result = await searchDevices(searchQuery);
+      const result = await searchDevices(query);
+      if (!active) return;
       setIsSearching(false);
-
       if (result.success && result.data) {
         setResults(result.data);
       } else {
         setResults([]);
       }
+      setHighlightedIndex(-1);
     }, 150);
-  }, [isSelected]);
 
-  useEffect(() => {
-    debouncedSearch(query);
     return () => {
+      active = false;
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [query, debouncedSearch]);
-
-  useEffect(() => {
-    setHighlightedIndex(-1);
-  }, [results]);
+  }, [query, isSelected]);
 
   const handleSelect = useCallback((device: HpCatalogOption) => {
     onChange(device);
-    setQuery(`${device.brandName} ${device.modelName}`);
     setShowDropdown(false);
     setShowInput(false);
   }, [onChange]);
@@ -187,7 +180,7 @@ export function DeviceInput({
     return { brand: "Unknown", model: parts[0] || deviceQuery };
   }, []);
 
-  const displayQuery = useMemo(() => {
+  const createLabel = useMemo(() => {
     if (!query.trim()) return query;
     const parsed = parseDeviceName(query);
     return `${parsed.brand} ${parsed.model}`;
@@ -228,7 +221,7 @@ export function DeviceInput({
           <Input
             ref={inputRef}
             id="device"
-            value={query}
+          value={displayQuery}
             onChange={handleChange}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
@@ -297,7 +290,7 @@ export function DeviceInput({
                     ) : (
                       <>
                         <RiAddLine className="w-4 h-4 mr-2" />
-                        Create &quot;{displayQuery}&quot;
+                        Create &quot;{createLabel}&quot;
                       </>
                     )}
                   </Button>

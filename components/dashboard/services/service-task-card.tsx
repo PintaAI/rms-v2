@@ -207,10 +207,15 @@ export function ServiceTaskCard({
   // Always-current refs so callbacks can read the latest values without
   // needing them in their dependency arrays (avoids stale closures).
   const localTaskRef = useRef(localTask);
-  localTaskRef.current = localTask;
-
   const taskPropRef = useRef(task);
-  taskPropRef.current = task;
+
+  useEffect(() => {
+    localTaskRef.current = localTask;
+  }, [localTask]);
+
+  useEffect(() => {
+    taskPropRef.current = task;
+  }, [task]);
 
   // Counter of in-flight mutations. Incremented before the server call,
   // decremented in `finally`. The effect skips the sync while it is > 0.

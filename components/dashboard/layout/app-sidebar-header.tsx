@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useEffect, useState } from "react";
+import { useTransition } from "react";
 import Image from "next/image";
 import { RiStore2Line, RiArrowDownSLine, RiLoader4Line } from "@remixicon/react";
 import {
@@ -58,15 +58,10 @@ export function AppSidebarHeader({
   const router = useRouter();
   const { isTokoLoading } = useAuth();
   const [isPending, startTransition] = useTransition();
-  const [mounted, setMounted] = useState(false);
   const currentToko = tokoList?.find((t) => t.id === tokoid);
   const canSwitchToko = userRole === "admin" && tokoList && tokoList.length > 1;
 
   useDynamicTheme(currentToko?.logoUrl);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleTokoSwitch = (newTokoId: string) => {
     startTransition(() => {
@@ -74,7 +69,7 @@ export function AppSidebarHeader({
     });
   };
 
-  const showLoading = !mounted || isTokoLoading;
+  const showLoading = typeof window === "undefined" || isTokoLoading;
 
   return (
     <SidebarHeader>

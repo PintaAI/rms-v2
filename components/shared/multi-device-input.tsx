@@ -44,46 +44,45 @@ export function MultiDeviceInput({
   }, []);
 
   useEffect(() => {
-    setHighlightedIndex(-1);
-  }, [results]);
-
-  const debouncedSearch = useCallback(async (searchQuery: string) => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    if (!searchQuery.trim()) {
-      setResults([]);
-      setShowDropdown(false);
+    if (!query.trim()) {
+      queueMicrotask(() => {
+        setResults([]);
+        setShowDropdown(false);
+      });
       return;
     }
 
-    setShowDropdown(true);
+    let active = true;
+    queueMicrotask(() => {
+      setShowDropdown(true);
+    });
 
     searchTimeoutRef.current = setTimeout(async () => {
       setIsSearching(true);
-      const result = await searchDevices(searchQuery);
+      const result = await searchDevices(query);
+      if (!active) return;
       setIsSearching(false);
 
       if (result.success && result.data) {
-        const filtered = result.data.filter(
-          (d) => !value.some((v) => v.id === d.id)
-        );
+        const filtered = result.data.filter((d) => !value.some((v) => v.id === d.id));
         setResults(filtered);
       } else {
         setResults([]);
       }
+      setHighlightedIndex(-1);
     }, 150);
-  }, [value]);
 
-  useEffect(() => {
-    debouncedSearch(query);
     return () => {
+      active = false;
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [query, debouncedSearch]);
+  }, [query, value]);
 
   const handleSelect = useCallback((device: HpCatalogOption) => {
     if (value.some((v) => v.id === device.id)) {

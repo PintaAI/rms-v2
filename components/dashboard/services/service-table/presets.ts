@@ -21,7 +21,7 @@ export const columnPresets: Record<PresetKey, ColumnKey[]> = {
     "invoice",
     "checkinAt",
   ],
-  technicianAvailable: ["customer", "device", "complaint", "note", "status"],
+  technicianAvailable: ["customer", "device", "complaint", "technician", "note", "status"],
   technicianMyTasks: [
     "customer",
     "device",

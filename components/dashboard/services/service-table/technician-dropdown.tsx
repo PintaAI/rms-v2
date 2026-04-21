@@ -57,9 +57,25 @@ export function TechnicianDropdown({
   };
 
   useEffect(() => {
-    if (open) {
-      loadTechnicians();
-    }
+    if (!open) return;
+
+    let active = true;
+
+    const load = async () => {
+      setIsLoading(true);
+      const result = await getTechniciansByToko(tokoId);
+      if (!active) return;
+      if (result.success && result.data) {
+        setTechnicians(result.data);
+      }
+      setIsLoading(false);
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
   }, [open, tokoId]);
 
   const handleAssign = async (technicianId: string | null) => {

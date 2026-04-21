@@ -482,7 +482,7 @@ export function OnboardingWizard() {
                   </div>
 
                   {data.staff.length === 0 && (
-                    <p className="text-xs text-muted-foreground">No staff added. Click "Add Staff" to add one.</p>
+                    <p className="text-xs text-muted-foreground">No staff added. Click &quot;Add Staff&quot; to add one.</p>
                   )}
 
                   {data.staff.map((staff, index) => (
@@ -546,7 +546,7 @@ export function OnboardingWizard() {
                   </div>
 
                   {data.technician.length === 0 && (
-                    <p className="text-xs text-muted-foreground">No technician added. Click "Add Technician" to add one.</p>
+                    <p className="text-xs text-muted-foreground">No technician added. Click &quot;Add Technician&quot; to add one.</p>
                   )}
 
                   {data.technician.map((tech, index) => (

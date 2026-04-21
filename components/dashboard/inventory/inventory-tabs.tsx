@@ -86,9 +86,36 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
   }, [tokoId]);
 
   useEffect(() => {
-    loadSpareparts();
-    loadPricelists();
-  }, [loadSpareparts, loadPricelists]);
+    let active = true;
+
+    const load = async () => {
+      setIsLoadingSpareparts(true);
+      setIsLoadingPricelists(true);
+
+      const [sparepartsResult, pricelistsResult] = await Promise.all([
+        getSpareparts(tokoId),
+        getServicePricelists(tokoId),
+      ]);
+
+      if (!active) return;
+
+      if (sparepartsResult.success && sparepartsResult.data) {
+        setSpareparts(sparepartsResult.data);
+      }
+      if (pricelistsResult.success && pricelistsResult.data) {
+        setPricelists(pricelistsResult.data);
+      }
+
+      setIsLoadingSpareparts(false);
+      setIsLoadingPricelists(false);
+    };
+
+    void load();
+
+    return () => {
+      active = false;
+    };
+  }, [tokoId]);
 
   const filteredSpareparts = spareparts.filter((sp) =>
     sp.name.toLowerCase().includes(sparepartSearch.toLowerCase())

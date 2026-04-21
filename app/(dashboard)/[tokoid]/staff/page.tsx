@@ -1,5 +1,6 @@
 import { getStaffOverview } from "@/actions/overview";
-import { StaffOverviewClient } from "@/components/dashboard/staff/staff-overview";
+import { getUserTokoList } from "@/actions/user";
+import { StaffOverview } from "@/components/dashboard/staff/staff-overview";
 
 export default async function StaffOverviewPage({
   params,
@@ -7,7 +8,10 @@ export default async function StaffOverviewPage({
   params: Promise<{ tokoid: string }>;
 }) {
   const { tokoid } = await params;
-  const result = await getStaffOverview(tokoid);
+  const [result, tokoList] = await Promise.all([
+    getStaffOverview(tokoid),
+    getUserTokoList(),
+  ]);
 
   if (!result.success || !result.data) {
     return (
@@ -20,5 +24,7 @@ export default async function StaffOverviewPage({
     );
   }
 
-  return <StaffOverviewClient initialData={result.data} tokoId={tokoid} />;
+  const currentToko = tokoList.find((toko) => toko.id === tokoid);
+
+  return <StaffOverview data={result.data} tokoId={tokoid} currentToko={currentToko} />;
 }

@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { OverviewStatsCard } from "@/components/dashboard/shared/overview-cards";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
@@ -16,7 +17,6 @@ import {
   RiCheckLine,
   RiLogoutBoxLine,
   RiAddLine,
-  RiHistoryLine,
 } from "@remixicon/react";
 
 interface ServiceStats {
@@ -34,32 +34,6 @@ interface StaffManageServiceProps {
   initialStats: ServiceStats;
   tokoId: string;
   pageSize: number;
-}
-
-function StatsCard({
-  title,
-  value,
-  icon,
-  variant = "default",
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  variant?: "default" | "warning" | "success";
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <div className="h-6 w-6 rounded-lg bg-muted flex items-center justify-center">
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
-  );
 }
 
 export function StaffManageService({
@@ -148,12 +122,6 @@ export function StaffManageService({
       return newStats;
     });
   }, []);
-
-  const matchesFilter = useCallback((service: ServiceListItem) => {
-    if (!statusFilter) return true;
-    const filterStatuses = statusFilter.split(",");
-    return filterStatuses.includes(service.status);
-  }, [statusFilter]);
 
   const handleOptimisticCreate = useCallback((tempService: ServiceListItem) => {
     pendingMutationsRef.current++;
@@ -324,56 +292,73 @@ export function StaffManageService({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{getPageTitle()}</h1>
-          <p className="text-sm text-muted-foreground">
+    <div className="space-y-8">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-5 w-1 bg-primary rounded-full" />
+          <div>
+            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{getPageTitle()}</h2>
+            <p className="text-sm text-muted-foreground/70">
             Halaman {currentPage} dari {totalPages || 1} ({filteredServices.length} dari {services.length} total)
-          </p>
+            </p>
+          </div>
         </div>
-        <Button onClick={() => { setEditData(null); setFormOpen(true); }}>
-          <RiAddLine className="h-4 w-4 mr-1" />
+        <Button
+          onClick={() => { setEditData(null); setFormOpen(true); }}
+          className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+        >
+          <RiAddLine className="h-4 w-4 mr-1.5" />
           New Service
         </Button>
       </div>
 
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-        <StatsCard
+      <section className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <OverviewStatsCard
           title="Masuk"
           value={stats.received}
-          icon={<RiInboxLine className="h-3 w-3" />}
+          icon={<RiInboxLine className="h-4 w-4" />}
+          description="menunggu teknisi"
+          variant="primary"
         />
-        <StatsCard
+        <OverviewStatsCard
           title="Proses"
           value={stats.repairing}
-          icon={<RiToolsLine className="h-3 w-3" />}
+          icon={<RiToolsLine className="h-4 w-4" />}
+          description="sedang diperbaiki"
+          variant="accent"
         />
-        <StatsCard
+        <OverviewStatsCard
           title="Selesai & Gagal"
           value={stats.done + stats.failed}
-          icon={<RiCheckLine className="h-3 w-3" />}
+          icon={<RiCheckLine className="h-4 w-4" />}
+          description={`${stats.done} selesai, ${stats.failed} gagal`}
           variant={stats.failed > 0 ? "warning" : "success"}
         />
-        <StatsCard
+        <OverviewStatsCard
           title="Diambil"
           value={stats.picked_up}
-          icon={<RiLogoutBoxLine className="h-3 w-3" />}
+          icon={<RiLogoutBoxLine className="h-4 w-4" />}
+          description="sudah selesai"
         />
-        <StatsCard
-          title="History"
-          value={stats.history}
-          icon={<RiHistoryLine className="h-3 w-3" />}
-        />
-        <StatsCard
+        <OverviewStatsCard
           title="Total"
           value={stats.total}
-          icon={<RiInboxLine className="h-3 w-3" />}
+          icon={<RiInboxLine className="h-4 w-4" />}
+          description="semua service"
         />
-      </div>
+        </div>
+      </section>
 
-      <Card>
-        <CardContent className="pt-6">
+      <section>
+        <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
+          <CardHeader className="border-b pt-4 border-border/50 bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-1 bg-primary rounded-full" />
+              <CardTitle className="text-lg font-bold">Daftar Service</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
           <ServiceTable
             services={tableServices}
             preset="staffActive"
@@ -382,13 +367,13 @@ export function StaffManageService({
             onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleDelete}
             onMarkPaid={!statusFilter ? undefined : handleMarkPaid}
             onPickup={!statusFilter ? undefined : handlePickup}
-            onCall={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
-            tokoId={tokoId}
-            disableAssignment={true}
-          />
+              onCall={undefined}
+              tokoId={tokoId}
+              disableAssignment={true}
+            />
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t">
+            <div className="flex items-center justify-center gap-2 px-6 py-4 border-t border-border/50 bg-muted/30">
               <Button
                 variant="outline"
                 size="sm"
@@ -431,8 +416,9 @@ export function StaffManageService({
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </section>
 
       <ServicesForm
         open={formOpen}

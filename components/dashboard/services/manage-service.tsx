@@ -560,14 +560,14 @@ const getPageTitle = () => {
             </div>
           )}
           {!isLoadingDetail && selectedService && (
-            <ServiceTaskCard
-              task={selectedService as any}
-              variant={["done", "picked_up", "failed"].includes(selectedService.status) ? "completed" : "active"}
-              onRefresh={handleRefreshDetail}
-              onStatusChange={(newStatus) => {
-                router.refresh();
-              }}
-            />
+              <ServiceTaskCard
+                task={selectedService}
+                variant={["done", "picked_up", "failed"].includes(selectedService.status) ? "completed" : "active"}
+                onRefresh={handleRefreshDetail}
+                onStatusChange={() => {
+                  router.refresh();
+                }}
+              />
           )}
         </SheetContent>
       </Sheet>

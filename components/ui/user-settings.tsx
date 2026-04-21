@@ -72,12 +72,6 @@ function ProfileSettings({ user, onSuccess }: { user?: UserSettingsProps["user"]
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
-    setName(user?.name || "")
-    setPreviewUrl(null)
-    setSelectedFile(null)
-  }, [user?.name, user?.image])
-
-  React.useEffect(() => {
     return () => {
       if (previewUrl && previewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(previewUrl)
@@ -124,8 +118,8 @@ function ProfileSettings({ user, onSuccess }: { user?: UserSettingsProps["user"]
       toast.success("Profile updated successfully")
       router.refresh()
       onSuccess?.()
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save changes")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save changes")
     }
     setIsSaving(false)
   }
@@ -256,8 +250,8 @@ function PasswordSettings({ onSuccess }: { onSuccess?: () => void }) {
       setNewPassword("")
       setConfirmPassword("")
       onSuccess?.()
-    } catch (error: any) {
-      setError(error.message || "Failed to change password")
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to change password")
     }
     setIsUpdating(false)
   }
@@ -376,11 +370,7 @@ function PremiumSettings() {
 }
 
 function AppearanceSettings() {
-  const [dynamicTheme, setDynamicTheme] = React.useState<ThemeMode>("dynamic")
-
-  React.useEffect(() => {
-    setDynamicTheme(getThemeMode())
-  }, [])
+  const [dynamicTheme, setDynamicTheme] = React.useState<ThemeMode>(() => getThemeMode())
 
   const handleToggle = (checked: boolean) => {
     const newMode: ThemeMode = checked ? "dynamic" : "default"
@@ -431,7 +421,7 @@ export function UserSettings({ open, onOpenChange, user }: UserSettingsProps) {
   const renderContent = () => {
     switch (activeTab) {
       case "profile":
-        return <ProfileSettings user={user} onSuccess={() => onOpenChange(false)} />
+        return <ProfileSettings key={`${user?.name ?? "user"}-${user?.image ?? "no-image"}`} user={user} onSuccess={() => onOpenChange(false)} />
       case "password":
         return <PasswordSettings onSuccess={() => onOpenChange(false)} />
       case "appearance":
@@ -441,7 +431,7 @@ export function UserSettings({ open, onOpenChange, user }: UserSettingsProps) {
       case "premium":
         return <PremiumSettings />
       default:
-        return <ProfileSettings user={user} onSuccess={() => onOpenChange(false)} />
+        return <ProfileSettings key={`${user?.name ?? "user"}-${user?.image ?? "no-image"}`} user={user} onSuccess={() => onOpenChange(false)} />
     }
   }
 

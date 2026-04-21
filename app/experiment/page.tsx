@@ -1,6 +1,14 @@
 import { Suspense } from "react";
 import { getPriceData, getArticle } from "./actions";
 
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  sku: string;
+};
+
 async function PriceData() {
   const priceResult = await getPriceData();
 
@@ -8,7 +16,7 @@ async function PriceData() {
     <div className="border rounded-lg p-4">
       <h2 className="text-lg font-medium mb-2">Price Data</h2>
       <div className="mt-2 space-y-2">
-        {priceResult.data.products.map((product: any) => (
+        {priceResult.data.products.map((product: Product) => (
           <div key={product.id} className="p-2 bg-gray-50 rounded text-sm">
             <p className="font-medium">{product.name}</p>
             <p className="text-gray-600">

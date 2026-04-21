@@ -66,9 +66,9 @@ export async function changePassword(
 
     revalidatePath("/");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error changing password:", error);
-    return { success: false, error: error.message || "Failed to change password" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to change password" };
   }
 }
 
@@ -96,9 +96,9 @@ export async function updateProfile(
 
     revalidatePath("/");
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error updating profile:", error);
-    return { success: false, error: error.message || "Failed to update profile" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update profile" };
   }
 }
 
@@ -129,8 +129,8 @@ export async function uploadAvatar(file: File): Promise<ActionResultWithData<str
 
     revalidatePath("/");
     return { success: true, data: imageUrl };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error uploading avatar:", error);
-    return { success: false, error: error.message || "Failed to upload avatar" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to upload avatar" };
   }
 }
