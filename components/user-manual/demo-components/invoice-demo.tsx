@@ -9,6 +9,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { formatCurrency } from "@/lib/utils";
 
 const demoInvoice = {
   ticketId: "SRV-2024-001",
@@ -22,10 +23,6 @@ const demoInvoice = {
   total: 400000,
   status: "unpaid",
 };
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount);
-}
 
 export function InvoiceDemo() {
   return (

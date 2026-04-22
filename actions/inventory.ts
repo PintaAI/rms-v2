@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth"
 import { createActivityLogIfUser } from "@/lib/activity-log"
 import prisma from "@/lib/prisma"
 import type { ActionResult, ActionResultWithData } from "@/lib/rbac"
-import { revalidatePath } from "next/cache"
+import { revalidateInventoryPaths } from "@/lib/revalidation"
 import { headers } from "next/headers"
 import { z } from "zod"
 
@@ -93,6 +93,7 @@ export async function getSpareparts(tokoId: string): Promise<ActionResultWithDat
         },
       },
       orderBy: { name: "asc" },
+      take: 500,
     })
 
     return { success: true, data: spareparts }
@@ -167,8 +168,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
       },
     })
 
-    revalidatePath("/dashboard/admin/inventory")
-    revalidatePath("/dashboard/staff/sparepart")
+    revalidateInventoryPaths()
 
     await createActivityLogIfUser({
       tokoId: validated.tokoId,
@@ -244,8 +244,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
       },
     })
 
-    revalidatePath("/dashboard/admin/inventory")
-    revalidatePath("/dashboard/staff/sparepart")
+    revalidateInventoryPaths()
 
     await createActivityLogIfUser({
       tokoId: sparepart.tokoId,
@@ -296,8 +295,7 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
       prisma.sparepart.delete({ where: { id } }),
     ])
 
-    revalidatePath("/dashboard/admin/inventory")
-    revalidatePath("/dashboard/staff/sparepart")
+    revalidateInventoryPaths()
 
     await createActivityLogIfUser({
       tokoId: sparepart.tokoId,
@@ -328,6 +326,7 @@ export async function getServicePricelists(tokoId: string): Promise<ActionResult
         defaultPrice: true,
         tokoId: true,
       },
+      take: 200,
     })
 
     return { success: true, data: pricelists }

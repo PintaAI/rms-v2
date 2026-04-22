@@ -44,7 +44,7 @@ interface TechnicianTaskStats {
 }
 
 interface TeknisiTaskManagerProps {
-  myTasks: ServiceDetail[];
+  myTasks: ServiceListItem[];
   availableTasks: ServiceListItem[];
   initialStats: TechnicianTaskStats;
   tokoId: string;

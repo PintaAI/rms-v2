@@ -11,6 +11,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { RiAddLine, RiDeleteBinLine, RiCheckDoubleLine, RiCloseCircleLine } from "@remixicon/react";
+import { formatCurrency } from "@/lib/utils";
 
 const demoTask = {
   device: "Samsung Galaxy A12",
@@ -23,10 +24,6 @@ const demoTask = {
     { type: "service", name: "Jasa Ganti LCD", qty: 1, price: 100000 },
   ],
 };
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount);
-}
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   received: { label: "Masuk", variant: "secondary" },

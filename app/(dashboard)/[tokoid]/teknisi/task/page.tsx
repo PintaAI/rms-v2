@@ -2,16 +2,30 @@ import { getAvailableTasks, getMyTasks, getTechnicianTaskStats } from "@/actions
 import { TeknisiTaskManager } from "@/components/dashboard/services/teknisi-task-manager";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 import { headers } from "next/headers";
 import Image from "next/image";
 import { RiStore2Line } from "@remixicon/react";
 
+function getMyTaskStatuses(status?: string): ServiceStatus[] {
+  if (status === "repairing") return ["repairing"];
+  if (status === "selesai") return ["done"];
+  if (status === "gagal") return ["failed"];
+  if (status === "history") return ["done", "failed"];
+
+  return ["received", "repairing"];
+}
+
 export default async function TeknisiTaskPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tokoid: string }>;
+  searchParams: Promise<{ status?: string | string[] }>;
 }) {
   const { tokoid } = await params;
+  const query = await searchParams;
+  const status = Array.isArray(query.status) ? query.status[0] : query.status;
   const headersList = await headers();
   const session = await auth.api.getSession({ headers: headersList });
   const toko = await prisma.toko.findUnique({
@@ -55,11 +69,11 @@ export default async function TeknisiTaskPage({
     ? statsResult.data
     : { tersedia: 0, repairing: 0, selesai: 0, gagal: 0, history: 0, total: 0 };
 
-  const myTasksResult = await getMyTasks(tokoid);
+  const myTasksResult = await getMyTasks(tokoid, getMyTaskStatuses(status));
   const myTasks = myTasksResult.success ? myTasksResult.data || [] : [];
 
-  const availableResult = await getAvailableTasks(tokoid);
-  const availableTasks = availableResult.success ? availableResult.data || [] : [];
+  const availableResult = status === "tersedia" ? await getAvailableTasks(tokoid) : null;
+  const availableTasks = availableResult?.success ? availableResult.data || [] : [];
 
   return (
     <TeknisiTaskManager

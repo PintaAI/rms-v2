@@ -61,7 +61,7 @@ function PerformanceBadge({ performance, role }: { performance: KaryawanItem["pe
           <RiFileListLine className="size-3 text-blue-600 dark:text-blue-400" />
           <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{performance.servicesCreated}</span>
         </div>
-        <span className="text-xs text-muted-foreground">created</span>
+        <span className="text-xs text-muted-foreground">created (30d)</span>
       </div>
     );
   }
@@ -78,6 +78,7 @@ function PerformanceBadge({ performance, role }: { performance: KaryawanItem["pe
           <span className="text-xs font-medium text-red-700 dark:text-red-300">{performance.servicesFailed}</span>
         </div>
       )}
+      <span className="text-xs text-muted-foreground ml-1">(30d)</span>
     </div>
   );
 }

@@ -2,9 +2,8 @@
 
 import prisma from "@/lib/prisma";
 import { canAccessToko, getAuthUser, isAdmin } from "@/lib/rbac";
-import { hashPassword } from "@better-auth/utils/password";
-import { nanoid } from "nanoid";
-import { revalidatePath } from "next/cache";
+import { createCredentialUserWithToko } from "@/lib/auth-helpers";
+import { revalidateKaryawanPaths } from "@/lib/revalidation";
 
 export interface KaryawanPerformance {
   servicesCreated: number;
@@ -45,6 +44,8 @@ async function getKaryawanPerformanceMap(
     .filter((assignment) => assignment.user.role === "technician")
     .map((assignment) => assignment.user.id);
 
+  const monthlyStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
   const [staffCounts, technicianCounts] = await Promise.all([
     staffIds.length > 0
       ? prisma.service.groupBy({
@@ -52,6 +53,7 @@ async function getKaryawanPerformanceMap(
           where: {
             tokoId,
             createdById: { in: staffIds },
+            checkinAt: { gte: monthlyStart },
           },
           _count: { _all: true },
         })
@@ -64,6 +66,7 @@ async function getKaryawanPerformanceMap(
             technicianId: { in: technicianIds },
             status: { in: ["done", "failed"] },
             isPickedUp: true,
+            doneAt: { gte: monthlyStart },
           },
           _count: { _all: true },
         })
@@ -145,6 +148,7 @@ export async function getKaryawanList(tokoId: string): Promise<{
         },
       },
     },
+    take: 100,
   });
 
   const filteredAssignments = assignments.filter(
@@ -238,49 +242,19 @@ export async function createKaryawan(
   }
 
   try {
-    const hashedPassword = await hashPassword(input.password);
-    const userId = nanoid();
-
     const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          id: userId,
-          name: input.name.trim(),
-          email: input.email.trim(),
-          role: input.role,
-          emailVerified: false,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          createdAt: true,
-        },
-      });
-
-      await tx.account.create({
-        data: {
-          id: nanoid(),
-          accountId: userId,
-          providerId: "credential",
-          userId: userId,
-          password: hashedPassword,
-        },
-      });
-
-      await tx.userToko.create({
-        data: {
-          userId: userId,
-          tokoId: tokoId,
-          role: "owner",
-        },
+      const user = await createCredentialUserWithToko(tx, {
+        name: input.name,
+        email: input.email,
+        password: input.password,
+        role: input.role,
+        tokoId: tokoId,
       });
 
       return user;
     }, { timeout: 15000 });
 
-    revalidatePath(`/${tokoId}/admin/karyawan`);
+    revalidateKaryawanPaths(tokoId);
 
     return {
       success: true,
@@ -347,7 +321,7 @@ export async function deleteKaryawan(
       where: { id: userId },
     });
 
-    revalidatePath(`/${tokoId}/admin/karyawan`);
+    revalidateKaryawanPaths(tokoId);
 
     return { success: true };
   } catch (error) {

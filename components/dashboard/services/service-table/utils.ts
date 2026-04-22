@@ -5,6 +5,9 @@ import {
   RiCloseLine,
 } from "@remixicon/react";
 import type { StatusKey, PaymentStatusKey } from "./types";
+import { formatCurrency, formatDate } from "@/lib/utils";
+
+export { formatCurrency, formatDate };
 
 export const statusIcons: Record<StatusKey, React.ComponentType<{ className?: string }>> = {
   received: RiInboxLine,
@@ -33,26 +36,6 @@ export const paymentStatusColors: Record<PaymentStatusKey, "success" | "destruct
   unpaid: "destructive",
   paid: "success",
 };
-
-export function formatDate(date: Date | null | undefined): string {
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(date));
-}
-
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 export function getStatusColor(status: string): StatusColor {
   return statusColors[status as StatusKey] || "outline";

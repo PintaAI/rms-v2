@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/activity-log";
 import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { revalidateServicePaths } from "@/lib/revalidation";
 import { z } from "zod";
 import type { ServiceStatus, PaymentStatus, ItemType } from "@/prisma/generated/prisma/enums";
 
@@ -72,7 +72,7 @@ export interface ServiceStats {
 }
 
 export interface TechnicianStats {
-  totalAssigned: number;
+  monthlyAssigned: number;
   availableCount: number;
   inProgressCount: number;
   doneCount: number;
@@ -93,6 +93,7 @@ export interface TechnicianDashboardData {
 }
 
 const technicianAvailableStatuses: ServiceStatus[] = ["received", "repairing"];
+const technicianTaskListLimit = 20;
 
 const serviceSelectBase = {
   id: true,
@@ -204,20 +205,28 @@ async function getAvailableTaskRecords(tokoId: string, userId: string, take?: nu
   });
 }
 
-async function getMyActiveTaskRecords(tokoId: string, userId: string, take?: number) {
+async function getMyTaskRecords(
+  tokoId: string,
+  userId: string,
+  statuses: ServiceStatus[],
+  take?: number,
+  includeItems: boolean = false
+) {
   return prisma.service.findMany({
     where: {
       tokoId,
       technicianId: userId,
-      status: { in: technicianAvailableStatuses },
+      status: { in: statuses },
     },
     orderBy: [{ status: "asc" }, { checkinAt: "asc" }],
     ...(take ? { take } : {}),
-    select: {
-      ...serviceSelectBase,
-      tokoId: true,
-      items: { select: serviceItemSelect },
-    },
+    select: includeItems
+      ? {
+          ...serviceSelectBase,
+          tokoId: true,
+          items: { select: serviceItemSelect },
+        }
+      : serviceSelectBase,
   });
 }
 
@@ -420,7 +429,11 @@ export async function getAvailableTasks(
     if (!targetTokoId) return { success: false, error: "No toko found" };
     if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
 
-    const services = await getAvailableTaskRecords(targetTokoId, user.id);
+    const services = await getAvailableTaskRecords(
+      targetTokoId,
+      user.id,
+      technicianTaskListLimit
+    );
 
     return { success: true, data: services.map(mapServiceToListItem) };
   } catch (error) {
@@ -430,23 +443,22 @@ export async function getAvailableTasks(
 }
 
 export async function getMyTasks(
-  tokoId: string
-): Promise<ActionResultWithData<ServiceDetail[]>> {
+  tokoId: string,
+  statuses: ServiceStatus[] = technicianAvailableStatuses
+): Promise<ActionResultWithData<ServiceListItem[]>> {
   try {
     const { user, tokoIds } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
     if (!tokoIds.includes(tokoId)) return { success: false, error: "Access denied" };
 
-    const services = await getMyActiveTaskRecords(tokoId, user.id);
+    const services = await getMyTaskRecords(
+      tokoId,
+      user.id,
+      statuses,
+      technicianTaskListLimit
+    );
 
-    return {
-      success: true,
-      data: services.map((s) => ({
-        ...mapServiceToListItem(s),
-        tokoId: s.tokoId,
-        items: s.items,
-      })),
-    };
+    return { success: true, data: services.map(mapServiceToListItem) };
   } catch (error) {
     console.error("Error fetching my tasks:", error);
     return { success: false, error: "Failed to fetch tasks" };
@@ -464,15 +476,22 @@ export async function getTechnicianDashboard(
     if (!userTokoId) return { success: false, error: "No toko found" };
     if (!tokoIds.includes(userTokoId)) return { success: false, error: "Access denied" };
 
+    const monthlyStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
     const [
-      totalAssigned,
+      monthlyAssigned,
       availableCount,
       inProgressCount,
       doneCount,
       availableServices,
       myTasks,
     ] = await Promise.all([
-      prisma.service.count({ where: { technicianId: user.id } }),
+      prisma.service.count({
+        where: {
+          technicianId: user.id,
+          assignedAt: { gte: monthlyStart },
+        },
+      }),
       prisma.service.count({
         where: {
           tokoId: userTokoId,
@@ -485,11 +504,11 @@ export async function getTechnicianDashboard(
         where: { technicianId: user.id, status: "done", isPickedUp: false },
       }),
       getAvailableTaskRecords(userTokoId, user.id, 10),
-      getMyActiveTaskRecords(userTokoId, user.id, 10),
+      getMyTaskRecords(userTokoId, user.id, technicianAvailableStatuses, 10, true),
     ]);
 
     const stats: TechnicianStats = {
-      totalAssigned,
+      monthlyAssigned,
       availableCount,
       inProgressCount,
       doneCount,
@@ -591,8 +610,7 @@ export async function createService(
       return createdService;
     });
 
-    revalidatePath(`/${targetTokoId}/admin/service`);
-    revalidatePath(`/${targetTokoId}/admin`);
+    revalidateServicePaths(targetTokoId);
 
     return { success: true, data: { id: service.id } };
   } catch (error) {
@@ -657,8 +675,7 @@ export async function updateService(
       });
     });
 
-    revalidatePath(`/${service.tokoId}/admin/service`);
-    revalidatePath(`/${service.tokoId}/admin`);
+    revalidateServicePaths(service.tokoId);
 
     return { success: true };
   } catch (error) {
@@ -715,8 +732,7 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
       await tx.service.delete({ where: { id: serviceId } });
     });
 
-    revalidatePath(`/${service.tokoId}/admin/service`);
-    revalidatePath(`/${service.tokoId}/admin`);
+    revalidateServicePaths(service.tokoId);
 
     return { success: true };
   } catch (error) {
@@ -774,9 +790,7 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
       });
     });
 
-    revalidatePath(`/${service.tokoId}/admin/service`);
-    revalidatePath(`/${service.tokoId}/admin`);
-    revalidatePath(`/${service.tokoId}/teknisi/task`);
+    revalidateServicePaths(service.tokoId, true);
 
     return { success: true };
   } catch (error) {
@@ -842,9 +856,7 @@ export async function updateStatus(
       });
     });
 
-    revalidatePath(`/${service.tokoId}/admin/service`);
-    revalidatePath(`/${service.tokoId}/admin`);
-    revalidatePath(`/${service.tokoId}/teknisi/task`);
+    revalidateServicePaths(service.tokoId, true);
 
     return { success: true };
   } catch (error) {
@@ -897,8 +909,7 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
 
     });
 
-    revalidatePath(`/${service.tokoId}/admin/service`);
-    revalidatePath(`/${service.tokoId}/admin`);
+    revalidateServicePaths(service.tokoId);
 
     return { success: true };
   } catch (error) {
@@ -969,9 +980,7 @@ export async function assignTechnician(
       });
     });
 
-    revalidatePath(`/${service.tokoId}/admin/service`);
-    revalidatePath(`/${service.tokoId}/admin`);
-    revalidatePath(`/${service.tokoId}/teknisi/task`);
+    revalidateServicePaths(service.tokoId, true);
 
     return { success: true };
   } catch (error) {
@@ -1108,8 +1117,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
       });
     }
 
-    revalidatePath(`/${service.tokoId}/admin/service`);
-    revalidatePath(`/${service.tokoId}/admin`);
+    revalidateServicePaths(service.tokoId);
 
     return { success: true };
   } catch (error) {
@@ -1169,8 +1177,7 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
 
     await updateInvoiceTotal(item.serviceId);
 
-    revalidatePath(`/${item.service.tokoId}/admin/service`);
-    revalidatePath(`/${item.service.tokoId}/admin`);
+    revalidateServicePaths(item.service.tokoId);
 
     return { success: true };
   } catch (error) {
@@ -1212,8 +1219,7 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
       });
     });
 
-    revalidatePath(`/${invoice.service.tokoId}/admin/service`);
-    revalidatePath(`/${invoice.service.tokoId}/admin`);
+    revalidateServicePaths(invoice.service.tokoId);
 
     return { success: true };
   } catch (error) {
@@ -1237,15 +1243,26 @@ export async function getServiceStats(tokoId: string): Promise<ActionResultWithD
     if (!user) return { success: false, error: "Unauthorized" };
     if (!tokoIds.includes(tokoId)) return { success: false, error: "Access denied" };
 
-    const [received, repairing, done, pickedUp, failed, history, total] = await Promise.all([
-      prisma.service.count({ where: { tokoId, status: "received" } }),
-      prisma.service.count({ where: { tokoId, status: "repairing" } }),
-      prisma.service.count({ where: { tokoId, status: "done", isPickedUp: false } }),
+    const [serviceStatusCounts, pickedUp, total] = await Promise.all([
+      prisma.service.groupBy({
+        by: ["status"],
+        where: { tokoId, isPickedUp: false },
+        _count: { status: true },
+      }),
       prisma.service.count({ where: { tokoId, isPickedUp: true } }),
-      prisma.service.count({ where: { tokoId, status: "failed", isPickedUp: false } }),
-      prisma.service.count({ where: { tokoId, status: { in: ["done", "failed"] } } }),
       prisma.service.count({ where: { tokoId } }),
     ]);
+
+    const statusMap: Partial<Record<ServiceStatus, number>> = {};
+    for (const row of serviceStatusCounts) {
+      statusMap[row.status] = row._count.status;
+    }
+
+    const received = statusMap.received ?? 0;
+    const repairing = statusMap.repairing ?? 0;
+    const done = statusMap.done ?? 0;
+    const failed = statusMap.failed ?? 0;
+    const history = done + failed + pickedUp;
 
     return {
       success: true,

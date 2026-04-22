@@ -27,6 +27,7 @@ import {
   RiLoader4Line,
   RiSearchLine,
 } from "@remixicon/react";
+import { formatCurrency } from "@/lib/utils";
 
 interface StaffSparepartTableProps {
   tokoId: string;
@@ -108,14 +109,6 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
     setDeletingSparepart(null);
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
@@ -173,7 +166,7 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
                     filteredSpareparts.map((sparepart) => (
                       <TableRow key={sparepart.id}>
                         <TableCell className="font-medium">{sparepart.name}</TableCell>
-                        <TableCell>{formatPrice(sparepart.defaultPrice)}</TableCell>
+                        <TableCell>{formatCurrency(sparepart.defaultPrice)}</TableCell>
                         <TableCell>
                           <Badge
                             variant="outline"

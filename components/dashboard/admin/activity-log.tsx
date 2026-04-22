@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { RiLoader4Line, RiPulseLine, RiTimeLine } from "@remixicon/react";
+import { formatDate } from "@/lib/utils";
 
 interface ActivityLogProps {
   activities: AdminOverviewActivityItem[];
@@ -95,15 +96,6 @@ const activityTypeConfig: Record<
     backgroundClass: "bg-amber-500/5",
   },
 };
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(date));
-}
 
 function getDeletedServiceSummary(payload: Prisma.JsonValue | null): {
   id: string;

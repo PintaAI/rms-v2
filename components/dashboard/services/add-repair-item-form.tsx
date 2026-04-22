@@ -55,15 +55,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { addItem } from "@/actions";
-import { cn } from "@/lib/utils";
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(amount);
-}
+import { cn, formatCurrency } from "@/lib/utils";
 
 interface AddRepairItemFormProps {
   open: boolean;

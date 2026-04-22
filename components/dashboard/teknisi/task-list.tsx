@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import type { ServiceDetail, ServiceListItem } from "@/actions/service";
 import { getBrandIcon } from "@/lib/brand-icons";
+import { formatDate } from "@/lib/utils";
 import {
   RiArrowRightLine,
   RiCheckboxCircleLine,
@@ -25,15 +26,6 @@ interface TaskListProps {
   onOpenTask: (taskId: string) => void;
   onViewAllAvailable: () => void;
   onViewAllMyTasks: () => void;
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(date));
 }
 
 export function TaskList({

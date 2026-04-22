@@ -20,15 +20,7 @@ import {
 } from "@remixicon/react";
 import { ActivityLog } from "./activity-log";
 import { AdminOverviewActions } from "./admin-overview-actions";
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
+import { formatCurrency } from "@/lib/utils";
 
 interface CurrentToko {
   id: string;
@@ -134,16 +126,16 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
         <OverviewSectionHeader title="Pendapatan" colorClass="bg-chart-1" />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <OverviewStatsCard
-            title="Pendapatan Total"
-            value={formatCurrency(stats.revenue.totalPaid)}
+            title="Pendapatan Bulan Ini"
+            value={formatCurrency(stats.revenue.monthlyPaid)}
             icon={<RiMoneyDollarCircleLine className="h-4 w-4" />}
             variant="success"
           />
           <OverviewStatsCard
-            title="Pendapatan Pending"
-            value={formatCurrency(stats.revenue.totalPending)}
+            title="Pending Bulan Ini"
+            value={formatCurrency(stats.revenue.monthlyPending)}
             icon={<RiTimeLine className="h-4 w-4" />}
-            variant={stats.revenue.totalPending > 0 ? "warning" : "default"}
+            variant={stats.revenue.monthlyPending > 0 ? "warning" : "default"}
           />
           <OverviewStatsCard
             title="Pendapatan Hari Ini"

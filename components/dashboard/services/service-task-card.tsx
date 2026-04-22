@@ -95,6 +95,7 @@ import {
   getServicePricelists,
 } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
 // Status badge colors
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -111,26 +112,6 @@ const statusLabels: Record<string, string> = {
   done: "Done",
   failed: "Failed",
 };
-
-// Format date
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(date));
-}
-
-// Format currency
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(amount);
-}
 
 // Parse pattern string to array
 function parsePatternString(patternStr: string | null): number[] {

@@ -28,6 +28,7 @@ export async function getBrandList(): Promise<ActionResultWithData<Brand[]>> {
     const brands = await prisma.brand.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
+      take: 100,
     })
 
     return { success: true, data: brands }
@@ -106,6 +107,7 @@ export async function getDeviceList(): Promise<ActionResultWithData<DeviceListIt
         modelName: true,
         brand: { select: { id: true, name: true } },
       },
+      take: 500,
     })
 
     return {

@@ -37,7 +37,7 @@ import {
   RiListCheck,
   RiGridFill,
 } from "@remixicon/react";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 type ViewMode = "table" | "card";
 
@@ -187,14 +187,6 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
     setDeletingPricelist(null);
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
-
   return (
     <Tabs defaultValue="sparepart" className="w-full">
       <TabsList className={cn("mb-4")}>
@@ -308,7 +300,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                         <div className="mt-3 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Price</span>
-                            <span className="font-semibold text-sm tabular-nums">{formatPrice(sparepart.defaultPrice)}</span>
+                            <span className="font-semibold text-sm tabular-nums">{formatCurrency(sparepart.defaultPrice)}</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Stock</span>
@@ -402,7 +394,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                       filteredSpareparts.map((sparepart) => (
                         <TableRow key={sparepart.id} className="border-border/50">
                           <TableCell className="font-medium">{sparepart.name}</TableCell>
-                          <TableCell>{formatPrice(sparepart.defaultPrice)}</TableCell>
+                          <TableCell>{formatCurrency(sparepart.defaultPrice)}</TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"
@@ -567,7 +559,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                       <div className="mt-2 text-lg font-bold tracking-tight text-foreground truncate transition-transform duration-300 group-hover:scale-[1.02]">{pricelist.title}</div>
                       <div className="mt-3 flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">Price</span>
-                        <span className="font-semibold text-sm tabular-nums">{formatPrice(pricelist.defaultPrice)}</span>
+                        <span className="font-semibold text-sm tabular-nums">{formatCurrency(pricelist.defaultPrice)}</span>
                       </div>
                       {!readOnly && (
                         <div className="flex justify-end gap-1 mt-3 pt-2 border-t border-border/50">
@@ -617,7 +609,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                       filteredPricelists.map((pricelist) => (
                         <TableRow key={pricelist.id} className="border-border/50">
                           <TableCell className="font-medium">{pricelist.title}</TableCell>
-                          <TableCell>{formatPrice(pricelist.defaultPrice)}</TableCell>
+                          <TableCell>{formatCurrency(pricelist.defaultPrice)}</TableCell>
                           {!readOnly && (
                             <TableCell>
                               <div className="flex items-center gap-1">

@@ -164,10 +164,10 @@ export function TeknisiOverview({
             variant="success"
           />
           <OverviewStatsCard
-            title="Total Assigned"
-            value={stats.totalAssigned}
+            title="Assigned Bulan Ini"
+            value={stats.monthlyAssigned}
             icon={<RiTaskLine className="h-4 w-4" />}
-            description="Total task yang pernah diambil"
+            description="Task yang diambil dalam 30 hari"
           />
         </div>
       </section>

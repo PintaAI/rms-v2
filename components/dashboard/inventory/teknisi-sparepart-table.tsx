@@ -17,6 +17,7 @@ import {
   RiLoader4Line,
   RiSearchLine,
 } from "@remixicon/react";
+import { formatCurrency } from "@/lib/utils";
 
 interface TeknisiSparepartTableProps {
   tokoId: string;
@@ -50,14 +51,6 @@ export function TeknisiSparepartTable({ tokoId }: TeknisiSparepartTableProps) {
   const filteredSpareparts = spareparts.filter((sp) =>
     sp.name.toLowerCase().includes(sparepartSearch.toLowerCase())
   );
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
 
   return (
     <div className="space-y-4">
@@ -107,7 +100,7 @@ export function TeknisiSparepartTable({ tokoId }: TeknisiSparepartTableProps) {
                   filteredSpareparts.map((sparepart) => (
                     <TableRow key={sparepart.id}>
                       <TableCell className="font-medium">{sparepart.name}</TableCell>
-                      <TableCell>{formatPrice(sparepart.defaultPrice)}</TableCell>
+                      <TableCell>{formatCurrency(sparepart.defaultPrice)}</TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"

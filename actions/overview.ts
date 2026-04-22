@@ -16,8 +16,8 @@ export interface AdminOverviewStats {
     weekly: number;
   };
   revenue: {
-    totalPaid: number;
-    totalPending: number;
+    monthlyPaid: number;
+    monthlyPending: number;
     dailyRevenue: number;
   };
   inventory: {
@@ -69,6 +69,24 @@ export interface AdminOverviewActivityItem {
   } | null;
 }
 
+export interface StaffOverviewStats {
+  services: {
+    total: number;
+    repairing: number;
+    done: number;
+    daily: number;
+    weekly: number;
+  };
+  inventory: {
+    lowStockCount: number;
+  };
+}
+
+export interface StaffOverviewData {
+  stats: StaffOverviewStats;
+  recentServices: AdminOverviewRecentService[];
+}
+
 const recentServiceSelect = {
   id: true,
   customerName: true,
@@ -98,59 +116,124 @@ const recentServiceSelect = {
   },
 };
 
-function getTimeRanges() {
-  const now = new Date();
+const activityLogSelect = {
+  id: true,
+  title: true,
+  type: true,
+  createdAt: true,
+  payload: true,
+  user: {
+    select: {
+      name: true,
+    },
+  },
+  service: {
+    select: {
+      id: true,
+      customerName: true,
+    },
+  },
+};
 
+interface SharedOverviewData {
+  tokoId: string;
+  dailyStart: Date;
+  monthlyStart: Date;
+  statusMap: Record<string, number>;
+  pickedUpCount: number;
+  dailyCount: number;
+  weeklyCount: number;
+  lowStockCount: number;
+  recentServices: AdminOverviewRecentService[];
+  total: number;
+}
+
+async function getSharedOverviewData(tokoId?: string): Promise<ActionResultWithData<SharedOverviewData>> {
+  const user = await getAuthUser();
+  if (!user) return { success: false, error: "Unauthorized" };
+
+  const targetTokoId = tokoId ?? user.tokoIds[0];
+  if (!targetTokoId) return { success: false, error: "No toko found" };
+  if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
+
+  const now = new Date();
   const dailyStart = new Date(now);
   dailyStart.setHours(0, 0, 0, 0);
-
   const weeklyStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const monthlyStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  return { now, dailyStart, weeklyStart };
+  const serviceStatusCounts = await prisma.service.groupBy({
+    by: ["status"],
+    where: { tokoId: targetTokoId },
+    _count: { status: true },
+  });
+
+  const statusMap: Record<string, number> = {};
+  for (const row of serviceStatusCounts) {
+    statusMap[row.status] = row._count.status;
+  }
+
+  const pickedUpCount = await prisma.service.count({
+    where: { tokoId: targetTokoId, isPickedUp: true },
+  });
+
+  const [dailyCount, weeklyCount, lowStockCount, recentServices] = await Promise.all([
+    prisma.service.count({
+      where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } },
+    }),
+    prisma.service.count({
+      where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } },
+    }),
+    prisma.sparepart.count({
+      where: { tokoId: targetTokoId, stock: { lte: 5 } },
+    }),
+    prisma.service.findMany({
+      where: { tokoId: targetTokoId },
+      orderBy: { checkinAt: "desc" },
+      take: 5,
+      select: recentServiceSelect,
+    }),
+  ]);
+
+  const total =
+    (statusMap["received"] || 0) +
+    (statusMap["repairing"] || 0) +
+    (statusMap["done"] || 0) +
+    (statusMap["failed"] || 0) +
+    pickedUpCount;
+
+  return {
+    success: true,
+    data: {
+      tokoId: targetTokoId,
+      dailyStart,
+      monthlyStart,
+      statusMap,
+      pickedUpCount,
+      dailyCount,
+      weeklyCount,
+      lowStockCount,
+      recentServices,
+      total,
+    },
+  };
 }
 
 export async function getAdminOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<AdminOverviewData>> {
   try {
-    const user = await getAuthUser();
-    if (!user) return { success: false, error: "Unauthorized" };
+    const shared = await getSharedOverviewData(tokoId);
+    if (!shared.success) return shared;
 
-    const targetTokoId = tokoId ?? user.tokoIds[0];
-    if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
+    const { tokoId: targetTokoId, dailyStart, monthlyStart, statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
-    const { dailyStart, weeklyStart } = getTimeRanges();
-
-    const serviceStatusCounts = await prisma.service.groupBy({
-      by: ["status"],
-      where: { tokoId: targetTokoId },
-      _count: { status: true },
-    });
-
-    const statusMap: Record<string, number> = {};
-    for (const row of serviceStatusCounts) {
-      statusMap[row.status] = row._count.status;
-    }
-
-    const pickedUpCount = await prisma.service.count({
-      where: { tokoId: targetTokoId, isPickedUp: true },
-    });
-
-    const [dailyCount, weeklyCount] = await Promise.all([
-      prisma.service.count({
-        where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } },
-      }),
-      prisma.service.count({
-        where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } },
-      }),
-    ]);
-
-    const [totalPaidRevenue, totalPendingRevenue, dailyRevenue] = await Promise.all([
+    const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, recentActivities] = await Promise.all([
       prisma.invoice.aggregate({
         where: {
           service: { tokoId: targetTokoId },
           paymentStatus: "paid",
+          paidAt: { gte: monthlyStart },
         },
         _sum: { grandTotal: true },
       }),
@@ -158,6 +241,7 @@ export async function getAdminOverview(
         where: {
           service: { tokoId: targetTokoId },
           paymentStatus: "unpaid",
+          createdAt: { gte: monthlyStart },
         },
         _sum: { grandTotal: true },
       }),
@@ -169,50 +253,13 @@ export async function getAdminOverview(
         },
         _sum: { grandTotal: true },
       }),
-    ]);
-
-    const lowStockCount = await prisma.sparepart.count({
-      where: { tokoId: targetTokoId, stock: { lte: 5 } },
-    });
-
-    const [recentServices, recentActivities] = await Promise.all([
-      prisma.service.findMany({
-        where: { tokoId: targetTokoId },
-        orderBy: { checkinAt: "desc" },
-        take: 5,
-        select: recentServiceSelect,
-      }),
       prisma.activityLog.findMany({
         where: { tokoId: targetTokoId },
         orderBy: { createdAt: "desc" },
         take: 6,
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          createdAt: true,
-          payload: true,
-          user: {
-            select: {
-              name: true,
-            },
-          },
-          service: {
-            select: {
-              id: true,
-              customerName: true,
-            },
-          },
-        },
+        select: activityLogSelect,
       }),
     ]);
-
-    const total =
-      (statusMap["received"] || 0) +
-      (statusMap["repairing"] || 0) +
-      (statusMap["done"] || 0) +
-      (statusMap["failed"] || 0) +
-      pickedUpCount;
 
     const stats: AdminOverviewStats = {
       services: {
@@ -224,8 +271,8 @@ export async function getAdminOverview(
         weekly: weeklyCount,
       },
       revenue: {
-        totalPaid: totalPaidRevenue._sum.grandTotal || 0,
-        totalPending: totalPendingRevenue._sum.grandTotal || 0,
+        monthlyPaid: monthlyPaidRevenue._sum.grandTotal || 0,
+        monthlyPending: monthlyPendingRevenue._sum.grandTotal || 0,
         dailyRevenue: dailyRevenue._sum.grandTotal || 0,
       },
       inventory: {
@@ -247,76 +294,14 @@ export async function getAdminOverview(
   }
 }
 
-export interface StaffOverviewStats {
-  services: {
-    total: number;
-    repairing: number;
-    done: number;
-    daily: number;
-    weekly: number;
-  };
-  inventory: {
-    lowStockCount: number;
-  };
-}
-
-export interface StaffOverviewData {
-  stats: StaffOverviewStats;
-  recentServices: AdminOverviewRecentService[];
-}
-
 export async function getStaffOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<StaffOverviewData>> {
   try {
-    const user = await getAuthUser();
-    if (!user) return { success: false, error: "Unauthorized" };
+    const shared = await getSharedOverviewData(tokoId);
+    if (!shared.success) return shared;
 
-    const targetTokoId = tokoId ?? user.tokoIds[0];
-    if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
-
-    const { dailyStart, weeklyStart } = getTimeRanges();
-
-    const serviceStatusCounts = await prisma.service.groupBy({
-      by: ["status"],
-      where: { tokoId: targetTokoId },
-      _count: { status: true },
-    });
-
-    const statusMap: Record<string, number> = {};
-    for (const row of serviceStatusCounts) {
-      statusMap[row.status] = row._count.status;
-    }
-
-    const pickedUpCount = await prisma.service.count({
-      where: { tokoId: targetTokoId, isPickedUp: true },
-    });
-
-    const [dailyCount, weeklyCount, lowStockCount, recentServices] = await Promise.all([
-      prisma.service.count({
-        where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } },
-      }),
-      prisma.service.count({
-        where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } },
-      }),
-      prisma.sparepart.count({
-        where: { tokoId: targetTokoId, stock: { lte: 5 } },
-      }),
-      prisma.service.findMany({
-        where: { tokoId: targetTokoId },
-        orderBy: { checkinAt: "desc" },
-        take: 5,
-        select: recentServiceSelect,
-      }),
-    ]);
-
-    const total =
-      (statusMap["received"] || 0) +
-      (statusMap["repairing"] || 0) +
-      (statusMap["done"] || 0) +
-      (statusMap["failed"] || 0) +
-      pickedUpCount;
+    const { statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
     const stats: StaffOverviewStats = {
       services: {

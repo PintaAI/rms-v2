@@ -2,8 +2,8 @@
 
 import prisma from "@/lib/prisma";
 import { canAccessToko, getAuthUser, isAdmin } from "@/lib/rbac";
-import { hashPassword } from "@better-auth/utils/password";
-import { nanoid } from "nanoid";
+import { createCredentialUserWithToko } from "@/lib/auth-helpers";
+import { revalidateTokoPaths } from "@/lib/revalidation";
 import { revalidatePath } from "next/cache";
 
 interface UserData {
@@ -97,68 +97,22 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
       });
 
       for (const staff of input.staff) {
-        const hashedPassword = await hashPassword(staff.password);
-        const userId = nanoid();
-
-        await tx.user.create({
-          data: {
-            id: userId,
-            name: staff.name,
-            email: staff.email,
-            role: "staff",
-            emailVerified: false,
-          },
-        });
-
-        await tx.account.create({
-          data: {
-            id: nanoid(),
-            accountId: userId,
-            providerId: "credential",
-            userId: userId,
-            password: hashedPassword,
-          },
-        });
-
-        await tx.userToko.create({
-          data: {
-            userId: userId,
-            tokoId: toko.id,
-            role: "owner",
-          },
+        await createCredentialUserWithToko(tx, {
+          name: staff.name,
+          email: staff.email,
+          password: staff.password,
+          role: "staff",
+          tokoId: toko.id,
         });
       }
 
       for (const tech of input.technician) {
-        const hashedPassword = await hashPassword(tech.password);
-        const userId = nanoid();
-
-        await tx.user.create({
-          data: {
-            id: userId,
-            name: tech.name,
-            email: tech.email,
-            role: "technician",
-            emailVerified: false,
-          },
-        });
-
-        await tx.account.create({
-          data: {
-            id: nanoid(),
-            accountId: userId,
-            providerId: "credential",
-            userId: userId,
-            password: hashedPassword,
-          },
-        });
-
-        await tx.userToko.create({
-          data: {
-            userId: userId,
-            tokoId: toko.id,
-            role: "owner",
-          },
+        await createCredentialUserWithToko(tx, {
+          name: tech.name,
+          email: tech.email,
+          password: tech.password,
+          role: "technician",
+          tokoId: toko.id,
         });
       }
 
@@ -296,8 +250,7 @@ export async function updateToko(
       },
     });
 
-    revalidatePath(`/${tokoId}/admin/toko`);
-    revalidatePath(`/${tokoId}/admin`);
+    revalidateTokoPaths(tokoId);
 
     return { success: true, data: toko };
   } catch (error) {
