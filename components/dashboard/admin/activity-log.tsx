@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminOverviewActivityItem } from "@/actions/overview";
+import type { Prisma } from "@/prisma/generated/prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -102,6 +103,27 @@ function formatDate(date: Date): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(date));
+}
+
+function getDeletedServiceSummary(payload: Prisma.JsonValue | null): {
+  id: string;
+  customerName: string | null;
+} | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+
+  const deletedService = (payload as Record<string, Prisma.JsonValue>).deletedService;
+  if (!deletedService || typeof deletedService !== "object" || Array.isArray(deletedService)) {
+    return null;
+  }
+
+  const summary = deletedService as Record<string, Prisma.JsonValue>;
+
+  return {
+    id: typeof summary.deletedServiceId === "string" ? summary.deletedServiceId : "",
+    customerName: typeof summary.customerName === "string" ? summary.customerName : null,
+  };
 }
 
 export function ActivityLog({ activities }: ActivityLogProps) {
@@ -211,6 +233,8 @@ export function ActivityLog({ activities }: ActivityLogProps) {
                   borderClass: "border-border/70",
                   backgroundClass: "bg-muted/30",
                 };
+                const deletedService = getDeletedServiceSummary(activity.payload);
+                const serviceSummary = activity.service ?? deletedService;
 
                 return (
                   <div
@@ -225,14 +249,14 @@ export function ActivityLog({ activities }: ActivityLogProps) {
                         {activity.title}
                       </p>
                       <span className="shrink-0 text-muted-foreground">{activity.user.name}</span>
-                      {activity.service?.customerName ? (
+                      {serviceSummary?.customerName ? (
                         <span className="max-w-32 shrink-0 truncate text-muted-foreground">
-                          {activity.service.customerName}
+                          {serviceSummary.customerName}
                         </span>
                       ) : null}
-                      {activity.service?.id ? (
+                      {serviceSummary?.id ? (
                         <span className="shrink-0 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                          #{activity.service.id.slice(0, 8)}
+                          #{serviceSummary.id.slice(0, 8)}
                         </span>
                       ) : null}
                       <div className="flex shrink-0 items-center gap-1 text-muted-foreground">

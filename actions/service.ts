@@ -884,7 +884,7 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
 
     revalidatePath(`/${service.tokoId}/admin/service`);
     revalidatePath(`/${service.tokoId}/admin`);
-    revalidatePath(`/${service.tokoId}/staff/tasks`);
+    revalidatePath(`/${service.tokoId}/teknisi/task`);
 
     return { success: true };
   } catch (error) {
@@ -948,7 +948,7 @@ export async function updateStatus(
 
     revalidatePath(`/${service.tokoId}/admin/service`);
     revalidatePath(`/${service.tokoId}/admin`);
-    revalidatePath(`/${service.tokoId}/staff/tasks`);
+    revalidatePath(`/${service.tokoId}/teknisi/task`);
 
     return { success: true };
   } catch (error) {
@@ -1066,7 +1066,7 @@ export async function assignTechnician(
 
     revalidatePath(`/${service.tokoId}/admin/service`);
     revalidatePath(`/${service.tokoId}/admin`);
-    revalidatePath(`/${service.tokoId}/staff/tasks`);
+    revalidatePath(`/${service.tokoId}/teknisi/task`);
 
     return { success: true };
   } catch (error) {

@@ -3,6 +3,7 @@
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { ServiceStatus, PaymentStatus } from "@/prisma/generated/prisma/enums";
 import type { ServiceListItem, ActionResultWithData } from "./service";
 
@@ -44,6 +45,7 @@ export interface AdminOverviewActivityItem {
   title: string;
   type: string;
   createdAt: Date;
+  payload: Prisma.JsonValue | null;
   user: {
     name: string;
   };
@@ -256,6 +258,7 @@ export async function getAdminOverview(
           title: true,
           type: true,
           createdAt: true,
+          payload: true,
           user: {
             select: {
               name: true,
