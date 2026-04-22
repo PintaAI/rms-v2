@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Field, FieldLabel, FieldContent, FieldError } from "@/components/ui/field";
+import { Field, FieldLabel, FieldContent } from "@/components/ui/field";
 import { RiStore2Line, RiMapPinLine, RiPhoneLine, RiUserLine, RiMailLine, RiLockPasswordLine, RiLoader4Line, RiAddLine, RiCloseLine, RiImageLine, RiPaletteLine, RiTeamLine } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { setThemeMode, type ThemeMode } from "@/lib/theme-preference";
@@ -318,6 +318,8 @@ export function OnboardingWizard() {
                 <div className="flex items-center gap-4">
                   {logoPreview ? (
                     <div className="relative">
+                      {/* Local data URL preview from FileReader; next/image is unnecessary here. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={logoPreview}
                         alt="Logo preview"
@@ -624,6 +626,8 @@ export function OnboardingWizard() {
                 {logoPreview && (
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Logo:</span>
+                    {/* Local data URL preview from FileReader; next/image is unnecessary here. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={logoPreview} alt="Logo" className="size-8 rounded object-cover" />
                   </div>
                 )}

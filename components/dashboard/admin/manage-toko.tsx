@@ -420,6 +420,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
               <div className="flex items-center gap-4">
                 {createLogoPreview ? (
                   <div className="relative">
+                    {/* Local data URL preview from FileReader; next/image is unnecessary here. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={createLogoPreview}
                       alt="Logo preview"
@@ -544,6 +546,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
                 <div className="flex items-center gap-4">
                   {editLogoPreview ? (
                     <div className="relative">
+                      {/* Local data URL preview from FileReader; next/image is unnecessary here. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={editLogoPreview}
                         alt="Logo preview"

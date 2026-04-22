@@ -47,15 +47,6 @@ export function TechnicianDropdown({
   const [isUpdating, setIsUpdating] = useState(false);
   const [open, setOpen] = useState(false);
 
-  const loadTechnicians = async () => {
-    setIsLoading(true);
-    const result = await getTechniciansByToko(tokoId);
-    if (result.success && result.data) {
-      setTechnicians(result.data);
-    }
-    setIsLoading(false);
-  };
-
   useEffect(() => {
     if (!open) return;
 

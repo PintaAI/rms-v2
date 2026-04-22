@@ -262,22 +262,6 @@ export function PatternLock({
     }
   }, [isDrawing, handlePointerUp]);
 
-  // Reset pattern programmatically
-  const reset = useCallback(() => {
-    setInternalPattern([]);
-    setInternalError(false);
-    setIsDrawing(false);
-    setMousePosition(null);
-  }, []);
-
-  // Set error state programmatically
-  const setError = useCallback((error: boolean) => {
-    setInternalError(error);
-  }, []);
-
-  // Expose reset and setError via ref or useImperativeHandle if needed
-  // For now, we'll just provide them as internal utilities
-
   // Calculate the active line from last dot to mouse position
   const activeLine = useMemo(() => {
     if (!isDrawing || pattern.length === 0 || !mousePosition) return null;

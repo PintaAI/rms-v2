@@ -32,23 +32,6 @@ async function PriceData() {
   );
 }
 
-async function ArticleData() {
-  const articleResult = await getArticle();
-
-  return (
-    <div className="border rounded-lg p-4">
-      <h2 className="text-lg font-medium mb-2">Article Data (cached)</h2>
-      <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-        <p className="font-medium">{articleResult.data.articles[0].title}</p>
-        <p className="text-gray-600">{articleResult.data.articles[0].body}</p>
-      </div>
-      <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
-        {JSON.stringify(articleResult.data.summary, null, 2)}
-      </pre>
-    </div>
-  );
-}
-
 export default async function ExperimentPage() {
   const articleResult = await getArticle();
 

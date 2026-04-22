@@ -401,7 +401,7 @@ export function ServiceTaskCard({
     setDoneDialogOpen(true);
   }
 
-  const handleMarkDone = useCallback(async () => {
+  async function handleMarkDone() {
     setIsMarkingDone(true);
 
     const snapshot = localTaskRef.current;
@@ -442,14 +442,14 @@ export function ServiceTaskCard({
     } finally {
       setIsMarkingDone(false);
     }
-  }, [doneNote, onRefresh]);
+  }
 
   function openFailedDialog() {
     setFailedNote("");
     setFailedDialogOpen(true);
   }
 
-  const handleMarkFailed = useCallback(async () => {
+  async function handleMarkFailed() {
     if (!failedNote.trim()) return;
     setIsMarkingFailed(true);
 
@@ -484,7 +484,7 @@ export function ServiceTaskCard({
     } finally {
       setIsMarkingFailed(false);
     }
-  }, [failedNote, onRefresh]);
+  }
 
   return (
     <>

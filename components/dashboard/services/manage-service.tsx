@@ -117,7 +117,7 @@ export function ManageService({
 }: ManageServiceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const statusFilter = searchParams.get("status");
+  const statusFilter = searchParams.get("status") ?? undefined;
 
   const [services, setServices] = useState<ServiceListItem[]>(allServices);
   const [stats, setStats] = useState<ServiceStats>(initialStats);
@@ -198,12 +198,6 @@ const filteredServices = useMemo(() => {
       return newStats;
     });
   }, []);
-
-  const matchesFilter = useCallback((service: ServiceListItem) => {
-    if (!statusFilter) return true;
-    const filterStatuses = statusFilter.split(",");
-    return filterStatuses.includes(service.status);
-  }, [statusFilter]);
 
   const handleOptimisticCreate = useCallback((tempService: ServiceListItem) => {
     pendingMutationsRef.current++;
@@ -369,11 +363,6 @@ const filteredServices = useMemo(() => {
     setIsLoadingDetail(false);
   }, []);
 
-  const handleCloseDetail = useCallback(() => {
-    setDetailDialogOpen(false);
-    setSelectedService(null);
-  }, []);
-
   const handleRefreshDetail = useCallback(() => {
     if (selectedService) {
       getService(selectedService.id).then((result) => {
@@ -473,7 +462,7 @@ const getPageTitle = () => {
               onAssignTech={handleAssignTech}
               onMarkPaid={handleMarkPaid}
               onPickup={statusFilter ? handlePickup : undefined}
-              onCall={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? (_phone: string, _service: ServiceTableItem) => {} : undefined}
+              onCall={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? (() => {}) : undefined}
               onRowClick={handleRowClick}
               tokoId={tokoId}
             />

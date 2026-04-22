@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,24 +66,6 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
   const [deletingPricelist, setDeletingPricelist] = useState<ServicePricelist | null>(null);
   const [isDeletingSparepart, setIsDeletingSparepart] = useState(false);
   const [isDeletingPricelist, setIsDeletingPricelist] = useState(false);
-
-  const loadSpareparts = useCallback(async () => {
-    setIsLoadingSpareparts(true);
-    const result = await getSpareparts(tokoId);
-    if (result.success && result.data) {
-      setSpareparts(result.data);
-    }
-    setIsLoadingSpareparts(false);
-  }, [tokoId]);
-
-  const loadPricelists = useCallback(async () => {
-    setIsLoadingPricelists(true);
-    const result = await getServicePricelists(tokoId);
-    if (result.success && result.data) {
-      setPricelists(result.data);
-    }
-    setIsLoadingPricelists(false);
-  }, [tokoId]);
 
   useEffect(() => {
     let active = true;

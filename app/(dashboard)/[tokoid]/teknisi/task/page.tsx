@@ -93,7 +93,7 @@ export default async function TeknisiTaskPage({
       availableTasks={availableTasks}
       initialStats={stats}
       tokoId={tokoid}
-      currentToko={toko}
+      currentToko={toko ?? undefined}
     />
   );
 }

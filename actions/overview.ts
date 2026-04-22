@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import type { ServiceStatus, PaymentStatus } from "@/prisma/generated/prisma/enums";
-import type { ServiceListItem, ActionResult, ActionResultWithData } from "./service";
+import type { ServiceListItem, ActionResultWithData } from "./service";
 
 export interface AdminOverviewStats {
   services: {
@@ -399,7 +399,7 @@ export async function getTechnicianOverview(): Promise<ActionResultWithData<{
   myActiveTasks: ServiceListItem[];
 }>> {
   try {
-    const { user, tokoIds } = await getSessionAndTokos();
+    const { user } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
 
     const [totalAssigned, inProgress, done, myActiveTasks] = await Promise.all([

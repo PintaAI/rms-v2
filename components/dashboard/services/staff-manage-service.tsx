@@ -44,7 +44,7 @@ export function StaffManageService({
 }: StaffManageServiceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const statusFilter = searchParams.get("status");
+  const statusFilter = searchParams.get("status") ?? undefined;
 
   const [services, setServices] = useState<ServiceListItem[]>(allServices);
   const [stats, setStats] = useState<ServiceStats>(initialStats);

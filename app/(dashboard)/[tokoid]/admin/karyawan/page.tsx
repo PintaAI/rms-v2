@@ -1,6 +1,7 @@
 import { getKaryawanList, getKaryawanStats } from "@/actions/karyawan";
 import { ManageKaryawan } from "@/components/dashboard/admin/manage-karyawan";
 import prisma from "@/lib/prisma";
+import Image from "next/image";
 import { RiStore2Line } from "@remixicon/react";
 
 interface AdminKaryawanPageProps {
@@ -29,9 +30,11 @@ export default async function AdminKaryawanPage({ params }: AdminKaryawanPagePro
             <div className="h-6 w-1 bg-primary rounded-full" />
             <div className="flex items-center gap-2">
               {toko?.logoUrl ? (
-                <img
+                <Image
                   src={toko.logoUrl}
                   alt={toko.name}
+                  width={20}
+                  height={20}
                   className="h-5 w-5 rounded-md object-cover"
                 />
               ) : (
@@ -59,9 +62,11 @@ export default async function AdminKaryawanPage({ params }: AdminKaryawanPagePro
           <div className="h-6 w-1 bg-primary rounded-full" />
           <div className="flex items-center gap-2">
             {toko?.logoUrl ? (
-              <img
+              <Image
                 src={toko.logoUrl}
                 alt={toko.name}
+                width={20}
+                height={20}
                 className="h-5 w-5 rounded-md object-cover"
               />
             ) : (

@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { createActivityLog } from "@/lib/activity-log";
+import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/activity-log";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -453,7 +453,7 @@ export async function getAvailableTasks(
 
 export async function getMyTasks(): Promise<ActionResultWithData<ServiceDetail[]>> {
   try {
-    const { user, tokoIds } = await getSessionAndTokos();
+    const { user } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
 
     const services = await prisma.service.findMany({
@@ -786,7 +786,24 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
 
     const service = await prisma.service.findUnique({
       where: { id: serviceId },
-      select: { tokoId: true, status: true, invoice: { select: { paymentStatus: true } } },
+      select: {
+        id: true,
+        tokoId: true,
+        customerName: true,
+        noWa: true,
+        complaint: true,
+        status: true,
+        imei: true,
+        note: true,
+        hpCatalog: {
+          select: {
+            id: true,
+            modelName: true,
+            brand: { select: { name: true } },
+          },
+        },
+        invoice: { select: { paymentStatus: true } },
+      },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
@@ -799,13 +816,12 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
       return { success: false, error: "Cannot delete a service with a paid invoice" };
     }
 
-    await prisma.$transaction([
-      prisma.serviceItem.deleteMany({ where: { serviceId } }),
-      prisma.invoice.deleteMany({ where: { serviceId } }),
-      prisma.serviceLog.deleteMany({ where: { serviceId } }),
-      prisma.notificationLog.deleteMany({ where: { serviceId } }),
-      prisma.service.delete({ where: { id: serviceId } }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      await preserveDeletedServiceActivityLogs(tx, serviceId, service);
+      await tx.serviceItem.deleteMany({ where: { serviceId } });
+      await tx.invoice.deleteMany({ where: { serviceId } });
+      await tx.service.delete({ where: { id: serviceId } });
+    });
 
     revalidatePath(`/${service.tokoId}/admin/service`);
     revalidatePath(`/${service.tokoId}/admin`);
@@ -1219,7 +1235,7 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
       await prisma.$transaction(async (tx) => {
         await tx.serviceItem.delete({ where: { id: itemId } });
         await tx.sparepart.update({
-          where: { id: item.referenceId },
+          where: { id: item.referenceId! },
           data: { stock: { increment: item.qty } },
         });
 

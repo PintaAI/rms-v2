@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,17 +58,12 @@ export function UserInfo() {
             <div className="absolute top-0 left-0 w-1 h-full bg-primary opacity-80 transition-all duration-300 group-hover:w-1.5 group-hover:opacity-100" />
             <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-full blur-2xl transition-all duration-300 group-hover:opacity-60" />
             <div className="flex items-center gap-3 pl-3 pr-2 py-2.5 relative z-10">
-              {user.image ? (
-                <img
-                  src={user.image}
-                  alt={user.name}
-                  className="size-9 rounded-xl object-cover border border-border/30 transition-all duration-300 group-hover:scale-105"
-                />
-              ) : (
-                <div className="size-9 rounded-xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center border border-border/30 transition-all duration-300 group-hover:scale-105">
+              <Avatar className="size-9 rounded-xl border border-border/30 transition-all duration-300 group-hover:scale-105">
+                {user.image ? <AvatarImage src={user.image} alt={user.name} className="rounded-xl" /> : null}
+                <AvatarFallback className="rounded-xl bg-gradient-to-br from-muted to-muted/50">
                   <RiUserLine className="size-4.5 text-muted-foreground transition-transform duration-300 group-hover:scale-110" />
-                </div>
-              )}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0 flex flex-col">
                 <span className="text-sm font-semibold truncate transition-colors duration-300 group-hover:text-foreground/90">{user.name}</span>
                 <span className="text-xs text-muted-foreground/70 capitalize">{user.role}</span>

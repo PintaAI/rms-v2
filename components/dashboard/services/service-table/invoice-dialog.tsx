@@ -60,7 +60,6 @@ function InvoicePreviewCard({
   invoiceRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const items = getInvoiceItems(service);
-  const subtotal = items.reduce((total, item) => total + item.qty * item.price, 0);
   const hasDetailedItems = Boolean(service.invoice.items?.length);
   const brandIcon = getBrandIcon(service.hpCatalog.brand.name);
 

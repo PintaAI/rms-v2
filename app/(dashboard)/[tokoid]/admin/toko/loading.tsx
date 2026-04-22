@@ -1,5 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { RiStore2Line, RiAddLine } from "@remixicon/react";
+import { RiAddLine } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
 
 function TokoCardSkeleton() {

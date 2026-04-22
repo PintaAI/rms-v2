@@ -162,7 +162,7 @@ export function AuthCard({
         // Use full page reload to ensure session state is properly refreshed
         window.location.href = redirectAfterLogin;
       }
-    } catch (error) {
+    } catch {
       setLoginServerError("An unexpected error occurred. Please try again.");
     } finally {
       setLoginIsLoading(false);
@@ -205,7 +205,7 @@ export function AuthCard({
         // Use full page reload to ensure session state is properly refreshed
         window.location.href = redirectAfterRegister;
       }
-    } catch (error) {
+    } catch {
       setRegisterServerError("An unexpected error occurred. Please try again.");
     } finally {
       setRegisterIsLoading(false);
@@ -222,7 +222,7 @@ export function AuthCard({
       if (result.error) {
         setLoginServerError(result.error.message || "Google sign in failed.");
       }
-    } catch (error) {
+    } catch {
       setLoginServerError("An unexpected error occurred with Google sign in.");
     }
   };

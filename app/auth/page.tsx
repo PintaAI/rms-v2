@@ -12,7 +12,7 @@ export default function AuthPage() {
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (!isPending && session) {
-      router.push("/");
+      router.replace("/dashboard");
     }
   }, [session, isPending, router]);
 
@@ -25,8 +25,8 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <div className="w-full max-w-md">
         <AuthCard
-          redirectAfterLogin="/"
-          redirectAfterRegister="/"
+          redirectAfterLogin="/dashboard"
+          redirectAfterRegister="/dashboard"
           showGoogleAuth={true}
         />
       </div>
