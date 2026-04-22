@@ -72,7 +72,7 @@ export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupPro
             <SidebarMenuSubItem key={item.href}>
               <SidebarMenuSubButton
                 asChild
-                isActive={pathname === item.href || pathname.startsWith(item.href.split("?")[0] + "/")}
+                isActive={pathname === item.href.split("?")[0]}
               >
                 <Link href={item.href}>
                   {item.icon}

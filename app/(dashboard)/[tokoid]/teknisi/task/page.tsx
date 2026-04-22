@@ -19,7 +19,7 @@ async function getTechnicianTaskStats(tokoId: string, userId: string) {
       where: { technicianId: userId, status: "repairing" },
     }),
     prisma.service.count({
-      where: { technicianId: userId, status: { in: ["done", "picked_up"] } },
+      where: { technicianId: userId, status: "done" },
     }),
     prisma.service.count({
       where: { technicianId: userId, status: "failed" },

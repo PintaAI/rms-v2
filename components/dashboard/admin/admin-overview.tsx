@@ -20,6 +20,7 @@ import {
   RiTimeLine,
   RiToolsLine,
 } from "@remixicon/react";
+import { ActivityLog } from "./activity-log";
 import { AdminOverviewActions } from "./admin-overview-actions";
 
 function formatCurrency(value: number): string {
@@ -44,7 +45,7 @@ interface AdminOverviewProps {
 }
 
 export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps) {
-  const { stats, recentServices } = data;
+  const { stats, recentServices, recentActivities } = data;
 
   const tableServices: ServiceTableItem[] = recentServices.map((service) => ({
     id: service.id,
@@ -205,6 +206,10 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
             />
           </CardContent>
         </Card>
+      </section>
+
+      <section>
+        <ActivityLog activities={recentActivities} />
       </section>
     </div>
   );

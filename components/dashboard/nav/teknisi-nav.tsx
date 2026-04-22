@@ -20,7 +20,6 @@ export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
       href: `/${tokoid}/teknisi/task`,
       icon: <RiFolderLine />,
       label: "Semua",
-      badge: taskStats?.total,
     },
     {
       href: `/${tokoid}/teknisi/task?status=tersedia`,
@@ -65,7 +64,7 @@ export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
           <NavItem
             href={`/${tokoid}/teknisi`}
             icon={<RiDashboardLine />}
-            label="Overview"
+            label="Teknisi Overview"
           />
           <NavFilterGroup
             title="Task"

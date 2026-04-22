@@ -22,6 +22,7 @@
     "clsx": "^2.1.1",
     "colorthief": "^3.3.1",
     "dotenv": "^17.4.2",
+    "html-to-image": "1.11.11",
     "mermaid": "^11.14.0",
     "nanoid": "^5.1.9",
     "next": "16.2.4",

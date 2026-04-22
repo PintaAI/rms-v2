@@ -30,6 +30,7 @@ import { columnHeaders, getColumnRenderer } from "./columns";
 import { resolvePreset, columnPresets } from "./presets";
 import { formatWhatsApp, getStatusColor } from "./utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { InvoiceDialog, isPaidInvoiceService, type InvoicePreviewService } from "./invoice-dialog";
 
 function normalizeColumns(columns?: ColumnsInput): ColumnKey[] {
   if (!columns) return [];
@@ -45,6 +46,7 @@ export function ServiceTable({
   services,
   columns,
   preset,
+  statusFilter,
   emptyMessage = "No services found",
   onEdit,
   onDelete,
@@ -59,9 +61,13 @@ export function ServiceTable({
 }: ServiceTableProps) {
   const presetConfig = preset ? resolvePreset(preset) : null;
   const normalizedColumns = normalizeColumns(columns);
-  const effectiveColumns = normalizedColumns.length > 0
+  let effectiveColumns = normalizedColumns.length > 0
     ? normalizedColumns
     : presetConfig?.columns || columnPresets.adminActive;
+  
+  if (statusFilter?.includes("picked_up") && !effectiveColumns.includes("checkoutAt")) {
+    effectiveColumns = [...effectiveColumns, "checkoutAt"];
+  }
 
   const showDropdownActions = onEdit || onDelete;
   const showCompletedActions = onCall || onPickup;
@@ -72,6 +78,13 @@ export function ServiceTable({
   const getEmptyColSpan = () => {
     return effectiveColumns.length + (hasActions ? 1 : 0);
   };
+
+  const [selectedInvoiceService, setSelectedInvoiceService] = React.useState<InvoicePreviewService | null>(null);
+
+  const openInvoiceDialog = React.useCallback((service: ServiceTableItem) => {
+    if (!isPaidInvoiceService(service)) return;
+    setSelectedInvoiceService(service);
+  }, [setSelectedInvoiceService]);
 
   const handleCallClick = (phone: string, service: ServiceTableItem) => {
     const formattedPhone = formatWhatsApp(phone);
@@ -141,25 +154,60 @@ return (
                     {index === 0 && (
                       <div className={`absolute left-0 top-0 bottom-0 w-1 ${indicatorClass} rounded-full transition-all duration-200 group-hover:w-1.5`} />
                     )}
-                    {getColumnRenderer(colKey, {
-                      onAssignTech,
-                      tokoId,
-                      disableAssignment,
-                    })(service)}
+                    {(() => {
+                      const cellContent = getColumnRenderer(colKey, {
+                        onAssignTech,
+                        tokoId,
+                        disableAssignment,
+                      })(service);
+
+                      if (colKey !== "invoice" || !service.invoice) {
+                        return cellContent;
+                      }
+
+                      const isPaidInvoice = service.invoice.paymentStatus === "paid";
+
+                      if (!isPaidInvoice) {
+                        return cellContent;
+                      }
+
+                      return (
+                        <button
+                          type="button"
+                          className="w-full rounded-xl p-1 -m-1 text-left transition hover:bg-emerald-500/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openInvoiceDialog(service);
+                          }}
+                        >
+                          {cellContent}
+                        </button>
+                      );
+                    })()}
                   </TableCell>
                 ))}
                 {hasActions && (
                   <TableCell>
                     <div className="flex flex-col gap-2">
                       {onTake && (service.status === "received" || service.status === "repairing") && (
+                        (() => {
+                          const isTakeover = Boolean(service.technician && service.technician.id);
+
+                          return (
                         <Button
                           size="sm"
-                          className="h-7 text-xs bg-chart-2 hover:bg-chart-2/80 text-primary-foreground shadow-sm"
+                          className={
+                            isTakeover
+                              ? "h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                              : "h-7 text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                          }
                           onClick={(e) => { e.stopPropagation(); onTake(service.id); }}
                         >
                           <RiTaskLine className="h-3.5 w-3.5 mr-1" />
                           {service.technician ? "Takeover" : "Ambil"}
                         </Button>
+                          );
+                        })()
                       )}
                       {showMarkPaid && service.invoice?.paymentStatus === "unpaid" && (
                         <Button
@@ -228,6 +276,16 @@ return (
         )}
       </TableBody>
       </Table>
+
+      <InvoiceDialog
+        service={selectedInvoiceService}
+        open={Boolean(selectedInvoiceService)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedInvoiceService(null);
+          }
+        }}
+      />
     </TooltipProvider>
   );
 }

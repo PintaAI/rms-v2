@@ -405,6 +405,10 @@ export function ServiceTaskCard({
     setIsMarkingDone(true);
 
     const snapshot = localTaskRef.current;
+    const doneNoteValue = doneNote.trim();
+    const doneStatusNote = doneNoteValue
+      ? `{BERHASIL} ${doneNoteValue}`
+      : "{BERHASIL}";
 
     // Block useEffect sync while the mutation is in-flight
     pendingMutationsRef.current += 1;
@@ -420,7 +424,7 @@ export function ServiceTaskCard({
       const result = await updateStatus(
         snapshot.id,
         "done",
-        doneNote.trim() || undefined
+        doneStatusNote
       );
       if (result.success) {
         setDoneDialogOpen(false);
@@ -450,6 +454,7 @@ export function ServiceTaskCard({
     setIsMarkingFailed(true);
 
     const snapshot = localTaskRef.current;
+    const failedStatusNote = `{GAGAL} ${failedNote.trim()}`;
 
     // Block useEffect sync while the mutation is in-flight
     pendingMutationsRef.current += 1;
@@ -462,7 +467,7 @@ export function ServiceTaskCard({
     }));
 
     try {
-      const result = await updateStatus(snapshot.id, "failed", failedNote.trim());
+      const result = await updateStatus(snapshot.id, "failed", failedStatusNote);
       if (result.success) {
         setFailedDialogOpen(false);
         pendingMutationsRef.current -= 1;
@@ -675,23 +680,32 @@ export function ServiceTaskCard({
 
             {/* Done & Failed buttons – bottom-right for active tasks */}
             {isActive && (
-              <div className="flex justify-end gap-2 pt-3 border-t mt-3">
-                <Button
-                  size="sm"
-                  onClick={openFailedDialog}
-                  variant="destructive"
-                >
-                  <RiCloseCircleLine className="h-4 w-4 mr-1" />
-                  Gagal Servis
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={openDoneDialog}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <RiCheckDoubleLine className="h-4 w-4 mr-1" />
-                  Selesai Servis
-                </Button>
+              <div className="pt-4 border-t mt-4 space-y-4">
+                <p className="text-sm font-medium text-center text-muted-foreground">
+                  Sudah selesai service?
+                </p>
+                <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3 max-w-md mx-auto">
+                  <button
+                    type="button"
+                    onClick={openFailedDialog}
+                    className="flex min-h-[96px] flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50/70 px-5 py-4 text-red-600 transition-colors hover:bg-red-100 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2"
+                  >
+                    <RiCloseCircleLine className="h-6 w-6 shrink-0" />
+                    <span className="text-sm font-semibold leading-none">
+                      Gagal Servis
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openDoneDialog}
+                    className="flex min-h-[96px] flex-1 flex-col items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-4 text-white transition-colors hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-2"
+                  >
+                    <RiCheckDoubleLine className="h-6 w-6 shrink-0" />
+                    <span className="text-sm font-semibold leading-none">
+                      Selesai Servis
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

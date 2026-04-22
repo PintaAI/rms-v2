@@ -36,6 +36,21 @@ export interface AdminOverviewStats {
 export interface AdminOverviewData {
   stats: AdminOverviewStats;
   recentServices: ServiceListItem[];
+  recentActivities: AdminOverviewActivityItem[];
+}
+
+export interface AdminOverviewActivityItem {
+  id: string;
+  title: string;
+  type: string;
+  createdAt: Date;
+  user: {
+    name: string;
+  };
+  service: {
+    id: string;
+    customerName: string | null;
+  } | null;
 }
 
 async function getSessionAndTokos() {
@@ -185,6 +200,7 @@ export async function getAdminOverview(
       totalTechnicians,
       totalStaff,
       recentServices,
+      recentActivities,
     ] = await Promise.all([
       prisma.service.count({ where: { tokoId: targetTokoId } }),
       prisma.service.count({ where: { tokoId: targetTokoId, status: "received" } }),
@@ -231,6 +247,28 @@ export async function getAdminOverview(
         take: 5,
         select: serviceSelectBase,
       }),
+      prisma.activityLog.findMany({
+        where: { tokoId: targetTokoId },
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          createdAt: true,
+          user: {
+            select: {
+              name: true,
+            },
+          },
+          service: {
+            select: {
+              id: true,
+              customerName: true,
+            },
+          },
+        },
+      }),
     ]);
 
     const stats: AdminOverviewStats = {
@@ -265,6 +303,7 @@ export async function getAdminOverview(
       data: {
         stats,
         recentServices: recentServices.map(mapServiceToListItem),
+        recentActivities,
       },
     };
   } catch (error) {
@@ -366,7 +405,7 @@ export async function getTechnicianOverview(): Promise<ActionResultWithData<{
     const [totalAssigned, inProgress, done, myActiveTasks] = await Promise.all([
       prisma.service.count({ where: { technicianId: user.id } }),
       prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
-      prisma.service.count({ where: { technicianId: user.id, status: { in: ["done", "picked_up"] } } }),
+      prisma.service.count({ where: { technicianId: user.id, status: "done" } }),
       prisma.service.findMany({
         where: { technicianId: user.id, status: { in: ["received", "repairing"] } },
         orderBy: { checkinAt: "asc" },

@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { createActivityLog } from "@/lib/activity-log";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -211,6 +212,11 @@ function buildTimeFilter(filter?: TimeFilter): Record<string, unknown> {
 }
 
 async function updateInvoiceTotal(serviceId: string) {
+  const existingInvoice = await prisma.invoice.findUnique({
+    where: { serviceId },
+    select: { id: true },
+  });
+
   const items = await prisma.serviceItem.aggregate({
     where: { serviceId },
     _sum: { price: true },
@@ -223,6 +229,29 @@ async function updateInvoiceTotal(serviceId: string) {
     create: { serviceId, grandTotal, paymentStatus: "unpaid" },
     update: { grandTotal },
   });
+
+  return { created: !existingInvoice };
+}
+
+function isCompletingStatus(status: ServiceStatus) {
+  return status === "done" || status === "failed";
+}
+
+function getStatusActivityTitle(status: ServiceStatus) {
+  switch (status) {
+    case "done":
+      return "Service marked as done";
+    case "failed":
+      return "Service marked as failed";
+    case "picked_up":
+      return "Service marked as picked up";
+    case "repairing":
+      return "Service moved to repairing";
+    case "received":
+      return "Service moved to received";
+    default:
+      return `Service status changed to ${status}`;
+  }
 }
 
 async function getSessionAndTokos() {
@@ -502,7 +531,7 @@ export async function getMyStats(): Promise<ActionResultWithData<TechnicianStats
       }),
       prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
       prisma.service.count({
-        where: { technicianId: user.id, status: { in: ["done", "picked_up"] } },
+        where: { technicianId: user.id, status: "done" },
       }),
     ]);
 
@@ -545,7 +574,7 @@ export async function getTechnicianDashboard(
       }),
       prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
       prisma.service.count({
-        where: { technicianId: user.id, status: { in: ["done", "picked_up"] } },
+        where: { technicianId: user.id, status: "done" },
       }),
       prisma.service.findMany({
         where: {
@@ -639,19 +668,37 @@ export async function createService(
     });
     if (!hpCatalog) return { success: false, error: "Device not found" };
 
-    const service = await prisma.service.create({
-      data: {
+    const service = await prisma.$transaction(async (tx) => {
+      const createdService = await tx.service.create({
+        data: {
+          tokoId: targetTokoId,
+          hpCatalogId: validated.hpCatalogId,
+          createdById: user.id,
+          customerName: validated.customerName || null,
+          noWa: validated.noWa,
+          complaint: validated.complaint,
+          passwordPattern: validated.passwordPattern || null,
+          imei: validated.imei || null,
+          status: "received",
+        },
+        select: { id: true },
+      });
+
+      await createActivityLog(tx, {
         tokoId: targetTokoId,
-        hpCatalogId: validated.hpCatalogId,
-        createdById: user.id,
-        customerName: validated.customerName || null,
-        noWa: validated.noWa,
-        complaint: validated.complaint,
-        passwordPattern: validated.passwordPattern || null,
-        imei: validated.imei || null,
-        status: "received",
-      },
-      select: { id: true },
+        userId: user.id,
+        serviceId: createdService.id,
+        type: "service_created",
+        title: "Service created",
+        payload: {
+          hpCatalogId: validated.hpCatalogId,
+          customerName: validated.customerName || null,
+          noWa: validated.noWa,
+          complaint: validated.complaint,
+        },
+      });
+
+      return createdService;
     });
 
     revalidatePath(`/${targetTokoId}/admin/service`);
@@ -689,16 +736,34 @@ export async function updateService(
     });
     if (!hpCatalog) return { success: false, error: "Device not found" };
 
-    await prisma.service.update({
-      where: { id: serviceId },
-      data: {
-        hpCatalogId: validated.hpCatalogId,
-        customerName: validated.customerName || null,
-        noWa: validated.noWa,
-        complaint: validated.complaint,
-        passwordPattern: validated.passwordPattern || null,
-        imei: validated.imei || null,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.service.update({
+        where: { id: serviceId },
+        data: {
+          hpCatalogId: validated.hpCatalogId,
+          customerName: validated.customerName || null,
+          noWa: validated.noWa,
+          complaint: validated.complaint,
+          passwordPattern: validated.passwordPattern || null,
+          imei: validated.imei || null,
+        },
+      });
+
+      await createActivityLog(tx, {
+        tokoId: service.tokoId,
+        userId: user.id,
+        serviceId,
+        type: "service_updated",
+        title: "Service details updated",
+        payload: {
+          hpCatalogId: validated.hpCatalogId,
+          customerName: validated.customerName || null,
+          noWa: validated.noWa,
+          complaint: validated.complaint,
+          imei: validated.imei || null,
+          hasPasswordPattern: Boolean(validated.passwordPattern),
+        },
+      });
     });
 
     revalidatePath(`/${service.tokoId}/admin/service`);
@@ -772,13 +837,33 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
       return { success: false, error: "Service is already assigned to you" };
     }
 
-    await prisma.service.update({
-      where: { id: serviceId },
-      data: {
-        technicianId: user.id,
-        status: service.status === "received" && !service.technicianId ? "repairing" : undefined,
-        assignedAt: new Date(),
-      },
+    const assignedAt = new Date();
+    const nextStatus = service.status === "received" && !service.technicianId ? "repairing" : service.status;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.service.update({
+        where: { id: serviceId },
+        data: {
+          technicianId: user.id,
+          status: service.status === "received" && !service.technicianId ? "repairing" : undefined,
+          assignedAt,
+        },
+      });
+
+      await createActivityLog(tx, {
+        tokoId: service.tokoId,
+        userId: user.id,
+        serviceId,
+        type: "service_taken_over",
+        title: "Service taken over by technician",
+        payload: {
+          technicianId: user.id,
+          previousTechnicianId: service.technicianId,
+          previousStatus: service.status,
+          nextStatus,
+          assignedAt: assignedAt.toISOString(),
+        },
+      });
     });
 
     revalidatePath(`/${service.tokoId}/admin/service`);
@@ -803,18 +888,46 @@ export async function updateStatus(
 
     const service = await prisma.service.findUnique({
       where: { id: serviceId },
-      select: { tokoId: true },
+      select: { tokoId: true, technicianId: true, status: true },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
 
-    await prisma.service.update({
-      where: { id: serviceId },
-      data: {
-        status,
-        ...(status === "done" || status === "failed" ? { doneAt: new Date() } : {}),
-        ...(note !== undefined ? { note } : {}),
-      },
+    const shouldAssignActor =
+      isCompletingStatus(status) && (user.role === "admin" || user.role === "technician");
+    const changedAt = new Date();
+
+    await prisma.$transaction(async (tx) => {
+      await tx.service.update({
+        where: { id: serviceId },
+        data: {
+          status,
+          ...(isCompletingStatus(status) ? { doneAt: changedAt } : {}),
+          ...(note !== undefined ? { note } : {}),
+          ...(shouldAssignActor
+            ? {
+                technicianId: user.id,
+                assignedAt: changedAt,
+              }
+            : {}),
+        },
+      });
+
+      await createActivityLog(tx, {
+        tokoId: service.tokoId,
+        userId: user.id,
+        serviceId,
+        type: "service_status_changed",
+        title: getStatusActivityTitle(status),
+        payload: {
+          previousStatus: service.status,
+          nextStatus: status,
+          previousTechnicianId: service.technicianId,
+          note: note ?? null,
+          assignedActor: shouldAssignActor,
+          technicianId: shouldAssignActor ? user.id : service.technicianId,
+        },
+      });
     });
 
     revalidatePath(`/${service.tokoId}/admin/service`);
@@ -844,16 +957,28 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
       return { success: false, error: "Only completed services can be marked as picked up" };
     }
 
-    await prisma.$transaction([
-      prisma.service.update({
+    const pickedUpAt = new Date();
+
+    await prisma.$transaction(async (tx) => {
+      await tx.service.update({
         where: { id: serviceId },
-        data: { status: "picked_up", checkoutAt: new Date() },
-      }),
-      prisma.invoice.updateMany({
-        where: { serviceId },
-        data: { paymentStatus: "paid", paidAt: new Date() },
-      }),
-    ]);
+        data: { status: "picked_up", checkoutAt: pickedUpAt },
+      });
+
+      await createActivityLog(tx, {
+        tokoId: service.tokoId,
+        userId: user.id,
+        serviceId,
+        type: "service_status_changed",
+        title: getStatusActivityTitle("picked_up"),
+        payload: {
+          previousStatus: service.status,
+          nextStatus: "picked_up",
+          checkoutAt: pickedUpAt.toISOString(),
+        },
+      });
+
+    });
 
     revalidatePath(`/${service.tokoId}/admin/service`);
     revalidatePath(`/${service.tokoId}/admin`);
@@ -894,13 +1019,33 @@ export async function assignTechnician(
       }
     }
 
-    await prisma.service.update({
-      where: { id: serviceId },
-      data: {
-        technicianId,
-        assignedAt: technicianId ? new Date() : null,
-        status: technicianId && service.status === "received" ? "repairing" : undefined,
-      },
+    const assignedAt = technicianId ? new Date() : null;
+    const nextStatus = technicianId && service.status === "received" ? "repairing" : service.status;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.service.update({
+        where: { id: serviceId },
+        data: {
+          technicianId,
+          assignedAt,
+          status: technicianId && service.status === "received" ? "repairing" : undefined,
+        },
+      });
+
+      await createActivityLog(tx, {
+        tokoId: service.tokoId,
+        userId: user.id,
+        serviceId,
+        type: "service_assigned",
+        title: technicianId ? "Technician assigned to service" : "Technician unassigned from service",
+        payload: {
+          previousTechnicianId: service.technicianId,
+          technicianId,
+          previousStatus: service.status,
+          nextStatus,
+          assignedAt: assignedAt?.toISOString() ?? null,
+        },
+      });
     });
 
     revalidatePath(`/${service.tokoId}/admin/service`);
@@ -921,7 +1066,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
 
     const service = await prisma.service.findUnique({
       where: { id: data.serviceId },
-      select: { tokoId: true },
+      select: { tokoId: true, status: true },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
@@ -931,15 +1076,15 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
     if (validated.type === "sparepart" && validated.sparepartId) {
       const sparepart = await prisma.sparepart.findUnique({
         where: { id: validated.sparepartId },
-        select: { stock: true },
+        select: { stock: true, name: true },
       });
       if (!sparepart) return { success: false, error: "Sparepart not found" };
       if (sparepart.stock < validated.qty) {
         return { success: false, error: `Insufficient stock. Available: ${sparepart.stock}` };
       }
 
-      await prisma.$transaction([
-        prisma.serviceItem.create({
+      await prisma.$transaction(async (tx) => {
+        await tx.serviceItem.create({
           data: {
             serviceId: validated.serviceId,
             type: validated.type,
@@ -948,26 +1093,95 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
             price: validated.price,
             referenceId: validated.sparepartId,
           },
-        }),
-        prisma.sparepart.update({
+        });
+
+        await tx.sparepart.update({
           where: { id: validated.sparepartId },
           data: { stock: { decrement: validated.qty } },
-        }),
-      ]);
-    } else {
-      await prisma.serviceItem.create({
-        data: {
+        });
+
+        if (service.status === "received") {
+          await tx.service.update({
+            where: { id: validated.serviceId },
+            data: { status: "repairing" },
+          });
+        }
+
+        await createActivityLog(tx, {
+          tokoId: service.tokoId,
+          userId: user.id,
           serviceId: validated.serviceId,
-          type: validated.type,
-          name: validated.name,
-          qty: validated.qty,
-          price: validated.price,
-          referenceId: validated.sparepartId || null,
-        },
+          type: "sparepart_stock_out",
+          title: "Sparepart used in service",
+          payload: {
+            sparepartId: validated.sparepartId,
+            sparepartName: sparepart.name,
+            qty: validated.qty,
+            price: validated.price,
+          },
+        });
+
+        if (service.status === "received") {
+          await createActivityLog(tx, {
+            tokoId: service.tokoId,
+            userId: user.id,
+            serviceId: validated.serviceId,
+            type: "service_status_changed",
+            title: getStatusActivityTitle("repairing"),
+            payload: {
+              previousStatus: "received",
+              nextStatus: "repairing",
+              reason: "First repair item added",
+            },
+          });
+        }
+      });
+    } else {
+      await prisma.$transaction(async (tx) => {
+        await tx.serviceItem.create({
+          data: {
+            serviceId: validated.serviceId,
+            type: validated.type,
+            name: validated.name,
+            qty: validated.qty,
+            price: validated.price,
+            referenceId: validated.sparepartId || null,
+          },
+        });
+
+        if (service.status === "received") {
+          await tx.service.update({
+            where: { id: validated.serviceId },
+            data: { status: "repairing" },
+          });
+
+          await createActivityLog(tx, {
+            tokoId: service.tokoId,
+            userId: user.id,
+            serviceId: validated.serviceId,
+            type: "service_status_changed",
+            title: getStatusActivityTitle("repairing"),
+            payload: {
+              previousStatus: "received",
+              nextStatus: "repairing",
+              reason: "First repair item added",
+            },
+          });
+        }
       });
     }
 
-    await updateInvoiceTotal(validated.serviceId);
+    const invoiceResult = await updateInvoiceTotal(validated.serviceId);
+
+    if (invoiceResult.created) {
+      await createActivityLog(prisma, {
+        tokoId: service.tokoId,
+        userId: user.id,
+        serviceId: validated.serviceId,
+        type: "invoice_created",
+        title: "Invoice created",
+      });
+    }
 
     revalidatePath(`/${service.tokoId}/admin/service`);
     revalidatePath(`/${service.tokoId}/admin`);
@@ -1002,13 +1216,25 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
     if (!tokoIds.includes(item.service.tokoId)) return { success: false, error: "Access denied" };
 
     if (item.type === "sparepart" && item.referenceId) {
-      await prisma.$transaction([
-        prisma.serviceItem.delete({ where: { id: itemId } }),
-        prisma.sparepart.update({
+      await prisma.$transaction(async (tx) => {
+        await tx.serviceItem.delete({ where: { id: itemId } });
+        await tx.sparepart.update({
           where: { id: item.referenceId },
           data: { stock: { increment: item.qty } },
-        }),
-      ]);
+        });
+
+        await createActivityLog(tx, {
+          tokoId: item.service.tokoId,
+          userId: user.id,
+          serviceId: item.serviceId,
+          type: "sparepart_stock_in",
+          title: "Sparepart returned to inventory",
+          payload: {
+            sparepartId: item.referenceId,
+            qty: item.qty,
+          },
+        });
+      });
     } else {
       await prisma.serviceItem.delete({ where: { id: itemId } });
     }
@@ -1032,14 +1258,30 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
 
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
-      select: { service: { select: { tokoId: true } } },
+      select: { service: { select: { id: true, tokoId: true } } },
     });
     if (!invoice) return { success: false, error: "Invoice not found" };
     if (!tokoIds.includes(invoice.service.tokoId)) return { success: false, error: "Access denied" };
 
-    await prisma.invoice.update({
-      where: { id: invoiceId },
-      data: { paymentStatus: "paid", paidAt: new Date() },
+    const paidAt = new Date();
+
+    await prisma.$transaction(async (tx) => {
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { paymentStatus: "paid", paidAt },
+      });
+
+      await createActivityLog(tx, {
+        tokoId: invoice.service.tokoId,
+        userId: user.id,
+        serviceId: invoice.service.id,
+        type: "invoice_paid",
+        title: "Invoice marked as paid",
+        payload: {
+          invoiceId,
+          paidAt: paidAt.toISOString(),
+        },
+      });
     });
 
     revalidatePath(`/${invoice.service.tokoId}/admin/service`);
@@ -1114,7 +1356,7 @@ export async function getTechnicianTaskBadgeStats(
         where: { technicianId: session.user.id, status: "repairing" },
       }),
       prisma.service.count({
-        where: { technicianId: session.user.id, status: { in: ["done", "picked_up"] } },
+        where: { technicianId: session.user.id, status: "done" },
       }),
       prisma.service.count({
         where: { technicianId: session.user.id, status: "failed" },

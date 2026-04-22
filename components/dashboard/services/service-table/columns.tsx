@@ -71,17 +71,52 @@ export function renderComplaintCell(service: ServiceTableItem): React.ReactNode 
   );
 }
 
+function parseNoteStatus(note: string) {
+  const match = note.match(/^\{(GAGAL|BERHASIL)\}\s*/);
+
+  if (!match) {
+    return {
+      label: null,
+      note,
+    };
+  }
+
+  const label = match[1];
+
+  return {
+    label,
+    note: note.replace(/^\{(?:GAGAL|BERHASIL)\}\s*/, "").trim() || label,
+  };
+}
+
 export function renderNoteCell(service: ServiceTableItem): React.ReactNode {
   if (!service.note) {
     return <span className="text-muted-foreground">-</span>;
   }
+
+   const parsedNote = parseNoteStatus(service.note);
+
   return (
     <Tooltip>
-      <TooltipTrigger className="block max-w-xs truncate text-left cursor-default">
-        {service.note}
+      <TooltipTrigger className="block max-w-xs cursor-default text-left">
+        <div className="flex items-center gap-2 truncate">
+          {parsedNote.label && (
+            <Badge variant={parsedNote.label === "GAGAL" ? "destructive" : "outline"} className="shrink-0 text-[0.6rem] uppercase">
+              {parsedNote.label}
+            </Badge>
+          )}
+          <span className="truncate">{parsedNote.note}</span>
+        </div>
       </TooltipTrigger>
       <TooltipContent className="max-w-sm">
-        {service.note}
+        <div className="flex items-start gap-2">
+          {parsedNote.label && (
+            <Badge variant={parsedNote.label === "GAGAL" ? "destructive" : "outline"} className="shrink-0 text-[0.6rem] uppercase">
+              {parsedNote.label}
+            </Badge>
+          )}
+          <span>{parsedNote.note}</span>
+        </div>
       </TooltipContent>
     </Tooltip>
   );

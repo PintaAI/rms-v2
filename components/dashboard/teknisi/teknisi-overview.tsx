@@ -3,9 +3,7 @@
 import { useCallback, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -17,6 +15,7 @@ import {
   OverviewSectionHeader,
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
+import { TaskList } from "@/components/dashboard/teknisi/task-list";
 import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
 import { getService, takeService } from "@/actions";
@@ -35,31 +34,6 @@ interface TeknisiOverviewProps {
   availableServices: ServiceListItem[];
   myTasks: ServiceDetail[];
   tokoId: string;
-}
-
-const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  received: "secondary",
-  repairing: "default",
-  done: "outline",
-  failed: "destructive",
-  picked_up: "default",
-};
-
-const statusLabels: Record<string, string> = {
-  received: "Masuk",
-  repairing: "Proses",
-  done: "Selesai",
-  failed: "Gagal",
-  picked_up: "Diambil",
-};
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(date));
 }
 
 export function TeknisiOverview({
@@ -198,120 +172,17 @@ export function TeknisiOverview({
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-          <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-5 w-1 rounded-full bg-primary" />
-                <span className="text-lg font-bold">Task Tersedia</span>
-              </div>
-              <Badge variant="outline">{availableServices.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            {availableServices.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Tidak ada task yang bisa diambil atau takeover saat ini.</p>
-            ) : (
-              <div className="space-y-3">
-                {availableServices.slice(0, 5).map((service) => (
-                  <div
-                    key={service.id}
-                    className="flex items-center justify-between rounded-xl border border-border/50 bg-card p-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">
-                        {service.hpCatalog.brand.name} {service.hpCatalog.modelName}
-                      </p>
-                      <p className="truncate text-sm text-muted-foreground">
-                        {service.customerName || "No name"} • {service.complaint.slice(0, 30)}...
-                      </p>
-                      {service.technician && (
-                        <p className="text-xs text-muted-foreground">Ditangani {service.technician.name}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground">{formatDate(service.checkinAt)}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => handleTakeTask(service)}
-                      disabled={isTakingTask === service.id}
-                      className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80"
-                    >
-                      {isTakingTask === service.id ? (
-                        <RiLoader4Line className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RiTaskLine className="mr-1 h-4 w-4" />
-                      )}
-                      {service.technician && service.technician.id !== user?.id ? "Takeover" : "Ambil"}
-                    </Button>
-                  </div>
-                ))}
-                {availableServices.length > 5 && (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => router.push(`/${tokoId}/teknisi/task?status=tersedia`)}
-                  >
-                    <RiArrowRightLine className="mr-1.5 h-4 w-4" />
-                    Lihat semua ({availableServices.length})
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-          <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-5 w-1 rounded-full bg-sky-500" />
-                <span className="text-lg font-bold">My Tasks</span>
-              </div>
-              <Badge variant="outline">{myTasks.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            {myTasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Tidak ada task yang sedang dikerjakan.</p>
-            ) : (
-              <div className="space-y-3">
-                {myTasks.slice(0, 5).map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex cursor-pointer items-center justify-between rounded-xl border border-border/50 bg-card p-3 transition-colors hover:bg-muted/30"
-                    onClick={() => handleOpenTask(task.id)}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2 truncate font-medium">
-                        {task.hpCatalog.brand.name} {task.hpCatalog.modelName}
-                        <Badge variant={statusColors[task.status] || "outline"}>
-                          {statusLabels[task.status] || task.status}
-                        </Badge>
-                      </p>
-                      <p className="truncate text-sm text-muted-foreground">
-                        {task.customerName || "No name"} • {task.complaint.slice(0, 30)}...
-                      </p>
-                    </div>
-                    <Button variant="ghost" size="sm">
-                      Open
-                    </Button>
-                  </div>
-                ))}
-                {myTasks.length > 5 && (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => router.push(`/${tokoId}/teknisi/task`)}
-                  >
-                    <RiArrowRightLine className="mr-1.5 h-4 w-4" />
-                    Lihat semua ({myTasks.length})
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <section className="w-full">
+        <TaskList
+          availableServices={availableServices}
+          myTasks={myTasks}
+          userId={user?.id}
+          isTakingTask={isTakingTask}
+          onTakeTask={handleTakeTask}
+          onOpenTask={handleOpenTask}
+          onViewAllAvailable={() => router.push(`/${tokoId}/teknisi/task?status=tersedia`)}
+          onViewAllMyTasks={() => router.push(`/${tokoId}/teknisi/task`)}
+        />
       </section>
 
       <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>

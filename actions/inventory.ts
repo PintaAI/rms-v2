@@ -1,7 +1,10 @@
 "use server"
 
+import { auth } from "@/lib/auth"
+import { createActivityLogIfUser } from "@/lib/activity-log"
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { headers } from "next/headers"
 import { z } from "zod"
 
 type ActionResult = {
@@ -77,6 +80,13 @@ const updateServicePricelistSchema = z.object({
   defaultPrice: z.number().int().min(0, "Price must be 0 or greater").optional(),
 })
 
+async function getCurrentUserId() {
+  const headersList = await headers()
+  const session = await auth.api.getSession({ headers: headersList })
+
+  return session?.user?.id ?? null
+}
+
 export async function getSpareparts(tokoId: string): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
   try {
     const spareparts = await prisma.sparepart.findMany({
@@ -134,6 +144,7 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
 
 export async function createSparepart(data: z.infer<typeof createSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
   try {
+    const userId = await getCurrentUserId()
     const validated = createSparepartSchema.parse(data)
 
     const existing = await prisma.sparepart.findFirst({
@@ -167,6 +178,20 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
     revalidatePath("/dashboard/admin/inventory")
     revalidatePath("/dashboard/staff/sparepart")
 
+    await createActivityLogIfUser({
+      tokoId: validated.tokoId,
+      userId,
+      type: "sparepart_created",
+      title: "Sparepart created",
+      payload: {
+        sparepartId: sparepart.id,
+        name: sparepart.name,
+        defaultPrice: sparepart.defaultPrice,
+        stock: sparepart.stock,
+        isUniversal: sparepart.isUniversal,
+      },
+    })
+
     return { success: true, data: sparepart }
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -179,6 +204,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
 
 export async function updateSparepart(data: z.infer<typeof updateSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
   try {
+    const userId = await getCurrentUserId()
     const validated = updateSparepartSchema.parse(data)
 
     const sparepart = await prisma.sparepart.findUnique({
@@ -229,6 +255,20 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
     revalidatePath("/dashboard/admin/inventory")
     revalidatePath("/dashboard/staff/sparepart")
 
+    await createActivityLogIfUser({
+      tokoId: sparepart.tokoId,
+      userId,
+      type: "sparepart_updated",
+      title: "Sparepart updated",
+      payload: {
+        sparepartId: updated.id,
+        name: updated.name,
+        defaultPrice: updated.defaultPrice,
+        stock: updated.stock,
+        isUniversal: updated.isUniversal,
+      },
+    })
+
     return { success: true, data: updated }
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -241,9 +281,10 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
 
 export async function deleteSparepart(id: string): Promise<ActionResult> {
   try {
+    const userId = await getCurrentUserId()
     const sparepart = await prisma.sparepart.findUnique({
       where: { id },
-      select: { tokoId: true },
+      select: { tokoId: true, name: true },
     })
 
     if (!sparepart) {
@@ -265,6 +306,17 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
 
     revalidatePath("/dashboard/admin/inventory")
     revalidatePath("/dashboard/staff/sparepart")
+
+    await createActivityLogIfUser({
+      tokoId: sparepart.tokoId,
+      userId,
+      type: "sparepart_deleted",
+      title: "Sparepart deleted",
+      payload: {
+        sparepartId: id,
+        name: sparepart.name,
+      },
+    })
 
     return { success: true }
   } catch (error) {

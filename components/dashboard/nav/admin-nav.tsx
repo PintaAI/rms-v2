@@ -6,7 +6,7 @@ import {
   SidebarMenu,
 } from "@/components/ui/sidebar";
 import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine } from "@remixicon/react";
-import { NavItem, NavFilterGroup } from "./nav-item";
+import { NavItem, NavFilterGroup, NavGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
 
 interface AdminNavProps {
@@ -22,14 +22,14 @@ export function AdminNav({ tokoid, serviceStats }: AdminNavProps) {
           <NavItem
             href={`/${tokoid}/admin`}
             icon={<RiDashboardLine />}
-            label="Overview"
+            label="Admin Overview"
           />
           <NavItem
             href={`/${tokoid}/admin/toko`}
             icon={<RiStore2Line />}
             label="Toko"
           />
-<NavFilterGroup
+          <NavFilterGroup
             title="Service"
             icon={<RiToolsLine />}
             defaultOpen={true}
@@ -74,10 +74,22 @@ export function AdminNav({ tokoid, serviceStats }: AdminNavProps) {
             icon={<RiUserSettingsLine />}
             label="Karyawan"
           />
-          <NavItem
-            href={`/${tokoid}/admin/inventory`}
+          <NavGroup
+            title="Inventory"
             icon={<RiArchiveLine />}
-            label="Inventory"
+            defaultOpen={true}
+            items={[
+              {
+                href: `/${tokoid}/admin/inventory`,
+                icon: <RiToolsLine />,
+                label: "Sparepart & Jasa",
+              },
+              {
+                href: `/${tokoid}/admin/inventory/audit-gudang`,
+                icon: <RiArchiveLine />,
+                label: "Audit Gudang",
+              },
+            ]}
           />
 
         </SidebarMenu>

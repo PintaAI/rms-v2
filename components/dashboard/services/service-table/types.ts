@@ -66,6 +66,16 @@ export interface ServiceTableItem {
     id: string;
     grandTotal: number;
     paymentStatus: PaymentStatusKey | string;
+    invoiceNumber?: string | null;
+    createdAt?: Date | string | null;
+    paidAt?: Date | string | null;
+    items?: Array<{
+      id?: string;
+      type?: string | null;
+      name: string;
+      qty: number;
+      price: number;
+    }> | null;
   } | null;
   createdBy?: {
     name: string;
@@ -78,6 +88,7 @@ export interface ServiceTableProps {
   services: ServiceTableItem[];
   columns?: ColumnsInput;
   preset?: PresetKey;
+  statusFilter?: string;
   emptyMessage?: string;
   onEdit?: (service: ServiceTableItem) => void;
   onDelete?: (service: ServiceTableItem) => void;

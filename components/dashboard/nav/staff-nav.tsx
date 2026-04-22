@@ -59,7 +59,7 @@ export function StaffNav({ tokoid, serviceStats }: StaffNavProps) {
           <NavItem
             href={`/${tokoid}/staff`}
             icon={<RiDashboardLine />}
-            label="Overview"
+            label="Staff Overview"
           />
           <NavFilterGroup
             title="Service"

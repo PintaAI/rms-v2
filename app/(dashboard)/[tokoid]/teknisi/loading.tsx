@@ -2,46 +2,34 @@ import {
   OverviewSectionHeader,
   OverviewStatsCardSkeleton,
 } from "@/components/dashboard/shared/overview-cards";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   RiCheckLine,
   RiStore2Line,
   RiTaskLine,
   RiToolsLine,
+  RiArrowRightLine,
 } from "@remixicon/react";
 
-function TaskListSkeleton({ title, accentClass }: { title: string; accentClass: string }) {
+function TableSkeleton() {
   return (
-    <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5">
-      <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`h-5 w-1 rounded-full ${accentClass}`} />
-            <span className="text-lg font-bold">{title}</span>
-          </div>
-          <Badge variant="outline">...</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 p-4">
-        <div className="rounded-xl border border-border/50 bg-card p-3">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="mt-2 h-4 w-56" />
-          <Skeleton className="mt-2 h-3 w-24" />
+    <div className="overflow-hidden rounded-xl border border-border/50 shadow-lg shadow-black/5">
+      <div className="flex items-center justify-between border-b border-border/50 bg-muted/30 px-4 py-4">
+        <div className="flex items-center gap-3">
+          <div className="h-5 w-1 rounded-full bg-primary" />
+          <Skeleton className="h-5 w-28" />
         </div>
-        <div className="rounded-xl border border-border/50 bg-card p-3">
-          <Skeleton className="h-5 w-36" />
-          <Skeleton className="mt-2 h-4 w-52" />
-          <Skeleton className="mt-2 h-3 w-20" />
+        <Skeleton className="h-5 w-10 rounded-full" />
+      </div>
+      <div className="space-y-3 p-4">
+        <Skeleton className="h-14 w-full rounded-xl" />
+        <Skeleton className="h-14 w-full rounded-xl" />
+        <Skeleton className="h-14 w-full rounded-xl" />
+        <div className="flex justify-end pt-1">
+          <Skeleton className="h-9 w-40 rounded-md" />
         </div>
-        <div className="rounded-xl border border-border/50 bg-card p-3">
-          <Skeleton className="h-5 w-44" />
-          <Skeleton className="mt-2 h-4 w-48" />
-          <Skeleton className="mt-2 h-3 w-28" />
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -62,6 +50,11 @@ export default function TeknisiOverviewLoading() {
           </div>
           <p className="text-sm text-muted-foreground/70">Ringkasan task teknisi dan antrian servis saat ini</p>
         </div>
+
+        <div className="rounded-md border border-border/50 px-4 py-2 text-sm text-muted-foreground">
+          <RiArrowRightLine className="mr-1.5 inline h-4 w-4" />
+          Task Manager
+        </div>
       </div>
 
       <section className="space-y-4">
@@ -74,9 +67,8 @@ export default function TeknisiOverviewLoading() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <TaskListSkeleton title="Task Tersedia" accentClass="bg-primary" />
-        <TaskListSkeleton title="My Tasks" accentClass="bg-sky-500" />
+      <section>
+        <TableSkeleton />
       </section>
     </div>
   );

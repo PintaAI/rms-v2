@@ -14,10 +14,9 @@ import {
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
-import { takeService, getService } from "@/actions";
+import { getService, takeService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import { useAuth } from "@/components/auth/auth-provider";
-import { Badge } from "@/components/ui/badge";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
 import {
   OverviewSectionHeader,
@@ -28,10 +27,10 @@ import {
   RiCheckLine,
   RiCloseCircleLine,
   RiFolderLine,
-  RiLoader4Line,
   RiToolsLine,
   RiHistoryLine,
   RiArrowRightLine,
+  RiLoader4Line,
   RiStore2Line,
 } from "@remixicon/react";
 
@@ -69,11 +68,11 @@ export function TeknisiTaskManager({
   const status = searchParams.get("status");
 
   const [stats, setStats] = useState<TechnicianTaskStats>(initialStats);
+  const [isTakingTask, setIsTakingTask] = useState<string | null>(null);
+  const [pendingTakeoverTask, setPendingTakeoverTask] = useState<ServiceListItem | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-  const [isTakingTask, setIsTakingTask] = useState<string | null>(null);
-  const [pendingTakeoverTask, setPendingTakeoverTask] = useState<ServiceListItem | null>(null);
 
   const pendingMutationsRef = useRef(0);
   const userId = user?.id;
@@ -115,10 +114,9 @@ export function TeknisiTaskManager({
     }
   }, [pendingTakeoverTask, submitTakeTask]);
 
-  const handleRowClick = useCallback(async (service: ServiceTableItem) => {
+  const handleOpenTask = useCallback(async (service: ServiceTableItem) => {
     setIsLoadingDetail(true);
     setDetailDialogOpen(true);
-
     const result = await getService(service.id);
     if (result.success && result.data) {
       setSelectedTask(result.data);
@@ -136,10 +134,6 @@ export function TeknisiTaskManager({
     }
     router.refresh();
   }, [selectedTask, router]);
-
-  const handleStatusChange = useCallback(() => {
-    router.refresh();
-  }, [router]);
 
   const tableItems: ServiceTableItem[] = useMemo(() => {
     if (status === "tersedia") {
@@ -166,7 +160,7 @@ export function TeknisiTaskManager({
     const statusFilter = status === "repairing"
       ? ["repairing"]
       : status === "selesai"
-        ? ["done", "picked_up"]
+        ? ["done"]
         : status === "gagal"
           ? ["failed"]
           : status === "history"
@@ -196,18 +190,6 @@ export function TeknisiTaskManager({
       imei: t.imei,
     }));
   }, [status, myTasks, availableTasks]);
-
-  const canTakeTask = (task: Pick<ServiceListItem, "status" | "technician">) => {
-    if (task.status !== "received" && task.status !== "repairing") {
-      return false;
-    }
-
-    if (!userId) {
-      return false;
-    }
-
-    return task.technician?.id !== userId;
-  };
 
   const getPageTitle = () => {
     if (!status) return "Semua Task";
@@ -301,135 +283,6 @@ export function TeknisiTaskManager({
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-          <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-5 w-1 rounded-full bg-primary" />
-                <span className="text-lg font-bold">Task Tersedia</span>
-              </div>
-              <span className="rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                {availableTasks.length}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {availableTasks.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">Tidak ada task yang bisa diambil atau takeover saat ini.</p>
-            ) : (
-              <div className="space-y-3 p-4">
-                {availableTasks.slice(0, 5).map((task) => (
-                  <div
-                    key={task.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => handleRowClick(task as ServiceTableItem)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        handleRowClick(task as ServiceTableItem);
-                      }
-                    }}
-                    className="flex w-full items-center justify-between rounded-xl border border-border/50 bg-card p-3 text-left transition-colors hover:bg-muted/30"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">
-                        {task.hpCatalog.brand.name} {task.hpCatalog.modelName}
-                      </p>
-                      <p className="truncate text-sm text-muted-foreground">
-                        {task.customerName || "No name"} • {task.complaint.slice(0, 30)}...
-                      </p>
-                      {task.technician && (
-                        <div className="mt-1">
-                          <Badge variant="outline">Ditangani {task.technician.name}</Badge>
-                        </div>
-                      )}
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTakeTask(task.id);
-                      }}
-                      disabled={isTakingTask === task.id}
-                    >
-                        {isTakingTask === task.id ? (
-                          <RiLoader4Line className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RiTaskLine className="mr-1 h-4 w-4" />
-                        )}
-                      {task.technician ? "Takeover" : "Ambil"}
-                    </Button>
-                  </div>
-                ))}
-                {availableTasks.length > 5 && (
-                  <Button variant="outline" className="w-full" onClick={() => router.push(`/${tokoId}/teknisi/task?status=tersedia`)}>
-                    <RiArrowRightLine className="mr-1.5 h-4 w-4" />
-                    Lihat semua ({availableTasks.length})
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-          <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-5 w-1 rounded-full bg-sky-500" />
-                <span className="text-lg font-bold">My Tasks</span>
-              </div>
-              <span className="rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                {myTasks.length}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {myTasks.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">Tidak ada task yang sedang dikerjakan.</p>
-            ) : (
-              <div className="space-y-3 p-4">
-                {myTasks.slice(0, 5).map((task) => (
-                  <div
-                    key={task.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => handleRowClick(task as ServiceTableItem)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        handleRowClick(task as ServiceTableItem);
-                      }
-                    }}
-                    className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-border/50 bg-card p-3 text-left transition-colors hover:bg-muted/30"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2 truncate font-medium">
-                        {task.hpCatalog.brand.name} {task.hpCatalog.modelName}
-                      </p>
-                      <p className="truncate text-sm text-muted-foreground">
-                        {task.customerName || "No name"} • {task.complaint.slice(0, 30)}...
-                      </p>
-                    </div>
-                    <Button variant="ghost" size="sm">
-                      Open
-                    </Button>
-                  </div>
-                ))}
-                {myTasks.length > 5 && (
-                  <Button variant="outline" className="w-full" onClick={() => router.push(`/${tokoId}/teknisi/task`)}>
-                    <RiArrowRightLine className="mr-1.5 h-4 w-4" />
-                    Lihat semua ({myTasks.length})
-                  </Button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
       <section>
         <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
           <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
@@ -449,15 +302,15 @@ export function TeknisiTaskManager({
                 services={tableItems}
                 preset="technicianAvailable"
                 emptyMessage="Tidak ada task yang bisa diambil atau takeover"
-                onRowClick={handleRowClick}
                 onTake={handleTakeTask}
+                onRowClick={handleOpenTask}
               />
             ) : (
               <ServiceTable
                 services={tableItems}
                 preset="technicianMyTasks"
                 emptyMessage={`Tidak ada task${status ? ` dengan status ${status}` : ""}`}
-                onRowClick={handleRowClick}
+                onRowClick={handleOpenTask}
               />
             )}
           </CardContent>
@@ -465,8 +318,8 @@ export function TeknisiTaskManager({
       </section>
 
       <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <SheetContent side="bottom" className="h-[90vh] rounded-t-lg p-2 max-w-4xl mx-auto overflow-y-auto">
-          <SheetHeader className="p-2 flex items-center justify-between">
+        <SheetContent side="bottom" className="mx-auto h-[90vh] max-w-4xl overflow-y-auto rounded-t-lg p-2">
+          <SheetHeader className="flex items-center justify-between p-2">
             <SheetTitle className="font-bold">Detail Task</SheetTitle>
             <p className="text-sm text-muted-foreground">kelola task servis</p>
           </SheetHeader>
@@ -476,41 +329,18 @@ export function TeknisiTaskManager({
             </div>
           )}
           {!isLoadingDetail && selectedTask && (
-            <div className="space-y-4 p-2">
-              {canTakeTask(selectedTask) && (
-                <Card className="border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="text-sm">
-                          {selectedTask.technician
-                            ? `Task ini sedang ditangani ${selectedTask.technician.name}. Take over untuk pindahkan ke kamu.`
-                            : "Task ini masih tersedia. Ambil untuk mulai servis."}
-                        </p>
-                        {selectedTask.technician && (
-                          <Badge variant="outline">Teknisi saat ini: {selectedTask.technician.name}</Badge>
-                        )}
-                      </div>
-                      <Button
-                        onClick={() => handleTakeTask(selectedTask.id)}
-                        disabled={isTakingTask === selectedTask.id}
-                      >
-                        {isTakingTask === selectedTask.id ? (
-                          <RiLoader4Line className="h-4 w-4 animate-spin mr-1" />
-                        ) : (
-                          <RiTaskLine className="h-4 w-4 mr-1" />
-                        )}
-                        {selectedTask.technician ? "Takeover Task" : "Ambil Task"}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+            <div className="p-2">
               <ServiceTaskCard
                 task={selectedTask}
-                variant={["done", "picked_up", "failed"].includes(selectedTask.status) ? "completed" : "active"}
+                variant={
+                  selectedTask.status === "done" ||
+                  selectedTask.status === "picked_up" ||
+                  selectedTask.status === "failed"
+                    ? "completed"
+                    : "active"
+                }
                 onRefresh={handleRefreshDetail}
-                onStatusChange={handleStatusChange}
+                onStatusChange={() => router.refresh()}
               />
             </div>
           )}

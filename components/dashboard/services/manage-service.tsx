@@ -332,7 +332,7 @@ const filteredServices = useMemo(() => {
     setServices((prev) =>
       prev.map((s) =>
         s.id === serviceId
-          ? { ...s, status: "picked_up", checkoutAt: new Date(), invoice: s.invoice ? { ...s.invoice, paymentStatus: "paid" } : null }
+          ? { ...s, status: "picked_up", checkoutAt: new Date() }
           : s
       )
     );
@@ -343,9 +343,7 @@ const filteredServices = useMemo(() => {
       decrementStat("picked_up");
       setServices((prev) =>
         prev.map((s) =>
-          s.id === serviceId
-          ? { ...s, status: service.status, checkoutAt: service.checkoutAt, invoice: service.invoice }
-          : s
+          s.id === serviceId ? { ...s, status: service.status, checkoutAt: service.checkoutAt } : s
         )
       );
     }
@@ -468,6 +466,7 @@ const getPageTitle = () => {
             <ServiceTable
               services={tableServices}
               preset="adminActive"
+              statusFilter={statusFilter}
               emptyMessage={`Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`}
               onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleEdit}
               onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleDelete}
