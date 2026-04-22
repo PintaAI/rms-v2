@@ -7,7 +7,6 @@ import {
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
 import type { StaffOverviewData } from "@/actions/overview";
-import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
 import {
   RiArchiveLine,
   RiCheckDoubleLine,
@@ -32,13 +31,13 @@ interface StaffOverviewProps {
 export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps) {
   const { stats, recentServices } = data;
 
-  const tableServices: ServiceTableItem[] = recentServices.map((service) => ({
+  const tableServices = recentServices.map((service) => ({
     id: service.id,
-    hpCatalogId: service.hpCatalogId,
+    hpCatalogId: service.hpCatalog.id,
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
-    note: service.note,
+    note: null,
     status: service.status,
     checkinAt: service.checkinAt,
     doneAt: service.doneAt,
@@ -46,9 +45,10 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
     hpCatalog: service.hpCatalog,
     technician: service.technician,
     invoice: service.invoice,
-    createdBy: service.createdBy,
-    passwordPattern: service.passwordPattern,
-    imei: service.imei,
+    createdBy: undefined,
+    passwordPattern: null,
+    imei: null,
+    isPickedUp: service.isPickedUp,
   }));
 
   return (
@@ -97,7 +97,6 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
             title="Sedang Diperbaiki"
             value={stats.services.repairing}
             icon={<RiToolsLine className="h-4 w-4" />}
-            description={`${stats.services.received} menunggu teknisi`}
             variant="accent"
           />
           <OverviewStatsCard
@@ -110,16 +109,14 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
             title="Low Stock Items"
             value={stats.inventory.lowStockCount}
             icon={<RiArchiveLine className="h-4 w-4" />}
-            description={`${stats.inventory.totalSpareparts} total sparepart`}
             variant={stats.inventory.lowStockCount > 0 ? "warning" : "default"}
           />
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2">
         <OverviewPeriodCard label="Hari Ini" value={stats.services.daily} sub="service masuk" />
         <OverviewPeriodCard label="7 Hari" value={stats.services.weekly} sub="service masuk" />
-        <OverviewPeriodCard label="30 Hari" value={stats.services.monthly} sub="service masuk" />
       </section>
 
       <section>

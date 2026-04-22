@@ -6,7 +6,7 @@
  * FEATURES:
  * - Displays service details: device, customer, complaint, items, invoice
  * - Optimistic UI updates for all mutations (add/remove items, status changes)
- * - Two variants: "active" (for in-progress tasks) and "completed" (for done/picked_up/failed)
+ * - Two variants: "active" (for in-progress tasks) and "completed" (for done/failed)
  * - Built-in dialogs for marking done/failed, undoing status, adding items, viewing pattern lock
  *
  * OPTIMISTIC UI ARCHITECTURE:
@@ -102,7 +102,6 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
   repairing: "default",
   done: "outline",
   failed: "destructive",
-  picked_up: "default",
 };
 
 // Status labels
@@ -111,7 +110,6 @@ const statusLabels: Record<string, string> = {
   repairing: "In Progress",
   done: "Done",
   failed: "Failed",
-  picked_up: "Picked Up",
 };
 
 // Format date
@@ -152,8 +150,10 @@ export interface ServiceTaskItem {
   passwordPattern: string | null;
   imei: string | null;
   status: string;
+  isPickedUp?: boolean;
   checkinAt: Date;
   doneAt: Date | null;
+  checkoutAt?: Date | null;
   hpCatalog: {
     id: string;
     modelName: string;
@@ -225,8 +225,15 @@ export function ServiceTaskCard({
   // serialised content actually differs, preventing spurious effect runs
   // caused by the parent creating a new object reference on every render.
   const taskFingerprint = useMemo(
-    () => JSON.stringify({ id: task.id, status: task.status, items: task.items, doneAt: task.doneAt }),
-    [task.id, task.status, task.items, task.doneAt]
+    () => JSON.stringify({
+      id: task.id,
+      status: task.status,
+      isPickedUp: task.isPickedUp,
+      checkoutAt: task.checkoutAt,
+      items: task.items,
+      doneAt: task.doneAt,
+    }),
+    [task.id, task.status, task.isPickedUp, task.checkoutAt, task.items, task.doneAt]
   );
 
   useEffect(() => {
@@ -499,6 +506,7 @@ export function ServiceTaskCard({
                 <Badge variant={statusColors[localTask.status] || "outline"}>
                   {statusLabels[localTask.status] || localTask.status}
                 </Badge>
+                {localTask.isPickedUp && <Badge variant="outline">Picked Up</Badge>}
               </CardTitle>
               <CardDescription className="break-words">
                 {localTask.customerName || "No customer name"} • {localTask.noWa}
@@ -522,7 +530,7 @@ export function ServiceTaskCard({
                 </Button>
               </div>
             )}
-            {!isActive && (localTask.status === "done" || localTask.status === "picked_up" || localTask.status === "failed") && (
+            {!isActive && (localTask.status === "done" || localTask.status === "failed") && (
               <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
                 <Button
                   variant="outline"
@@ -676,6 +684,9 @@ export function ServiceTaskCard({
             <div className="text-xs text-muted-foreground pt-2 border-t">
               <div>Check-in: {formatDate(localTask.checkinAt)}</div>
               {localTask.doneAt && <div>Done: {formatDate(localTask.doneAt)}</div>}
+              {localTask.isPickedUp && localTask.checkoutAt && (
+                <div>Picked Up: {formatDate(localTask.checkoutAt)}</div>
+              )}
             </div>
 
             {/* Done & Failed buttons – bottom-right for active tasks */}

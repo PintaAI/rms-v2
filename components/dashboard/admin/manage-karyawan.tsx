@@ -34,6 +34,9 @@ import {
   RiDeleteBinLine,
   RiCheckLine,
   RiArrowRightLine,
+  RiCheckboxCircleLine,
+  RiCloseCircleLine,
+  RiFileListLine,
 } from "@remixicon/react";
 
 type StatsVariant = "default" | "primary" | "success" | "warning" | "accent";
@@ -44,6 +47,39 @@ interface StatsCardProps {
   icon: React.ReactNode;
   description?: string;
   variant?: StatsVariant;
+}
+
+function PerformanceBadge({ performance, role }: { performance: KaryawanItem["performance"]; role: "staff" | "technician" }) {
+  if (!performance) {
+    return <span className="text-muted-foreground text-xs">-</span>;
+  }
+
+  if (role === "staff") {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950">
+          <RiFileListLine className="size-3 text-blue-600 dark:text-blue-400" />
+          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{performance.servicesCreated}</span>
+        </div>
+        <span className="text-xs text-muted-foreground">created</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-green-50 dark:bg-green-950">
+        <RiCheckboxCircleLine className="size-3 text-green-600 dark:text-green-400" />
+        <span className="text-xs font-medium text-green-700 dark:text-green-300">{performance.servicesCompleted}</span>
+      </div>
+      {performance.servicesFailed > 0 && (
+        <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-950">
+          <RiCloseCircleLine className="size-3 text-red-600 dark:text-red-400" />
+          <span className="text-xs font-medium text-red-700 dark:text-red-300">{performance.servicesFailed}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StatsCard({ title, value, icon, description, variant = "default" }: StatsCardProps) {
@@ -254,13 +290,14 @@ export function ManageKaryawan({
                   <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Email</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Role</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Performance</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[80px]">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {karyawan.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                       Belum ada karyawan. Klik &quot;Tambah Karyawan&quot; untuk menambah.
                     </TableCell>
                   </TableRow>
@@ -279,6 +316,9 @@ export function ManageKaryawan({
                         >
                           {item.role === "staff" ? "Staff" : "Technician"}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <PerformanceBadge performance={item.performance} role={item.role} />
                       </TableCell>
                       <TableCell>
                         <Button

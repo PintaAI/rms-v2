@@ -7,18 +7,115 @@ import { hashPassword } from "@better-auth/utils/password";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
 
+export interface KaryawanPerformance {
+  servicesCreated: number;
+  servicesCompleted: number;
+  servicesFailed: number;
+}
+
 export interface KaryawanItem {
   id: string;
   name: string;
   email: string;
   role: "staff" | "technician";
   createdAt: Date;
+  performance?: KaryawanPerformance;
 }
 
 export interface KaryawanStats {
   staff: number;
   technician: number;
   total: number;
+}
+
+async function getKaryawanPerformanceMap(
+  tokoId: string,
+  assignments: Array<{
+    user: {
+      id: string;
+      role: string;
+    };
+  }>
+): Promise<Map<string, KaryawanPerformance>> {
+  const performanceMap = new Map<string, KaryawanPerformance>();
+
+  const staffIds = assignments
+    .filter((assignment) => assignment.user.role === "staff")
+    .map((assignment) => assignment.user.id);
+  const technicianIds = assignments
+    .filter((assignment) => assignment.user.role === "technician")
+    .map((assignment) => assignment.user.id);
+
+  const [staffCounts, technicianCounts] = await Promise.all([
+    staffIds.length > 0
+      ? prisma.service.groupBy({
+          by: ["createdById"],
+          where: {
+            tokoId,
+            createdById: { in: staffIds },
+          },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+    technicianIds.length > 0
+      ? prisma.service.groupBy({
+          by: ["technicianId", "status"],
+          where: {
+            tokoId,
+            technicianId: { in: technicianIds },
+            status: { in: ["done", "failed"] },
+            isPickedUp: true,
+          },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  for (const staffId of staffIds) {
+    performanceMap.set(staffId, {
+      servicesCreated: 0,
+      servicesCompleted: 0,
+      servicesFailed: 0,
+    });
+  }
+
+  for (const technicianId of technicianIds) {
+    performanceMap.set(technicianId, {
+      servicesCreated: 0,
+      servicesCompleted: 0,
+      servicesFailed: 0,
+    });
+  }
+
+  for (const staffCount of staffCounts) {
+    performanceMap.set(staffCount.createdById, {
+      servicesCreated: staffCount._count._all,
+      servicesCompleted: 0,
+      servicesFailed: 0,
+    });
+  }
+
+  for (const technicianCount of technicianCounts) {
+    if (!technicianCount.technicianId) continue;
+
+    const current = performanceMap.get(technicianCount.technicianId) ?? {
+      servicesCreated: 0,
+      servicesCompleted: 0,
+      servicesFailed: 0,
+    };
+
+    if (technicianCount.status === "done") {
+      current.servicesCompleted = technicianCount._count._all;
+    }
+
+    if (technicianCount.status === "failed") {
+      current.servicesFailed = technicianCount._count._all;
+    }
+
+    performanceMap.set(technicianCount.technicianId, current);
+  }
+
+  return performanceMap;
 }
 
 export async function getKaryawanList(tokoId: string): Promise<{
@@ -56,17 +153,26 @@ export async function getKaryawanList(tokoId: string): Promise<{
     },
   });
 
-  const karyawan = assignments
-    .filter((a) => a.user.role === "staff" || a.user.role === "technician")
-    .map((a) => ({
-      id: a.user.id,
-      name: a.user.name,
-      email: a.user.email,
-      role: a.user.role as "staff" | "technician",
-      createdAt: a.user.createdAt,
-    }));
+  const filteredAssignments = assignments.filter(
+    (assignment) => assignment.user.role === "staff" || assignment.user.role === "technician"
+  );
 
-  return { success: true, data: karyawan };
+  const performanceMap = await getKaryawanPerformanceMap(tokoId, filteredAssignments);
+
+  const karyawanWithPerformance = filteredAssignments.map((assignment) => ({
+    id: assignment.user.id,
+    name: assignment.user.name,
+    email: assignment.user.email,
+    role: assignment.user.role as "staff" | "technician",
+    createdAt: assignment.user.createdAt,
+    performance: performanceMap.get(assignment.user.id) ?? {
+      servicesCreated: 0,
+      servicesCompleted: 0,
+      servicesFailed: 0,
+    },
+  }));
+
+  return { success: true, data: karyawanWithPerformance };
 }
 
 export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
@@ -196,6 +302,11 @@ export async function createKaryawan(
         email: result.email,
         role: result.role as "staff" | "technician",
         createdAt: result.createdAt,
+        performance: {
+          servicesCreated: 0,
+          servicesCompleted: 0,
+          servicesFailed: 0,
+        },
       },
     };
   } catch (error) {

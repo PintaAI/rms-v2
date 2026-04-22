@@ -145,6 +145,7 @@ export function TeknisiTaskManager({
         complaint: s.complaint,
         note: s.note,
         status: s.status,
+        isPickedUp: s.isPickedUp,
         checkinAt: s.checkinAt,
         doneAt: s.doneAt,
         checkoutAt: s.checkoutAt,
@@ -164,7 +165,7 @@ export function TeknisiTaskManager({
         : status === "gagal"
           ? ["failed"]
           : status === "history"
-            ? ["done", "picked_up", "failed"]
+            ? ["done", "failed"]
             : null;
     
     const filteredTasks = statusFilter
@@ -177,9 +178,10 @@ export function TeknisiTaskManager({
       customerName: t.customerName,
       noWa: t.noWa,
       complaint: t.complaint,
-      note: t.note,
-      status: t.status,
-      checkinAt: t.checkinAt,
+        note: t.note,
+        status: t.status,
+        isPickedUp: t.isPickedUp,
+        checkinAt: t.checkinAt,
       doneAt: t.doneAt,
       checkoutAt: t.checkoutAt,
       hpCatalog: t.hpCatalog,
@@ -334,7 +336,6 @@ export function TeknisiTaskManager({
                 task={selectedTask}
                 variant={
                   selectedTask.status === "done" ||
-                  selectedTask.status === "picked_up" ||
                   selectedTask.status === "failed"
                     ? "completed"
                     : "active"

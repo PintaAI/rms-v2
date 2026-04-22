@@ -2,7 +2,6 @@ import {
   RiInboxLine,
   RiToolsLine,
   RiCheckLine,
-  RiLogoutBoxLine,
   RiCloseLine,
 } from "@remixicon/react";
 import type { StatusKey, PaymentStatusKey } from "./types";
@@ -11,7 +10,6 @@ export const statusIcons: Record<StatusKey, React.ComponentType<{ className?: st
   received: RiInboxLine,
   repairing: RiToolsLine,
   done: RiCheckLine,
-  picked_up: RiLogoutBoxLine,
   failed: RiCloseLine,
 };
 
@@ -21,7 +19,6 @@ export const statusColors: Record<StatusKey, StatusColor> = {
   received: "secondary",
   repairing: "accent",
   done: "success",
-  picked_up: "outline",
   failed: "destructive",
 };
 
@@ -29,7 +26,6 @@ export const statusLabels: Record<StatusKey, string> = {
   received: "Diterima",
   repairing: "Sedang diperbaiki",
   done: "Done",
-  picked_up: "Di ambil",
   failed: "gagal service",
 };
 

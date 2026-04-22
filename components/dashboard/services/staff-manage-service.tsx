@@ -23,7 +23,7 @@ interface ServiceStats {
   received: number;
   repairing: number;
   done: number;
-  picked_up: number;
+  pickedUp: number;
   failed: number;
   history: number;
   total: number;
@@ -45,6 +45,7 @@ export function StaffManageService({
   const router = useRouter();
   const searchParams = useSearchParams();
   const statusFilter = searchParams.get("status") ?? undefined;
+  const pickedUpFilter = searchParams.get("pickedup") === "true";
 
   const [services, setServices] = useState<ServiceListItem[]>(allServices);
   const [stats, setStats] = useState<ServiceStats>(initialStats);
@@ -66,10 +67,13 @@ export function StaffManageService({
   }, [allServices, initialStats]);
 
   const filteredServices = useMemo(() => {
+    if (pickedUpFilter) {
+      return services.filter((s) => s.isPickedUp);
+    }
     if (!statusFilter) return services;
     const filterStatuses = statusFilter.split(",");
-    return services.filter((s) => filterStatuses.includes(s.status));
-  }, [services, statusFilter]);
+    return services.filter((s) => filterStatuses.includes(s.status) && !s.isPickedUp);
+  }, [services, statusFilter, pickedUpFilter]);
 
   const paginatedServices = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -88,6 +92,7 @@ export function StaffManageService({
     complaint: s.complaint,
     note: s.note,
     status: s.status,
+    isPickedUp: s.isPickedUp,
     checkinAt: s.checkinAt,
     doneAt: s.doneAt,
     checkoutAt: s.checkoutAt,
@@ -105,7 +110,7 @@ export function StaffManageService({
       if (status === "received") newStats.received = prev.received + 1;
       else if (status === "repairing") newStats.repairing = prev.repairing + 1;
       else if (status === "done") newStats.done = prev.done + 1;
-      else if (status === "picked_up") newStats.picked_up = prev.picked_up + 1;
+      else if (status === "pickedUp") newStats.pickedUp = prev.pickedUp + 1;
       else if (status === "failed") newStats.failed = prev.failed + 1;
       return newStats;
     });
@@ -117,7 +122,7 @@ export function StaffManageService({
       if (status === "received") newStats.received = prev.received - 1;
       else if (status === "repairing") newStats.repairing = prev.repairing - 1;
       else if (status === "done") newStats.done = prev.done - 1;
-      else if (status === "picked_up") newStats.picked_up = prev.picked_up - 1;
+      else if (status === "pickedUp") newStats.pickedUp = prev.pickedUp - 1;
       else if (status === "failed") newStats.failed = prev.failed - 1;
       return newStats;
     });
@@ -246,11 +251,11 @@ export function StaffManageService({
     if (!service) return;
 
     decrementStat(service.status);
-    incrementStat("picked_up");
+    incrementStat("pickedUp");
     setServices((prev) =>
       prev.map((s) =>
         s.id === serviceId
-          ? { ...s, status: "picked_up", checkoutAt: new Date() }
+          ? { ...s, isPickedUp: true, checkoutAt: new Date() }
           : s
       )
     );
@@ -258,10 +263,12 @@ export function StaffManageService({
     const result = await pickupService(serviceId);
     if (!result.success) {
       incrementStat(service.status);
-      decrementStat("picked_up");
+      decrementStat("pickedUp");
       setServices((prev) =>
         prev.map((s) =>
-          s.id === serviceId ? { ...s, status: service.status, checkoutAt: service.checkoutAt } : s
+          s.id === serviceId
+            ? { ...s, isPickedUp: service.isPickedUp, checkoutAt: service.checkoutAt }
+            : s
         )
       );
     }
@@ -272,21 +279,30 @@ export function StaffManageService({
     setCurrentPage(newPage);
   }, []);
 
-  const prevStatusFilterRef = useRef(statusFilter);
+  const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}`);
   useEffect(() => {
-    if (prevStatusFilterRef.current !== statusFilter) {
-      prevStatusFilterRef.current = statusFilter;
+    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}`;
+    if (prevFilterRef.current !== nextFilterKey) {
+      prevFilterRef.current = nextFilterKey;
       setCurrentPage(1);
     }
-  }, [statusFilter]);
+  }, [statusFilter, pickedUpFilter]);
 
   const getPageTitle = () => {
+    if (pickedUpFilter) return "Service Diambil";
     if (!statusFilter) return "Semua Service";
     if (statusFilter === "received") return "Service Masuk";
     if (statusFilter === "repairing") return "Service Proses";
     if (statusFilter === "done,failed" || statusFilter === "failed,done") return "Service Selesai & Gagal";
-    if (statusFilter === "picked_up") return "Service Diambil";
     return "Service";
+  };
+
+  const getEmptyMessage = () => {
+    if (pickedUpFilter) return "Tidak ada service yang sudah diambil";
+    if (statusFilter === "done,failed" || statusFilter === "failed,done") {
+      return "Tidak ada service selesai atau gagal yang belum diambil";
+    }
+    return `Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`;
   };
 
   return (
@@ -335,7 +351,7 @@ export function StaffManageService({
         />
         <OverviewStatsCard
           title="Diambil"
-          value={stats.picked_up}
+          value={stats.pickedUp}
           icon={<RiLogoutBoxLine className="h-4 w-4" />}
           description="sudah selesai"
         />
@@ -361,11 +377,12 @@ export function StaffManageService({
             services={tableServices}
             preset="staffActive"
             statusFilter={statusFilter}
-            emptyMessage={`Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`}
-            onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleEdit}
-            onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || statusFilter === "picked_up" ? undefined : handleDelete}
+            pickedUpFilter={pickedUpFilter}
+            emptyMessage={getEmptyMessage()}
+            onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
+            onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
             onMarkPaid={!statusFilter ? undefined : handleMarkPaid}
-            onPickup={!statusFilter ? undefined : handlePickup}
+            onPickup={!pickedUpFilter && statusFilter ? handlePickup : undefined}
               onCall={undefined}
               tokoId={tokoId}
               disableAssignment={true}

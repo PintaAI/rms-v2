@@ -202,7 +202,6 @@ export function TeknisiOverview({
                 task={selectedTask}
                 variant={
                   selectedTask.status === "done" ||
-                  selectedTask.status === "picked_up" ||
                   selectedTask.status === "failed"
                     ? "completed"
                     : "active"

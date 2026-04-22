@@ -146,10 +146,13 @@ export function renderCreatedByCell(service: ServiceTableItem): React.ReactNode 
 export function renderStatusCell(service: ServiceTableItem): React.ReactNode {
   const StatusIcon = getStatusIcon(service.status);
   return (
-    <Badge variant={getStatusColor(service.status)}>
-      {StatusIcon && <StatusIcon className="h-3 w-3 mr-1" />}
-      {getStatusLabel(service.status)}
-    </Badge>
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge variant={getStatusColor(service.status)}>
+        {StatusIcon && <StatusIcon className="h-3 w-3 mr-1" />}
+        {getStatusLabel(service.status)}
+      </Badge>
+      {service.isPickedUp && <Badge variant="outline">Picked Up</Badge>}
+    </div>
   );
 }
 

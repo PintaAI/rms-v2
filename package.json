@@ -7,7 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "seed": "bunx prisma db seed",
+    "seed:small": "SEED_SIZE=small bunx prisma db seed",
+    "seed:medium": "SEED_SIZE=medium bunx prisma db seed",
+    "seed:large": "SEED_SIZE=large bunx prisma db seed",
+    "seed:reset": "bunx prisma db push --force-reset && bunx prisma db seed"
+  },
+  "prisma": {
+    "seed": "bunx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@better-auth/utils": "^0.4.0",

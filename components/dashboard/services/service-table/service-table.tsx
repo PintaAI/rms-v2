@@ -46,7 +46,7 @@ export function ServiceTable({
   services,
   columns,
   preset,
-  statusFilter,
+  pickedUpFilter,
   emptyMessage = "No services found",
   onEdit,
   onDelete,
@@ -65,7 +65,7 @@ export function ServiceTable({
     ? normalizedColumns
     : presetConfig?.columns || columnPresets.adminActive;
   
-  if (statusFilter?.includes("picked_up") && !effectiveColumns.includes("checkoutAt")) {
+  if (pickedUpFilter && !effectiveColumns.includes("checkoutAt")) {
     effectiveColumns = [...effectiveColumns, "checkoutAt"];
   }
 
@@ -229,7 +229,7 @@ return (
                           WhatsApp
                         </Button>
                       )}
-                      {onPickup && (service.status === "done" || service.status === "failed") && (
+                      {onPickup && !service.isPickedUp && (service.status === "done" || service.status === "failed") && (
                         <Button
                           size="sm"
                           className={`h-7 text-xs shadow-sm ${

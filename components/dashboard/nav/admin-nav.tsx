@@ -61,7 +61,7 @@ export function AdminNav({ tokoid, serviceStats }: AdminNavProps) {
                 badgeVariant: "success",
               },
               {
-                href: `/${tokoid}/admin/service?status=picked_up`,
+                href: `/${tokoid}/admin/service?pickedup=true`,
                 icon: <RiLogoutBoxLine />,
                 label: "Sudah Diambil",
                 badge: serviceStats?.pickedUp,

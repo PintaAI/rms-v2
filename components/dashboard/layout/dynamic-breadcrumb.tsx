@@ -28,7 +28,6 @@ const statusLabels: Record<string, string> = {
   repairing: "Proses",
   done: "Selesai",
   failed: "Gagal",
-  picked_up: "Diambil",
 };
 
 export function DynamicBreadcrumb() {
@@ -54,9 +53,21 @@ export function DynamicBreadcrumb() {
   }
 
   const status = searchParams.get("status");
+  const pickedUp = searchParams.get("pickedup");
   if (status && statusLabels[status]) {
     breadcrumbItems.push({
       label: statusLabels[status],
+      href: pathname,
+      isCurrent: true,
+    });
+    if (breadcrumbItems.length > 1) {
+      breadcrumbItems[breadcrumbItems.length - 2].isCurrent = false;
+    }
+  }
+
+  if (pickedUp === "true") {
+    breadcrumbItems.push({
+      label: "Diambil",
       href: pathname,
       isCurrent: true,
     });

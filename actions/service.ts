@@ -27,6 +27,7 @@ export interface ServiceListItem {
   complaint: string;
   note: string | null;
   status: ServiceStatus;
+  isPickedUp?: boolean;
   checkinAt: Date;
   doneAt: Date | null;
   checkoutAt: Date | null;
@@ -99,6 +100,7 @@ const serviceSelectBase = {
   noWa: true,
   complaint: true,
   status: true,
+  isPickedUp: true,
   checkinAt: true,
   doneAt: true,
   checkoutAt: true,
@@ -142,6 +144,7 @@ type ServiceWithSelectBase = {
   noWa: string;
   complaint: string;
   status: ServiceStatus;
+  isPickedUp: boolean;
   checkinAt: Date;
   doneAt: Date | null;
   checkoutAt: Date | null;
@@ -171,6 +174,7 @@ function mapServiceToListItem(service: ServiceWithSelectBase): ServiceListItem {
     complaint: service.complaint,
     note: service.note,
     status: service.status,
+    isPickedUp: service.isPickedUp,
     checkinAt: service.checkinAt,
     doneAt: service.doneAt,
     checkoutAt: service.checkoutAt,
@@ -237,7 +241,7 @@ function isCompletingStatus(status: ServiceStatus) {
   return status === "done" || status === "failed";
 }
 
-function getStatusActivityTitle(status: ServiceStatus) {
+function getStatusActivityTitle(status: ServiceStatus | "picked_up") {
   switch (status) {
     case "done":
       return "Service marked as done";
@@ -387,7 +391,7 @@ export async function getCompletedServices(
     if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
 
     const services = await prisma.service.findMany({
-      where: { tokoId: targetTokoId, status: { in: ["done", "failed"] } },
+      where: { tokoId: targetTokoId, status: { in: ["done", "failed"] }, isPickedUp: false },
       orderBy: { doneAt: "desc" },
       select: serviceSelectBase,
     });
@@ -411,7 +415,7 @@ export async function getPickedUpServices(
     if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
 
     const services = await prisma.service.findMany({
-      where: { tokoId: targetTokoId, status: "picked_up" },
+      where: { tokoId: targetTokoId, isPickedUp: true },
       orderBy: { checkoutAt: "desc" },
       select: serviceSelectBase,
     });
@@ -531,7 +535,7 @@ export async function getMyStats(): Promise<ActionResultWithData<TechnicianStats
       }),
       prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
       prisma.service.count({
-        where: { technicianId: user.id, status: "done" },
+        where: { technicianId: user.id, status: "done", isPickedUp: false },
       }),
     ]);
 
@@ -574,7 +578,7 @@ export async function getTechnicianDashboard(
       }),
       prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
       prisma.service.count({
-        where: { technicianId: user.id, status: "done" },
+        where: { technicianId: user.id, status: "done", isPickedUp: false },
       }),
       prisma.service.findMany({
         where: {
@@ -724,10 +728,11 @@ export async function updateService(
 
     const service = await prisma.service.findUnique({
       where: { id: serviceId },
-      select: { tokoId: true },
+      select: { tokoId: true, isPickedUp: true },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
+    if (service.isPickedUp) return { success: false, error: "Cannot update a service that has been picked up" };
 
     const validated = updateServiceSchema.parse(data);
 
@@ -793,6 +798,7 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
         noWa: true,
         complaint: true,
         status: true,
+        isPickedUp: true,
         imei: true,
         note: true,
         hpCatalog: {
@@ -808,7 +814,7 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
 
-    if (service.status === "picked_up") {
+    if (service.isPickedUp) {
       return { success: false, error: "Cannot delete a service that has been picked up" };
     }
 
@@ -904,10 +910,14 @@ export async function updateStatus(
 
     const service = await prisma.service.findUnique({
       where: { id: serviceId },
-      select: { tokoId: true, technicianId: true, status: true },
+      select: { tokoId: true, technicianId: true, status: true, isPickedUp: true },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
+
+    if (service.isPickedUp) {
+      return { success: false, error: "Cannot update a service that has been picked up" };
+    }
 
     const shouldAssignActor =
       isCompletingStatus(status) && (user.role === "admin" || user.role === "technician");
@@ -964,10 +974,14 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
 
     const service = await prisma.service.findUnique({
       where: { id: serviceId },
-      select: { tokoId: true, status: true },
+      select: { tokoId: true, status: true, isPickedUp: true },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
+
+    if (service.isPickedUp) {
+      return { success: false, error: "Service has already been picked up" };
+    }
 
     if (service.status !== "done" && service.status !== "failed") {
       return { success: false, error: "Only completed services can be marked as picked up" };
@@ -978,7 +992,7 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
     await prisma.$transaction(async (tx) => {
       await tx.service.update({
         where: { id: serviceId },
-        data: { status: "picked_up", checkoutAt: pickedUpAt },
+        data: { isPickedUp: true, checkoutAt: pickedUpAt },
       });
 
       await createActivityLog(tx, {
@@ -989,7 +1003,8 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
         title: getStatusActivityTitle("picked_up"),
         payload: {
           previousStatus: service.status,
-          nextStatus: "picked_up",
+          nextStatus: service.status,
+          isPickedUp: true,
           checkoutAt: pickedUpAt.toISOString(),
         },
       });
@@ -1016,10 +1031,14 @@ export async function assignTechnician(
 
     const service = await prisma.service.findUnique({
       where: { id: serviceId },
-      select: { tokoId: true, technicianId: true, status: true },
+      select: { tokoId: true, technicianId: true, status: true, isPickedUp: true },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
+
+    if (service.isPickedUp) {
+      return { success: false, error: "Cannot update a service that has been picked up" };
+    }
 
     if (technicianId) {
       const technician = await prisma.user.findUnique({
@@ -1082,10 +1101,14 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
 
     const service = await prisma.service.findUnique({
       where: { id: data.serviceId },
-      select: { tokoId: true, status: true },
+      select: { tokoId: true, status: true, isPickedUp: true },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!tokoIds.includes(service.tokoId)) return { success: false, error: "Access denied" };
+
+    if (service.isPickedUp) {
+      return { success: false, error: "Cannot update a service that has been picked up" };
+    }
 
     const validated = addItemSchema.parse(data);
 
@@ -1225,11 +1248,14 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
         qty: true,
         referenceId: true,
         serviceId: true,
-        service: { select: { tokoId: true } },
+        service: { select: { tokoId: true, isPickedUp: true } },
       },
     });
     if (!item) return { success: false, error: "Item not found" };
     if (!tokoIds.includes(item.service.tokoId)) return { success: false, error: "Access denied" };
+    if (item.service.isPickedUp) {
+      return { success: false, error: "Cannot update a service that has been picked up" };
+    }
 
     if (item.type === "sparepart" && item.referenceId) {
       await prisma.$transaction(async (tx) => {
@@ -1325,19 +1351,19 @@ export async function getNavBadgeStats(tokoId: string): Promise<ActionResultWith
     if (!user) return { success: false, error: "Unauthorized" };
     if (!tokoIds.includes(tokoId)) return { success: false, error: "Access denied" };
 
-    const [received, repairing, done, picked_up, failed, history, total] = await Promise.all([
+    const [received, repairing, done, pickedUp, failed, history, total] = await Promise.all([
       prisma.service.count({ where: { tokoId, status: "received" } }),
       prisma.service.count({ where: { tokoId, status: "repairing" } }),
-      prisma.service.count({ where: { tokoId, status: "done" } }),
-      prisma.service.count({ where: { tokoId, status: "picked_up" } }),
-      prisma.service.count({ where: { tokoId, status: "failed" } }),
-      prisma.service.count({ where: { tokoId, status: { in: ["done", "picked_up", "failed"] } } }),
+      prisma.service.count({ where: { tokoId, status: "done", isPickedUp: false } }),
+      prisma.service.count({ where: { tokoId, isPickedUp: true } }),
+      prisma.service.count({ where: { tokoId, status: "failed", isPickedUp: false } }),
+      prisma.service.count({ where: { tokoId, status: { in: ["done", "failed"] } } }),
       prisma.service.count({ where: { tokoId } }),
     ]);
 
     return {
       success: true,
-      data: { received, repairing, done, pickedUp: picked_up, failed, history, total },
+      data: { received, repairing, done, pickedUp, failed, history, total },
     };
   } catch (error) {
     console.error("Error fetching nav badge stats:", error);
@@ -1372,13 +1398,13 @@ export async function getTechnicianTaskBadgeStats(
         where: { technicianId: session.user.id, status: "repairing" },
       }),
       prisma.service.count({
-        where: { technicianId: session.user.id, status: "done" },
+        where: { technicianId: session.user.id, status: "done", isPickedUp: false },
       }),
       prisma.service.count({
-        where: { technicianId: session.user.id, status: "failed" },
+        where: { technicianId: session.user.id, status: "failed", isPickedUp: false },
       }),
       prisma.service.count({
-        where: { technicianId: session.user.id, status: { in: ["done", "picked_up", "failed"] } },
+        where: { technicianId: session.user.id, status: { in: ["done", "failed"] } },
       }),
       prisma.service.count({
         where: { technicianId: session.user.id },

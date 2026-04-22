@@ -37,7 +37,6 @@ enum ServiceStatus {
   received
   repairing
   done
-  picked_up
   failed
 }
 
@@ -275,7 +274,8 @@ model Service {
   passwordPattern String?
   note            String?
 
-  status ServiceStatus @default(received)
+  status      ServiceStatus @default(received)
+  isPickedUp  Boolean       @default(false)
 
   checkinAt  DateTime  @default(now())
   assignedAt DateTime?
@@ -301,6 +301,8 @@ model Service {
   @@index([checkinAt])
   @@index([noWa])
   @@index([technicianId])
+  @@index([tokoId, status])
+  @@index([tokoId, checkinAt])
   @@map("service")
 }
 
@@ -320,6 +322,7 @@ model ServiceItem {
 
   @@index([serviceId])
   @@index([type])
+  @@index([referenceId])
   @@map("service_item")
 }
 
@@ -361,5 +364,6 @@ model ActivityLog {
   @@index([serviceId])
   @@index([userId])
   @@index([type])
+  @@index([tokoId, createdAt])
   @@map("activity_log")
 }

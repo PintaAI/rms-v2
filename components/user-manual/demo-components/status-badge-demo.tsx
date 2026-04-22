@@ -5,7 +5,6 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   repairing: { label: "Proses", variant: "default" },
   done: { label: "Selesai", variant: "outline" },
   failed: { label: "Gagal", variant: "destructive" },
-  picked_up: { label: "Diambil", variant: "default" },
 };
 
 export function StatusBadgeDemo() {
@@ -16,6 +15,7 @@ export function StatusBadgeDemo() {
           {config.label}
         </Badge>
       ))}
+      <Badge variant="outline">Picked Up</Badge>
     </div>
   );
 }

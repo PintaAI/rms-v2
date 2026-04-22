@@ -9,19 +9,19 @@ import { RiStore2Line } from "@remixicon/react";
 async function getServiceStats(tokoId: string) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) {
-    return { received: 0, repairing: 0, done: 0, picked_up: 0, failed: 0, total: 0 };
+    return { received: 0, repairing: 0, done: 0, pickedUp: 0, failed: 0, total: 0 };
   }
 
-  const [received, repairing, done, picked_up, failed, total] = await Promise.all([
+  const [received, repairing, done, pickedUp, failed, total] = await Promise.all([
     prisma.service.count({ where: { tokoId, status: "received" } }),
     prisma.service.count({ where: { tokoId, status: "repairing" } }),
-    prisma.service.count({ where: { tokoId, status: "done" } }),
-    prisma.service.count({ where: { tokoId, status: "picked_up" } }),
-    prisma.service.count({ where: { tokoId, status: "failed" } }),
+    prisma.service.count({ where: { tokoId, status: "done", isPickedUp: false } }),
+    prisma.service.count({ where: { tokoId, isPickedUp: true } }),
+    prisma.service.count({ where: { tokoId, status: "failed", isPickedUp: false } }),
     prisma.service.count({ where: { tokoId } }),
   ]);
 
-  return { received, repairing, done, picked_up, failed, total };
+  return { received, repairing, done, pickedUp, failed, total };
 }
 
 interface AdminServicePageProps {

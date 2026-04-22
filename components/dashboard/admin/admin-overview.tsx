@@ -7,13 +7,11 @@ import {
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
 import type { AdminOverviewData } from "@/actions/overview";
-import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
 import {
   RiArchiveLine,
   RiCalendarCheckLine,
   RiCheckDoubleLine,
   RiCloseLine,
-  RiGroupLine,
   RiInboxLine,
   RiMoneyDollarCircleLine,
   RiStore2Line,
@@ -47,13 +45,13 @@ interface AdminOverviewProps {
 export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps) {
   const { stats, recentServices, recentActivities } = data;
 
-  const tableServices: ServiceTableItem[] = recentServices.map((service) => ({
+  const tableServices = recentServices.map((service) => ({
     id: service.id,
-    hpCatalogId: service.hpCatalogId,
+    hpCatalogId: service.hpCatalog.id,
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
-    note: service.note,
+    note: null,
     status: service.status,
     checkinAt: service.checkinAt,
     doneAt: service.doneAt,
@@ -61,9 +59,10 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
     hpCatalog: service.hpCatalog,
     technician: service.technician,
     invoice: service.invoice,
-    createdBy: service.createdBy,
-    passwordPattern: service.passwordPattern,
-    imei: service.imei,
+    createdBy: undefined,
+    passwordPattern: null,
+    imei: null,
+    isPickedUp: service.isPickedUp,
   }));
 
   return (
@@ -114,14 +113,12 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
             title="Sedang Diperbaiki"
             value={stats.services.repairing}
             icon={<RiToolsLine className="h-4 w-4" />}
-            description={`${stats.services.received} menunggu teknisi`}
             variant="accent"
           />
           <OverviewStatsCard
             title="Selesai"
             value={stats.services.done}
             icon={<RiCheckDoubleLine className="h-4 w-4" />}
-            description={`${stats.services.pickedUp} sudah diambil`}
             variant="success"
           />
           <OverviewStatsCard
@@ -158,31 +155,14 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
             title="Low Stock Items"
             value={stats.inventory.lowStockCount}
             icon={<RiArchiveLine className="h-4 w-4" />}
-            description={`${stats.inventory.totalSpareparts} total sparepart`}
             variant={stats.inventory.lowStockCount > 0 ? "warning" : "default"}
           />
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-5">
-        <div className="grid grid-cols-2 gap-4 md:col-span-2">
-          <OverviewStatsCard
-            title="Teknisi"
-            value={stats.staff.totalTechnicians}
-            icon={<RiGroupLine className="h-4 w-4" />}
-            variant="accent"
-          />
-          <OverviewStatsCard
-            title="Staff"
-            value={stats.staff.totalStaff}
-            icon={<RiGroupLine className="h-4 w-4" />}
-          />
-        </div>
-        <div className="grid grid-cols-3 gap-4 md:col-span-3">
-          <OverviewPeriodCard label="Hari Ini" value={stats.services.daily} sub="service masuk" />
-          <OverviewPeriodCard label="7 Hari" value={stats.services.weekly} sub="service masuk" />
-          <OverviewPeriodCard label="30 Hari" value={stats.services.monthly} sub="service masuk" />
-        </div>
+      <section className="grid gap-4 md:grid-cols-2">
+        <OverviewPeriodCard label="Hari Ini" value={stats.services.daily} sub="service masuk" />
+        <OverviewPeriodCard label="7 Hari" value={stats.services.weekly} sub="service masuk" />
       </section>
 
       <section>

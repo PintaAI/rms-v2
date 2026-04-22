@@ -1,23 +1,19 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getAuthUser } from "@/lib/rbac";
 import type { Prisma } from "@/prisma/generated/prisma/client";
-import type { ServiceStatus, PaymentStatus } from "@/prisma/generated/prisma/enums";
-import type { ServiceListItem, ActionResultWithData } from "./service";
+import type { PaymentStatus } from "@/prisma/generated/prisma/enums";
+import type { ActionResultWithData } from "./service";
 
 export interface AdminOverviewStats {
   services: {
     total: number;
-    received: number;
     repairing: number;
     done: number;
-    pickedUp: number;
     failed: number;
     daily: number;
     weekly: number;
-    monthly: number;
   };
   revenue: {
     totalPaid: number;
@@ -25,18 +21,36 @@ export interface AdminOverviewStats {
     dailyRevenue: number;
   };
   inventory: {
-    totalSpareparts: number;
     lowStockCount: number;
   };
-  staff: {
-    totalTechnicians: number;
-    totalStaff: number;
+}
+
+export interface AdminOverviewRecentService {
+  id: string;
+  customerName: string | null;
+  noWa: string;
+  complaint: string;
+  status: string;
+  isPickedUp: boolean;
+  checkinAt: Date;
+  doneAt: Date | null;
+  checkoutAt: Date | null;
+  hpCatalog: {
+    id: string;
+    modelName: string;
+    brand: { name: string };
   };
+  technician: { id: string; name: string } | null;
+  invoice: {
+    id: string;
+    grandTotal: number;
+    paymentStatus: PaymentStatus;
+  } | null;
 }
 
 export interface AdminOverviewData {
   stats: AdminOverviewStats;
-  recentServices: ServiceListItem[];
+  recentServices: AdminOverviewRecentService[];
   recentActivities: AdminOverviewActivityItem[];
 }
 
@@ -55,36 +69,16 @@ export interface AdminOverviewActivityItem {
   } | null;
 }
 
-async function getSessionAndTokos() {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
-
-  if (!session?.user) {
-    return { user: null, tokoIds: [] };
-  }
-
-  const userTokoAssignments = await prisma.userToko.findMany({
-    where: { userId: session.user.id },
-    select: { tokoId: true },
-  });
-
-  const tokoIds = userTokoAssignments.map((a) => a.tokoId);
-
-  return { user: session.user, tokoIds };
-}
-
-const serviceSelectBase = {
+const recentServiceSelect = {
   id: true,
   customerName: true,
   noWa: true,
   complaint: true,
   status: true,
+  isPickedUp: true,
   checkinAt: true,
   doneAt: true,
   checkoutAt: true,
-  passwordPattern: true,
-  imei: true,
-  note: true,
   hpCatalog: {
     select: {
       id: true,
@@ -95,9 +89,6 @@ const serviceSelectBase = {
   technician: {
     select: { id: true, name: true },
   },
-  createdBy: {
-    select: { name: true },
-  },
   invoice: {
     select: {
       id: true,
@@ -107,112 +98,55 @@ const serviceSelectBase = {
   },
 };
 
-type OverviewServiceItem = {
-  id: string;
-  customerName: string | null;
-  noWa: string;
-  complaint: string;
-  status: ServiceStatus;
-  checkinAt: Date;
-  doneAt: Date | null;
-  checkoutAt: Date | null;
-  passwordPattern: string | null;
-  imei: string | null;
-  note: string | null;
-  hpCatalog: {
-    id: string;
-    modelName: string;
-    brand: { name: string };
-  };
-  technician: { id: string; name: string } | null;
-  createdBy: { name: string } | null;
-  invoice: {
-    id: string;
-    grandTotal: number;
-    paymentStatus: PaymentStatus;
-  } | null;
-};
-
-function mapServiceToListItem(service: OverviewServiceItem): ServiceListItem {
-  return {
-    id: service.id,
-    hpCatalogId: service.hpCatalog.id,
-    customerName: service.customerName,
-    noWa: service.noWa,
-    complaint: service.complaint,
-    note: service.note,
-    status: service.status,
-    checkinAt: service.checkinAt,
-    doneAt: service.doneAt,
-    checkoutAt: service.checkoutAt,
-    passwordPattern: service.passwordPattern,
-    imei: service.imei,
-    hpCatalog: {
-      id: service.hpCatalog.id,
-      modelName: service.hpCatalog.modelName,
-      brand: { name: service.hpCatalog.brand.name },
-    },
-    technician: service.technician,
-    createdBy: service.createdBy ?? undefined,
-    invoice: service.invoice,
-  };
-}
-
 function getTimeRanges() {
   const now = new Date();
-  
+
   const dailyStart = new Date(now);
   dailyStart.setHours(0, 0, 0, 0);
-  
+
   const weeklyStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  
-  const monthlyStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  
-  return { now, dailyStart, weeklyStart, monthlyStart };
+
+  return { now, dailyStart, weeklyStart };
 }
 
 export async function getAdminOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<AdminOverviewData>> {
   try {
-    const { user, tokoIds } = await getSessionAndTokos();
+    const user = await getAuthUser();
     if (!user) return { success: false, error: "Unauthorized" };
 
-    const targetTokoId = tokoId ?? tokoIds[0];
+    const targetTokoId = tokoId ?? user.tokoIds[0];
     if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
+    if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
 
-    const { dailyStart, weeklyStart, monthlyStart } = getTimeRanges();
+    const { dailyStart, weeklyStart } = getTimeRanges();
 
-    const [
-      total,
-      received,
-      repairing,
-      done,
-      pickedUp,
-      failed,
-      dailyCount,
-      weeklyCount,
-      monthlyCount,
-      totalPaidRevenue,
-      totalPendingRevenue,
-      dailyRevenue,
-      totalSpareparts,
-      lowStockCount,
-      totalTechnicians,
-      totalStaff,
-      recentServices,
-      recentActivities,
-    ] = await Promise.all([
-      prisma.service.count({ where: { tokoId: targetTokoId } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "received" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "repairing" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "done" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "picked_up" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "failed" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: monthlyStart } } }),
+    const serviceStatusCounts = await prisma.service.groupBy({
+      by: ["status"],
+      where: { tokoId: targetTokoId },
+      _count: { status: true },
+    });
+
+    const statusMap: Record<string, number> = {};
+    for (const row of serviceStatusCounts) {
+      statusMap[row.status] = row._count.status;
+    }
+
+    const pickedUpCount = await prisma.service.count({
+      where: { tokoId: targetTokoId, isPickedUp: true },
+    });
+
+    const [dailyCount, weeklyCount] = await Promise.all([
+      prisma.service.count({
+        where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } },
+      }),
+      prisma.service.count({
+        where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } },
+      }),
+    ]);
+
+    const [totalPaidRevenue, totalPendingRevenue, dailyRevenue] = await Promise.all([
       prisma.invoice.aggregate({
         where: {
           service: { tokoId: targetTokoId },
@@ -235,19 +169,18 @@ export async function getAdminOverview(
         },
         _sum: { grandTotal: true },
       }),
-      prisma.sparepart.count({ where: { tokoId: targetTokoId } }),
-      prisma.sparepart.count({ where: { tokoId: targetTokoId, stock: { lte: 5 } } }),
-      prisma.userToko.count({
-        where: { tokoId: targetTokoId, user: { role: "technician" } },
-      }),
-      prisma.userToko.count({
-        where: { tokoId: targetTokoId, user: { role: "staff" } },
-      }),
+    ]);
+
+    const lowStockCount = await prisma.sparepart.count({
+      where: { tokoId: targetTokoId, stock: { lte: 5 } },
+    });
+
+    const [recentServices, recentActivities] = await Promise.all([
       prisma.service.findMany({
         where: { tokoId: targetTokoId },
         orderBy: { checkinAt: "desc" },
         take: 5,
-        select: serviceSelectBase,
+        select: recentServiceSelect,
       }),
       prisma.activityLog.findMany({
         where: { tokoId: targetTokoId },
@@ -274,17 +207,21 @@ export async function getAdminOverview(
       }),
     ]);
 
+    const total =
+      (statusMap["received"] || 0) +
+      (statusMap["repairing"] || 0) +
+      (statusMap["done"] || 0) +
+      (statusMap["failed"] || 0) +
+      pickedUpCount;
+
     const stats: AdminOverviewStats = {
       services: {
         total,
-        received,
-        repairing,
-        done,
-        pickedUp,
-        failed,
+        repairing: statusMap["repairing"] || 0,
+        done: statusMap["done"] || 0,
+        failed: statusMap["failed"] || 0,
         daily: dailyCount,
         weekly: weeklyCount,
-        monthly: monthlyCount,
       },
       revenue: {
         totalPaid: totalPaidRevenue._sum.grandTotal || 0,
@@ -292,12 +229,7 @@ export async function getAdminOverview(
         dailyRevenue: dailyRevenue._sum.grandTotal || 0,
       },
       inventory: {
-        totalSpareparts,
         lowStockCount,
-      },
-      staff: {
-        totalTechnicians,
-        totalStaff,
       },
     };
 
@@ -305,7 +237,7 @@ export async function getAdminOverview(
       success: true,
       data: {
         stats,
-        recentServices: recentServices.map(mapServiceToListItem),
+        recentServices,
         recentActivities,
       },
     };
@@ -318,68 +250,83 @@ export async function getAdminOverview(
 export interface StaffOverviewStats {
   services: {
     total: number;
-    received: number;
     repairing: number;
     done: number;
     daily: number;
     weekly: number;
-    monthly: number;
   };
   inventory: {
-    totalSpareparts: number;
     lowStockCount: number;
   };
 }
 
 export interface StaffOverviewData {
   stats: StaffOverviewStats;
-  recentServices: ServiceListItem[];
+  recentServices: AdminOverviewRecentService[];
 }
 
 export async function getStaffOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<StaffOverviewData>> {
   try {
-    const { user, tokoIds } = await getSessionAndTokos();
+    const user = await getAuthUser();
     if (!user) return { success: false, error: "Unauthorized" };
 
-    const targetTokoId = tokoId ?? tokoIds[0];
+    const targetTokoId = tokoId ?? user.tokoIds[0];
     if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
+    if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
 
-    const { dailyStart, weeklyStart, monthlyStart } = getTimeRanges();
+    const { dailyStart, weeklyStart } = getTimeRanges();
 
-    const [total, received, repairing, done, pickedUp, dailyCount, weeklyCount, monthlyCount, totalSpareparts, lowStockCount, recentServices] = await Promise.all([
-      prisma.service.count({ where: { tokoId: targetTokoId } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "received" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "repairing" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "done" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, status: "picked_up" } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } } }),
-      prisma.service.count({ where: { tokoId: targetTokoId, checkinAt: { gte: monthlyStart } } }),
-      prisma.sparepart.count({ where: { tokoId: targetTokoId } }),
-      prisma.sparepart.count({ where: { tokoId: targetTokoId, stock: { lte: 5 } } }),
+    const serviceStatusCounts = await prisma.service.groupBy({
+      by: ["status"],
+      where: { tokoId: targetTokoId },
+      _count: { status: true },
+    });
+
+    const statusMap: Record<string, number> = {};
+    for (const row of serviceStatusCounts) {
+      statusMap[row.status] = row._count.status;
+    }
+
+    const pickedUpCount = await prisma.service.count({
+      where: { tokoId: targetTokoId, isPickedUp: true },
+    });
+
+    const [dailyCount, weeklyCount, lowStockCount, recentServices] = await Promise.all([
+      prisma.service.count({
+        where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } },
+      }),
+      prisma.service.count({
+        where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } },
+      }),
+      prisma.sparepart.count({
+        where: { tokoId: targetTokoId, stock: { lte: 5 } },
+      }),
       prisma.service.findMany({
         where: { tokoId: targetTokoId },
         orderBy: { checkinAt: "desc" },
         take: 5,
-        select: serviceSelectBase,
+        select: recentServiceSelect,
       }),
     ]);
+
+    const total =
+      (statusMap["received"] || 0) +
+      (statusMap["repairing"] || 0) +
+      (statusMap["done"] || 0) +
+      (statusMap["failed"] || 0) +
+      pickedUpCount;
 
     const stats: StaffOverviewStats = {
       services: {
         total,
-        received,
-        repairing,
-        done: done + pickedUp,
+        repairing: statusMap["repairing"] || 0,
+        done: statusMap["done"] || 0,
         daily: dailyCount,
         weekly: weeklyCount,
-        monthly: monthlyCount,
       },
       inventory: {
-        totalSpareparts,
         lowStockCount,
       },
     };
@@ -388,7 +335,7 @@ export async function getStaffOverview(
       success: true,
       data: {
         stats,
-        recentServices: recentServices.map(mapServiceToListItem),
+        recentServices,
       },
     };
   } catch (error) {
@@ -399,21 +346,21 @@ export async function getStaffOverview(
 
 export async function getTechnicianOverview(): Promise<ActionResultWithData<{
   stats: { totalAssigned: number; inProgress: number; done: number };
-  myActiveTasks: ServiceListItem[];
+  myActiveTasks: AdminOverviewRecentService[];
 }>> {
   try {
-    const { user } = await getSessionAndTokos();
+    const user = await getAuthUser();
     if (!user) return { success: false, error: "Unauthorized" };
 
     const [totalAssigned, inProgress, done, myActiveTasks] = await Promise.all([
       prisma.service.count({ where: { technicianId: user.id } }),
       prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
-      prisma.service.count({ where: { technicianId: user.id, status: "done" } }),
+      prisma.service.count({ where: { technicianId: user.id, status: "done", isPickedUp: false } }),
       prisma.service.findMany({
         where: { technicianId: user.id, status: { in: ["received", "repairing"] } },
         orderBy: { checkinAt: "asc" },
         take: 5,
-        select: serviceSelectBase,
+        select: recentServiceSelect,
       }),
     ]);
 
@@ -421,7 +368,7 @@ export async function getTechnicianOverview(): Promise<ActionResultWithData<{
       success: true,
       data: {
         stats: { totalAssigned, inProgress, done },
-        myActiveTasks: myActiveTasks.map(mapServiceToListItem),
+        myActiveTasks,
       },
     };
   } catch (error) {

@@ -11,7 +11,6 @@ import {
   RiCloseLine,
   RiMoneyDollarCircleLine,
   RiArchiveLine,
-  RiGroupLine,
   RiCalendarCheckLine,
   RiAddLine,
   RiTimeLine,
@@ -62,16 +61,9 @@ export default function AdminOverviewLoading() {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-5">
-        <div className="md:col-span-2 grid gap-4 grid-cols-2">
-          <OverviewStatsCardSkeleton title="Teknisi" icon={<RiGroupLine className="h-4 w-4" />} variant="accent" />
-          <OverviewStatsCardSkeleton title="Staff" icon={<RiGroupLine className="h-4 w-4" />} variant="default" />
-        </div>
-        <div className="md:col-span-3 grid gap-4 grid-cols-3">
-          <OverviewPeriodCardSkeleton label="Hari Ini" />
-          <OverviewPeriodCardSkeleton label="7 Hari" />
-          <OverviewPeriodCardSkeleton label="30 Hari" />
-        </div>
+      <section className="grid gap-4 md:grid-cols-2">
+        <OverviewPeriodCardSkeleton label="Hari Ini" />
+        <OverviewPeriodCardSkeleton label="7 Hari" />
       </section>
 
       <section>

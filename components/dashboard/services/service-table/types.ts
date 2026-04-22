@@ -1,4 +1,4 @@
-export type StatusKey = "received" | "repairing" | "done" | "picked_up" | "failed";
+export type StatusKey = "received" | "repairing" | "done" | "failed";
 
 export type PaymentStatusKey = "unpaid" | "paid";
 
@@ -49,6 +49,7 @@ export interface ServiceTableItem {
   complaint: string;
   note?: string | null;
   status: StatusKey | string;
+  isPickedUp?: boolean;
   checkinAt: Date;
   doneAt?: Date | null;
   checkoutAt?: Date | null;
@@ -89,6 +90,7 @@ export interface ServiceTableProps {
   columns?: ColumnsInput;
   preset?: PresetKey;
   statusFilter?: string;
+  pickedUpFilter?: boolean;
   emptyMessage?: string;
   onEdit?: (service: ServiceTableItem) => void;
   onDelete?: (service: ServiceTableItem) => void;

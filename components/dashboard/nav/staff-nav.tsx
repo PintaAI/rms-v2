@@ -44,7 +44,7 @@ export function StaffNav({ tokoid, serviceStats }: StaffNavProps) {
       badgeVariant: "success" as const,
     },
     {
-      href: `/${tokoid}/staff/service?status=picked_up`,
+      href: `/${tokoid}/staff/service?pickedup=true`,
       icon: <RiLogoutBoxLine />,
       label: "Sudah Diambil",
       badge: serviceStats?.pickedUp,
