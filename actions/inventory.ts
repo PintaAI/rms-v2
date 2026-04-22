@@ -3,18 +3,10 @@
 import { auth } from "@/lib/auth"
 import { createActivityLogIfUser } from "@/lib/activity-log"
 import prisma from "@/lib/prisma"
+import type { ActionResult, ActionResultWithData } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import { z } from "zod"
-
-type ActionResult = {
-  success: boolean
-  error?: string
-}
-
-type ActionResultWithData<T> = ActionResult & {
-  data?: T
-}
 
 export type Sparepart = {
   id: string

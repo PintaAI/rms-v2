@@ -343,36 +343,3 @@ export async function getStaffOverview(
     return { success: false, error: "Failed to fetch overview data" };
   }
 }
-
-export async function getTechnicianOverview(): Promise<ActionResultWithData<{
-  stats: { totalAssigned: number; inProgress: number; done: number };
-  myActiveTasks: AdminOverviewRecentService[];
-}>> {
-  try {
-    const user = await getAuthUser();
-    if (!user) return { success: false, error: "Unauthorized" };
-
-    const [totalAssigned, inProgress, done, myActiveTasks] = await Promise.all([
-      prisma.service.count({ where: { technicianId: user.id } }),
-      prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
-      prisma.service.count({ where: { technicianId: user.id, status: "done", isPickedUp: false } }),
-      prisma.service.findMany({
-        where: { technicianId: user.id, status: { in: ["received", "repairing"] } },
-        orderBy: { checkinAt: "asc" },
-        take: 5,
-        select: recentServiceSelect,
-      }),
-    ]);
-
-    return {
-      success: true,
-      data: {
-        stats: { totalAssigned, inProgress, done },
-        myActiveTasks,
-      },
-    };
-  } catch (error) {
-    console.error("Error fetching technician overview:", error);
-    return { success: false, error: "Failed to fetch overview data" };
-  }
-}

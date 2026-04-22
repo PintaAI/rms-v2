@@ -1,17 +1,9 @@
 "use server"
 
 import prisma from "@/lib/prisma"
+import type { ActionResult, ActionResultWithData } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-
-type ActionResult = {
-  success: boolean
-  error?: string
-}
-
-type ActionResultWithData<T> = ActionResult & {
-  data?: T
-}
 
 export interface Brand {
   id: string

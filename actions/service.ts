@@ -191,6 +191,36 @@ function mapServiceToListItem(service: ServiceWithSelectBase): ServiceListItem {
   };
 }
 
+async function getAvailableTaskRecords(tokoId: string, userId: string, take?: number) {
+  return prisma.service.findMany({
+    where: {
+      tokoId,
+      status: { in: technicianAvailableStatuses },
+      OR: [{ technicianId: null }, { technicianId: { not: userId } }],
+    },
+    orderBy: { checkinAt: "asc" },
+    ...(take ? { take } : {}),
+    select: serviceSelectBase,
+  });
+}
+
+async function getMyActiveTaskRecords(tokoId: string, userId: string, take?: number) {
+  return prisma.service.findMany({
+    where: {
+      tokoId,
+      technicianId: userId,
+      status: { in: technicianAvailableStatuses },
+    },
+    orderBy: [{ status: "asc" }, { checkinAt: "asc" }],
+    ...(take ? { take } : {}),
+    select: {
+      ...serviceSelectBase,
+      tokoId: true,
+      items: { select: serviceItemSelect },
+    },
+  });
+}
+
 function buildTimeFilter(filter?: TimeFilter): Record<string, unknown> {
   if (!filter || filter === "all") return {};
 
@@ -390,15 +420,7 @@ export async function getAvailableTasks(
     if (!targetTokoId) return { success: false, error: "No toko found" };
     if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
 
-    const services = await prisma.service.findMany({
-      where: {
-        tokoId: targetTokoId,
-        status: { in: technicianAvailableStatuses },
-        OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
-      },
-      orderBy: { checkinAt: "asc" },
-      select: serviceSelectBase,
-    });
+    const services = await getAvailableTaskRecords(targetTokoId, user.id);
 
     return { success: true, data: services.map(mapServiceToListItem) };
   } catch (error) {
@@ -407,20 +429,15 @@ export async function getAvailableTasks(
   }
 }
 
-export async function getMyTasks(): Promise<ActionResultWithData<ServiceDetail[]>> {
+export async function getMyTasks(
+  tokoId: string
+): Promise<ActionResultWithData<ServiceDetail[]>> {
   try {
-    const { user } = await getSessionAndTokos();
+    const { user, tokoIds } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
+    if (!tokoIds.includes(tokoId)) return { success: false, error: "Access denied" };
 
-    const services = await prisma.service.findMany({
-      where: { technicianId: user.id },
-      orderBy: [{ status: "asc" }, { checkinAt: "asc" }],
-      select: {
-        ...serviceSelectBase,
-        tokoId: true,
-        items: { select: serviceItemSelect },
-      },
-    });
+    const services = await getMyActiveTaskRecords(tokoId, user.id);
 
     return {
       success: true,
@@ -433,71 +450,6 @@ export async function getMyTasks(): Promise<ActionResultWithData<ServiceDetail[]
   } catch (error) {
     console.error("Error fetching my tasks:", error);
     return { success: false, error: "Failed to fetch tasks" };
-  }
-}
-
-export async function getAllTasks(
-  tokoId: string
-): Promise<ActionResultWithData<ServiceDetail[]>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
-    if (!tokoIds.includes(tokoId)) return { success: false, error: "Access denied" };
-
-    const services = await prisma.service.findMany({
-      where: { tokoId, technicianId: { not: null } },
-      orderBy: [{ status: "asc" }, { checkinAt: "asc" }],
-      select: {
-        ...serviceSelectBase,
-        tokoId: true,
-        items: { select: serviceItemSelect },
-      },
-    });
-
-    return {
-      success: true,
-      data: services.map((s) => ({
-        ...mapServiceToListItem(s),
-        tokoId: s.tokoId,
-        items: s.items,
-      })),
-    };
-  } catch (error) {
-    console.error("Error fetching all tasks:", error);
-    return { success: false, error: "Failed to fetch tasks" };
-  }
-}
-
-export async function getMyStats(): Promise<ActionResultWithData<TechnicianStats>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
-
-    const userTokoId = tokoIds[0];
-    if (!userTokoId) return { success: false, error: "No toko found" };
-
-    const [totalAssigned, availableCount, inProgressCount, doneCount] = await Promise.all([
-      prisma.service.count({ where: { technicianId: user.id } }),
-      prisma.service.count({
-        where: {
-          tokoId: userTokoId,
-          status: { in: technicianAvailableStatuses },
-          OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
-        },
-      }),
-      prisma.service.count({ where: { technicianId: user.id, status: "repairing" } }),
-      prisma.service.count({
-        where: { technicianId: user.id, status: "done", isPickedUp: false },
-      }),
-    ]);
-
-    return {
-      success: true,
-      data: { totalAssigned, availableCount, inProgressCount, doneCount },
-    };
-  } catch (error) {
-    console.error("Error fetching stats:", error);
-    return { success: false, error: "Failed to fetch stats" };
   }
 }
 
@@ -532,26 +484,8 @@ export async function getTechnicianDashboard(
       prisma.service.count({
         where: { technicianId: user.id, status: "done", isPickedUp: false },
       }),
-      prisma.service.findMany({
-        where: {
-          tokoId: userTokoId,
-          status: { in: technicianAvailableStatuses },
-          OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
-        },
-        orderBy: { checkinAt: "asc" },
-        take: 10,
-        select: serviceSelectBase,
-      }),
-      prisma.service.findMany({
-        where: { technicianId: user.id, status: { in: ["received", "repairing"] } },
-        orderBy: { checkinAt: "asc" },
-        take: 10,
-        select: {
-          ...serviceSelectBase,
-          tokoId: true,
-          items: { select: serviceItemSelect },
-        },
-      }),
+      getAvailableTaskRecords(userTokoId, user.id, 10),
+      getMyActiveTaskRecords(userTokoId, user.id, 10),
     ]);
 
     const stats: TechnicianStats = {

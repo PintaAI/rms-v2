@@ -60,35 +60,19 @@ export async function requireAdmin(): Promise<AuthUser> {
 }
 
 export async function requireStaff(): Promise<AuthUser> {
-  const user = await requireAuth();
-  if (user.role !== "staff" && user.role !== "admin") {
-    throw new Error("Access denied");
-  }
-  return user;
+  return requireRole("staff");
 }
 
 export async function requireStaffOrAdmin(): Promise<AuthUser> {
-  const user = await requireAuth();
-  if (user.role !== "staff" && user.role !== "admin") {
-    throw new Error("Access denied");
-  }
-  return user;
+  return requireStaff();
 }
 
 export async function requireTechnician(): Promise<AuthUser> {
-  const user = await requireAuth();
-  if (user.role !== "technician" && user.role !== "admin") {
-    throw new Error("Access denied");
-  }
-  return user;
+  return requireRole("technician");
 }
 
 export async function requireTechnicianOrAdmin(): Promise<AuthUser> {
-  const user = await requireAuth();
-  if (user.role !== "technician" && user.role !== "admin") {
-    throw new Error("Access denied");
-  }
-  return user;
+  return requireTechnician();
 }
 
 export async function requireTokoAccess(tokoId: string): Promise<void> {

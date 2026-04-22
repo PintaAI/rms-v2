@@ -1,23 +1,21 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
+import type { ActionResult, ActionResultWithData } from "@/lib/rbac";
+import { getAuthUser } from "@/lib/rbac";
 import { revalidatePath } from "next/cache";
-import type { ActionResult, ActionResultWithData } from "./service";
+import { headers } from "next/headers";
 
 export async function getUserTokoList() {
-  const headersList = await headers();
-  const session = await auth.api.getSession({
-    headers: headersList,
-  });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return [];
   }
 
   const assignments = await prisma.userToko.findMany({
-    where: { userId: session.user.id },
+    where: { userId: user.id },
     include: {
       toko: {
         select: {
@@ -104,17 +102,15 @@ export async function updateProfile(
 
 export async function uploadAvatar(file: File): Promise<ActionResultWithData<string>> {
   try {
+    const user = await getAuthUser();
     const headersList = await headers();
-    const session = await auth.api.getSession({
-      headers: headersList,
-    });
 
-    if (!session?.user) {
+    if (!user) {
       return { success: false, error: "Unauthorized" };
     }
 
     const { put } = await import("@vercel/blob");
-    const blob = await put(`avatars/${session.user.id}/${Date.now()}-${file.name}`, file, {
+    const blob = await put(`avatars/${user.id}/${Date.now()}-${file.name}`, file, {
       access: "public",
     });
 

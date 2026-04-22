@@ -55,7 +55,7 @@ export default async function TeknisiTaskPage({
     ? statsResult.data
     : { tersedia: 0, repairing: 0, selesai: 0, gagal: 0, history: 0, total: 0 };
 
-  const myTasksResult = await getMyTasks();
+  const myTasksResult = await getMyTasks(tokoid);
   const myTasks = myTasksResult.success ? myTasksResult.data || [] : [];
 
   const availableResult = await getAvailableTasks(tokoid);

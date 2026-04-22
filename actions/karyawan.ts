@@ -1,8 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
+import { canAccessToko, getAuthUser, isAdmin } from "@/lib/rbac";
 import { hashPassword } from "@better-auth/utils/password";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
@@ -123,18 +122,13 @@ export async function getKaryawanList(tokoId: string): Promise<{
   data?: KaryawanItem[];
   error?: string;
 }> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  const userToko = await prisma.userToko.findFirst({
-    where: { userId: session.user.id, tokoId },
-  });
-
-  if (!userToko) {
+  if (!canAccessToko(user, tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -176,10 +170,9 @@ export async function getKaryawanList(tokoId: string): Promise<{
 }
 
 export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user || !canAccessToko(user, tokoId)) {
     return { staff: 0, technician: 0, total: 0 };
   }
 
@@ -205,22 +198,17 @@ export async function createKaryawan(
   tokoId: string,
   input: { name: string; email: string; password: string; role: "staff" | "technician" }
 ): Promise<{ success: boolean; data?: KaryawanItem; error?: string }> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isAdmin(user)) {
     return { success: false, error: "Only admins can add karyawan" };
   }
 
-  const userToko = await prisma.userToko.findFirst({
-    where: { userId: session.user.id, tokoId },
-  });
-
-  if (!userToko) {
+  if (!canAccessToko(user, tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -319,26 +307,21 @@ export async function deleteKaryawan(
   tokoId: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isAdmin(user)) {
     return { success: false, error: "Only admins can delete karyawan" };
   }
 
-  const userToko = await prisma.userToko.findFirst({
-    where: { userId: session.user.id, tokoId },
-  });
-
-  if (!userToko) {
+  if (!canAccessToko(user, tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
-  if (userId === session.user.id) {
+  if (userId === user.id) {
     return { success: false, error: "Cannot delete yourself" };
   }
 

@@ -1,8 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
+import { canAccessToko, getAuthUser, isAdmin } from "@/lib/rbac";
 import { hashPassword } from "@better-auth/utils/password";
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
@@ -48,21 +47,18 @@ interface UpdateTokoInput {
 }
 
 export async function createTokoWithUsers(input: CreateTokoInput): Promise<CreateTokoResult> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({
-    headers: headersList,
-  });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isAdmin(user)) {
     return { success: false, error: "Only admins can create toko" };
   }
 
   const existingToko = await prisma.userToko.findFirst({
-    where: { userId: session.user.id },
+    where: { userId: user.id },
   });
 
   if (existingToko) {
@@ -94,7 +90,7 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
 
       await tx.userToko.create({
         data: {
-          userId: session.user.id,
+          userId: user.id,
           tokoId: toko.id,
           role: "owner",
         },
@@ -182,14 +178,13 @@ export async function createToko(input: {
   address?: string;
   phone?: string;
 }): Promise<CreateTokoResult> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isAdmin(user)) {
     return { success: false, error: "Only admins can create toko" };
   }
 
@@ -210,7 +205,7 @@ export async function createToko(input: {
 
     await prisma.userToko.create({
       data: {
-        userId: session.user.id,
+        userId: user.id,
         tokoId: toko.id,
         role: "owner",
       },
@@ -226,18 +221,13 @@ export async function createToko(input: {
 }
 
 export async function getTokoById(tokoId: string): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  const userToko = await prisma.userToko.findFirst({
-    where: { userId: session.user.id, tokoId },
-  });
-
-  if (!userToko) {
+  if (!canAccessToko(user, tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -266,22 +256,17 @@ export async function updateToko(
   tokoId: string,
   input: UpdateTokoInput
 ): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isAdmin(user)) {
     return { success: false, error: "Only admins can update toko" };
   }
 
-  const userToko = await prisma.userToko.findFirst({
-    where: { userId: session.user.id, tokoId },
-  });
-
-  if (!userToko) {
+  if (!canAccessToko(user, tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -322,23 +307,17 @@ export async function updateToko(
 }
 
 export async function deleteToko(tokoId: string): Promise<{ success: boolean; error?: string }> {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (session.user.role !== "admin") {
+  if (!isAdmin(user)) {
     return { success: false, error: "Only admins can delete toko" };
   }
 
-  const userTokoList = await prisma.userToko.findMany({
-    where: { userId: session.user.id },
-    select: { tokoId: true },
-  });
-
-  const tokoIds = userTokoList.map((ut) => ut.tokoId);
+  const tokoIds = user.tokoIds;
 
   if (!tokoIds.includes(tokoId)) {
     return { success: false, error: "Access denied" };
