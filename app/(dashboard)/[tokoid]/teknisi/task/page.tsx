@@ -1,39 +1,10 @@
-import { getAvailableTasks, getMyTasks } from "@/actions/service";
+import { getAvailableTasks, getMyTasks, getTechnicianTaskStats } from "@/actions/service";
 import { TeknisiTaskManager } from "@/components/dashboard/services/teknisi-task-manager";
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import Image from "next/image";
 import { RiStore2Line } from "@remixicon/react";
-
-async function getTechnicianTaskStats(tokoId: string, userId: string) {
-  const [tersedia, repairing, selesai, gagal, history, total] = await Promise.all([
-    prisma.service.count({
-      where: {
-        tokoId,
-        status: { in: ["received", "repairing"] },
-        OR: [{ technicianId: null }, { technicianId: { not: userId } }],
-      },
-    }),
-    prisma.service.count({
-      where: { technicianId: userId, status: "repairing" },
-    }),
-    prisma.service.count({
-      where: { technicianId: userId, status: "done", isPickedUp: false },
-    }),
-    prisma.service.count({
-      where: { technicianId: userId, status: "failed", isPickedUp: false },
-    }),
-    prisma.service.count({
-      where: { technicianId: userId, status: { in: ["done", "failed"] } },
-    }),
-    prisma.service.count({
-      where: { technicianId: userId },
-    }),
-  ]);
-
-  return { tersedia, repairing, selesai, gagal, history, total };
-}
 
 export default async function TeknisiTaskPage({
   params,
@@ -79,7 +50,10 @@ export default async function TeknisiTaskPage({
     );
   }
 
-  const stats = await getTechnicianTaskStats(tokoid, session.user.id);
+  const statsResult = await getTechnicianTaskStats(tokoid);
+  const stats = statsResult.success && statsResult.data
+    ? statsResult.data
+    : { tersedia: 0, repairing: 0, selesai: 0, gagal: 0, history: 0, total: 0 };
 
   const myTasksResult = await getMyTasks();
   const myTasks = myTasksResult.success ? myTasksResult.data || [] : [];

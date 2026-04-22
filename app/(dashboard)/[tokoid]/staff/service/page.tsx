@@ -1,29 +1,8 @@
-import { getServiceList } from "@/actions/service";
+import { getServiceList, getServiceStats } from "@/actions/service";
 import { StaffManageService } from "@/components/dashboard/services/staff-manage-service";
 import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import Image from "next/image";
 import { RiStore2Line } from "@remixicon/react";
-
-async function getServiceStats(tokoId: string) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return { received: 0, repairing: 0, done: 0, pickedUp: 0, failed: 0, history: 0, total: 0 };
-  }
-
-  const [received, repairing, done, pickedUp, failed, history, total] = await Promise.all([
-    prisma.service.count({ where: { tokoId, status: "received" } }),
-    prisma.service.count({ where: { tokoId, status: "repairing" } }),
-    prisma.service.count({ where: { tokoId, status: "done", isPickedUp: false } }),
-    prisma.service.count({ where: { tokoId, isPickedUp: true } }),
-    prisma.service.count({ where: { tokoId, status: "failed", isPickedUp: false } }),
-    prisma.service.count({ where: { tokoId, status: { in: ["done", "failed"] } } }),
-    prisma.service.count({ where: { tokoId } }),
-  ]);
-
-  return { received, repairing, done, pickedUp, failed, history, total };
-}
 
 export default async function StaffServicePage({
   params,
@@ -38,10 +17,14 @@ export default async function StaffServicePage({
     select: { id: true, name: true, logoUrl: true },
   });
 
-  const [servicesResult, stats] = await Promise.all([
+  const [servicesResult, statsResult] = await Promise.all([
     getServiceList(tokoid, undefined, 1, 1000),
     getServiceStats(tokoid),
   ]);
+
+  const stats = statsResult.success && statsResult.data
+    ? statsResult.data
+    : { received: 0, repairing: 0, done: 0, pickedUp: 0, failed: 0, history: 0, total: 0 };
 
   if (!servicesResult.success || !servicesResult.data) {
     return (

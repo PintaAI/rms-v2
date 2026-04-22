@@ -6,7 +6,7 @@ import { UserInfo } from "@/components/shared/user-info";
 import { LiveClock } from "@/components/shared/live-clock";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getNavBadgeStats, getTechnicianTaskBadgeStats } from "@/actions/service";
+import { getServiceStats, getTechnicianTaskStats } from "@/actions/service";
 import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
 
 interface DashboardLayoutProps {
@@ -24,12 +24,12 @@ export default async function DashboardLayout({ children, params }: DashboardLay
 
   if (session?.user) {
     if (session.user.role === "admin" || session.user.role === "staff") {
-      const result = await getNavBadgeStats(tokoid);
+      const result = await getServiceStats(tokoid);
       if (result.success && result.data) {
         serviceStats = result.data;
       }
     } else if (session.user.role === "technician") {
-      const result = await getTechnicianTaskBadgeStats(tokoid);
+      const result = await getTechnicianTaskStats(tokoid);
       if (result.success && result.data) {
         technicianTaskStats = result.data;
       }

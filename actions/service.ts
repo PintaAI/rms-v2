@@ -379,54 +379,6 @@ export async function getService(
   }
 }
 
-export async function getCompletedServices(
-  tokoId?: string
-): Promise<ActionResultWithData<ServiceListItem[]>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
-
-    const targetTokoId = tokoId ?? tokoIds[0];
-    if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
-
-    const services = await prisma.service.findMany({
-      where: { tokoId: targetTokoId, status: { in: ["done", "failed"] }, isPickedUp: false },
-      orderBy: { doneAt: "desc" },
-      select: serviceSelectBase,
-    });
-
-    return { success: true, data: services.map(mapServiceToListItem) };
-  } catch (error) {
-    console.error("Error fetching completed services:", error);
-    return { success: false, error: "Failed to fetch completed services" };
-  }
-}
-
-export async function getPickedUpServices(
-  tokoId?: string
-): Promise<ActionResultWithData<ServiceListItem[]>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
-
-    const targetTokoId = tokoId ?? tokoIds[0];
-    if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
-
-    const services = await prisma.service.findMany({
-      where: { tokoId: targetTokoId, isPickedUp: true },
-      orderBy: { checkoutAt: "desc" },
-      select: serviceSelectBase,
-    });
-
-    return { success: true, data: services.map(mapServiceToListItem) };
-  } catch (error) {
-    console.error("Error fetching picked up services:", error);
-    return { success: false, error: "Failed to fetch picked up services" };
-  }
-}
-
 export async function getAvailableTasks(
   tokoId?: string
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
@@ -1345,7 +1297,7 @@ export interface TechnicianTaskStats {
   total: number;
 }
 
-export async function getNavBadgeStats(tokoId: string): Promise<ActionResultWithData<ServiceStats>> {
+export async function getServiceStats(tokoId: string): Promise<ActionResultWithData<ServiceStats>> {
   try {
     const { user, tokoIds } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
@@ -1371,7 +1323,7 @@ export async function getNavBadgeStats(tokoId: string): Promise<ActionResultWith
   }
 }
 
-export async function getTechnicianTaskBadgeStats(
+export async function getTechnicianTaskStats(
   tokoId: string
 ): Promise<ActionResultWithData<TechnicianTaskStats>> {
   try {
