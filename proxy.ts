@@ -3,8 +3,8 @@ import type { NextRequest } from "next/server";
 
 const publicRoutes = ["/", "/auth"];
 const authApiRoutes = "/api/auth";
-const onboardRoute = "/onboard";
 const userManualRoute = "/user-manual";
+const protectedRoutePrefixes = ["/dashboard", "/onboard"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -14,9 +14,13 @@ export function proxy(request: NextRequest) {
   }
 
   const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith("/auth"));
-  const isOnboardRoute = pathname.startsWith(onboardRoute);
   const isUserManualRoute = pathname.startsWith(userManualRoute);
-  const isDashboardRoute = pathname.match(/^\/[^/]+\/(admin|staff|teknisi)/);
+  const isDashboardRoute = /^\/[^/]+\/(admin|staff|teknisi)/.test(pathname);
+  const isTokoRootRoute = /^\/[^/]+$/.test(pathname) && !isPublicRoute && !pathname.startsWith(userManualRoute);
+  const isProtectedRoute =
+    protectedRoutePrefixes.some((route) => pathname.startsWith(route)) ||
+    isDashboardRoute ||
+    isTokoRootRoute;
 
   const sessionToken = request.cookies.get("better-auth.session_token")?.value;
 
@@ -28,11 +32,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  if (isOnboardRoute && !sessionToken) {
-    return NextResponse.redirect(new URL("/auth", request.url));
-  }
-
-  if (isDashboardRoute && !sessionToken) {
+  if (isProtectedRoute && !sessionToken) {
     return NextResponse.redirect(new URL("/auth", request.url));
   }
 

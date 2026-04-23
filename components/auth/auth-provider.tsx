@@ -1,8 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useSession } from "@/lib/auth-client";
-import { useRouter, usePathname } from "next/navigation";
 import { getUserTokoList } from "@/actions/user";
 
 interface TokoItem {
@@ -51,15 +50,16 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const router = useRouter();
-  const pathname = usePathname();
   const { data: session, isPending, refetch } = useSession();
   const [tokoList, setTokoList] = useState<TokoItem[]>([]);
   const [isTokoLoading, setIsTokoLoading] = useState(true);
-  const redirectingRef = useRef(false);
 
   const fetchTokoList = useCallback(async () => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      setTokoList([]);
+      setIsTokoLoading(false);
+      return;
+    }
     
     setIsTokoLoading(true);
     try {
@@ -80,7 +80,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let active = true;
 
     const load = async () => {
-      if (!session?.user) return;
+      if (!session?.user) {
+        if (active) {
+          setTokoList([]);
+          setIsTokoLoading(false);
+        }
+        return;
+      }
 
       setIsTokoLoading(true);
       try {
@@ -104,61 +110,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, [session?.user]);
 
-  useEffect(() => {
-    if (isPending || redirectingRef.current) return;
-    
-    if (!session?.user) {
-      if (!pathname.startsWith("/auth") && !pathname.startsWith("/onboard")) {
-        redirectingRef.current = true;
-        router.push("/auth");
-      }
-      return;
-    }
-
-    if (pathname.startsWith("/auth")) {
-      redirectingRef.current = true;
-      router.replace("/dashboard");
-      return;
-    }
-
-    if (pathname.startsWith("/onboard")) {
-      return;
-    }
-
-    if (session.user.role === "admin" && tokoList.length === 0 && !isTokoLoading) {
-      redirectingRef.current = true;
-      router.replace("/onboard");
-      return;
-    }
-
-    const role = session.user.role as "admin" | "staff" | "technician";
-    const tokoidMatch = pathname.match(/^\/([^\/]+)\/(admin|staff|teknisi)/);
-    
-    if (tokoidMatch) {
-      const [, tokoid, routeRole] = tokoidMatch;
-      const roleMap: Record<string, string> = {
-        admin: "admin",
-        staff: "staff",
-        teknisi: "technician",
-      };
-      
-      if (role !== roleMap[routeRole]) {
-        redirectingRef.current = true;
-        const basePath = role === "admin" 
-          ? `/${tokoid}/admin` 
-          : role === "staff" 
-            ? `/${tokoid}/staff` 
-            : `/${tokoid}/teknisi`;
-        router.replace(basePath);
-      }
-    }
-  }, [session, isPending, pathname, router, tokoList, isTokoLoading]);
-
   const isLoading = isPending || isTokoLoading;
-
-  useEffect(() => {
-    redirectingRef.current = false;
-  }, [pathname]);
 
   return (
     <AuthContext.Provider
