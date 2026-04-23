@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getSessionCookie } from "better-auth/cookies";
 
 const publicRoutes = ["/", "/auth"];
 const authApiRoutes = "/api/auth";
@@ -22,7 +23,7 @@ export function proxy(request: NextRequest) {
     isDashboardRoute ||
     isTokoRootRoute;
 
-  const sessionToken = request.cookies.get("better-auth.session_token")?.value;
+  const sessionToken = getSessionCookie(request);
 
   if (isUserManualRoute) {
     return NextResponse.next();
