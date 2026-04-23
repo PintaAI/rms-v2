@@ -26,7 +26,6 @@ export function AppSidebarFooter() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleSignOut = async () => {
-    localStorage.removeItem("onboard_completed");
     await signOut();
     router.push("/auth");
   };

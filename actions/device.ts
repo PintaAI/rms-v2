@@ -1,7 +1,7 @@
 "use server"
 
 import prisma from "@/lib/prisma"
-import type { ActionResult, ActionResultWithData } from "@/lib/rbac"
+import { getAuthUser, isAdmin, type ActionResult, type ActionResultWithData } from "@/lib/rbac"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
@@ -23,8 +23,25 @@ export interface DeviceListItem {
   brandName: string
 }
 
+async function getDeviceUser(requireWriteAccess: boolean = false) {
+  const user = await getAuthUser()
+
+  if (!user) {
+    return { success: false as const, error: "Unauthorized" }
+  }
+
+  if (requireWriteAccess && !isAdmin(user)) {
+    return { success: false as const, error: "Only admins can manage device data" }
+  }
+
+  return { success: true as const, user }
+}
+
 export async function getBrandList(): Promise<ActionResultWithData<Brand[]>> {
   try {
+    const access = await getDeviceUser()
+    if (!access.success) return access
+
     const brands = await prisma.brand.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
@@ -40,6 +57,9 @@ export async function getBrandList(): Promise<ActionResultWithData<Brand[]>> {
 
 export async function searchBrands(query: string): Promise<ActionResultWithData<Brand[]>> {
   try {
+    const access = await getDeviceUser()
+    if (!access.success) return access
+
     if (!query.trim()) {
       const brands = await prisma.brand.findMany({
         orderBy: { name: "asc" },
@@ -73,6 +93,9 @@ export async function createBrand(
   name: string
 ): Promise<ActionResultWithData<Brand>> {
   try {
+    const access = await getDeviceUser(true)
+    if (!access.success) return access
+
     const validated = createBrandSchema.parse({ name })
 
     const existing = await prisma.brand.findUnique({
@@ -100,6 +123,9 @@ export async function createBrand(
 
 export async function getDeviceList(): Promise<ActionResultWithData<DeviceListItem[]>> {
   try {
+    const access = await getDeviceUser()
+    if (!access.success) return access
+
     const devices = await prisma.hpCatalog.findMany({
       orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
       select: {
@@ -126,6 +152,9 @@ export async function getDeviceList(): Promise<ActionResultWithData<DeviceListIt
 
 export async function searchDevices(query: string): Promise<ActionResultWithData<DeviceListItem[]>> {
   try {
+    const access = await getDeviceUser()
+    if (!access.success) return access
+
     if (!query.trim()) {
       const devices = await prisma.hpCatalog.findMany({
         orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
@@ -194,6 +223,9 @@ export async function searchDevices(query: string): Promise<ActionResultWithData
 
 export async function getDevice(id: string): Promise<ActionResultWithData<Device>> {
   try {
+    const access = await getDeviceUser()
+    if (!access.success) return access
+
     const device = await prisma.hpCatalog.findUnique({
       where: { id },
       select: {
@@ -223,6 +255,9 @@ export async function createDevice(
   data: z.infer<typeof createDeviceSchema>
 ): Promise<ActionResultWithData<DeviceListItem>> {
   try {
+    const access = await getDeviceUser(true)
+    if (!access.success) return access
+
     const validated = createDeviceSchema.parse(data)
 
     const existingBrand = await prisma.brand.findUnique({
@@ -294,6 +329,9 @@ export async function updateDevice(
   data: z.infer<typeof updateDeviceSchema>
 ): Promise<ActionResultWithData<Device>> {
   try {
+    const access = await getDeviceUser(true)
+    if (!access.success) return access
+
     const validated = updateDeviceSchema.parse(data)
 
     const device = await prisma.hpCatalog.findUnique({
@@ -348,6 +386,9 @@ export async function updateDevice(
 
 export async function deleteDevice(id: string): Promise<ActionResult> {
   try {
+    const access = await getDeviceUser(true)
+    if (!access.success) return access
+
     const device = await prisma.hpCatalog.findUnique({
       where: { id },
       select: {

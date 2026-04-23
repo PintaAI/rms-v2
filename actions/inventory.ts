@@ -1,11 +1,9 @@
 "use server"
 
-import { auth } from "@/lib/auth"
 import { createActivityLogIfUser } from "@/lib/activity-log"
 import prisma from "@/lib/prisma"
-import type { ActionResult, ActionResultWithData } from "@/lib/rbac"
+import { canAccessToko, getAuthUser, isAdmin, type ActionResult, type ActionResultWithData } from "@/lib/rbac"
 import { revalidateInventoryPaths } from "@/lib/revalidation"
-import { headers } from "next/headers"
 import { z } from "zod"
 
 export type Sparepart = {
@@ -72,15 +70,29 @@ const updateServicePricelistSchema = z.object({
   defaultPrice: z.number().int().min(0, "Price must be 0 or greater").optional(),
 })
 
-async function getCurrentUserId() {
-  const headersList = await headers()
-  const session = await auth.api.getSession({ headers: headersList })
+async function getInventoryUser(tokoId: string, requireWriteAccess: boolean = false) {
+  const user = await getAuthUser()
 
-  return session?.user?.id ?? null
+  if (!user) {
+    return { success: false as const, error: "Unauthorized" }
+  }
+
+  if (!canAccessToko(user, tokoId)) {
+    return { success: false as const, error: "Access denied" }
+  }
+
+  if (requireWriteAccess && !isAdmin(user)) {
+    return { success: false as const, error: "Only admins can manage inventory" }
+  }
+
+  return { success: true as const, user }
 }
 
 export async function getSpareparts(tokoId: string): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
   try {
+    const access = await getInventoryUser(tokoId)
+    if (!access.success) return access
+
     const spareparts = await prisma.sparepart.findMany({
       where: { tokoId },
       include: {
@@ -105,6 +117,9 @@ export async function getSpareparts(tokoId: string): Promise<ActionResultWithDat
 
 export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: string): Promise<ActionResultWithData<SparepartListItem[]>> {
   try {
+    const access = await getInventoryUser(tokoId)
+    if (!access.success) return access
+
     const whereClause: {
       tokoId: string
       OR?: Array<{ isUniversal: boolean } | { compatibilities: { some: { hpCatalogId: string } } }>
@@ -137,8 +152,9 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
 
 export async function createSparepart(data: z.infer<typeof createSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
   try {
-    const userId = await getCurrentUserId()
     const validated = createSparepartSchema.parse(data)
+    const access = await getInventoryUser(validated.tokoId, true)
+    if (!access.success) return access
 
     const existing = await prisma.sparepart.findFirst({
       where: { tokoId: validated.tokoId, name: validated.name },
@@ -172,7 +188,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
 
     await createActivityLogIfUser({
       tokoId: validated.tokoId,
-      userId,
+      userId: access.user.id,
       type: "sparepart_created",
       title: "Sparepart created",
       payload: {
@@ -196,7 +212,6 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
 
 export async function updateSparepart(data: z.infer<typeof updateSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
   try {
-    const userId = await getCurrentUserId()
     const validated = updateSparepartSchema.parse(data)
 
     const sparepart = await prisma.sparepart.findUnique({
@@ -207,6 +222,9 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
     if (!sparepart) {
       return { success: false, error: "Sparepart not found" }
     }
+
+    const access = await getInventoryUser(sparepart.tokoId, true)
+    if (!access.success) return access
 
     if (validated.name) {
       const existing = await prisma.sparepart.findFirst({
@@ -248,7 +266,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
 
     await createActivityLogIfUser({
       tokoId: sparepart.tokoId,
-      userId,
+      userId: access.user.id,
       type: "sparepart_updated",
       title: "Sparepart updated",
       payload: {
@@ -272,7 +290,6 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
 
 export async function deleteSparepart(id: string): Promise<ActionResult> {
   try {
-    const userId = await getCurrentUserId()
     const sparepart = await prisma.sparepart.findUnique({
       where: { id },
       select: { tokoId: true, name: true },
@@ -281,6 +298,9 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
     if (!sparepart) {
       return { success: false, error: "Sparepart not found" }
     }
+
+    const access = await getInventoryUser(sparepart.tokoId, true)
+    if (!access.success) return access
 
     const usedInServices = await prisma.serviceItem.findFirst({
       where: { referenceId: id },
@@ -299,7 +319,7 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
 
     await createActivityLogIfUser({
       tokoId: sparepart.tokoId,
-      userId,
+      userId: access.user.id,
       type: "sparepart_deleted",
       title: "Sparepart deleted",
       payload: {
@@ -317,6 +337,9 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
 
 export async function getServicePricelists(tokoId: string): Promise<ActionResultWithData<ServicePricelist[]>> {
   try {
+    const access = await getInventoryUser(tokoId)
+    if (!access.success) return access
+
     const pricelists = await prisma.servicePricelist.findMany({
       where: { tokoId },
       orderBy: { title: "asc" },
@@ -339,6 +362,8 @@ export async function getServicePricelists(tokoId: string): Promise<ActionResult
 export async function createServicePricelist(data: z.infer<typeof createServicePricelistSchema>): Promise<ActionResultWithData<ServicePricelist>> {
   try {
     const validated = createServicePricelistSchema.parse(data)
+    const access = await getInventoryUser(validated.tokoId, true)
+    if (!access.success) return access
 
     const existing = await prisma.servicePricelist.findFirst({
       where: { tokoId: validated.tokoId, title: validated.title },
@@ -362,7 +387,7 @@ export async function createServicePricelist(data: z.infer<typeof createServiceP
       },
     })
 
-    revalidatePath("/dashboard/admin/inventory")
+    revalidateInventoryPaths()
 
     return { success: true, data: pricelist }
   } catch (error) {
@@ -386,6 +411,9 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
     if (!pricelist) {
       return { success: false, error: "Service pricelist not found" }
     }
+
+    const access = await getInventoryUser(pricelist.tokoId, true)
+    if (!access.success) return access
 
     if (validated.title) {
       const existing = await prisma.servicePricelist.findFirst({
@@ -414,7 +442,7 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
       },
     })
 
-    revalidatePath("/dashboard/admin/inventory")
+    revalidateInventoryPaths()
 
     return { success: true, data: updated }
   } catch (error) {
@@ -437,9 +465,12 @@ export async function deleteServicePricelist(id: string): Promise<ActionResult> 
       return { success: false, error: "Service pricelist not found" }
     }
 
+    const access = await getInventoryUser(pricelist.tokoId, true)
+    if (!access.success) return access
+
     await prisma.servicePricelist.delete({ where: { id } })
 
-    revalidatePath("/dashboard/admin/inventory")
+    revalidateInventoryPaths()
 
     return { success: true }
   } catch (error) {

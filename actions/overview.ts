@@ -1,7 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { getAuthUser } from "@/lib/rbac";
+import { canAccessToko, getAuthUser, isAdmin, isStaff } from "@/lib/rbac";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus } from "@/prisma/generated/prisma/enums";
 import type { ActionResultWithData } from "./service";
@@ -136,7 +136,6 @@ const activityLogSelect = {
 };
 
 interface SharedOverviewData {
-  tokoId: string;
   dailyStart: Date;
   monthlyStart: Date;
   statusMap: Record<string, number>;
@@ -148,14 +147,7 @@ interface SharedOverviewData {
   total: number;
 }
 
-async function getSharedOverviewData(tokoId?: string): Promise<ActionResultWithData<SharedOverviewData>> {
-  const user = await getAuthUser();
-  if (!user) return { success: false, error: "Unauthorized" };
-
-  const targetTokoId = tokoId ?? user.tokoIds[0];
-  if (!targetTokoId) return { success: false, error: "No toko found" };
-  if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
-
+async function getSharedOverviewData(targetTokoId: string): Promise<ActionResultWithData<SharedOverviewData>> {
   const now = new Date();
   const dailyStart = new Date(now);
   dailyStart.setHours(0, 0, 0, 0);
@@ -199,13 +191,11 @@ async function getSharedOverviewData(tokoId?: string): Promise<ActionResultWithD
     (statusMap["received"] || 0) +
     (statusMap["repairing"] || 0) +
     (statusMap["done"] || 0) +
-    (statusMap["failed"] || 0) +
-    pickedUpCount;
+    (statusMap["failed"] || 0);
 
   return {
     success: true,
     data: {
-      tokoId: targetTokoId,
       dailyStart,
       monthlyStart,
       statusMap,
@@ -223,10 +213,20 @@ export async function getAdminOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<AdminOverviewData>> {
   try {
-    const shared = await getSharedOverviewData(tokoId);
-    if (!shared.success) return shared;
+    const user = await getAuthUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+    if (!isAdmin(user)) return { success: false, error: "Access denied" };
 
-    const { tokoId: targetTokoId, dailyStart, monthlyStart, statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
+    const targetTokoId = tokoId ?? user.tokoIds[0];
+    if (!targetTokoId) return { success: false, error: "No toko found" };
+    if (!canAccessToko(user, targetTokoId)) return { success: false, error: "Access denied" };
+
+    const shared = await getSharedOverviewData(targetTokoId);
+    if (!shared.success || !shared.data) {
+      return { success: false, error: shared.error ?? "Failed to fetch overview data" };
+    }
+
+    const { dailyStart, monthlyStart, statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
     const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, recentActivities] = await Promise.all([
       prisma.invoice.aggregate({
@@ -298,8 +298,18 @@ export async function getStaffOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<StaffOverviewData>> {
   try {
-    const shared = await getSharedOverviewData(tokoId);
-    if (!shared.success) return shared;
+    const user = await getAuthUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+    if (!isStaff(user) && !isAdmin(user)) return { success: false, error: "Access denied" };
+
+    const targetTokoId = tokoId ?? user.tokoIds[0];
+    if (!targetTokoId) return { success: false, error: "No toko found" };
+    if (!canAccessToko(user, targetTokoId)) return { success: false, error: "Access denied" };
+
+    const shared = await getSharedOverviewData(targetTokoId);
+    if (!shared.success || !shared.data) {
+      return { success: false, error: shared.error ?? "Failed to fetch overview data" };
+    }
 
     const { statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 

@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RMS v2
 
-## Getting Started
+Repair management system built with Next.js 16, Better Auth, Prisma 7, and Bun.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 App Router with `cacheComponents` enabled
+- React 19
+- Bun for package management and scripts
+- Better Auth for email/password and Google auth
+- Prisma 7 with `@prisma/adapter-pg` and generated client output in `prisma/generated/prisma`
+- shadcn/ui with the `radix-mira` preset and Remix Icon
+
+## Requirements
+
+- Bun
+- PostgreSQL reachable through `DATABASE_URL`
+
+## Environment
+
+Runtime and local workflows read env from `.env` / `dotenv`.
+
+Required:
+
+- `DATABASE_URL`
+
+Used by app features:
+
+- `NEXT_PUBLIC_APP_URL`
+- `BETTER_AUTH_URL`
+- `DEV_MODE`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `BLOB_READ_WRITE_TOKEN`
+
+## Install
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`postinstall` already runs `prisma generate`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Run
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+bun run dev
+```
 
-## Learn More
+Open `http://localhost:3000`.
 
-To learn more about Next.js, take a look at the following resources:
+## Verification
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Run checks in this order:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+bun run lint
+bun run build
+```
 
-## Deploy on Vercel
+There is no dedicated test or typecheck script; the build is the type-safe verification step.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Database And Seed Data
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Seed commands:
+
+```bash
+bun run seed
+bun run seed:small
+bun run seed:medium
+bun run seed:large
+bun run seed:reset
+```
+
+Notes:
+
+- `seed:reset` runs `bunx prisma db push --force-reset` and then reseeds.
+- Seeded credentials are written to `dev-doc/dev-seed-logins.md`.
+- Default seeded password is `test1234` unless `SEED_PASSWORD` is set.
+
+## Project Shape
+
+- Main authenticated app routes live under `app/(dashboard)/[tokoid]/(admin|staff|teknisi)`.
+- `/dashboard` and `/onboard` are redirect/onboarding entry pages.
+- Route protection lives in `proxy.ts`.
+- Auth API lives in `app/api/auth/[...all]/route.ts`.
+- Server actions live in `actions/`.
+- Prisma schema is `prisma/schema.prisma`; Prisma CLI config is `prisma.config.ts`.
+
+## Repo Conventions
+
+- Use `bun`, not npm.
+- Import Prisma runtime types from `@/prisma/generated/prisma/client`, not `@prisma/client`.
+- Prefer shared auth and role helpers from `lib/auth.ts`, `lib/rbac.ts`, and `lib/redirect-by-role.ts`.
+- Use `teknisi` for route segments and `technician` for role values.
+- Use `@remixicon/react` for icons; do not introduce `lucide-react`.
+
+## User Manual Content
+
+The user manual is file-backed:
+
+- Markdown files live in `user-manual/`
+- Filenames encode order and icon, for example `01-overview[RiBook2Line].md`
+- `lib/markdown.ts` parses docs and supports `:::demo ComponentName` blocks
+- Demo components are registered from `components/user-manual/demo-components`
+
+## Deployment Note
+
+`vercel.json` uses Bun and runs:
+
+```bash
+bun run prisma generate && bun run next build
+```

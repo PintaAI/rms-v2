@@ -13,12 +13,28 @@ export default function DashboardLandingPage() {
     if (isLoading || !user) return;
 
     if (tokoList.length === 0) {
+      if (user.role === "admin") {
+        router.replace("/onboard");
+      }
       return;
     }
 
     const firstToko = tokoList[0];
     router.replace(getRoleRedirectPath(firstToko.id, user.role));
   }, [user, tokoList, isLoading, router]);
+
+  if (!isLoading && user && tokoList.length === 0 && user.role !== "admin") {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center px-6 text-center">
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold">Belum ada toko yang bisa diakses</h1>
+          <p className="text-sm text-muted-foreground">
+            Akun ini belum punya assignment toko. Hubungi admin untuk mendapatkan akses.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return null;
 }

@@ -17,10 +17,9 @@ export function AdminOverviewActions({ tokoId }: AdminOverviewActionsProps) {
   const [servicesFormOpen, setServicesFormOpen] = useState(false);
 
   useEffect(() => {
-    const onboardCompleted = localStorage.getItem("onboard_completed");
     const tourCompleted = localStorage.getItem("tour_completed");
 
-    if (onboardCompleted === "true" && tourCompleted !== "true") {
+    if (tourCompleted !== "true") {
       startTour();
     }
   }, [startTour]);

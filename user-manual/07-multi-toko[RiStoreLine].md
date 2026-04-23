@@ -1,365 +1,132 @@
 # Multi-Toko
 
-Panduan lengkap tentang fitur multi-toko di RMS.
+Fitur multi-toko di RMS saat ini dipakai untuk memisahkan data operasional per toko dan memungkinkan Admin berpindah konteks toko.
 
 ---
 
-## Apa itu Multi-Toko?
+## Apa Yang Dipisahkan Per Toko?
 
-Multi-Toko adalah fitur yang memungkinkan satu akun Admin mengelola beberapa toko service center dalam satu sistem.
+| Data | Per toko? |
+|---|---|
+| Service ticket | Ya |
+| Sparepart | Ya |
+| Jasa / pricelist | Ya |
+| Karyawan staff | Ya |
+| Karyawan teknisi | Ya |
+| Overview stats | Ya |
 
-### Manfaat
+Data global yang dipakai semua toko:
 
-- **Centralized Management**: Kelola semua toko dari satu dashboard
-- **Separated Data**: Data servis, inventory, dan karyawan terpisah per toko
-- **Flexible Access**: Admin bisa pindah antar toko dengan mudah
-
----
-
-## Konsep Dasar
-
-### Struktur Multi-Toko
-
-```
-┌─────────────────────────────────────────────┐
-│              AKUN ADMIN                      │
-├─────────────────────────────────────────────┤
-│                                             │
-│  ┌─────────────┐  ┌─────────────┐           │
-│  │   TOKO A    │  │   TOKO B    │           │
-│  ├─────────────┤  ├─────────────┤           │
-│  │ - Servis    │  │ - Servis    │           │
-│  │ - Inventory │  │ - Inventory │           │
-│  │ - Karyawan  │  │ - Karyawan  │           │
-│  └─────────────┘  └─────────────┘           │
-│                                             │
-└─────────────────────────────────────────────┘
-```
-
-### Apa yang Terpisah per Toko?
-
-| Data | Terpisah? | Keterangan |
-|------|-----------|------------|
-| **Service Ticket** | Ya | Setiap toko punya data servis sendiri |
-| **Sparepart** | Ya | Inventory terpisah per toko |
-| **Service Pricelist** | Ya | Template jasa terpisah per toko |
-| **Staff** | Ya | Staff hanya bisa akses toko tempat dia bekerja |
-| **Teknisi** | Ya | Teknisi hanya bisa akses toko tempat dia bekerja |
-| **HpCatalog** | Tidak | Katalog device bersifat global |
-
-### Apa yang Global?
-
-| Data | Keterangan |
-|------|------------|
-| **HpCatalog** | Katalog brand dan model handphone |
-| **Akun Admin** | Satu akun Admin bisa akses semua toko |
+| Data | Global? |
+|---|---|
+| Brand device | Ya |
+| Model device (`HpCatalog`) | Ya |
 
 ---
 
-## Mengelola Toko
+## Halaman Toko
 
-### Akses Menu
+Admin mengelola toko dari halaman `Toko`.
 
-Menu **Toko** hanya tersedia untuk **Admin**.
+Yang tersedia saat ini:
 
-### Melihat Daftar Toko
+- lihat semua toko yang terhubung ke akun admin
+- pindah ke toko lain dengan klik card toko
+- tambah toko baru
+- edit toko yang ada
+- hapus toko
 
-1. Login sebagai Admin
-2. Buka menu **Toko**
-3. Lihat daftar toko yang dikelola
+---
 
-Informasi yang ditampilkan:
-- Nama toko
-- Alamat
-- Nomor telepon
-- Jumlah karyawan
-- Jumlah servis
+## Membuat Toko Baru
 
-### Membuat Toko Baru
+Form `Add Toko` saat ini mendukung:
 
-1. Buka menu **Toko**
-2. Klik tombol **"Add Toko"** atau **"New"**
-3. Isi form:
+- nama toko
+- logo opsional
+- alamat opsional
+- nomor telepon opsional
 
-| Field | Keterangan | Contoh |
-|-------|------------|--------|
-| **Nama Toko** | Nama service center | "Service Center ABC" |
-| **Alamat** | Alamat lengkap | "Jl. Sudirman No. 123" |
-| **Telepon** | Nomor telepon toko | "08123456789" |
-| **Logo** | Logo toko (opsional) | Upload file gambar |
+Setelah toko dibuat:
 
-4. Klik **"Save"**
+- daftar toko di sidebar/header ikut berubah setelah refresh data user
+- admin diarahkan ke dashboard toko baru
 
-**Yang terjadi saat toko baru dibuat:**
-- Toko baru muncul di daftar
-- Inventory sparepart kosong (perlu ditambahkan)
-- Service pricelist kosong (perlu ditambahkan)
-- Belum ada karyawan di toko baru
+---
 
-### Edit Informasi Toko
+## Edit Toko
 
-1. Buka menu **Toko**
-2. Cari toko yang ingin diedit
-3. Klik tombol **"Edit"**
-4. Ubah informasi yang diperlukan:
-   - Nama toko
-   - Alamat
-   - Telepon
-   - Logo
-5. Klik **"Save"**
+Form edit toko saat ini mendukung:
 
-### Hapus Toko
+- nama toko
+- logo
+- alamat
+- telepon
+- status `active` / `inactive`
 
-**Peringatan:** Menghapus toko akan menghapus semua data terkait!
+---
 
-Data yang akan terhapus:
-- Semua service ticket di toko tersebut
-- Semua inventory sparepart
-- Semua service pricelist
-- Semua karyawan dari toko tersebut
+## Hapus Toko
 
-**Cara hapus:**
+Admin bisa menghapus toko yang dimiliki, tetapi ada batasan penting:
 
-1. Buka menu **Toko**
-2. Cari toko yang ingin dihapus
-3. Klik tombol **"Delete"**
-4. Konfirmasi penghapusan (biasanya perlu konfirmasi tambahan)
+- toko terakhir **tidak bisa** dihapus
+- jika toko yang sedang aktif dihapus, aplikasi akan pindah ke toko admin lain yang masih tersisa
+- jika tidak ada toko lain, aplikasi kembali ke `/dashboard`
+
+Karena penghapusan dilakukan langsung pada data toko, seluruh data yang berelasi pada toko tersebut ikut terdampak sesuai relasi database.
 
 ---
 
 ## Pindah Antar Toko
 
-### Cara Pindah Toko
+Cara pindah toko saat ini:
 
-#### Melalui Menu Toko
+1. buka menu `Toko`
+2. klik card toko lain
+3. aplikasi pindah ke route `/<tokoid>/admin`
 
-1. Buka menu **Toko**
-2. Cari toko yang ingin dibuka
-3. Klik tombol **"Open"** atau nama toko
-4. Dashboard akan refresh dengan data toko tersebut
+Setelah pindah toko, halaman berikut memakai data toko aktif:
 
-#### Melalui Selector (jika ada)
-
-1. Klik selector toko di header/navbar
-2. Pilih toko dari dropdown
-3. Dashboard akan refresh dengan data toko tersebut
-
-### Apa yang Berubah Saat Pindah Toko?
-
-- **Service Ticket**: Hanya menampilkan servis dari toko aktif
-- **Sparepart**: Hanya menampilkan inventory toko aktif
-- **Service Pricelist**: Hanya menampilkan pricelist toko aktif
-- **Karyawan**: Hanya menampilkan karyawan toko aktif
-- **Overview**: Statistik dari toko aktif
+- overview
+- service
+- inventory
+- karyawan
 
 ---
 
-## Mengelola Karyawan per Toko
+## Karyawan Di Multi-Toko
 
-### Menambah Karyawan ke Toko
+Halaman `Karyawan` saat ini dikelola per toko aktif.
 
-1. Pastikan toko yang benar sudah aktif
-2. Buka menu **Karyawan**
-3. Klik **"Add Karyawan"**
-4. Isi form:
-   - Email
-   - Nama
-   - Password
-   - Role (Staff atau Teknisi)
-5. Klik **"Save"**
+Yang tersedia saat ini:
 
-**Karyawan akan otomatis ter-assign ke toko yang aktif.**
+- tambah karyawan baru untuk toko aktif
+- hapus karyawan dari toko aktif
+- lihat performa 30 hari terakhir
 
-### Karyawan di Multi-Toko
+Yang **belum** ada di UI saat ini:
 
-| Role | Bisa Akses Beberapa Toko? |
-|------|---------------------------|
-| Admin | Ya (semua toko) |
-| Staff | Tidak (hanya toko tempat terdaftar) |
-| Teknisi | Tidak (hanya toko tempat terdaftar) |
-
-**Jika karyawan perlu akses ke beberapa toko:**
-- Solusi saat ini: Buat akun terpisah untuk setiap toko
-- Atau: Upgrade ke role Admin
-
-### Memindahkan Karyawan ke Toko Lain
-
-1. Buka menu **Karyawan**
-2. Cari karyawan yang ingin dipindahkan
-3. Klik **"Edit"**
-4. Ubah toko assignment
-5. Klik **"Save"**
+- edit data karyawan
+- pindahkan karyawan ke toko lain
+- reset password dari halaman karyawan
 
 ---
 
-## Data Servis per Toko
+## Servis Dan Inventory Per Toko
 
-### Pembuatan Service Ticket
+Saat membuat ticket atau item inventory, data otomatis masuk ke toko yang sedang aktif.
 
-Service ticket dibuat untuk toko yang sedang aktif.
+Artinya:
 
-**Cara:**
-1. Pastikan toko yang benar sudah aktif
-2. Buka menu **Service**
-3. Klik **"New Service"**
-4. Isi form dan simpan
-
-**Ticket akan otomatis ter-assign ke toko aktif.**
-
-### Melihat Servis Antar Toko
-
-**Admin** bisa melihat servis dari semua toko:
-- Pindah ke toko yang ingin dilihat
-- Atau gunakan filter "Semua Toko" (jika tersedia)
-
-**Staff/Teknisi** hanya bisa melihat servis dari toko tempat dia bekerja.
+- service di toko A tidak muncul di toko B
+- stock sparepart di toko A tidak memengaruhi toko B
+- jasa di toko A hanya muncul di service toko A
 
 ---
 
-## Inventory per Toko
+## Catatan Login Dan Redirect
 
-### Sparepart
-
-Setiap toko memiliki inventory sparepart sendiri.
-
-**Konsekuensi:**
-- Sparepart di toko A tidak muncul di toko B
-- Stock terpisah per toko
-- Harga bisa berbeda antar toko
-
-**Cara mengelola:**
-1. Pindah ke toko yang ingin dikelola
-2. Buka menu **Inventory** → **Sparepart**
-3. Tambah/Edit/Hapus sparepart
-
-### Service Pricelist
-
-Setiap toko memiliki template jasa sendiri.
-
-**Konsekuensi:**
-- Pricelist di toko A tidak muncul di toko B
-- Harga jasa bisa berbeda antar toko
-
-**Cara mengelola:**
-1. Pindah ke toko yang ingin dikelola
-2. Buka menu **Inventory** → **Service Pricelist**
-3. Tambah/Edit/Hapus jasa
-
----
-
-## Katalog Device (HpCatalog)
-
-### Apa itu HpCatalog?
-
-HpCatalog adalah katalog global berisi daftar brand dan model handphone. Katalog ini **bersifat global**, tidak terpisah per toko.
-
-### Mengapa Global?
-
-- Memudahkan input device saat buat ticket
-- Menghindari duplikasi data
-- Konsistensi nama brand dan model
-
-### Cara Menggunakan
-
-Saat membuat service ticket:
-
-1. Ketik nama brand atau model di field **Device**
-2. Jika sudah ada di katalog → pilih dari dropdown
-3. Jika belum ada → ketik nama baru, sistem akan buat entry baru
-
-**Device yang dibuat akan tersedia di semua toko.**
-
----
-
-## Reporting per Toko
-
-### Statistik di Overview
-
-Overview menampilkan statistik dari **toko yang sedang aktif**:
-- Jumlah servis per status
-- Pendapatan
-- Performa teknisi
-- Stock menipis
-
-### Melihat Statistik Semua Toko
-
-Jika fitur tersedia, Admin bisa:
-- Lihat agregat semua toko
-- Bandingkan performa antar toko
-- Export laporan per toko
-
----
-
-## FAQ
-
-### Q: Bisakah satu karyawan bekerja di beberapa toko?
-
-**Tidak secara langsung.** Karyawan (Staff/Teknisi) hanya bisa terdaftar di satu toko.
-
-**Workaround:**
-- Buat akun terpisah untuk setiap toko
-- Atau berikan role Admin (bisa akses semua toko)
-
-### Q: Bisakah sparepart dipindahkan antar toko?
-
-Saat ini, inventory **terpisah per toko**. Tidak ada fitur transfer stock antar toko.
-
-**Workaround:**
-- Catat manual di notes
-- Kurangi stock di toko asal, tambah stock di toko tujuan
-
-### Q: Bisakah data servis digabungkan dari semua toko?
-
-Ya, untuk **Admin**:
-- Gunakan filter "Semua Toko" di halaman Service (jika tersedia)
-- Atau lihat agregat di Overview (jika fitur tersedia)
-
-### Q: Bagaimana cara setup toko baru?
-
-1. Admin buat toko baru
-2. Tambah inventory sparepart
-3. Tambah service pricelist
-4. Tambah karyawan (Staff/Teknisi)
-5. Toko siap digunakan
-
-### Q: Apakah HpCatalog perlu diisi per toko?
-
-**Tidak.** HpCatalog bersifat global. Cukup isi sekali, tersedia di semua toko.
-
----
-
-## Tips Praktis
-
-### Untuk Admin
-
-1. **Kelola inventory sebelum buka toko baru**
-   - Siapkan sparepart yang umum dipakai
-   - Setup service pricelist standar
-
-2. **Assign karyawan dengan benar**
-   - Pastikan setiap toko punya minimal satu Staff
-   - Distribusikan Teknisi sesuai kebutuhan
-
-3. **Monitor performa per toko**
-   - Gunakan Overview untuk melihat statistik
-   - Bandingkan performa antar toko
-
-4. **Backup data sebelum hapus toko**
-   - Simpan data penting sebelum hapus toko
-   - Data yang terhapus tidak bisa dikembalikan
-
-### Untuk Staff
-
-1. **Pastikan toko yang benar**
-   - Cek toko aktif sebelum buat ticket
-   - Cek toko aktif sebelum tambah inventory
-
-2. **Koordinasi dengan Admin jika perlu pindah toko**
-   - Jika ada kebutuhan untuk kerja di toko lain
-   - Hubungi Admin untuk pengaturan
-
-### Untuk Teknisi
-
-1. **Fokus pada tugas di toko**
-   - Tugas yang muncul hanya dari toko tempat terdaftar
-   - Tidak bisa ambil tugas dari toko lain
+- `/dashboard` mengarahkan user ke toko pertama yang bisa diakses.
+- Admin tanpa toko diarahkan ke onboarding.
+- Staff dan teknisi tanpa assignment toko tidak bisa menggunakan dashboard toko.

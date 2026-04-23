@@ -45,7 +45,6 @@ export function UserInfo() {
   const { user } = session;
 
   const handleSignOut = async () => {
-    localStorage.removeItem("onboard_completed");
     await signOut();
     router.push("/auth");
   };

@@ -1,461 +1,168 @@
-# Manajemen Service Ticket
+# Service Ticket
 
-Panduan lengkap tentang membuat dan mengelola service ticket di RMS.
+Dokumen ini menjelaskan pembuatan dan pengelolaan ticket servis yang ada di aplikasi saat ini.
 
 ---
 
-## Apa itu Service Ticket?
+## Isi Ticket
 
-Service ticket adalah record yang menyimpan semua informasi terkait satu unit servis handphone. Setiap device yang masuk untuk servis akan memiliki satu ticket.
+| Field | Wajib | Keterangan |
+|---|---|---|
+| Device | Ya | Brand dan model dari katalog global |
+| WhatsApp | Ya | Nomor kontak customer |
+| Nama customer | Tidak | Boleh kosong |
+| Complaint | Ya | Keluhan unit |
+| Password / pattern | Tidak | Bisa teks atau pattern lock |
+| IMEI | Tidak | Nomor IMEI unit |
+| Teknisi | Tidak | Diisi lewat assignment atau takeover |
 
-### Informasi dalam Service Ticket
-
-| Field | Wajib? | Keterangan |
-|-------|--------|------------|
-| **Device** | Ya | Brand + Model handphone |
-| **WhatsApp Customer** | Ya | Nomor untuk kontak |
-| **Nama Customer** | Tidak | Nama customer (opsional) |
-| **Keluhan** | Ya | Deskripsi masalah |
-| **Password/Pattern** | Tidak | Kunci device untuk testing |
-| **IMEI** | Tidak | Nomor IMEI device |
-| **Teknisi** | Tidak | Teknisi yang ditugaskan |
-| **Items** | Tidak | Daftar biaya (sparepart + jasa) |
-| **Invoice** | Otomatis | Total biaya + status pembayaran |
-
-**Contoh tampilan daftar service:**
+Contoh tabel service:
 
 :::demo ServiceTable
 
-**Contoh tampilan service ticket detail:**
+Contoh detail task / service:
 
 :::demo ServiceCard
 
 ---
 
-## Membuat Service Ticket Baru
+## Membuat Ticket Baru
 
-### Step-by-Step
+Ticket baru hanya bisa dibuat oleh Admin atau Staff.
 
-#### 1. Buka Halaman Service
+Langkah:
 
-Klik menu **"Service"** di sidebar, atau klik tombol **"New Service"** (jika tersedia).
+1. Buka menu `Service`
+2. Klik `New Service`
+3. Pilih device dari hasil pencarian, atau ketik device baru lalu buat dari form
+4. Isi WhatsApp customer
+5. Isi nama customer jika perlu
+6. Isi complaint
+7. Isi password teks atau pattern lock jika perlu
+8. Isi IMEI jika perlu
+9. Simpan ticket
 
-#### 2. Klik Tombol "New Service"
+Hasilnya:
 
-Tombol ini biasanya berada di:
-- Pojok kanan atas tabel servis
-- Atau bisa langsung dari menu dropdown
-
-#### 3. Isi Form Service Ticket
-
-##### Device (Wajib)
-
-**Cara memilih device:**
-
-1. **Dari katalog yang ada**
-   - Ketik nama brand atau model di field
-   - Sistem akan menampilkan autocomplete
-   - Pilih dari dropdown
-
-2. **Device baru (tidak ada di katalog)**
-   - Ketik nama brand baru + model
-   - Sistem akan otomatis membuat entry baru
-   - Entry ini akan tersimpan di katalog global
-
-**Contoh:**
-- Ketik "Samsung" → pilih "Samsung Galaxy A12"
-- Ketik "Xiaomi Redmi Note 12" → jika belum ada, akan dibuat baru
-
-##### Nomor WhatsApp Customer (Wajib)
-
-**Format yang diterima:**
-- `08123456789`
-- `+628123456789`
-- `628123456789`
-
-**Penting:**
-- Nomor ini digunakan untuk identifikasi customer
-- Jika ada integrasi WhatsApp, nomor ini untuk notifikasi
-- Tanpa nomor WhatsApp, ticket tidak bisa dibuat
-
-##### Nama Customer (Opsional)
-
-- Bisa diisi atau dikosongkan
-- Berguna untuk identifikasi jika customer datang lagi
-- Tidak wajib, tapi disarankan diisi
-
-##### Keluhan (Wajib)
-
-**Tips mengisi keluhan:**
-- Tuliskan masalah spesifik
-- Sertakan informasi yang relevan
-
-**Contoh keluhan yang baik:**
-- "LCD pecah, masih bisa nyala"
-- "Baterai boros, hanya bertahan 1 jam"
-- "Tidak bisa charge, port sudah dibersihkan tapi tetap tidak mau"
-- "Mati total, tidak bisa dinyalakan"
-
-**Contoh keluhan yang kurang baik:**
-- "Rusak" (terlalu umum)
-- "Mau servis" (tidak menjelaskan masalah)
-
-##### Password/Pattern (Opsional)
-
-**Kenapa penting?**
-- Memudahkan teknisi untuk testing device
-- Menghindari teknisi harus reset device
-- Mempercepat proses servis
-
-**Cara mengisi:**
-- Untuk PIN/Password: ketik langsung (contoh: "1234", "password123")
-- Untuk Pattern: gambarkan pattern (jika ada fitur visual) atau jelaskan dengan text
-
-**Contoh:**
-- "PIN: 1234"
-- "Pattern: L shape (1-2-3-6-9)"
-- "Password: samsung2024"
-- "Fingerprint + PIN backup: 0000"
-
-##### IMEI (Opsional)
-
-**Apa itu IMEI?**
-International Mobile Equipment Identity - nomor unik untuk setiap handphone.
-
-**Cara cek IMEI:**
-- Ketik `*#06#` di dial pad
-- Lihat di box/kardus handphone
-- Lihat di menu Settings → About Phone
-
-**Kenapa dicatat?**
-- Identifikasi device jika ada keraguan
-- Dokumentasi untuk garansi
-- Mencegah tertukar dengan device lain
-
-**Format:**
-- Biasanya 15 digit
-- Contoh: 356789012345678
-
-#### 4. Klik "Create Ticket"
-
-Setelah semua field terisi, klik tombol **"Create Ticket"**.
-
-**Apa yang terjadi setelah create?**
-- Ticket dibuat dengan status **"Masuk"** (Received)
-- Ticket muncul di tabel servis
-- Badge di sidebar terupdate
-- Ticket siap untuk di-assign ke teknisi
+- ticket dibuat dengan status `Masuk`
+- teknisi belum ditugaskan
+- invoice belum ada sampai item pertama ditambahkan
 
 ---
 
-## Assign Teknisi ke Service Ticket
+## Device Input
 
-### Kapan Perlu Assign?
+Field device memakai katalog global `Brand + Model`.
 
-Setelah service ticket dibuat, ticket berstatus "Masuk" dan menunggu teknisi. Ada dua cara untuk assign:
+Perilaku saat ini:
 
-### Cara 1: Admin/Staff Assign Manual
-
-1. Buka halaman **Service**
-2. Cari ticket yang ingin di-assign
-3. Klik kolom **"Teknisi"** di baris ticket tersebut
-4. Pilih teknisi dari dropdown
-5. Status otomatis berubah ke **"Proses"** (Repairing)
-
-### Cara 2: Teknisi Ambil Sendiri
-
-1. Teknisi login ke sistem
-2. Buka halaman **Task**
-3. Klik tab **"Tersedia"**
-4. Cari ticket yang ingin dikerjakan
-5. Klik tombol **"Take"**
-6. Status otomatis berubah ke **"Proses"** dan teknisi ter-assign
+- pencarian menampilkan device yang sudah ada
+- jika tidak ditemukan, tombol `Create` akan membuat brand/model baru
+- device baru langsung bisa dipakai untuk ticket yang sedang dibuat
 
 ---
 
-## Edit Service Ticket
+## Edit Ticket
 
-### Informasi yang Bisa Diedit
+Admin dan Staff bisa mengedit ticket selama servis belum pickup.
 
-| Field | Bisa Edit? | Kapan? |
-|-------|------------|--------|
-| Device | Ya | Sebelum "Diambil" |
-| WhatsApp Customer | Ya | Sebelum "Diambil" |
-| Nama Customer | Ya | Sebelum "Diambil" |
-| Keluhan | Ya | Sebelum "Diambil" |
-| Password/Pattern | Ya | Sebelum "Diambil" |
-| IMEI | Ya | Sebelum "Diambil" |
-| Teknisi | Ya | Status "Masuk" atau "Proses" |
-| Items | Ya | Status "Proses" |
-| Invoice | Ya | Sebelum "Diambil" |
+Field yang bisa diubah:
 
-### Cara Edit
+- device
+- WhatsApp
+- nama customer
+- complaint
+- password / pattern
+- IMEI
 
-1. Buka halaman **Service**
-2. Cari ticket yang ingin diedit
-3. Klik tombol **"Edit"** atau klik baris ticket untuk buka detail
-4. Ubah informasi yang diperlukan
-5. Klik **"Save"** untuk menyimpan perubahan
+Setelah `Picked Up`:
 
-### Pembatasan Edit
-
-**Tidak bisa edit jika:**
-- Status sudah **"Diambil"**
-- Invoice sudah **"Paid"** (untuk field tertentu)
+- ticket tidak bisa diedit lagi
 
 ---
 
-## Mengelola Item Biaya
+## Assignment Teknisi
 
-### Apa itu Item?
+### Dari halaman Admin Service
 
-Item adalah komponen biaya dalam servis. Ada dua jenis:
+Kolom `Technician` di tabel Admin bisa dipakai untuk:
 
-1. **Sparepart** - Komponen fisik yang diganti
-2. **Jasa Servis** - Biaya pekerjaan/tenaga
+- assign teknisi ke ticket
+- ganti teknisi
+- unassign teknisi
 
-### Menambah Item
+Perilaku penting:
 
-#### Dari Halaman Service (Admin/Staff)
+- jika ticket masih `Masuk` lalu di-assign, status berubah ke `Proses`
+- jika ticket di-unassign, status servis tidak otomatis kembali ke `Masuk`
 
-1. Buka detail service ticket
-2. Scroll ke bagian **"Items"**
-3. Klik **"Add Item"**
-4. Pilih jenis item:
-   - **Sparepart**: Pilih dari inventory
-   - **Jasa**: Pilih dari pricelist atau isi manual
-5. Isi quantity (untuk sparepart)
-6. Harga otomatis terisi dari inventory/pricelist
-7. Klik **"Save"**
+### Dari halaman Task Teknisi
 
-#### Dari Halaman Task (Teknisi)
+Teknisi bisa mengambil task sendiri dari `Task > Tersedia`.
 
-1. Buka halaman **Task** → tab **"Dikerjakan"**
-2. Klik ticket yang ingin ditambah item
-3. Klik **"Add Item"**
-4. Pilih sparepart dari inventory atau jasa dari pricelist
-5. Klik **"Save"**
+Perilaku penting:
 
-### Menghapus Item
-
-1. Buka detail service ticket
-2. Di bagian **"Items"**, cari item yang ingin dihapus
-3. Klik tombol **"Delete"** (ikon trash)
-4. Konfirmasi penghapusan
-
-**Penting:**
-- Menghapus sparepart akan mengembalikan stock ke inventory
-- Invoice akan otomatis terupdate
-
-### Edit Item
-
-1. Buka detail service ticket
-2. Di bagian **"Items"**, cari item yang ingin diedit
-3. Klik tombol **"Edit"** (ikon pensil)
-4. Ubah quantity atau harga
-5. Klik **"Save"**
+- task `Masuk` tanpa teknisi akan berubah ke `Proses`
+- task `Masuk` atau `Proses` yang dimiliki teknisi lain bisa di-takeover
 
 ---
 
-## Invoice & Pembayaran
+## Detail Servis
 
-### Struktur Invoice
+Sheet detail servis saat ini tersedia untuk:
 
-Invoice dibuat otomatis berdasarkan items yang ditambahkan:
+- Admin dari halaman `Service`
+- Teknisi dari halaman `Overview` atau `Task`
 
-```
-Item 1: LCD Samsung A12        Rp 250.000
-Item 2: Jasa Ganti LCD         Rp 100.000
-Item 3: Ongkos Pasang          Rp  50.000
-─────────────────────────────────────────
-Grand Total:                   Rp 400.000
-Status:                        Unpaid
-```
+Di detail servis, pengguna yang punya akses bisa:
 
-### Grand Total
+- melihat complaint, pattern, IMEI, dan item
+- menambah item sparepart atau jasa
+- menghapus item
+- mark `Selesai`
+- mark `Gagal`
+- `Undo` servis yang sudah selesai / gagal
 
-Grand total dihitung otomatis dari:
-- Sum semua item
-- Sparepart: harga × quantity
-- Jasa: harga satuan
-
-### Status Pembayaran
-
-| Status | Keterangan |
-|--------|------------|
-| **Unpaid** | Invoice belum dibayar |
-| **Paid** | Invoice sudah dibayar |
-
-### Cara Mark Paid
-
-1. Buka halaman **Service**
-2. Cari ticket yang ingin di-mark paid
-3. Di kolom **"Invoice"**, klik status pembayaran
-4. Pilih **"Mark as Paid"**
-5. Status berubah ke **"Paid"**
-
-**Atau:**
-
-1. Buka detail service ticket
-2. Klik tombol **"Mark Paid"**
-3. Konfirmasi
-
-### Hubungan dengan Pick Up
-
-- **Mark Paid**: Hanya mengubah status invoice, status servis tetap "Selesai"
-- **Pick Up**: Mengubah status servis ke "Diambil" DAN invoice otomatis "Paid"
+Staff saat ini tidak punya workflow detail task yang setara.
 
 ---
 
-## Finalisasi Servis
+## Item Dalam Servis
 
-### Mark Done (Selesai)
+Jenis item yang didukung saat ini:
 
-Dilakukan oleh **Teknisi** setelah servis selesai:
+1. `Sparepart`
+2. `Service`
 
-1. Buka halaman **Task** → tab **"Dikerjakan"**
-2. Klik ticket yang ingin diselesaikan
-3. Pastikan semua item sudah ditambahkan
-4. Klik tombol **"Mark Done"**
-5. Status berubah ke **"Selesai"** (Done)
+Perilaku saat ini:
 
-**Apa yang terjadi:**
-- Ticket status: Proses → Selesai
-- Invoice final (grand total pasti)
-- Menunggu customer ambil
-
-### Mark Failed (Gagal)
-
-Dilakukan oleh **Teknisi** jika servis tidak berhasil:
-
-1. Buka halaman **Task** → tab **"Dikerjakan"**
-2. Klik ticket yang ingin di-mark failed
-3. Klik tombol **"Mark Failed"**
-4. Isi alasan kegagalan di notes
-5. Status berubah ke **"Gagal"** (Failed)
-
-**Alasan umum:**
-- Device rusak permanen
-- Customer cancel
-- Sparepart tidak tersedia
-- Biaya terlalu mahal
-
-### Pick Up (Diambil)
-
-Dilakukan oleh **Admin/Staff** saat customer datang:
-
-1. Buka halaman **Service**
-2. Cari ticket dengan status **"Selesai"** atau **"Gagal"**
-3. Klik tombol **"Pick Up"**
-4. Konfirmasi
-5. Status berubah ke **"Diambil"** (Picked Up)
-
-**Apa yang terjadi:**
-- Ticket status: Selesai/Gagal → Diambil
-- Invoice status: Otomatis jadi **"Paid"**
-- Data terkunci, tidak bisa diedit
+- sparepart dipilih dari daftar sparepart kompatibel / universal milik toko
+- jasa dipilih dari daftar pricelist jasa milik toko
+- dialog item saat ini **tidak** mendukung input jasa manual di luar pricelist
+- saat sparepart ditambahkan, stock langsung berkurang
+- saat item sparepart dihapus, stock kembali ke inventory
 
 ---
 
-## Menghapus Service Ticket
+## Hapus Ticket
 
-### Kapan Bisa Hapus?
+Admin dan Staff bisa menghapus ticket, tetapi ada batasan backend:
 
-| Role | Bisa Hapus? | Syarat |
-|------|-------------|--------|
-| Admin | Ya | Status belum "Diambil" DAN invoice "Unpaid" |
-| Staff | Ya | Status belum "Diambil" DAN invoice "Unpaid" |
-| Teknisi | Tidak | - |
+- tidak bisa hapus jika servis sudah pickup
+- tidak bisa hapus jika invoice sudah `Paid`
 
-### Cara Hapus
+Jika ticket dihapus:
 
-1. Buka halaman **Service**
-2. Cari ticket yang ingin dihapus
-3. Klik tombol **"Delete"** (ikon trash)
-4. Konfirmasi penghapusan
-
-### Pembatasan Hapus
-
-**Tidak bisa hapus jika:**
-- Status sudah **"Diambil"**
-- Invoice sudah **"Paid"**
-- Ada sparepart yang sudah dipakai (stock sudah berkurang)
-
-**Solusi jika tidak bisa hapus:**
-- Biarkan ticket dengan status "Gagal"
-- Atau hubungi Admin untuk penanganan khusus
+- item servis ikut dihapus
+- invoice ikut dihapus
+- stock sparepart yang sudah dipakai akan dikembalikan
 
 ---
 
-## Tips Praktis
+## Ringkasan Praktis
 
-### Untuk Staff/Admin
-
-1. **Isi form lengkap saat create**
-   - Semua field yang wajib harus diisi
-   - Password/pattern sangat membantu teknisi
-   - Keluhan yang jelas mempercepat diagnosis
-
-2. **Assign teknisi dengan cepat**
-   - Jangan biarkan ticket "menggantung" lama
-   - Teknisi bisa ambil sendiri jika tidak ada assign
-
-3. **Finalisasi tepat waktu**
-   - Pick Up segera setelah customer ambil
-   - Mark Paid sesuai pembayaran aktual
-
-### Untuk Teknisi
-
-1. **Update notes berkala**
-   - Catat progress pekerjaan
-   - Informasikan jika ada kendala
-
-2. **Tambah item dengan akurat**
-   - Pilih sparepart yang benar
-   - Quantity sesuai kebutuhan
-
-3. **Komunikasi sebelum mark failed**
-   - Jika ada masalah, komunikasi dulu dengan Admin
-   - Jelaskan alasan kegagalan dengan jelas
-
----
-
-## Troubleshooting
-
-### Device tidak muncul di autocomplete
-
-**Solusi:**
-- Ketik nama brand + model lengkap
-- Jika belum ada di katalog, sistem akan buat baru
-- Cek spelling brand dan model
-
-### Tidak bisa assign teknisi
-
-**Kemungkinan:**
-- Teknisi belum terdaftar di sistem
-- Teknisi tidak aktif
-- Teknisi tidak bekerja di toko tersebut
-
-**Solusi:**
-- Cek menu "Karyawan"
-- Pastikan teknisi sudah ada dan aktif
-- Hubungi Admin
-
-### Tidak bisa hapus ticket
-
-**Kemungkinan:**
-- Status sudah "Diambil"
-- Invoice sudah "Paid"
-- Ada sparepart yang sudah dipakai
-
-**Solusi:**
-- Cek status ticket
-- Cek status invoice
-- Jika perlu, hubungi Admin
-
-### Stock sparepart tidak cukup
-
-**Solusi:**
-- Cek stock di menu Inventory
-- Jika stock tidak cukup, hubungi Admin untuk restock
-- Update notes di ticket untuk informasi customer
+1. Admin / Staff membuat ticket baru
+2. Admin assign teknisi atau teknisi ambil task sendiri
+3. Admin / teknisi yang berwenang mengelola item dari detail servis
+4. Teknisi atau Admin menutup pekerjaan dengan `Selesai` atau `Gagal`
+5. Staff / Admin menangani pembayaran dan pickup

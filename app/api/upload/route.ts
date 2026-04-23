@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadBlob, deleteBlob, getBlobMetadata, listBlobs, copyBlob, isBlobConfigured } from "@/lib/blob";
+import { getServerSession } from "@/lib/auth";
+
+async function checkAuth() {
+  const session = await getServerSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return null;
+}
 
 /**
  * GET /api/upload
@@ -17,13 +26,15 @@ import { uploadBlob, deleteBlob, getBlobMetadata, listBlobs, copyBlob, isBlobCon
  */
 export async function GET(request: NextRequest) {
   try {
-    // Check if blob storage is configured
     if (!isBlobConfigured()) {
       return NextResponse.json(
         { error: "Blob storage is not configured. Set BLOB_READ_WRITE_TOKEN environment variable." },
         { status: 500 }
       );
     }
+
+    const authError = await checkAuth();
+    if (authError) return authError;
 
     const { searchParams } = new URL(request.url);
     const url = searchParams.get("url");

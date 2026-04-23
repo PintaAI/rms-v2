@@ -23,18 +23,8 @@ export default function OnboardPage() {
     }
 
     if (tokoList.length > 0) {
-      const onboardCompleted = localStorage.getItem("onboard_completed");
-      if (!onboardCompleted) {
-        localStorage.setItem("onboard_completed", "true");
-      }
       const firstToko = tokoList[0];
       router.replace(`/${firstToko.id}/admin`);
-      return;
-    }
-
-    const onboardCompleted = localStorage.getItem("onboard_completed");
-    if (onboardCompleted) {
-      router.replace("/dashboard");
       return;
     }
   }, [user, tokoList, isLoading, router]);

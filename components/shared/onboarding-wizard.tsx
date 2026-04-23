@@ -241,7 +241,6 @@ export function OnboardingWizard() {
         return;
       }
 
-      localStorage.setItem("onboard_completed", "true");
       setThemeMode(data.themeMode);
       await refetchTokoList();
       router.push(`/${result.tokoId}/admin`);

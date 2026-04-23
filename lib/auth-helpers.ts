@@ -8,7 +8,7 @@ interface CreateCredentialUserInput {
   password: string;
   role: "staff" | "technician";
   tokoId: string;
-  tokoRole?: "owner" | "staff" | "technician";
+  tokoRole?: "owner";
 }
 
 interface CreatedUser {

@@ -124,7 +124,6 @@ export function isTechnician(user: AuthUser): boolean {
 }
 
 export function canAccessToko(user: AuthUser, tokoId: string): boolean {
-  if (isAdmin(user)) return true;
   return user.tokoIds.includes(tokoId);
 }
 

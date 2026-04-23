@@ -1,241 +1,140 @@
-# Overview - RMS (Repair Management System)
+# Overview - RMS
 
-## Apa itu RMS?
-
-RMS (Repair Management System) adalah aplikasi web untuk mengelola servis handphone di service center. Sistem ini membantu Anda melacak proses servis dari mulai device masuk hingga customer mengambil hasilnya.
+RMS adalah aplikasi untuk mengelola servis handphone per toko, mulai dari ticket masuk, pengerjaan teknisi, inventory sparepart, sampai pembayaran dan pengambilan unit.
 
 ---
 
-## Alur Servis
+## Gambaran Sistem
 
-Setiap servis handphone mengikuti alur status yang jelas:
+- Aplikasi berjalan per toko. Setelah login, pengguna diarahkan ke toko pertama yang bisa diakses.
+- Admin yang belum punya toko akan diarahkan ke halaman onboarding.
+- Data servis, inventory, jasa, dan karyawan dipisahkan per toko.
+- Katalog device bersifat global, jadi brand/model yang dibuat sekali bisa dipakai di semua toko.
+
+---
+
+## Alur Servis Saat Ini
+
+Status servis yang dipakai sistem saat ini:
 
 ```mermaid
 flowchart LR
     A([Masuk]) --> B([Proses])
     B --> C([Selesai])
-    B --> E([Gagal])
-    C --> D([Diambil])
-    E --> D
+    B --> D([Gagal])
+    C --> E([Picked Up flag])
+    D --> E([Picked Up flag])
 ```
 
-| Status | Arti |
-|--------|------|
-| **Masuk** (Received) | Device baru masuk, menunggu dikerjakan |
-| **Proses** (Repairing) | Teknisi sedang memperbaiki device |
-| **Selesai** (Done) | Servis sudah selesai, menunggu customer ambil |
-| **Diambil** (Picked Up) | Customer sudah mengambil device, invoice lunas |
-| **Gagal** (Failed) | Servis tidak berhasil (rusak permanen, customer cancel, dll) |
+| Status / Flag | Arti |
+|---|---|
+| **Masuk** | Ticket baru dibuat dan belum mulai dikerjakan |
+| **Proses** | Ticket sedang dikerjakan teknisi |
+| **Selesai** | Perbaikan selesai |
+| **Gagal** | Pengerjaan dihentikan / tidak berhasil |
+| **Picked Up** | Penanda bahwa unit sudah diambil customer |
+
+**Penting:** `Picked Up` bukan status terpisah. Setelah pickup, status servis tetap `Selesai` atau `Gagal`, lalu sistem menambahkan penanda `Picked Up` dan waktu `Picked Up At`.
 
 ---
 
-## Role Pengguna
-
-RMS memiliki 3 jenis role dengan akses berbeda:
+## Role Dan Menu
 
 ```mermaid
 flowchart TD
-    Admin -->|Full access| Overview
+    Admin --> AdminOverview
     Admin --> Toko
     Admin --> Service
     Admin --> Karyawan
     Admin --> Inventory
+    Admin --> AuditGudang
 
-    Staff -->|Limited access| Overview
+    Staff --> StaffOverview
     Staff --> Service
-    Staff --> Sparepart
+    Staff --> Inventory
 
-    Teknisi -->|Personal access| Overview
+    Teknisi --> TeknisiOverview
     Teknisi --> Task
     Teknisi --> Inventory
 ```
 
-### 1. Admin
+### Admin
 
-Role dengan akses paling lengkap. Admin bisa:
+- `Admin Overview`
+- `Toko`
+- `Service`
+- `Karyawan`
+- `Inventory > Sparepart & Jasa`
+- `Inventory > Audit Gudang`
 
-- **Overview**: Dashboard statistik lengkap (servis, pendapatan, inventory, staf)
-- **Toko**: Mengelola informasi toko (nama, alamat, telepon, logo)
-- **Service**: Mengelola semua servis — buat baru, edit, assign teknisi, hapus, mark paid, mark picked up
-- **Karyawan**: Menambah dan menghapus Staff/Teknisi
-- **Inventory**: Mengelola sparepart dan service pricelist
+### Staff
 
-### 2. Staff
+- `Staff Overview`
+- `Service`
+- `Inventory`
 
-Role untuk mengelola customer dan servis:
+### Teknisi
 
-- **Overview**: Dashboard ringkas (servis, inventory)
-- **Service**: Buat servis baru, edit servis, assign teknisi, mark paid
-- **Sparepart**: Lihat daftar sparepart dan stock
-
-### 3. Teknisi
-
-Role untuk teknisi yang mengerjakan servis:
-
-- **Overview**: Dashboard personal (tugas yang dikerjakan)
-- **Task**: Ambil tugas tersedia → kerjakan → mark selesai/gagal
-- **Inventory**: Lihat sparepart untuk referensi
+- `Teknisi Overview`
+- `Task`
+- `Inventory`
 
 ---
 
-## Fitur Utama
+## Fitur Inti Yang Sudah Ada
 
-### Manajemen Service Ticket
+### Service ticket
 
-Setiap servis disimpan sebagai "ticket" dengan informasi:
+- Admin dan Staff bisa membuat ticket baru.
+- Device dipilih dari katalog global melalui pencarian.
+- Jika device belum ada, form bisa membuat brand/model baru langsung dari input device.
+- Field utama ticket: device, WhatsApp, nama customer, keluhan, password/pattern, dan IMEI.
 
-- **Device**: Brand + model (dari katalog global)
-- **Customer**: Nama (opsional) + nomor WhatsApp (wajib)
-- **Keluhan**: Deskripsi masalah device
-- **Password/Pattern**: Kunci device untuk testing (opsional)
-- **IMEI**: Nomor IMEI device (opsional)
-- **Teknisi**: Teknisi yang ditugaskan
-- **Items**: Daftar biaya (sparepart + jasa servis)
-- **Invoice**: Total biaya + status pembayaran
+### Pengerjaan teknisi
 
-### Katalog Device (HpCatalog)
+- Teknisi bisa mengambil task `Masuk` yang belum punya teknisi.
+- Teknisi juga bisa takeover task `Masuk` atau `Proses` yang sedang dipegang teknisi lain.
+- Teknisi yang ditugaskan bisa menambah item sparepart/jasa, menghapus item, lalu menandai `Selesai` atau `Gagal`.
 
-RMS menyediakan katalog brand dan model handphone yang **bersifat global** (bisa digunakan di semua toko). Saat membuat service ticket:
+### Inventory
 
-- Pilih device dari dropdown (autocomplete)
-- Ketik brand baru + model → sistem otomatis buat entry baru
+- Admin mengelola sparepart dan jasa pada halaman `Inventory`.
+- Sparepart bisa `Universal` atau dibatasi ke daftar device tertentu.
+- Jasa disimpan sebagai daftar pricelist per toko.
+- Stock sparepart otomatis berkurang saat item ditambahkan ke servis, dan kembali saat item dihapus atau ticket dihapus.
+- `Audit Gudang` saat ini masih berupa mock UI, belum terhubung ke mutasi stock nyata.
 
-### Inventory (Sparepart & Service Pricelist)
+### Invoice dan pembayaran
 
-#### Sparepart
-- Setiap toko punya sparepart sendiri
-- Setiap sparepart punya: nama, harga default, stock
-- **Universal sparepart**: Bisa dipakai di device apa saja
-- **Compatible sparepart**: Hanya cocok untuk device tertentu (bisa set kompatibilitas)
-- Saat sparepart dipakai di servis → stock otomatis berkurang
-- Saat item sparepart dihapus → stock otomatis kembali
+- Invoice belum ada saat ticket baru dibuat.
+- Invoice muncul dan total dihitung setelah item pertama ditambahkan.
+- Status pembayaran hanya `Unpaid` atau `Paid`.
+- `Mark Paid` hanya bisa dilakukan pada servis yang sudah `Selesai` atau `Gagal`.
+- `Pickup` tidak otomatis mengubah invoice menjadi `Paid`.
 
-#### Service Pricelist
-- Template harga jasa servis (contoh: "Ganti LCD", "Repair IC", "Software")
-- Untuk memudahkan input biaya jasa
+### Multi-toko
 
-### Invoice & Pembayaran
-
-- Invoice dibuat otomatis saat item ditambahkan ke servis
-- Grand total = total semua items (sparepart × qty + jasa)
-- Status pembayaran: **Unpaid** atau **Paid**
-- Mark "Paid" bisa dilakukan kapan saja
-- Mark "Picked Up" = invoice otomatis lunas
-
-### Multi-Toko
-
-Admin bisa memiliki beberapa toko. Setiap toko:
-- Punya inventory sparepart sendiri
-- Punya service pricelist sendiri
-- Punya karyawan (Staff/Teknisi) sendiri
-- Data servis terpisah per toko
+- Admin bisa membuat toko baru, edit toko, pindah toko, dan menghapus toko.
+- Toko terakhir tidak bisa dihapus.
 
 ---
 
-## Cara Kerja Workflow
+## Catatan Penting
 
-### Untuk Staff/Admin: Membuat Servis Baru
-
-1. Klik **"New Service"**
-2. Pilih/ketik device (Brand + Model)
-3. Isi nomor WhatsApp customer (wajib)
-4. Isi nama customer (opsional)
-5. Isi keluhan/masalah device
-6. Isi password/pattern device (opsional — untuk testing)
-7. Isi IMEI (opsional)
-8. Klik **"Create Ticket"**
-
-### Untuk Admin: Assign Teknisi
-
-1. Di tabel servis, klik kolom "Teknisi"
-2. Pilih teknisi dari dropdown
-3. Status otomatis berubah ke **Proses** (Repairing)
-
-### Untuk Teknisi: Ambil & Kerjakan Tugas
-
-**Ambil tugas yang tersedia:**
-1. Di halaman Task → tab "Tersedia"
-2. Klik **"Take"** pada tugas yang ingin dikerjakan
-3. Tugas masuk ke "My Tasks" → status jadi **Proses**
-
-**Mengerjakan servis:**
-1. Buka detail servis
-2. Tambahkan item biaya:
-   - Sparepart (pilih dari inventory)
-   - Jasa servis (pilih dari pricelist atau isi manual)
-3. Update notes/keterangan jika perlu
-
-**Menyelesaikan servis:**
-1. Klik **"Mark Done"** → status jadi **Selesai**
-2. atau klik **"Mark Failed"** → status jadi **Gagal** (jika servis tidak berhasil)
-
-### Untuk Staff/Admin: Finalisasi Servis
-
-**Customer datang mengambil:**
-1. Di tabel servis → baris status **Selesai** atau **Gagal**
-2. Klik **"Pick Up"**
-3. Status jadi **Diambil**, invoice otomatis lunas
-
-**Customer membayar sebelum ambil:**
-1. Klik **"Mark Paid"** di kolom invoice
-2. Status invoice jadi **Paid** (servis tetap status **Selesai** sampai customer ambil)
+- Halaman Staff tidak punya workflow assignment teknisi di UI saat ini.
+- Perubahan inventory dibatasi ke Admin di backend.
+- Invoice dibuka dari tabel saat statusnya `Paid`.
+- Ticket yang sudah `Picked Up` tidak bisa diedit, diubah statusnya, atau dihapus.
 
 ---
 
-## Tips Penggunaan
+## Dokumentasi Lanjutan
 
-### Nomor WhatsApp
-- Wajib diisi saat membuat servis
-- Digunakan untuk notifikasi (opsional, jika ada integrasi WhatsApp)
-
-### Password/Pattern Device
-- Sangat membantu teknisi untuk testing device
-- Bisa input sebagai text (PIN, password) atau pattern lock (visual)
-
-### Sparepart Stock
-- Cek stock sebelum assign sparepart ke servis
-- Jika stock tidak cukup → sistem akan warning
-- Sparepart yang sudah dipakai di servis tidak bisa dihapus
-
-### Hapus Servis
-- Servis dengan status **Diambil** tidak bisa dihapus
-- Servis dengan invoice **Paid** tidak bisa dihapus
-
----
-
-## Navigasi Sidebar
-
-Setiap role punya navigasi berbeda:
-
-| Role | Menu |
-|------|------|
-| Admin | Overview, Toko, Service (semua filter), Karyawan, Inventory |
-| Staff | Overview, Service (semua filter), Sparepart |
-| Teknisi | Overview, Task (Tersedia/Dikerjakan/Selesai/Gagal/History), Inventory |
-
-Badge angka di sidebar menunjukkan jumlah servis di setiap status.
-
----
-
-## Dokumentasi Detail
-
-Untuk informasi lebih lengkap, lihat dokumentasi sub-topik:
-
-| Dokumen | Konten |
-|---------|--------|
-| [Alur Servis](?doc=02-alur-servis) | Detail alur status servis, transisi, FAQ |
-| [Role & Akses](?doc=03-role-dan-akses) | Detail role Admin/Staff/Teknisi, workflow |
-| [Service Ticket](?doc=04-service-ticket) | Panduan membuat & mengelola ticket |
-| [Inventory](?doc=05-inventory) | Panduan sparepart & service pricelist |
-| [Invoice & Pembayaran](?doc=06-invoice-pembayaran) | Panduan invoice & pembayaran |
-| [Multi-Toko](?doc=07-multi-toko) | Panduan fitur multi-toko |
-
----
-
-## Teknologi
-
-- Frontend: Next.js 16 + React + Tailwind CSS
-- UI Components: shadcn/ui
-- Backend: Next.js Server Actions
-- Database: PostgreSQL + Prisma ORM
-- Authentication: better-auth
+| Dokumen | Isi |
+|---|---|
+| [Alur Servis](?doc=02-alur-servis) | Status, transisi, pickup, dan takeover |
+| [Role & Akses](?doc=03-role-dan-akses) | Hak akses per role |
+| [Service Ticket](?doc=04-service-ticket) | Pembuatan dan pengelolaan ticket |
+| [Inventory](?doc=05-inventory) | Sparepart, jasa, dan audit gudang |
+| [Invoice & Pembayaran](?doc=06-invoice-pembayaran) | Cara kerja invoice dan payment |
+| [Multi-Toko](?doc=07-multi-toko) | Pengelolaan toko dan isolasi data |

@@ -126,11 +126,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     if (session.user.role === "admin" && tokoList.length === 0 && !isTokoLoading) {
-      const onboardCompleted = localStorage.getItem("onboard_completed");
-      if (!onboardCompleted) {
-        redirectingRef.current = true;
-        router.replace("/onboard");
-      }
+      redirectingRef.current = true;
+      router.replace("/onboard");
       return;
     }
 
