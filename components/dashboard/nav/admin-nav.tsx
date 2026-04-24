@@ -5,7 +5,7 @@ import {
   SidebarGroupContent,
   SidebarMenu,
 } from "@/components/ui/sidebar";
-import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine } from "@remixicon/react";
+import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine, RiFileList3Line } from "@remixicon/react";
 import { NavItem, NavFilterGroup, NavGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
 
@@ -86,7 +86,7 @@ export function AdminNav({ tokoid, serviceStats }: AdminNavProps) {
               },
               {
                 href: `/${tokoid}/admin/inventory/audit-gudang`,
-                icon: <RiArchiveLine />,
+                icon: <RiFileList3Line />,
                 label: "Audit Gudang",
               },
             ]}

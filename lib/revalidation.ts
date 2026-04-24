@@ -8,10 +8,21 @@ export function revalidateServicePaths(tokoId: string, includeTeknisi = false): 
   }
 }
 
-export function revalidateInventoryPaths(includeStaff = true): void {
-  revalidatePath("/dashboard/admin/inventory");
+export function revalidateInventoryPaths(tokoId?: string, includeStaff = true): void {
+  if (!tokoId) {
+    revalidatePath("/dashboard/admin/inventory");
+    if (includeStaff) {
+      revalidatePath("/dashboard/staff/sparepart");
+    }
+    return;
+  }
+
+  revalidatePath(`/${tokoId}/admin/inventory`);
+  revalidatePath(`/${tokoId}/admin/inventory/audit-gudang`);
+  revalidatePath(`/${tokoId}/admin`);
   if (includeStaff) {
-    revalidatePath("/dashboard/staff/sparepart");
+    revalidatePath(`/${tokoId}/staff/inventory`);
+    revalidatePath(`/${tokoId}/teknisi/inventory`);
   }
 }
 

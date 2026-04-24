@@ -29,7 +29,7 @@ export function NavItem({ href, icon, label }: NavItemProps) {
       <SidebarMenuButton asChild isActive={isActive}>
         <Link href={href}>
           {icon}
-          <span>{label}</span>
+          <span className="truncate">{label}</span>
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -58,7 +58,7 @@ export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupPro
         className={cn(isOpen && "data-[state=open]:bg-sidebar-accent")}
       >
         {icon}
-        <span>{title}</span>
+        <span className="truncate">{title}</span>
         <RiArrowDownSLine
           className={cn(
             "size-4 ml-auto transition-transform",
@@ -76,7 +76,7 @@ export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupPro
               >
                 <Link href={item.href}>
                   {item.icon}
-                  <span>{item.label}</span>
+                  <span className="truncate">{item.label}</span>
                 </Link>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
@@ -146,7 +146,7 @@ export function NavFilterGroup({ title, icon, items, defaultOpen = true }: NavFi
         className={cn(isOpen && "data-[state=open]:bg-sidebar-accent")}
       >
         {icon}
-        <span>{title}</span>
+        <span className="truncate">{title}</span>
         <RiArrowDownSLine
           className={cn(
             "size-4 ml-auto transition-transform",
@@ -164,9 +164,9 @@ export function NavFilterGroup({ title, icon, items, defaultOpen = true }: NavFi
                 className="cursor-pointer"
               >
                 {item.icon}
-                <span>{item.label}</span>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className={`ml-auto ${badgeVariants[item.badgeVariant || "secondary"]} text-[0.65rem] font-semibold rounded-md px-2 py-0.5 min-w-[1.5rem] text-center tabular-nums shadow-sm transition-all duration-300`}>
+                  <span className={`ml-auto shrink-0 ${badgeVariants[item.badgeVariant || "secondary"]} min-w-[1.5rem] rounded-md px-2 py-0.5 text-center text-[0.65rem] font-semibold tabular-nums shadow-sm transition-all duration-300`}>
                     {item.badge}
                   </span>
                 )}

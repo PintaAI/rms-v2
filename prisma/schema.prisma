@@ -58,6 +58,32 @@ enum ActivityType {
   sparepart_deleted
   sparepart_stock_in
   sparepart_stock_out
+  inventory_audit_started
+  inventory_audit_completed
+  inventory_audit_cancelled
+  inventory_audit_stock_adjusted
+}
+
+enum InventoryAuditStatus {
+  active
+  completed
+  cancelled
+}
+
+enum InventoryAuditItemStatus {
+  pending
+  matched
+  discrepancy
+}
+
+enum InventoryAuditMismatchReason {
+  used_in_service_not_recorded
+  lost
+  damaged
+  incoming_stock_not_recorded
+  previous_stock_error
+  physical_count_error
+  other
 }
 
 enum PaymentStatus {
@@ -84,6 +110,7 @@ model Toko {
   servicePricelists ServicePricelist[]
   services         Service[]
   activities       ActivityLog[]
+  inventoryAuditSessions InventoryAuditSession[]
 
   @@index([status])
   @@map("toko")
@@ -106,6 +133,7 @@ model User {
   createdServices  Service[]    @relation("ServiceCreatedBy")
   assignedServices Service[]    @relation("ServiceTechnician")
   activities      ActivityLog[]
+  createdInventoryAuditSessions InventoryAuditSession[] @relation("InventoryAuditCreatedBy")
 
   @@index([role])
   @@map("user")
@@ -227,6 +255,7 @@ model Sparepart {
   toko            Toko                     @relation(fields: [tokoId], references: [id])
   compatibilities SparepartCompatibility[]
   serviceItems    ServiceItem[]
+  inventoryAuditItems InventoryAuditItem[]
 
   @@unique([tokoId, name])
   @@index([tokoId])
@@ -338,6 +367,58 @@ model Invoice {
   service Service @relation(fields: [serviceId], references: [id])
 
   @@map("invoice")
+}
+
+model InventoryAuditSession {
+  id          String               @id @default(uuid())
+  tokoId      String
+  createdById String
+  status      InventoryAuditStatus @default(active)
+  startedAt   DateTime             @default(now())
+  completedAt DateTime?
+  cancelledAt DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  toko      Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  createdBy User @relation("InventoryAuditCreatedBy", fields: [createdById], references: [id])
+  items     InventoryAuditItem[]
+
+  @@index([tokoId])
+  @@index([createdById])
+  @@index([status])
+  @@index([tokoId, status])
+  @@index([tokoId, startedAt])
+  @@map("inventory_audit_session")
+}
+
+model InventoryAuditItem {
+  id                 String                         @id @default(uuid())
+  sessionId          String
+  sparepartId        String
+  sparepartName      String
+  systemStock        Int
+  physicalStock      Int?
+  snapshotPrice      Int
+  status             InventoryAuditItemStatus       @default(pending)
+  mismatchReason     InventoryAuditMismatchReason?
+  note               String?
+  difference         Int                            @default(0)
+  missingQty         Int                            @default(0)
+  excessQty          Int                            @default(0)
+  differenceValue    Int                            @default(0)
+  potentialLostValue Int                            @default(0)
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+
+  session   InventoryAuditSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sparepart Sparepart             @relation(fields: [sparepartId], references: [id])
+
+  @@unique([sessionId, sparepartId])
+  @@index([sessionId])
+  @@index([sparepartId])
+  @@index([status])
+  @@map("inventory_audit_item")
 }
 
 //////////////////////

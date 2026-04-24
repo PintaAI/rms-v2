@@ -197,3 +197,25 @@
     @apply font-sans;
   }
 }
+
+@keyframes catalog-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-catalog-marquee {
+    animation: none;
+    transform: none;
+  }
+}
+
+@layer utilities {
+  .animate-catalog-marquee {
+    animation: catalog-marquee 64s linear infinite;
+  }
+}

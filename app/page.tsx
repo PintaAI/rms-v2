@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife } from "next/cache";
 import Link from "next/link";
 import {
   RiArrowRightLine,
@@ -9,65 +10,63 @@ import {
   RiFoldersLine,
   RiPulseLine,
   RiQrCodeLine,
-  RiShieldCheckLine,
   RiSmartphoneLine,
   RiStore2Line,
   RiTeamLine,
 } from "@remixicon/react";
 import { ModeToggle } from "@/components/shared/theme-toggle";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getServerSession } from "@/lib/auth";
+import { brandIconMap, getBrandIcon } from "@/lib/brand-icons";
+import prisma from "@/lib/prisma";
 
 const features = [
   {
     icon: RiSmartphoneLine,
-    title: "Service ticket super cepat",
-    description:
-      "Catat perangkat, keluhan, IMEI, password, dan kontak pelanggan dalam satu alur yang rapi.",
+    title: "Ticket cepat",
+    description: "Catat unit, keluhan, kontak pelanggan, dan estimasi tanpa form yang berat.",
   },
   {
     icon: RiFoldersLine,
-    title: "Inventory dan jasa per toko",
-    description:
-      "Sparepart, pricelist jasa, dan stok dipisahkan per toko supaya operasional tetap presisi.",
+    title: "Stok per toko",
+    description: "Sparepart dan jasa tetap terpisah, sehingga operasional multi-toko lebih aman.",
   },
   {
     icon: RiTeamLine,
-    title: "Workflow tim yang jelas",
-    description:
-      "Admin, staff, dan teknisi punya jalur kerja yang berbeda tanpa tumpang tindih akses.",
+    title: "Peran tim jelas",
+    description: "Admin, staff, dan teknisi masuk ke alur yang sesuai dengan pekerjaannya.",
   },
   {
     icon: RiPulseLine,
-    title: "Status servis mudah dipantau",
-    description:
-      "Pantau ticket dari masuk, proses, selesai, sampai pickup tanpa kehilangan konteks pekerjaan.",
+    title: "Status terlihat",
+    description: "Pantau proses dari unit masuk, pengerjaan, pembayaran, sampai pickup.",
   },
 ];
 
 const highlights = [
-  "Role-based access untuk admin, staff, dan teknisi",
-  "Multi-toko dengan data servis dan inventory terisolasi",
-  "Invoice dan payment flow terhubung ke progress servis",
-  "UI siap dipakai di desktop maupun mobile",
+  "Admin, staff, dan teknisi punya dashboard sendiri",
+  "Data servis dan stok tetap terpisah per toko",
+  "Invoice mengikuti item servis dan pembayaran",
+  "Tampilan nyaman untuk meja servis dan mobile",
 ];
 
 const steps = [
   {
     title: "Terima unit",
-    description: "Buat ticket baru, pilih device, simpan keluhan, dan catat detail customer.",
+    description: "Buat ticket, pilih device, catat keluhan, lalu simpan detail pelanggan.",
   },
   {
-    title: "Assign atau takeover",
-    description: "Teknisi ambil task yang masuk dan lanjutkan pengerjaan tanpa komunikasi yang berantakan.",
+    title: "Assign task",
+    description: "Teknisi mengambil pekerjaan atau staff mengatur assignment sesuai antrean.",
   },
   {
-    title: "Kelola sparepart dan jasa",
-    description: "Tambahkan item ke servis dan biarkan total invoice serta stok ikut menyesuaikan.",
+    title: "Tambah item",
+    description: "Sparepart, jasa, catatan pengerjaan, dan total biaya ikut tersusun rapi.",
   },
   {
-    title: "Tutup transaksi",
-    description: "Finalisasi status, tandai pembayaran, dan lakukan pickup dengan jejak proses yang jelas.",
+    title: "Pickup jelas",
+    description: "Tutup transaksi, tandai pembayaran, lalu serahkan unit dengan status final.",
   },
 ];
 
@@ -75,24 +74,103 @@ const faqs = [
   {
     question: "RMS cocok untuk bisnis apa?",
     answer:
-      "RMS dirancang untuk toko servis handphone yang butuh pencatatan ticket, alur teknisi, inventory sparepart, dan pembayaran dalam satu sistem.",
+      "Untuk toko servis HP yang butuh ticket, teknisi, stok, pembayaran, dan aktivitas toko dalam satu sistem.",
   },
   {
     question: "Apakah bisa dipakai untuk lebih dari satu toko?",
-    answer:
-      "Bisa. Sistem sudah mendukung multi-toko dengan pemisahan data servis, stok, jasa, dan aktivitas per toko.",
+    answer: "Bisa. Data servis, stok, karyawan, dan aktivitas dipisah per toko.",
   },
   {
     question: "Bagaimana pembagian akses tim?",
-    answer:
-      "Admin mengelola toko dan operasional, staff fokus ke service desk, dan teknisi menangani task pengerjaan sesuai alur kerja masing-masing.",
+    answer: "Admin memantau operasional, staff mengelola meja servis, teknisi fokus ke pengerjaan.",
   },
 ];
+
+const metrics = [
+  { label: "Ticket aktif", value: "128", note: "+18% minggu ini" },
+  { label: "SLA teknisi", value: "94%", note: "Task tepat waktu" },
+  { label: "Invoice", value: "Rp18,4jt", note: "Dari item servis" },
+];
+
+const serviceQueue = [
+  ["Masuk", "32", "w-4/5"],
+  ["Proses", "57", "w-3/5"],
+  ["Selesai", "39", "w-2/5"],
+];
+
+const fallbackCatalog = [
+  { brandName: "Apple", modelName: "iPhone 15" },
+  { brandName: "Apple", modelName: "iPhone 14 Pro" },
+  { brandName: "Samsung", modelName: "Galaxy S24" },
+  { brandName: "Samsung", modelName: "Galaxy A55" },
+  { brandName: "Xiaomi", modelName: "Redmi Note 13" },
+  { brandName: "OPPO", modelName: "Reno 11" },
+  { brandName: "vivo", modelName: "V30" },
+  { brandName: "ASUS", modelName: "ROG Phone 6" },
+  { brandName: "Google", modelName: "Pixel 8" },
+  { brandName: "Realme", modelName: "12 Pro" },
+];
+
+type PhoneCatalogItem = {
+  brandName: string;
+  modelName: string;
+};
+
+function normalizePhoneCatalogItem(item: PhoneCatalogItem | string): PhoneCatalogItem {
+  if (typeof item !== "string") {
+    return item;
+  }
+
+  const [brandName = "Unknown", ...modelParts] = item.split(" ");
+
+  return {
+    brandName,
+    modelName: modelParts.join(" ") || item,
+  };
+}
+
+function hasBrandIcon(brandName: string) {
+  return Boolean(brandIconMap[brandName.toLowerCase().trim()]);
+}
+
+function getCatalogLabel(device: PhoneCatalogItem) {
+  return hasBrandIcon(device.brandName)
+    ? device.modelName
+    : `${device.brandName} ${device.modelName}`;
+}
+
+async function getLandingPhoneCatalog() {
+  "use cache";
+  cacheLife({ revalidate: 3600 });
+
+  try {
+    const devices = await prisma.hpCatalog.findMany({
+      orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
+      select: {
+        modelName: true,
+        brand: { select: { name: true } },
+      },
+      take: 36,
+    });
+
+    if (!devices.length) {
+      return fallbackCatalog;
+    }
+
+    return devices.map((device) => ({
+      brandName: device.brand.name,
+      modelName: device.modelName,
+    }));
+  } catch (error) {
+    console.error("Error fetching global phone catalog:", error);
+    return fallbackCatalog;
+  }
+}
 
 export const metadata: Metadata = {
   title: "RMS | Software Manajemen Servis HP Multi-Toko",
   description:
-    "RMS membantu toko servis handphone mengelola ticket, teknisi, inventory sparepart, invoice, dan operasional multi-toko dalam satu dashboard.",
+    "RMS menyatukan ticket, teknisi, stok, dan pembayaran untuk toko servis HP multi-toko.",
   keywords: [
     "software servis hp",
     "aplikasi service handphone",
@@ -106,8 +184,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "RMS | Software Manajemen Servis HP Multi-Toko",
-    description:
-      "Kelola service ticket, teknisi, inventory sparepart, dan pembayaran toko servis handphone dari satu dashboard yang rapi.",
+    description: "Satu dashboard rapi untuk ticket, teknisi, stok, dan pembayaran toko servis HP.",
     url: "/",
     siteName: "RMS",
     locale: "id_ID",
@@ -116,13 +193,13 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "RMS | Software Manajemen Servis HP Multi-Toko",
-    description:
-      "Dashboard modern untuk operasional toko servis handphone: ticket, teknisi, sparepart, dan invoice.",
+    description: "Dashboard ringkas untuk ticket, teknisi, stok, dan invoice.",
   },
 };
 
 export default async function Home() {
   const session = await getServerSession();
+  const phoneCatalog = (await getLandingPhoneCatalog()).map(normalizePhoneCatalogItem);
   const isSignedIn = Boolean(session?.user);
   const primaryHref = isSignedIn ? "/dashboard" : "/auth";
   const primaryLabel = isSignedIn ? "Buka Dashboard" : "Mulai Sekarang";
@@ -134,7 +211,7 @@ export default async function Home() {
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     description:
-      "Software manajemen servis handphone untuk mengelola ticket, teknisi, inventory sparepart, invoice, dan operasional multi-toko.",
+      "Software manajemen servis handphone untuk ticket, teknisi, stok, invoice, dan multi-toko.",
     offers: {
       "@type": "Offer",
       price: "0",
@@ -144,60 +221,59 @@ export default async function Home() {
 
   return (
     <main className="relative overflow-hidden bg-background text-foreground">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(120,255,90,0.18),transparent_28%),radial-gradient(circle_at_85%_20%,rgba(110,130,255,0.16),transparent_24%),linear-gradient(to_bottom,transparent,rgba(0,0,0,0.03))] dark:bg-[radial-gradient(circle_at_top,rgba(152,255,122,0.16),transparent_26%),radial-gradient(circle_at_85%_20%,rgba(120,140,255,0.14),transparent_22%),linear-gradient(to_bottom,transparent,rgba(255,255,255,0.02))]" />
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,color-mix(in_oklab,var(--primary)_24%,transparent),transparent_32%),radial-gradient(circle_at_90%_8%,color-mix(in_oklab,var(--chart-3)_18%,transparent),transparent_28%),linear-gradient(180deg,color-mix(in_oklab,var(--muted)_28%,transparent),transparent_48%)]" />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <section className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 pb-16 pt-5 sm:px-8 lg:px-10">
-        <header className="sticky top-0 z-20 -mx-2 mb-10 flex items-center justify-between rounded-full border border-border/60 bg-background/75 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/55 sm:mx-0 sm:px-5">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+      <section className="mx-auto flex min-h-[auto] w-full max-w-7xl flex-col px-4 pb-14 pt-4 sm:px-6 lg:min-h-screen lg:px-10 lg:pb-20">
+        <header className="sticky top-3 z-20 mb-10 flex items-center justify-between gap-3 rounded-full border border-border/60 bg-background/82 px-3 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/62 sm:mb-12 sm:px-4">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 sm:size-10">
               <RiStore2Line className="size-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-sm font-semibold tracking-tight">RMS</div>
-              <div className="text-xs text-muted-foreground">
+              <div className="hidden text-xs text-muted-foreground sm:block">
                 Repair Management System
               </div>
             </div>
           </Link>
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" asChild className="hidden sm:inline-flex">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <Button variant="ghost" asChild className="hidden rounded-full sm:inline-flex">
               <Link href="/user-manual">Dokumentasi</Link>
             </Button>
             <ModeToggle />
-            <Button asChild className="rounded-full px-4 sm:px-5">
+            <Button asChild className="h-9 rounded-full px-3 text-xs sm:px-5">
               <Link href={primaryHref}>{primaryLabel}</Link>
             </Button>
           </div>
         </header>
 
-        <div className="grid flex-1 items-center gap-12 py-8 lg:grid-cols-[1.08fr_0.92fr] lg:py-12">
-          <section className="space-y-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-medium text-primary">
+        <div className="grid flex-1 items-center gap-10 lg:grid-cols-[1.02fr_0.98fr] lg:gap-12">
+          <section className="flex flex-col gap-7 text-center sm:gap-8 lg:text-left">
+            <div className="mx-auto inline-flex w-fit items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary lg:mx-0">
               <RiFlashlightLine className="size-4" />
-              Optimized for toko servis handphone modern
+              Operasional servis HP, dibuat lebih cepat
             </div>
 
-            <div className="space-y-5">
-              <h1 className="max-w-4xl text-5xl font-semibold tracking-tight text-balance sm:text-6xl lg:text-7xl">
-                Landing page baru untuk bisnis servis yang ingin terlihat premium dan bekerja lebih cepat.
+            <div className="flex flex-col gap-5">
+              <h1 className="mx-auto max-w-4xl text-4xl font-semibold tracking-tight text-balance sm:text-6xl lg:mx-0 lg:text-7xl">
+                Kelola servis, stok, dan tim tanpa layar yang berantakan.
               </h1>
-              <p className="max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">
-                RMS membantu tim Anda mengelola service ticket, teknisi, inventory sparepart,
-                dan pembayaran dari satu dashboard yang bersih, cepat, dan siap scale untuk
-                banyak toko.
+              <p className="mx-auto max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8 lg:mx-0">
+                RMS menyatukan ticket, teknisi, sparepart, invoice, dan operasional multi-toko
+                dalam alur yang cepat dibaca dari desktop maupun mobile.
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="grid gap-3 sm:mx-auto sm:grid-cols-2 lg:mx-0 lg:flex lg:flex-wrap">
               <Button asChild className="h-12 rounded-full px-6 text-sm font-semibold">
                 <Link href={primaryHref}>
                   {primaryLabel}
-                  <RiArrowRightLine className="size-4" />
+                  <RiArrowRightLine data-icon="inline-end" />
                 </Link>
               </Button>
               <Button
@@ -209,11 +285,11 @@ export default async function Home() {
               </Button>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 text-left sm:grid-cols-2">
               {highlights.map((item) => (
                 <div
                   key={item}
-                  className="flex items-start gap-3 rounded-2xl border border-border/60 bg-card/75 px-4 py-4 shadow-sm backdrop-blur"
+                  className="flex items-start gap-3 rounded-3xl border border-border/60 bg-card/78 p-4 shadow-sm backdrop-blur"
                 >
                   <div className="mt-0.5 rounded-full bg-primary/10 p-2 text-primary">
                     <RiCheckDoubleLine className="size-4" />
@@ -224,115 +300,159 @@ export default async function Home() {
             </div>
           </section>
 
-          <section className="relative">
-            <div className="absolute -left-6 top-8 hidden h-24 w-24 rounded-full bg-primary/20 blur-3xl lg:block" />
-            <div className="absolute -bottom-10 right-6 hidden h-28 w-28 rounded-full bg-blue-500/20 blur-3xl dark:bg-blue-400/20 lg:block" />
+          <section className="relative mx-auto w-full max-w-xl lg:max-w-none">
+            <div className="absolute -left-8 top-10 h-32 w-32 rounded-full bg-primary/20 blur-3xl" />
+            <div className="absolute -right-8 bottom-8 h-32 w-32 rounded-full bg-chart-3/20 blur-3xl" />
 
-            <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card/85 p-5 shadow-2xl shadow-black/8 backdrop-blur dark:shadow-black/30 sm:p-6">
-              <div className="flex items-center justify-between border-b border-border/60 pb-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Operational Pulse</p>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-tight">Dashboard toko dalam satu layar</h2>
-                </div>
-                <div className="rounded-2xl bg-primary/12 p-3 text-primary">
-                  <RiBarChartBoxLine className="size-5" />
-                </div>
-              </div>
-
-              <div className="grid gap-4 pt-5 sm:grid-cols-2">
-                <article className="rounded-3xl border border-border/60 bg-background/80 p-5">
-                  <p className="text-sm text-muted-foreground">Ticket aktif</p>
-                  <p className="mt-3 text-4xl font-semibold tracking-tight">128</p>
-                  <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">+18% minggu ini</p>
-                </article>
-                <article className="rounded-3xl border border-border/60 bg-linear-to-br from-primary/12 to-primary/5 p-5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">SLA teknisi</p>
-                    <RiShieldCheckLine className="size-5 text-primary" />
+            <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card/86 p-3 shadow-2xl shadow-foreground/10 backdrop-blur sm:p-5">
+              <div className="rounded-[1.65rem] border border-border/60 bg-background/72 p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                  <div className="flex flex-col gap-1">
+                    <Badge variant="secondary" className="w-fit">Operational Pulse</Badge>
+                    <h2 className="max-w-sm text-xl font-semibold tracking-tight sm:text-2xl">
+                      Semua inti operasional dalam satu layar.
+                    </h2>
                   </div>
-                  <p className="mt-3 text-4xl font-semibold tracking-tight">94%</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Task terselesaikan tepat waktu</p>
-                </article>
-              </div>
-
-              <div className="mt-4 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-                <article className="rounded-3xl border border-border/60 bg-background/80 p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Antrian servis hari ini</p>
-                      <p className="mt-2 text-lg font-semibold">Masuk, Proses, Selesai</p>
-                    </div>
-                    <RiCompass3Line className="size-5 text-primary" />
+                  <div className="rounded-2xl bg-primary/12 p-3 text-primary">
+                    <RiBarChartBoxLine className="size-5" />
                   </div>
-                  <div className="mt-5 space-y-3">
-                    {[
-                      ["Masuk", "32", "w-4/5"],
-                      ["Proses", "57", "w-3/5"],
-                      ["Selesai", "39", "w-2/5"],
-                    ].map(([label, value, width]) => (
-                      <div key={label} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">{label}</span>
-                          <span className="font-medium">{value}</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-muted">
-                          <div className={`h-2 rounded-full bg-primary ${width}`} />
-                        </div>
+                </div>
+
+                <div className="grid gap-3 pt-4 sm:grid-cols-3">
+                  {metrics.map((metric, index) => (
+                    <article
+                      key={metric.label}
+                      className="rounded-3xl border border-border/60 bg-card p-4 shadow-sm"
+                    >
+                      <p className="text-xs text-muted-foreground">{metric.label}</p>
+                      <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+                        {metric.value}
+                      </p>
+                      <Badge
+                        variant={index === 0 ? "success" : "outline"}
+                        className="mt-3"
+                      >
+                        {metric.note}
+                      </Badge>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-[1.12fr_0.88fr]">
+                  <article className="rounded-3xl border border-border/60 bg-card p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Antrian servis hari ini</p>
+                        <p className="mt-1 text-lg font-semibold">Masuk, proses, selesai</p>
                       </div>
-                    ))}
-                  </div>
-                </article>
-
-                <article className="rounded-3xl border border-border/60 bg-background/80 p-5">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl bg-primary/10 p-3 text-primary">
-                      <RiQrCodeLine className="size-5" />
+                      <RiCompass3Line className="size-5 shrink-0 text-primary" />
                     </div>
-                    <div>
-                      <p className="font-semibold">Pickup lebih terkontrol</p>
-                      <p className="text-sm text-muted-foreground">
-                        Status dan pembayaran bisa dipastikan sebelum unit keluar.
+                    <div className="mt-5 flex flex-col gap-3">
+                      {serviceQueue.map(([label, value, width]) => (
+                        <div key={label} className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">{label}</span>
+                            <span className="font-medium">{value}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted">
+                            <div className={`h-2 rounded-full bg-primary ${width}`} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className="rounded-3xl border border-border/60 bg-linear-to-br from-primary/14 via-card to-card p-4 shadow-sm sm:p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                        <RiQrCodeLine className="size-5" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Pickup lebih tenang</p>
+                        <p className="text-sm text-muted-foreground">Status dan bayar jelas.</p>
+                      </div>
+                    </div>
+                    <div className="mt-5 rounded-3xl border border-dashed border-border/70 bg-background/45 p-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                        invoice insight
+                      </p>
+                      <p className="mt-3 text-2xl font-semibold tracking-tight">Siap cetak</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Item servis dan sparepart langsung tersusun untuk invoice.
                       </p>
                     </div>
-                  </div>
-                  <div className="mt-6 rounded-3xl border border-dashed border-border/70 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                      invoice insight
-                    </p>
-                    <p className="mt-3 text-3xl font-semibold tracking-tight">Rp18,4jt</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Nilai invoice terdata dari ticket yang sudah memiliki item servis.
-                    </p>
-                  </div>
-                </article>
+                  </article>
+                </div>
               </div>
             </div>
           </section>
         </div>
       </section>
 
-      <section className="border-y border-border/60 bg-muted/25">
-        <div className="mx-auto grid max-w-7xl gap-6 px-5 py-14 sm:px-8 lg:grid-cols-3 lg:px-10">
-          <div>
-            <p className="text-sm font-medium text-primary">Why RMS</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Dibangun untuk operasional servis HP yang real, bukan template generik.
-            </h2>
+      <section className="border-y border-border/60 bg-card/52 py-5 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 sm:px-6 lg:px-10">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-primary">Global phone catalog</p>
+              <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                Device populer siap dipakai di semua toko.
+              </h2>
+            </div>
+            <Badge variant="outline" className="w-fit">
+              {phoneCatalog.length}+ model tersedia
+            </Badge>
           </div>
-          <div className="text-sm leading-7 text-muted-foreground lg:col-span-2 lg:max-w-3xl">
-            Dari meja penerimaan sampai teknisi dan kasir, setiap bagian alur kerja punya
-            konteks yang tepat. Hasilnya: proses lebih cepat, stok lebih aman, dan pengalaman
-            pelanggan terasa lebih profesional.
+
+          <div className="group relative overflow-hidden rounded-full border border-border/60 bg-background/75 py-2 shadow-sm">
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-linear-to-r from-background to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-linear-to-l from-background to-transparent" />
+            <div className="flex w-max min-w-full animate-catalog-marquee gap-2 px-2 group-hover:[animation-play-state:paused]">
+              {[...phoneCatalog, ...phoneCatalog].map((device, index) => (
+                <span
+                  key={`${device.brandName}-${device.modelName}-${index}`}
+                  aria-hidden={index >= phoneCatalog.length}
+                  className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-xs sm:px-4 sm:text-sm"
+                >
+                  <span className="text-primary">{getBrandIcon(device.brandName)}</span>
+                  {getCatalogLabel(device)}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-10">
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <section className="border-y border-border/60 bg-muted/25">
+        <div className="mx-auto grid max-w-7xl gap-5 px-4 py-12 sm:px-6 lg:grid-cols-[0.82fr_1.18fr] lg:px-10 lg:py-16">
+          <div>
+            <p className="text-sm font-medium text-primary">Why RMS</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              Dibuat untuk kerja lapangan, bukan template generik.
+            </h2>
+          </div>
+          <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base sm:leading-8">
+            Dari meja penerimaan sampai kasir, tiap peran punya konteks yang pas. Proses lebih
+            cepat, stok lebih aman, dan pengalaman pelanggan terasa lebih rapi di semua ukuran layar.
+          </p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-10 lg:py-20">
+        <div className="mb-8 flex flex-col gap-3 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-primary">Fitur utama</p>
+            <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              Ringkas di layar kecil, lengkap saat dibutuhkan.
+            </h2>
+          </div>
+          <Badge variant="outline" className="w-fit">Multi-role dashboard</Badge>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {features.map(({ icon: Icon, title, description }) => (
             <article
               key={title}
-              className="group rounded-[1.75rem] border border-border/60 bg-card p-6 shadow-sm transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg"
+              className="group rounded-[1.75rem] border border-border/60 bg-card p-5 shadow-sm transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg sm:p-6"
             >
               <div className="inline-flex rounded-2xl bg-primary/10 p-3 text-primary">
                 <Icon className="size-5" />
@@ -344,45 +464,53 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 lg:px-10">
-        <div className="rounded-[2rem] border border-border/60 bg-card p-6 sm:p-8 lg:p-10">
-          <div className="max-w-2xl">
-            <p className="text-sm font-medium text-primary">Workflow</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Satu alur kerja yang menyatukan front desk, teknisi, dan administrasi.
-            </h2>
-          </div>
-          <div className="mt-10 grid gap-5 lg:grid-cols-4">
-            {steps.map((step, index) => (
-              <article key={step.title} className="rounded-3xl border border-border/60 bg-background/80 p-5">
-                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                  0{index + 1}
-                </div>
-                <h3 className="mt-5 text-lg font-semibold tracking-tight">{step.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-muted-foreground">{step.description}</p>
-              </article>
-            ))}
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-10 lg:pb-20">
+        <div className="overflow-hidden rounded-[2rem] border border-border/60 bg-card shadow-sm">
+          <div className="grid gap-0 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="bg-linear-to-br from-primary/14 via-card to-card p-6 sm:p-8 lg:p-10">
+              <p className="text-sm font-medium text-primary">Workflow</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                Satu alur kerja untuk front desk, teknisi, dan admin.
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-muted-foreground">
+                Urutan kerja dibuat jelas agar tim tidak perlu menebak status unit atau total biaya.
+              </p>
+            </div>
+
+            <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 lg:p-6">
+              {steps.map((step, index) => (
+                <article
+                  key={step.title}
+                  className="rounded-3xl border border-border/60 bg-background/80 p-5"
+                >
+                  <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                    0{index + 1}
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold tracking-tight">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground">{step.description}</p>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 lg:px-10">
-        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-[2rem] border border-border/60 bg-linear-to-br from-primary/12 via-card to-card p-8">
-            <p className="text-sm font-medium text-primary">SEO-friendly content</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Software manajemen servis HP yang menjawab kebutuhan toko dari awal sampai akhir.
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-10 lg:pb-20">
+        <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-[2rem] border border-border/60 bg-linear-to-br from-primary/12 via-card to-card p-6 sm:p-8">
+            <p className="text-sm font-medium text-primary">Built for clarity</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              Software servis HP yang padat, jelas, dan relevan.
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
-              Halaman ini sekarang punya headline yang jelas, struktur section semantik,
-              metadata yang relevan, canonical URL, Open Graph, Twitter card, dan JSON-LD untuk
-              membantu visibilitas mesin pencari.
+              Copy, visual, dan struktur halaman dibuat langsung menjelaskan nilai RMS tanpa
+              mengorbankan keterbacaan di ponsel.
             </p>
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             {faqs.map((faq) => (
-              <article key={faq.question} className="rounded-[1.5rem] border border-border/60 bg-card p-6">
+              <article key={faq.question} className="rounded-[1.5rem] border border-border/60 bg-card p-5 sm:p-6">
                 <h3 className="text-lg font-semibold tracking-tight">{faq.question}</h3>
                 <p className="mt-3 text-sm leading-7 text-muted-foreground">{faq.answer}</p>
               </article>
@@ -391,20 +519,19 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="px-5 pb-16 sm:px-8 lg:px-10">
-        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 rounded-[2rem] border border-border/60 bg-foreground px-6 py-8 text-background sm:px-8 lg:flex-row lg:items-center">
+      <section className="px-4 pb-14 sm:px-6 lg:px-10 lg:pb-16">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 overflow-hidden rounded-[2rem] border border-border/60 bg-foreground px-5 py-7 text-background sm:px-8 sm:py-9 lg:flex-row lg:items-center">
           <div className="max-w-2xl">
             <p className="text-sm font-medium text-primary">Ready to launch</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Tampilkan bisnis servis Anda dengan kesan premium sejak halaman pertama.
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              Tampilkan bisnis servis Anda dengan lebih rapi sejak awal.
             </h2>
             <p className="mt-3 text-sm leading-7 text-background/75">
-              Masuk ke dashboard untuk mulai operasional, atau buka dokumentasi untuk melihat
-              workflow yang sudah tersedia di RMS.
+              Masuk ke dashboard untuk mulai kerja, atau buka dokumentasi untuk melihat alurnya.
             </p>
           </div>
 
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-auto">
             <Button
               variant="secondary"
               asChild

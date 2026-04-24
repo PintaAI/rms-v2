@@ -40,18 +40,22 @@ export default async function DashboardLayout({ children, params }: DashboardLay
     <SidebarProvider>
       <AppSidebar tokoid={tokoid} serviceStats={serviceStats} technicianTaskStats={technicianTaskStats} />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-start justify-between gap-2 pt-4 px-4 bg-background/95">
-          <div className="flex gap-2">
+        <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-3 py-2 sm:flex-nowrap sm:px-4 sm:py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <SidebarTrigger data-tour="sidebar-trigger" />
-            <Separator orientation="vertical" className="h-6" />
-            <DynamicBreadcrumb />
+            <Separator orientation="vertical" className="h-6 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <DynamicBreadcrumb />
+            </div>
           </div>
-          <div className="flex items-center gap-4 self-center">
-            <LiveClock />
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+            <div className="hidden md:block">
+              <LiveClock />
+            </div>
             <UserInfo />
           </div>
         </header>
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
           {children}
         </main>
       </SidebarInset>

@@ -1,6 +1,6 @@
 # Inventory
 
-Inventory saat ini terdiri dari dua bagian utama: `Sparepart` dan `Jasa`.
+Inventory saat ini terdiri dari `Sparepart`, `Jasa`, dan `Audit Gudang`.
 
 ---
 
@@ -8,7 +8,7 @@ Inventory saat ini terdiri dari dua bagian utama: `Sparepart` dan `Jasa`.
 
 | Role | Akses utama |
 |---|---|
-| Admin | Kelola sparepart, kelola jasa, buka audit gudang |
+| Admin | Kelola sparepart, kelola jasa, dan audit gudang |
 | Staff | Lihat inventory |
 | Teknisi | Lihat inventory |
 
@@ -106,13 +106,36 @@ Jika stock sparepart tidak cukup:
 
 ## Audit Gudang
 
-Halaman `Audit Gudang` saat ini adalah **mock UI**.
+`Audit Gudang` digunakan untuk mencocokkan stock sistem dengan hitungan fisik sparepart di toko.
 
-Artinya:
+### Alur utama
 
-- ada simulasi sesi audit dan input hitung fisik
-- tidak ada integrasi ke stock sparepart nyata
-- hasil audit belum menulis perubahan ke database inventory
+- Admin klik `Mulai Audit`.
+- Sistem snapshot semua sparepart toko, termasuk stock sistem dan harga sparepart saat audit dimulai.
+- Admin mengisi stock fisik setiap sparepart.
+- Sistem menghitung selisih, nilai selisih, dan potensi hilang untuk item yang stock fisiknya lebih kecil dari sistem.
+- Jika ada mismatch, Admin memilih alasan sebelum audit bisa diselesaikan.
+- Saat audit selesai, stock sistem otomatis disesuaikan ke stock fisik.
+
+### Alasan mismatch
+
+Alasan yang tersedia:
+
+- dipakai service tapi belum dicatat
+- barang hilang
+- barang rusak
+- stock masuk belum dicatat
+- salah stock sebelumnya
+- salah hitung fisik
+- lainnya
+
+`Potensi hilang` adalah estimasi untuk investigasi, bukan kerugian final. Mismatch bisa terjadi karena proses operasional, misalnya teknisi lupa input sparepart ke service.
+
+### Batasan
+
+- satu toko hanya bisa punya satu audit aktif
+- audit hanya untuk sparepart, bukan jasa
+- audit yang sudah selesai menyimpan riwayat dan activity log
 
 ---
 
@@ -122,6 +145,7 @@ Artinya:
 
 - bisa tambah, edit, dan hapus sparepart
 - bisa tambah, edit, dan hapus jasa
+- bisa menjalankan audit gudang dan menyelesaikannya untuk menyesuaikan stock
 
 ### Staff
 

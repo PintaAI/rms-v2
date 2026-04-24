@@ -30,9 +30,9 @@ export function AdminOverviewActions({ tokoId }: AdminOverviewActionsProps) {
       <Button
         data-tour="new-service-btn"
         onClick={() => setServicesFormOpen(true)}
-        className="bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30"
+        className="w-full bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30 sm:w-auto"
       >
-        <RiAddLine className="mr-1.5 h-4 w-4" />
+        <RiAddLine data-icon="inline-start" />
         New Service
       </Button>
       <ServicesForm

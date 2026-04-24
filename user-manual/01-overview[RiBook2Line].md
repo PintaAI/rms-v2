@@ -102,7 +102,7 @@ flowchart TD
 - Sparepart bisa `Universal` atau dibatasi ke daftar device tertentu.
 - Jasa disimpan sebagai daftar pricelist per toko.
 - Stock sparepart otomatis berkurang saat item ditambahkan ke servis, dan kembali saat item dihapus atau ticket dihapus.
-- `Audit Gudang` saat ini masih berupa mock UI, belum terhubung ke mutasi stock nyata.
+- `Audit Gudang` membantu Admin mencocokkan stok sistem dengan stok fisik, mencatat alasan selisih, dan menyesuaikan stok dengan riwayat audit.
 
 ### Invoice dan pembayaran
 

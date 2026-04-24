@@ -28,8 +28,8 @@ Dokumen ini mengikuti permission dan UI yang ada di codebase saat ini.
 | Kelola toko | ✓ | ✗ | ✗ |
 | Kelola karyawan | ✓ | ✗ | ✗ |
 | Kelola inventory | ✓ | ✗ | ✗ |
+| Audit gudang | ✓ | ✗ | ✗ |
 | Lihat inventory | ✓ | ✓ | ✓ |
-| Akses audit gudang | ✓ | ✗ | ✗ |
 
 `*` Teknisi hanya untuk task yang ditugaskan ke dirinya.
 
@@ -56,6 +56,7 @@ Dokumen ini mengikuti permission dan UI yang ada di codebase saat ini.
 - membuat, edit, hapus, dan pindah antar toko
 - menambah dan menghapus karyawan
 - membuat, edit, dan hapus sparepart serta jasa
+- memulai, mengisi, membatalkan, dan menyelesaikan audit gudang
 
 ### Dashboard Admin
 

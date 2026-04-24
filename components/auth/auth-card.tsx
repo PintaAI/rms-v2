@@ -162,7 +162,8 @@ export function AuthCard({
         // Use full page reload to ensure session state is properly refreshed
         window.location.href = redirectAfterLogin;
       }
-    } catch {
+    } catch (error) {
+      console.error("Login error:", error);
       setLoginServerError("An unexpected error occurred. Please try again.");
     } finally {
       setLoginIsLoading(false);

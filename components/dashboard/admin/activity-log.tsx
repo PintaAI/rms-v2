@@ -95,6 +95,30 @@ const activityTypeConfig: Record<
     borderClass: "border-amber-500/30",
     backgroundClass: "bg-amber-500/5",
   },
+  inventory_audit_started: {
+    label: "Audit Mulai",
+    badgeVariant: "accent",
+    borderClass: "border-sky-500/30",
+    backgroundClass: "bg-sky-500/5",
+  },
+  inventory_audit_completed: {
+    label: "Audit Selesai",
+    badgeVariant: "success",
+    borderClass: "border-green-500/30",
+    backgroundClass: "bg-green-500/5",
+  },
+  inventory_audit_cancelled: {
+    label: "Audit Batal",
+    badgeVariant: "secondary",
+    borderClass: "border-border/70",
+    backgroundClass: "bg-muted/30",
+  },
+  inventory_audit_stock_adjusted: {
+    label: "Stok Audit",
+    badgeVariant: "warning",
+    borderClass: "border-amber-500/30",
+    backgroundClass: "bg-amber-500/5",
+  },
 };
 
 function getDeletedServiceSummary(payload: Prisma.JsonValue | null): {
@@ -179,11 +203,11 @@ export function ActivityLog({ activities }: ActivityLogProps) {
 
   return (
     <Card className="border-border/50 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-      <CardHeader className="border-b border-border/50 ">
+      <CardHeader className="border-b border-border/50 px-4 sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <div className="h-5 w-1 rounded-full bg-primary" />
+          <div className="min-w-0 space-y-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+              <div className="h-5 w-1 shrink-0 rounded-full bg-primary" />
               <CardTitle className="text-lg font-bold">Activity Log</CardTitle>
               {realtimeEnabled ? (
                 <Badge variant={isPollingActive ? "success" : "secondary"} className="gap-1.5">
@@ -210,13 +234,13 @@ export function ActivityLog({ activities }: ActivityLogProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="p-4">
+      <CardContent className="p-3 sm:p-4">
         {activities.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/60 px-4 py-10 text-center text-sm text-muted-foreground">
             Belum ada aktivitas terbaru.
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             {activities.map((activity) => (
               (() => {
                 const typeConfig = activityTypeConfig[activity.type] ?? {
@@ -233,27 +257,29 @@ export function ActivityLog({ activities }: ActivityLogProps) {
                     key={activity.id}
                     className={`rounded-lg border px-3 py-2 ${typeConfig.borderClass} ${typeConfig.backgroundClass}`}
                   >
-                    <div className="flex min-w-0 items-center gap-2 text-xs">
+                    <div className="flex min-w-0 flex-col gap-2 text-xs sm:flex-row sm:items-center">
                       <Badge variant={typeConfig.badgeVariant} className="shrink-0">
                         {typeConfig.label}
                       </Badge>
                       <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                         {activity.title}
                       </p>
-                      <span className="shrink-0 text-muted-foreground">{activity.user.name}</span>
-                      {serviceSummary?.customerName ? (
-                        <span className="max-w-32 shrink-0 truncate text-muted-foreground">
-                          {serviceSummary.customerName}
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground sm:shrink-0 sm:flex-nowrap">
+                        <span className="max-w-32 truncate">{activity.user.name}</span>
+                        {serviceSummary?.customerName ? (
+                          <span className="max-w-32 truncate">
+                            {serviceSummary.customerName}
+                          </span>
+                        ) : null}
+                        {serviceSummary?.id ? (
+                          <span className="font-mono text-[11px] uppercase tracking-wide">
+                            #{serviceSummary.id.slice(0, 8)}
+                          </span>
+                        ) : null}
+                        <span className="flex items-center gap-1">
+                          <RiTimeLine className="size-3.5" />
+                          {formatDate(activity.createdAt)}
                         </span>
-                      ) : null}
-                      {serviceSummary?.id ? (
-                        <span className="shrink-0 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                          #{serviceSummary.id.slice(0, 8)}
-                        </span>
-                      ) : null}
-                      <div className="flex shrink-0 items-center gap-1 text-muted-foreground">
-                        <RiTimeLine className="h-3.5 w-3.5" />
-                        <span>{formatDate(activity.createdAt)}</span>
                       </div>
                     </div>
                   </div>

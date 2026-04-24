@@ -77,20 +77,20 @@ export function DynamicBreadcrumb() {
   }
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
+    <Breadcrumb className="min-w-0 overflow-hidden">
+      <BreadcrumbList className="flex-nowrap overflow-hidden">
         {breadcrumbItems.map((item, index) => (
           <React.Fragment key={`${item.href}-${index}`}>
-            <BreadcrumbItem>
+            <BreadcrumbItem className={index < breadcrumbItems.length - 1 ? "hidden shrink-0 sm:inline-flex" : "min-w-0"}>
               {item.isCurrent ? (
-                <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                <BreadcrumbPage className="truncate">{item.label}</BreadcrumbPage>
               ) : (
                 <BreadcrumbLink asChild>
-                  <Link href={item.href}>{item.label}</Link>
+                  <Link href={item.href} className="truncate">{item.label}</Link>
                 </BreadcrumbLink>
               )}
             </BreadcrumbItem>
-            {index < breadcrumbItems.length - 1 && <BreadcrumbSeparator />}
+            {index < breadcrumbItems.length - 1 && <BreadcrumbSeparator className="hidden shrink-0 sm:inline-flex" />}
           </React.Fragment>
         ))}
       </BreadcrumbList>

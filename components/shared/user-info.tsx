@@ -53,21 +53,22 @@ export function UserInfo() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <div className="relative w-64 bg-gradient-to-br from-primary/5 via-card to-primary/[0.02] rounded-xl border border-border/50 overflow-hidden group transition-all duration-300 hover:border-border/80 hover:shadow-sm cursor-pointer">
+          <div className="group relative w-auto max-w-[11rem] cursor-pointer overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-primary/5 via-card to-primary/[0.02] transition-all duration-300 hover:border-border/80 hover:shadow-sm sm:w-64 sm:max-w-none">
             <div className="absolute top-0 left-0 w-1 h-full bg-primary opacity-80 transition-all duration-300 group-hover:w-1.5 group-hover:opacity-100" />
             <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-full blur-2xl transition-all duration-300 group-hover:opacity-60" />
-            <div className="flex items-center gap-3 pl-3 pr-2 py-2.5 relative z-10">
-              <Avatar className="size-9 rounded-xl border border-border/30 transition-all duration-300 group-hover:scale-105">
+            <div className="relative z-10 flex items-center gap-2 py-1.5 pl-2 pr-2 sm:gap-3 sm:py-2.5 sm:pl-3">
+              <Avatar className="size-8 rounded-xl border border-border/30 transition-all duration-300 group-hover:scale-105 sm:size-9">
                 {user.image ? <AvatarImage src={user.image} alt={user.name} className="rounded-xl" /> : null}
                 <AvatarFallback className="rounded-xl bg-gradient-to-br from-muted to-muted/50">
                   <RiUserLine className="size-4.5 text-muted-foreground transition-transform duration-300 group-hover:scale-110" />
                 </AvatarFallback>
               </Avatar>
-              <div className="flex-1 min-w-0 flex flex-col">
+              <div className="hidden min-w-0 flex-1 flex-col sm:flex">
                 <span className="text-sm font-semibold truncate transition-colors duration-300 group-hover:text-foreground/90">{user.name}</span>
                 <span className="text-xs text-muted-foreground/70 capitalize">{user.role}</span>
               </div>
-              <RiArrowRightSLine className="size-4 text-muted-foreground/50 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+              <span className="max-w-20 truncate text-xs font-semibold sm:hidden">{user.name}</span>
+              <RiArrowRightSLine className="hidden size-4 text-muted-foreground/50 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-muted-foreground sm:block" />
             </div>
           </div>
         </DropdownMenuTrigger>

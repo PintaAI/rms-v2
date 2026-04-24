@@ -6,6 +6,7 @@ import prisma from "./prisma";
 
 const devOrigins = [
   "http://localhost:3000",
+  "http://100.127.81.7:3000",
   "http://100.108.102.102:3000",
   "http://192.168.0.102:3000",
   "http://127.0.0.1:3000",
