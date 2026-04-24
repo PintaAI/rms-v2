@@ -38,6 +38,7 @@ export type InventoryAuditSession = {
   cancelledAt: string | Date | null
   createdBy: { id: string; name: string }
   items: InventoryAuditItem[]
+  summary: AuditSummary
 }
 
 export type InventoryAuditOverview = {

@@ -7,16 +7,17 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatCurrency } from "@/lib/utils"
-import { RiLoader4Line, RiSearchLine, RiSave3Line } from "@remixicon/react"
+import { cn, formatCurrency } from "@/lib/utils"
+import { RiCheckLine, RiSearchLine } from "@remixicon/react"
 import { mismatchReasonLabels, mismatchReasons, type InventoryAuditItem, type InventoryAuditItemStatus, type InventoryAuditMismatchReason } from "./types"
 
 type FilterValue = "all" | InventoryAuditItemStatus
+type AuditItemDraft = { physicalStock: string; mismatchReason: InventoryAuditMismatchReason | null; note: string }
 
 type AuditItemTableProps = {
   items: InventoryAuditItem[]
-  savingItemId: string | null
-  onSave: (input: {
+  reviewAttempted: boolean
+  onItemChange: (input: {
     itemId: string
     physicalStock: number | null
     mismatchReason: InventoryAuditMismatchReason | null
@@ -24,7 +25,7 @@ type AuditItemTableProps = {
   }) => void
 }
 
-export function AuditItemTable({ items, savingItemId, onSave }: AuditItemTableProps) {
+export function AuditItemTable({ items, reviewAttempted, onItemChange }: AuditItemTableProps) {
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState<FilterValue>("all")
   const [drafts, setDrafts] = useState(() =>
@@ -37,7 +38,7 @@ export function AuditItemTable({ items, savingItemId, onSave }: AuditItemTablePr
           note: item.note ?? "",
         },
       ])
-    ) as Record<string, { physicalStock: string; mismatchReason: InventoryAuditMismatchReason | null; note: string }>
+    ) as Record<string, AuditItemDraft>
   )
 
   const filteredItems = items.filter((item) => {
@@ -46,11 +47,35 @@ export function AuditItemTable({ items, savingItemId, onSave }: AuditItemTablePr
     return matchesSearch && matchesStatus
   })
 
-  function updateDraft(itemId: string, draft: Partial<(typeof drafts)[string]>) {
+  function updateDraft(itemId: string, draft: Partial<AuditItemDraft>) {
     setDrafts((current) => ({
       ...current,
       [itemId]: { ...current[itemId], ...draft },
     }))
+  }
+
+  function updateItemFromDraft(item: InventoryAuditItem, draft: AuditItemDraft) {
+    const parsedPhysicalStock = draft.physicalStock === "" ? null : Number(draft.physicalStock)
+    const physicalStock = parsedPhysicalStock !== null && Number.isInteger(parsedPhysicalStock) && parsedPhysicalStock >= 0
+      ? parsedPhysicalStock
+      : null
+
+    onItemChange({
+      itemId: item.id,
+      physicalStock,
+      mismatchReason: physicalStock !== null && physicalStock !== item.systemStock ? draft.mismatchReason : null,
+      note: draft.note.trim() || null,
+    })
+  }
+
+  function getDraftIssue(item: InventoryAuditItem, draft = drafts[item.id]): string | null {
+    if (!draft || draft.physicalStock === "") return "Belum input stok fisik"
+
+    const physicalStock = Number(draft.physicalStock)
+    if (Number.isNaN(physicalStock) || physicalStock < 0 || !Number.isInteger(physicalStock)) return "Stok fisik tidak valid"
+    if (physicalStock !== item.systemStock && !draft.mismatchReason) return "Perlu alasan mismatch"
+
+    return null
   }
 
   return (
@@ -83,7 +108,6 @@ export function AuditItemTable({ items, savingItemId, onSave }: AuditItemTablePr
               <TableHead className="text-right">Selisih</TableHead>
               <TableHead>Alasan</TableHead>
               <TableHead>Catatan</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -92,10 +116,11 @@ export function AuditItemTable({ items, savingItemId, onSave }: AuditItemTablePr
               const physicalStock = draft.physicalStock === "" ? null : Number(draft.physicalStock)
               const draftDifference = physicalStock === null ? item.difference : physicalStock - item.systemStock
               const needsReason = physicalStock !== null && draftDifference !== 0
-              const isSaving = savingItemId === item.id
+              const draftIssue = getDraftIssue(item, draft)
+              const shouldHighlight = reviewAttempted && !!draftIssue
 
               return (
-                <TableRow key={item.id}>
+                <TableRow key={item.id} className={cn(shouldHighlight && "border-destructive/50 bg-destructive/10 hover:bg-destructive/15")}>
                   <TableCell className="min-w-48 whitespace-normal">
                     <div className="font-medium">{item.sparepartName}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
@@ -103,17 +128,44 @@ export function AuditItemTable({ items, savingItemId, onSave }: AuditItemTablePr
                         {item.status === "matched" ? "Cocok" : item.status === "discrepancy" ? "Mismatch" : "Pending"}
                       </Badge>
                       <Badge variant="outline">{formatCurrency(item.snapshotPrice)}</Badge>
+                      {shouldHighlight && <Badge variant="destructive">{draftIssue}</Badge>}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">{item.systemStock}</TableCell>
                   <TableCell>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={draft.physicalStock}
-                      onChange={(event) => updateDraft(item.id, { physicalStock: event.target.value })}
-                      className="w-24"
-                    />
+                    <div className="flex min-w-52 items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={draft.physicalStock}
+                        onChange={(event) => {
+                          const nextDraft = { ...draft, physicalStock: event.target.value }
+                          updateDraft(item.id, { physicalStock: nextDraft.physicalStock })
+                          updateItemFromDraft(item, nextDraft)
+                        }}
+                        className="w-24"
+                      />
+                      {physicalStock !== item.systemStock && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const nextDraft = { ...draft, physicalStock: item.systemStock.toString(), mismatchReason: null }
+                            updateDraft(item.id, nextDraft)
+                            onItemChange({
+                              itemId: item.id,
+                              physicalStock: item.systemStock,
+                              mismatchReason: null,
+                              note: draft.note.trim() || null,
+                            })
+                          }}
+                        >
+                          <RiCheckLine />
+                          Sama
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className={draftDifference < 0 ? "text-right font-medium text-destructive" : draftDifference > 0 ? "text-right font-medium text-amber-600" : "text-right font-medium text-green-600"}>
                     {physicalStock === null ? "-" : draftDifference}
@@ -121,7 +173,11 @@ export function AuditItemTable({ items, savingItemId, onSave }: AuditItemTablePr
                   <TableCell>
                     <Select
                       value={draft.mismatchReason ?? "none"}
-                      onValueChange={(value) => updateDraft(item.id, { mismatchReason: value === "none" ? null : (value as InventoryAuditMismatchReason) })}
+                      onValueChange={(value) => {
+                        const nextDraft = { ...draft, mismatchReason: value === "none" ? null : (value as InventoryAuditMismatchReason) }
+                        updateDraft(item.id, { mismatchReason: nextDraft.mismatchReason })
+                        updateItemFromDraft(item, nextDraft)
+                      }}
                       disabled={!needsReason}
                     >
                       <SelectTrigger className="w-52">
@@ -136,22 +192,16 @@ export function AuditItemTable({ items, savingItemId, onSave }: AuditItemTablePr
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <Input value={draft.note} onChange={(event) => updateDraft(item.id, { note: event.target.value })} placeholder="Opsional" className="w-52" />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      onClick={() => onSave({
-                        itemId: item.id,
-                        physicalStock,
-                        mismatchReason: needsReason ? draft.mismatchReason : null,
-                        note: draft.note.trim() || null,
-                      })}
-                      disabled={isSaving || physicalStock === null || Number.isNaN(physicalStock) || (needsReason && !draft.mismatchReason)}
-                    >
-                      {isSaving ? <RiLoader4Line className="animate-spin" /> : <RiSave3Line />}
-                      Simpan
-                    </Button>
+                    <Input
+                      value={draft.note}
+                      onChange={(event) => {
+                        const nextDraft = { ...draft, note: event.target.value }
+                        updateDraft(item.id, { note: nextDraft.note })
+                        updateItemFromDraft(item, nextDraft)
+                      }}
+                      placeholder="Opsional"
+                      className="w-52"
+                    />
                   </TableCell>
                 </TableRow>
               )

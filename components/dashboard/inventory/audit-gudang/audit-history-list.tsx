@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { getAuditSummary, toAuditDate, type InventoryAuditSession } from "./types"
+import { toAuditDate, type InventoryAuditSession } from "./types"
 
 type AuditHistoryListProps = {
   audits: InventoryAuditSession[]
@@ -21,7 +21,7 @@ export function AuditHistoryList({ audits }: AuditHistoryListProps) {
         ) : (
           <div className="space-y-3">
             {audits.map((audit) => {
-              const summary = getAuditSummary(audit.items ?? [])
+              const { summary } = audit
               return (
                 <div key={audit.id} className="rounded-lg border bg-muted/10 p-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

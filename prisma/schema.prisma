@@ -416,6 +416,7 @@ model InventoryAuditItem {
 
   @@unique([sessionId, sparepartId])
   @@index([sessionId])
+  @@index([sessionId, sparepartName])
   @@index([sparepartId])
   @@index([status])
   @@map("inventory_audit_item")

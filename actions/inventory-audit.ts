@@ -27,6 +27,11 @@ const updateInventoryAuditItemSchema = z.object({
   note: z.string().trim().max(500, "Note must be 500 characters or fewer").optional().nullable(),
 });
 
+const completeInventoryAuditSchema = z.object({
+  sessionId: sessionIdSchema,
+  items: z.array(updateInventoryAuditItemSchema),
+});
+
 export type InventoryAuditMismatchReason = (typeof mismatchReasons)[number];
 
 export type InventoryAuditItemData = {
@@ -64,6 +69,7 @@ export type InventoryAuditSummary = {
   totalItems: number;
   countedItems: number;
   pendingItems: number;
+  matchedItems: number;
   discrepancyItems: number;
   missingQty: number;
   excessQty: number;
@@ -115,6 +121,7 @@ function buildSummary(items: InventoryAuditItemData[]): InventoryAuditSummary {
       totalItems: summary.totalItems + 1,
       countedItems: summary.countedItems + (item.physicalStock === null ? 0 : 1),
       pendingItems: summary.pendingItems + (item.status === "pending" ? 1 : 0),
+      matchedItems: summary.matchedItems + (item.status === "matched" ? 1 : 0),
       discrepancyItems: summary.discrepancyItems + (item.status === "discrepancy" ? 1 : 0),
       missingQty: summary.missingQty + item.missingQty,
       excessQty: summary.excessQty + item.excessQty,
@@ -125,6 +132,7 @@ function buildSummary(items: InventoryAuditItemData[]): InventoryAuditSummary {
       totalItems: 0,
       countedItems: 0,
       pendingItems: 0,
+      matchedItems: 0,
       discrepancyItems: 0,
       missingQty: 0,
       excessQty: 0,
@@ -134,7 +142,8 @@ function buildSummary(items: InventoryAuditItemData[]): InventoryAuditSummary {
   );
 }
 
-type SessionWithItems = Awaited<ReturnType<typeof findAuditSessions>>[number];
+type SessionWithItems = NonNullable<Awaited<ReturnType<typeof findActiveAuditSession>>>;
+type SessionWithSummary = Awaited<ReturnType<typeof findRecentAuditSessions>>[number];
 
 function mapSession(session: SessionWithItems): InventoryAuditSessionData {
   const items = session.items.map((item) => ({
@@ -169,14 +178,60 @@ function mapSession(session: SessionWithItems): InventoryAuditSessionData {
   };
 }
 
-function findAuditSessions(tokoId: string) {
+function mapSessionSummary(session: SessionWithSummary): InventoryAuditSessionData {
+  return {
+    id: session.id,
+    tokoId: session.tokoId,
+    createdById: session.createdById,
+    status: session.status,
+    startedAt: session.startedAt,
+    completedAt: session.completedAt,
+    cancelledAt: session.cancelledAt,
+    createdBy: session.createdBy,
+    items: [],
+    summary: {
+      totalItems: session._count.items,
+      countedItems: session.items.filter((item) => item.physicalStock !== null).length,
+      pendingItems: session.items.filter((item) => item.status === "pending").length,
+      matchedItems: session.items.filter((item) => item.status === "matched").length,
+      discrepancyItems: session.items.filter((item) => item.status === "discrepancy").length,
+      missingQty: session.items.reduce((total, item) => total + item.missingQty, 0),
+      excessQty: session.items.reduce((total, item) => total + item.excessQty, 0),
+      differenceValue: session.items.reduce((total, item) => total + item.differenceValue, 0),
+      potentialLostValue: session.items.reduce((total, item) => total + item.potentialLostValue, 0),
+    },
+  };
+}
+
+function findActiveAuditSession(tokoId: string) {
+  return prisma.inventoryAuditSession.findFirst({
+    where: { tokoId, status: "active" },
+    orderBy: { startedAt: "desc" },
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      items: { orderBy: { sparepartName: "asc" } },
+    },
+  });
+}
+
+function findRecentAuditSessions(tokoId: string) {
   return prisma.inventoryAuditSession.findMany({
-    where: { tokoId },
+    where: { tokoId, status: { not: "active" } },
     orderBy: { startedAt: "desc" },
     take: 10,
     include: {
       createdBy: { select: { id: true, name: true } },
-      items: { orderBy: { sparepartName: "asc" } },
+      _count: { select: { items: true } },
+      items: {
+        select: {
+          physicalStock: true,
+          status: true,
+          missingQty: true,
+          excessQty: true,
+          differenceValue: true,
+          potentialLostValue: true,
+        },
+      },
     },
   });
 }
@@ -189,14 +244,16 @@ export async function getInventoryAuditOverview(
     const access = await getInventoryAuditUser(validatedTokoId);
     if (!access.success) return access;
 
-    const sessions = await findAuditSessions(validatedTokoId);
-    const mappedSessions = sessions.map(mapSession);
+    const [activeSession, recentSessions] = await Promise.all([
+      findActiveAuditSession(validatedTokoId),
+      findRecentAuditSessions(validatedTokoId),
+    ]);
 
     return {
       success: true,
       data: {
-        activeSession: mappedSessions.find((session) => session.status === "active") ?? null,
-        recentSessions: mappedSessions.filter((session) => session.status !== "active"),
+        activeSession: activeSession ? mapSession(activeSession) : null,
+        recentSessions: recentSessions.map(mapSessionSummary),
       },
     };
   } catch (error) {
@@ -237,20 +294,21 @@ export async function startInventoryAudit(
           data: {
             tokoId: validatedTokoId,
             createdById: access.user.id,
-            items: {
-              create: spareparts.map((sparepart) => ({
-                sparepartId: sparepart.id,
-                sparepartName: sparepart.name,
-                systemStock: sparepart.stock,
-                snapshotPrice: sparepart.defaultPrice,
-              })),
-            },
           },
-          include: {
-            createdBy: { select: { id: true, name: true } },
-            items: { orderBy: { sparepartName: "asc" } },
-          },
+          select: { id: true },
         });
+
+        if (spareparts.length > 0) {
+          await tx.inventoryAuditItem.createMany({
+            data: spareparts.map((sparepart) => ({
+              sessionId: createdSession.id,
+              sparepartId: sparepart.id,
+              sparepartName: sparepart.name,
+              systemStock: sparepart.stock,
+              snapshotPrice: sparepart.defaultPrice,
+            })),
+          });
+        }
 
         await createActivityLog(tx, {
           tokoId: validatedTokoId,
@@ -263,7 +321,15 @@ export async function startInventoryAudit(
           },
         });
 
-        return createdSession;
+        const sessionWithItems = await tx.inventoryAuditSession.findUniqueOrThrow({
+          where: { id: createdSession.id },
+          include: {
+            createdBy: { select: { id: true, name: true } },
+            items: { orderBy: { sparepartName: "asc" } },
+          },
+        });
+
+        return sessionWithItems;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
@@ -361,12 +427,12 @@ export async function updateInventoryAuditItem(
   }
 }
 
-export async function completeInventoryAudit(sessionId: string): Promise<ActionResult> {
+export async function completeInventoryAudit(data: z.infer<typeof completeInventoryAuditSchema>): Promise<ActionResult> {
   try {
-    const validatedSessionId = sessionIdSchema.parse(sessionId);
+    const validated = completeInventoryAuditSchema.parse(data);
 
     const session = await prisma.inventoryAuditSession.findUnique({
-      where: { id: validatedSessionId },
+      where: { id: validated.sessionId },
       include: { items: true },
     });
 
@@ -381,11 +447,54 @@ export async function completeInventoryAudit(sessionId: string): Promise<ActionR
       return { success: false, error: "Only active inventory audits can be completed" };
     }
 
-    if (session.items.some((item) => item.physicalStock === null || item.status === "pending")) {
+    if (validated.items.length !== session.items.length) {
+      return { success: false, error: "All audit items must be submitted before completing" };
+    }
+
+    const submittedItems = new Map(validated.items.map((item) => [item.itemId, item]));
+    if (submittedItems.size !== session.items.length) {
+      return { success: false, error: "Audit items contain duplicates or unknown items" };
+    }
+
+    const sessionItemIds = new Set(session.items.map((item) => item.id));
+    if (validated.items.some((item) => !sessionItemIds.has(item.itemId))) {
+      return { success: false, error: "Audit items do not match this session" };
+    }
+
+    const items = session.items.map((item) => {
+      const submitted = submittedItems.get(item.id);
+      if (!submitted) throw new Error(`Missing submitted audit item ${item.sparepartName}`);
+
+      const calculated = submitted.physicalStock === null
+        ? {
+            difference: 0,
+            missingQty: 0,
+            excessQty: 0,
+            differenceValue: 0,
+            potentialLostValue: 0,
+            status: "pending" as const,
+          }
+        : calculateItemValues(item.systemStock, submitted.physicalStock, item.snapshotPrice);
+
+      return {
+        ...item,
+        physicalStock: submitted.physicalStock,
+        status: calculated.status,
+        mismatchReason: calculated.status === "discrepancy" ? submitted.mismatchReason ?? null : null,
+        note: submitted.note || null,
+        difference: calculated.difference,
+        missingQty: calculated.missingQty,
+        excessQty: calculated.excessQty,
+        differenceValue: calculated.differenceValue,
+        potentialLostValue: calculated.potentialLostValue,
+      };
+    });
+
+    if (items.some((item) => item.physicalStock === null || item.status === "pending")) {
       return { success: false, error: "All audit items must be counted before completing" };
     }
 
-    if (session.items.some((item) => item.status === "discrepancy" && !item.mismatchReason)) {
+    if (items.some((item) => item.status === "discrepancy" && !item.mismatchReason)) {
       return { success: false, error: "All mismatched audit items must have a reason" };
     }
 
@@ -393,24 +502,45 @@ export async function completeInventoryAudit(sessionId: string): Promise<ActionR
 
     await prisma.$transaction(
       async (tx) => {
-        for (const item of session.items) {
-          const update = await tx.sparepart.updateMany({
-            where: {
-              id: item.sparepartId,
-              tokoId: session.tokoId,
-              stock: item.systemStock,
+        for (const item of items) {
+          await tx.inventoryAuditItem.update({
+            where: { id: item.id },
+            data: {
+              physicalStock: item.physicalStock,
+              status: item.status,
+              mismatchReason: item.mismatchReason,
+              note: item.note,
+              difference: item.difference,
+              missingQty: item.missingQty,
+              excessQty: item.excessQty,
+              differenceValue: item.differenceValue,
+              potentialLostValue: item.potentialLostValue,
             },
-            data: { stock: item.physicalStock! },
           });
+        }
 
-          if (update.count !== 1) {
-            throw new Error(
-              `Stock changed during audit for ${item.sparepartName}. Review the audit and restart if needed.`
-            );
+        if (items.length > 0) {
+          const updatedStocks = await tx.$queryRaw<{ id: string }[]>`
+            UPDATE "sparepart" AS s
+            SET "stock" = v."physicalStock"
+            FROM (VALUES ${Prisma.join(
+              items.map((item) => Prisma.sql`(${item.sparepartId}, ${session.tokoId}, ${item.systemStock}, ${item.physicalStock!})`)
+            )}) AS v("id", "tokoId", "systemStock", "physicalStock")
+            WHERE s."id" = v."id"
+              AND s."tokoId" = v."tokoId"
+              AND s."stock" = v."systemStock"
+            RETURNING s."id"
+          `;
+
+          if (updatedStocks.length !== items.length) {
+            throw new Error("Stock changed during audit for one or more spareparts. Review the audit and restart if needed.");
           }
+        }
 
-          if (item.difference !== 0) {
-            await createActivityLog(tx, {
+        const adjustedItems = items.filter((item) => item.difference !== 0);
+        if (adjustedItems.length > 0) {
+          await tx.activityLog.createMany({
+            data: adjustedItems.map((item) => ({
               tokoId: session.tokoId,
               userId: access.user.id,
               type: "inventory_audit_stock_adjusted",
@@ -424,8 +554,8 @@ export async function completeInventoryAudit(sessionId: string): Promise<ActionR
                 difference: item.difference,
                 mismatchReason: item.mismatchReason,
               },
-            });
-          }
+            })),
+          });
         }
 
         await tx.inventoryAuditSession.update({
@@ -433,7 +563,7 @@ export async function completeInventoryAudit(sessionId: string): Promise<ActionR
           data: { status: "completed", completedAt },
         });
 
-        const summary = buildSummary(session.items.map((item) => ({ ...item, status: item.status })));
+        const summary = buildSummary(items.map((item) => ({ ...item, status: item.status })));
 
         await createActivityLog(tx, {
           tokoId: session.tokoId,

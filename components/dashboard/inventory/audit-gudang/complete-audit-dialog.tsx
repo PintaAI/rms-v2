@@ -17,6 +17,7 @@ type CompleteAuditDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   summary: AuditSummary
+  blockerMessage: string | null
   isCompleting: boolean
   onConfirm: () => void
 }
@@ -25,10 +26,11 @@ export function CompleteAuditDialog({
   open,
   onOpenChange,
   summary,
+  blockerMessage,
   isCompleting,
   onConfirm,
 }: CompleteAuditDialogProps) {
-  const hasBlocker = summary.pendingItems > 0
+  const hasBlocker = !!blockerMessage
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -50,7 +52,7 @@ export function CompleteAuditDialog({
           </div>
           {hasBlocker && (
             <p className="mt-3 rounded-md bg-destructive/10 p-2 text-destructive">
-              Masih ada {summary.pendingItems} item belum dihitung. Lengkapi sebelum complete.
+              {blockerMessage}
             </p>
           )}
         </div>
