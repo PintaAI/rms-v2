@@ -1,6 +1,5 @@
-import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { headers } from "next/headers";
+import { getAuthUser } from "@/lib/rbac";
 import type { PaymentStatus, ServiceStatus } from "@/prisma/generated/prisma/enums";
 import type { ServiceItem, ServiceListItem, TimeFilter } from "./service-types";
 
@@ -229,21 +228,13 @@ export function getStatusActivityTitle(status: ServiceStatus | "picked_up") {
 }
 
 export async function getSessionAndTokos() {
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
-  if (!session?.user) {
+  if (!user) {
     return { user: null, tokoIds: [] };
   }
 
-  const userTokoAssignments = await prisma.userToko.findMany({
-    where: { userId: session.user.id },
-    select: { tokoId: true },
-  });
-
-  const tokoIds = userTokoAssignments.map((a) => a.tokoId);
-
-  return { user: session.user, tokoIds };
+  return { user, tokoIds: user.tokoIds };
 }
 
 export function hasTokoAccess(tokoIds: string[], tokoId: string) {

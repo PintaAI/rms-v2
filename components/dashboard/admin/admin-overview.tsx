@@ -36,7 +36,7 @@ interface AdminOverviewProps {
 }
 
 export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps) {
-  const { stats, recentServices, recentActivities } = data;
+  const { stats, recentServices, recentActivities, featureAccess } = data;
 
   const tableServices = recentServices.map((service) => ({
     id: service.id,
@@ -161,61 +161,63 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
         </div>
       </section>
 
-      <section data-tour="stats-revenue" className="flex flex-col gap-3 sm:gap-4">
-        <OverviewSectionHeader title="Pendapatan" colorClass="bg-chart-1" />
-        <div className="md:hidden">
-          <OverviewMobileGroupCard
-            title="Pendapatan"
-            variant="success"
-            items={[
-              {
-                label: "Bulan Ini",
-                value: formatCurrency(stats.revenue.monthlyPaid),
-                icon: <RiMoneyDollarCircleLine className="size-4" />,
-                variant: "success",
-              },
-              {
-                label: "Pending Bulan Ini",
-                value: formatCurrency(stats.revenue.monthlyPending),
-                icon: <RiTimeLine className="size-4" />,
-                variant: stats.revenue.monthlyPending > 0 ? "warning" : "default",
-              },
-              {
-                label: "Hari Ini",
-                value: formatCurrency(stats.revenue.dailyRevenue),
-                icon: <RiCalendarCheckLine className="size-4" />,
-                variant: "primary",
-              },
-            ]}
-          />
-        </div>
-        <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-4">
-          <OverviewStatsCard
-            title="Pendapatan Bulan Ini"
-            value={formatCurrency(stats.revenue.monthlyPaid)}
-            icon={<RiMoneyDollarCircleLine className="h-4 w-4" />}
-            variant="success"
-          />
-          <OverviewStatsCard
-            title="Pending Bulan Ini"
-            value={formatCurrency(stats.revenue.monthlyPending)}
-            icon={<RiTimeLine className="h-4 w-4" />}
-            variant={stats.revenue.monthlyPending > 0 ? "warning" : "default"}
-          />
-          <OverviewStatsCard
-            title="Pendapatan Hari Ini"
-            value={formatCurrency(stats.revenue.dailyRevenue)}
-            icon={<RiCalendarCheckLine className="h-4 w-4" />}
-            variant="primary"
-          />
-          <OverviewStatsCard
-            title="Low Stock Items"
-            value={stats.inventory.lowStockCount}
-            icon={<RiArchiveLine className="h-4 w-4" />}
-            variant={stats.inventory.lowStockCount > 0 ? "warning" : "default"}
-          />
-        </div>
-      </section>
+      {featureAccess.revenueAnalytics && (
+        <section data-tour="stats-revenue" className="flex flex-col gap-3 sm:gap-4">
+          <OverviewSectionHeader title="Pendapatan" colorClass="bg-chart-1" />
+          <div className="md:hidden">
+            <OverviewMobileGroupCard
+              title="Pendapatan"
+              variant="success"
+              items={[
+                {
+                  label: "Bulan Ini",
+                  value: formatCurrency(stats.revenue.monthlyPaid),
+                  icon: <RiMoneyDollarCircleLine className="size-4" />,
+                  variant: "success",
+                },
+                {
+                  label: "Pending Bulan Ini",
+                  value: formatCurrency(stats.revenue.monthlyPending),
+                  icon: <RiTimeLine className="size-4" />,
+                  variant: stats.revenue.monthlyPending > 0 ? "warning" : "default",
+                },
+                {
+                  label: "Hari Ini",
+                  value: formatCurrency(stats.revenue.dailyRevenue),
+                  icon: <RiCalendarCheckLine className="size-4" />,
+                  variant: "primary",
+                },
+              ]}
+            />
+          </div>
+          <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-4">
+            <OverviewStatsCard
+              title="Pendapatan Bulan Ini"
+              value={formatCurrency(stats.revenue.monthlyPaid)}
+              icon={<RiMoneyDollarCircleLine className="h-4 w-4" />}
+              variant="success"
+            />
+            <OverviewStatsCard
+              title="Pending Bulan Ini"
+              value={formatCurrency(stats.revenue.monthlyPending)}
+              icon={<RiTimeLine className="h-4 w-4" />}
+              variant={stats.revenue.monthlyPending > 0 ? "warning" : "default"}
+            />
+            <OverviewStatsCard
+              title="Pendapatan Hari Ini"
+              value={formatCurrency(stats.revenue.dailyRevenue)}
+              icon={<RiCalendarCheckLine className="h-4 w-4" />}
+              variant="primary"
+            />
+            <OverviewStatsCard
+              title="Low Stock Items"
+              value={stats.inventory.lowStockCount}
+              icon={<RiArchiveLine className="h-4 w-4" />}
+              variant={stats.inventory.lowStockCount > 0 ? "warning" : "default"}
+            />
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-3 md:hidden">
         <OverviewMobileGroupCard
@@ -282,9 +284,11 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
         </Card>
       </section>
 
-      <section>
-        <ActivityLog activities={recentActivities} />
-      </section>
+      {featureAccess.activityLog && (
+        <section>
+          <ActivityLog activities={recentActivities} />
+        </section>
+      )}
     </div>
   );
 }

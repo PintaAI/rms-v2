@@ -111,9 +111,21 @@ model Toko {
   services         Service[]
   activities       ActivityLog[]
   inventoryAuditSessions InventoryAuditSession[]
+  featureSetting   TokoFeatureSetting?
 
   @@index([status])
   @@map("toko")
+}
+
+model TokoFeatureSetting {
+  tokoId           String   @id
+  disabledFeatures Json     @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+
+  @@map("toko_feature_setting")
 }
 
 model User {

@@ -1,4 +1,5 @@
 import { getServiceList, getServiceStats } from "@/actions/service";
+import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import { ManageService } from "@/components/dashboard/services/manage-service";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
@@ -17,9 +18,10 @@ export default async function AdminServicePage({ params }: AdminServicePageProps
     select: { id: true, name: true, logoUrl: true },
   });
 
-  const [servicesResult, statsResult] = await Promise.all([
+  const [servicesResult, statsResult, disabledFeatures] = await Promise.all([
     getServiceList(tokoid, undefined, 1, 1000),
     getServiceStats(tokoid),
+    getDisabledFeaturesForToko(tokoid),
   ]);
 
   const stats = statsResult.success && statsResult.data
@@ -89,6 +91,7 @@ export default async function AdminServicePage({ params }: AdminServicePageProps
         initialStats={stats}
         tokoId={tokoid}
         pageSize={pageSize}
+        disableAssignment={disabledFeatures.includes("service.technicianAssignment")}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import { canAccessToko, getAuthUser, isAdmin, isStaff } from "@/lib/rbac";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus } from "@/prisma/generated/prisma/enums";
@@ -52,6 +53,10 @@ export interface AdminOverviewData {
   stats: AdminOverviewStats;
   recentServices: AdminOverviewRecentService[];
   recentActivities: AdminOverviewActivityItem[];
+  featureAccess: {
+    activityLog: boolean;
+    revenueAnalytics: boolean;
+  };
 }
 
 export interface AdminOverviewActivityItem {
@@ -228,37 +233,49 @@ export async function getAdminOverview(
 
     const { dailyStart, monthlyStart, statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
+    const disabledFeatures = await getDisabledFeaturesForToko(targetTokoId);
+    const canViewActivityLog = !disabledFeatures.includes("activityLog.view");
+    const canViewRevenueAnalytics = !disabledFeatures.includes("analytics.revenue");
+
     const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, recentActivities] = await Promise.all([
-      prisma.invoice.aggregate({
-        where: {
-          service: { tokoId: targetTokoId },
-          paymentStatus: "paid",
-          paidAt: { gte: monthlyStart },
-        },
-        _sum: { grandTotal: true },
-      }),
-      prisma.invoice.aggregate({
-        where: {
-          service: { tokoId: targetTokoId },
-          paymentStatus: "unpaid",
-          createdAt: { gte: monthlyStart },
-        },
-        _sum: { grandTotal: true },
-      }),
-      prisma.invoice.aggregate({
-        where: {
-          service: { tokoId: targetTokoId },
-          paymentStatus: "paid",
-          paidAt: { gte: dailyStart },
-        },
-        _sum: { grandTotal: true },
-      }),
-      prisma.activityLog.findMany({
-        where: { tokoId: targetTokoId },
-        orderBy: { createdAt: "desc" },
-        take: 6,
-        select: activityLogSelect,
-      }),
+      canViewRevenueAnalytics
+        ? prisma.invoice.aggregate({
+            where: {
+              service: { tokoId: targetTokoId },
+              paymentStatus: "paid",
+              paidAt: { gte: monthlyStart },
+            },
+            _sum: { grandTotal: true },
+          })
+        : Promise.resolve({ _sum: { grandTotal: 0 } }),
+      canViewRevenueAnalytics
+        ? prisma.invoice.aggregate({
+            where: {
+              service: { tokoId: targetTokoId },
+              paymentStatus: "unpaid",
+              createdAt: { gte: monthlyStart },
+            },
+            _sum: { grandTotal: true },
+          })
+        : Promise.resolve({ _sum: { grandTotal: 0 } }),
+      canViewRevenueAnalytics
+        ? prisma.invoice.aggregate({
+            where: {
+              service: { tokoId: targetTokoId },
+              paymentStatus: "paid",
+              paidAt: { gte: dailyStart },
+            },
+            _sum: { grandTotal: true },
+          })
+        : Promise.resolve({ _sum: { grandTotal: 0 } }),
+      canViewActivityLog
+        ? prisma.activityLog.findMany({
+            where: { tokoId: targetTokoId },
+            orderBy: { createdAt: "desc" },
+            take: 6,
+            select: activityLogSelect,
+          })
+        : Promise.resolve([]),
     ]);
 
     const stats: AdminOverviewStats = {
@@ -286,6 +303,10 @@ export async function getAdminOverview(
         stats,
         recentServices,
         recentActivities,
+        featureAccess: {
+          activityLog: canViewActivityLog,
+          revenueAnalytics: canViewRevenueAnalytics,
+        },
       },
     };
   } catch (error) {

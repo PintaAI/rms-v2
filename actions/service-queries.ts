@@ -1,6 +1,9 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { ensureFeatureAccess } from "@/lib/feature-enforcement";
+import { getEffectivePlanForToko } from "@/lib/rbac";
+import { getDisabledFeaturesForToko } from "./feature-settings";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 import {
   buildTimeFilter,
@@ -235,6 +238,13 @@ export async function getTechniciansByToko(
     if (!hasTokoAccess(tokoIds, tokoId) || !isStaffOrAdminRole(user.role)) {
       return { success: false, error: "Access denied" };
     }
+
+    const assignmentError = ensureFeatureAccess(
+      { role: user.role, plan: await getEffectivePlanForToko(user, tokoId) },
+      "service.technicianAssignment",
+      await getDisabledFeaturesForToko(tokoId)
+    );
+    if (assignmentError) return assignmentError;
 
     const technicians = await prisma.userToko.findMany({
       where: {

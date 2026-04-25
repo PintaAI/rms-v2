@@ -3,7 +3,11 @@
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/activity-log";
+import { ensureFeatureAccess } from "@/lib/feature-enforcement";
+import { canUseFeature } from "@/lib/features";
 import { revalidateServicePaths } from "@/lib/revalidation";
+import { getEffectivePlanForToko, type AuthUser } from "@/lib/rbac";
+import { getDisabledFeaturesForToko } from "./feature-settings";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 import {
   getSessionAndTokos,
@@ -33,10 +37,36 @@ const addItemSchema = z.object({
   serviceId: z.string(),
   type: z.enum(["sparepart", "service"]),
   sparepartId: z.string().optional(),
+  servicePricelistId: z.string().optional(),
   name: z.string().min(1),
   qty: z.number().int().min(1),
   price: z.number().int().min(0),
 });
+
+async function getTokoScopedUser(user: AuthUser, tokoId: string): Promise<AuthUser> {
+  return { ...user, plan: await getEffectivePlanForToko(user, tokoId) };
+}
+
+async function updateInvoiceIfAllowed(user: AuthUser, serviceId: string, tokoId: string): Promise<void> {
+  const scopedUser = await getTokoScopedUser(user, tokoId);
+  const disabledFeatures = await getDisabledFeaturesForToko(tokoId);
+
+  if (!canUseFeature({ plan: scopedUser.plan, role: scopedUser.role, feature: "service.invoice", disabledFeatures })) {
+    return;
+  }
+
+  const invoiceResult = await updateInvoiceTotal(serviceId);
+
+  if (invoiceResult.created) {
+    await createActivityLog(prisma, {
+      tokoId,
+      userId: scopedUser.id,
+      serviceId,
+      type: "invoice_created",
+      title: "Invoice created",
+    });
+  }
+}
 
 export async function createService(
   data: z.infer<typeof createServiceSchema>,
@@ -254,7 +284,6 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!hasTokoAccess(tokoIds, service.tokoId)) return { success: false, error: "Access denied" };
-
     if (!technicianAvailableStatuses.includes(service.status)) {
       return { success: false, error: "Service is not available for takeover" };
     }
@@ -396,7 +425,6 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!hasTokoAccess(tokoIds, service.tokoId)) return { success: false, error: "Access denied" };
-
     if (service.isPickedUp) {
       return { success: false, error: "Service has already been picked up" };
     }
@@ -452,6 +480,13 @@ export async function assignTechnician(
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!hasTokoAccess(tokoIds, service.tokoId)) return { success: false, error: "Access denied" };
+    const disabledFeatures = await getDisabledFeaturesForToko(service.tokoId);
+    const assignmentError = ensureFeatureAccess(
+      await getTokoScopedUser(user, service.tokoId),
+      "service.technicianAssignment",
+      disabledFeatures
+    );
+    if (assignmentError) return assignmentError;
 
     if (service.isPickedUp) {
       return { success: false, error: "Cannot update a service that has been picked up" };
@@ -516,7 +551,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
 
     const service = await prisma.service.findUnique({
       where: { id: data.serviceId },
-      select: { tokoId: true, status: true, isPickedUp: true, technicianId: true },
+      select: { tokoId: true, status: true, isPickedUp: true, technicianId: true, hpCatalogId: true },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!hasTokoAccess(tokoIds, service.tokoId)) return { success: false, error: "Access denied" };
@@ -529,15 +564,41 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
     }
 
     const validated = addItemSchema.parse(data);
+    const scopedUser = await getTokoScopedUser(user, service.tokoId);
+    const disabledFeatures = await getDisabledFeaturesForToko(service.tokoId);
+
+    if (validated.type === "sparepart" && validated.servicePricelistId) {
+      return { success: false, error: "Sparepart item cannot use a service pricelist" };
+    }
+
+    if (validated.type === "service" && validated.sparepartId) {
+      return { success: false, error: "Service item cannot use a sparepart" };
+    }
 
     if (validated.type === "sparepart" && validated.sparepartId) {
+      const featureError = ensureFeatureAccess(scopedUser, "service.inventoryItems", disabledFeatures);
+      if (featureError) return featureError;
+
       const sparepart = await prisma.sparepart.findUnique({
         where: { id: validated.sparepartId },
-        select: { stock: true, name: true, tokoId: true },
+        select: {
+          stock: true,
+          name: true,
+          defaultPrice: true,
+          tokoId: true,
+          isUniversal: true,
+          compatibilities: {
+            where: { hpCatalogId: service.hpCatalogId },
+            select: { hpCatalogId: true },
+          },
+        },
       });
       if (!sparepart) return { success: false, error: "Sparepart not found" };
       if (sparepart.tokoId !== service.tokoId) {
         return { success: false, error: "Sparepart not found" };
+      }
+      if (!sparepart.isUniversal && sparepart.compatibilities.length === 0) {
+        return { success: false, error: "Sparepart is not compatible with this device" };
       }
 
       await prisma.$transaction(async (tx) => {
@@ -558,9 +619,9 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           data: {
             serviceId: validated.serviceId,
             type: validated.type,
-            name: validated.name,
+            name: sparepart.name,
             qty: validated.qty,
-            price: validated.price,
+            price: sparepart.defaultPrice,
             referenceId: validated.sparepartId,
           },
         });
@@ -582,7 +643,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
             sparepartId: validated.sparepartId,
             sparepartName: sparepart.name,
             qty: validated.qty,
-            price: validated.price,
+            price: sparepart.defaultPrice,
           },
         });
 
@@ -602,15 +663,35 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
         }
       });
     } else {
+      const featureError = ensureFeatureAccess(scopedUser, "service.manualItems", disabledFeatures);
+      if (featureError) return featureError;
+
+      let itemName = validated.name;
+      let itemPrice = validated.price;
+
+      if (validated.type === "service" && validated.servicePricelistId) {
+        const pricelist = await prisma.servicePricelist.findUnique({
+          where: { id: validated.servicePricelistId },
+          select: { title: true, defaultPrice: true, tokoId: true },
+        });
+
+        if (!pricelist || pricelist.tokoId !== service.tokoId) {
+          return { success: false, error: "Service pricelist not found" };
+        }
+
+        itemName = pricelist.title;
+        itemPrice = pricelist.defaultPrice;
+      }
+
       await prisma.$transaction(async (tx) => {
         await tx.serviceItem.create({
           data: {
             serviceId: validated.serviceId,
             type: validated.type,
-            name: validated.name,
+            name: itemName,
             qty: validated.qty,
-            price: validated.price,
-            referenceId: validated.sparepartId || null,
+            price: itemPrice,
+            referenceId: null,
           },
         });
 
@@ -636,17 +717,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
       });
     }
 
-    const invoiceResult = await updateInvoiceTotal(validated.serviceId);
-
-    if (invoiceResult.created) {
-      await createActivityLog(prisma, {
-        tokoId: service.tokoId,
-        userId: user.id,
-        serviceId: validated.serviceId,
-        type: "invoice_created",
-        title: "Invoice created",
-      });
-    }
+    await updateInvoiceIfAllowed(user, validated.serviceId, service.tokoId);
 
     revalidateServicePaths(service.tokoId);
 
@@ -712,7 +783,7 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
       await prisma.serviceItem.delete({ where: { id: itemId } });
     }
 
-    await updateInvoiceTotal(item.serviceId);
+    await updateInvoiceIfAllowed(user, item.serviceId, item.service.tokoId);
 
     revalidateServicePaths(item.service.tokoId);
 
@@ -738,6 +809,10 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
     });
     if (!invoice) return { success: false, error: "Invoice not found" };
     if (!hasTokoAccess(tokoIds, invoice.service.tokoId)) return { success: false, error: "Access denied" };
+    const scopedUser = await getTokoScopedUser(user, invoice.service.tokoId);
+    const disabledFeatures = await getDisabledFeaturesForToko(invoice.service.tokoId);
+    const invoiceError = ensureFeatureAccess(scopedUser, "service.invoice", disabledFeatures);
+    if (invoiceError) return invoiceError;
     if (invoice.paymentStatus === "paid") return { success: false, error: "Invoice has already been paid" };
     if (invoice.service.status !== "done" && invoice.service.status !== "failed") {
       return { success: false, error: "Only completed services can be marked as paid" };
@@ -754,7 +829,7 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
 
       await createActivityLog(tx, {
         tokoId: invoice.service.tokoId,
-        userId: user.id,
+        userId: scopedUser.id,
         serviceId: invoice.service.id,
         type: "invoice_paid",
         title: "Invoice marked as paid",

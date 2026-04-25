@@ -40,6 +40,7 @@ interface ManageServiceProps {
   initialStats: ServiceStats;
   tokoId: string;
   pageSize: number;
+  disableAssignment?: boolean;
 }
 
 type StatsVariant = "default" | "primary" | "success" | "warning" | "accent";
@@ -114,6 +115,7 @@ export function ManageService({
   initialStats,
   tokoId,
   pageSize,
+  disableAssignment,
 }: ManageServiceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -482,6 +484,7 @@ const getPageTitle = () => {
               onCall={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? (() => {}) : undefined}
               onRowClick={handleRowClick}
               tokoId={tokoId}
+              disableAssignment={disableAssignment}
             />
 
             {totalPages > 1 && (

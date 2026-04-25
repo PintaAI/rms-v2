@@ -82,22 +82,33 @@ export function AddRepairItemForm({
   onAddItem,
   onAddItemError,
 }: AddRepairItemFormProps) {
-  const [itemType, setItemType] = useState<"sparepart" | "service">("sparepart");
+  const [itemType, setItemType] = useState<"manual-sparepart" | "manual-service" | "sparepart" | "service">("manual-sparepart");
   const [selectedSparepartId, setSelectedSparepartId] = useState<string>("");
   const [selectedPricelistId, setSelectedPricelistId] = useState<string>("");
+  const [manualName, setManualName] = useState("");
+  const [manualPrice, setManualPrice] = useState("");
   const [itemQty, setItemQty] = useState("1");
 
   // Get selected item details
+  const isManualItem = itemType === "manual-sparepart" || itemType === "manual-service";
+  const submittedItemType = itemType === "manual-sparepart" || itemType === "sparepart" ? "sparepart" : "service";
   const selectedSparepart = spareparts.find((s) => s.id === selectedSparepartId);
   const selectedPricelist = servicePricelists.find((p) => p.id === selectedPricelistId);
   const selectedItem = itemType === "sparepart" ? selectedSparepart : selectedPricelist;
-  const itemName = itemType === "sparepart" ? selectedSparepart?.name : selectedPricelist?.title;
-  const itemPrice = selectedItem?.defaultPrice?.toString() || "";
+  const itemName = isManualItem ? manualName.trim() : itemType === "sparepart" ? selectedSparepart?.name ?? "" : selectedPricelist?.title ?? "";
+  const itemPrice = isManualItem ? manualPrice : selectedItem?.defaultPrice?.toString() || "";
+  const canSubmit = isManualItem
+    ? itemName.length > 0 && !!itemPrice && parseInt(itemPrice, 10) >= 0
+    : itemType === "sparepart"
+      ? !!selectedSparepartId
+      : !!selectedPricelistId;
 
   function resetForm() {
-    setItemType("sparepart");
+    setItemType("manual-sparepart");
     setSelectedSparepartId("");
     setSelectedPricelistId("");
+    setManualName("");
+    setManualPrice("");
     setItemQty("1");
   }
 
@@ -116,6 +127,14 @@ export function AddRepairItemForm({
 
   async function handleAddItem() {
     // Validate that an item is selected
+    if (isManualItem && !itemName) {
+      onError("Please enter an item name");
+      return;
+    }
+    if (isManualItem && (!itemPrice || parseInt(itemPrice, 10) < 0)) {
+      onError("Please enter a valid price");
+      return;
+    }
     if (itemType === "sparepart" && !selectedSparepartId) {
       onError("Please select a sparepart from the list");
       return;
@@ -132,7 +151,7 @@ export function AddRepairItemForm({
     // Build the optimistic item and notify the parent immediately
     const newItem = {
       id: `temp-${Date.now()}`,
-      type: itemType,
+      type: submittedItemType,
       name: itemName || "",
       qty: parseInt(itemQty, 10),
       price: parseInt(itemPrice, 10),
@@ -144,8 +163,9 @@ export function AddRepairItemForm({
     try {
       const result = await addItem({
         serviceId,
-        type: itemType,
+        type: submittedItemType,
         sparepartId: itemType === "sparepart" ? selectedSparepartId : undefined,
+        servicePricelistId: itemType === "service" ? selectedPricelistId : undefined,
         name: itemName || "",
         qty: parseInt(itemQty, 10),
         price: parseInt(itemPrice, 10),
@@ -178,7 +198,46 @@ export function AddRepairItemForm({
           {/* Item Type Toggle */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Item Type</Label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setItemType("manual-sparepart");
+                  setSelectedSparepartId("");
+                  setSelectedPricelistId("");
+                }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
+                  itemType === "manual-sparepart"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                )}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Manual Sparepart
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setItemType("manual-service");
+                  setSelectedSparepartId("");
+                  setSelectedPricelistId("");
+                }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
+                  itemType === "manual-service"
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                )}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Manual Service
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -193,11 +252,7 @@ export function AddRepairItemForm({
                     : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Sparepart
+                Inventory Sparepart
               </button>
               <button
                 type="button"
@@ -213,16 +268,38 @@ export function AddRepairItemForm({
                     : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                Service
+                Pricelist Service
               </button>
             </div>
           </div>
 
+          {isManualItem && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="manual-item-name" className="text-sm font-medium">Item Name</Label>
+                <Input
+                  id="manual-item-name"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder={itemType === "manual-sparepart" ? "Contoh: LCD iPhone 11" : "Contoh: Jasa bongkar pasang"}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-item-price" className="text-sm font-medium">Price</Label>
+                <Input
+                  id="manual-item-price"
+                  type="number"
+                  value={manualPrice}
+                  onChange={(e) => setManualPrice(e.target.value)}
+                  min="0"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Item Selection - Card Grid */}
-          <div className="space-y-2">
+          {!isManualItem && <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <Label className="text-sm font-medium">
                 {itemType === "sparepart" ? "Select Sparepart" : "Select Service"}
@@ -346,7 +423,7 @@ export function AddRepairItemForm({
                 </div>
               )
             )}
-          </div>
+          </div>}
 
           {/* Quantity */}
           <div className="space-y-2">
@@ -386,7 +463,7 @@ export function AddRepairItemForm({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
               </button>
-              {selectedItem && (
+              {(isManualItem || selectedItem) && (
                 <div className="ml-auto text-sm text-muted-foreground">
                   Total: <span className="font-semibold text-foreground">{formatCurrency((parseInt(itemPrice, 10) || 0) * (parseInt(itemQty, 10) || 1))}</span>
                 </div>
@@ -399,7 +476,7 @@ export function AddRepairItemForm({
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleAddItem} disabled={!selectedSparepartId && !selectedPricelistId}>
+          <Button onClick={handleAddItem} disabled={!canSubmit}>
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>

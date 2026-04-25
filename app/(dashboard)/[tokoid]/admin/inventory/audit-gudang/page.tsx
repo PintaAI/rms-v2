@@ -1,9 +1,12 @@
 import { getInventoryAuditOverview } from "@/actions/inventory-audit"
+import { FeatureLocked } from "@/components/dashboard/feature-locked"
 import { AuditDashboard } from "@/components/dashboard/inventory/audit-gudang/audit-dashboard"
 import type { InventoryAuditOverview } from "@/components/dashboard/inventory/audit-gudang/types"
+import { getPageFeatureAccess } from "@/lib/page-feature-gates"
 import prisma from "@/lib/prisma"
 import { RiStore2Line } from "@remixicon/react"
 import Image from "next/image"
+import { redirect } from "next/navigation"
 
 type AdminAuditGudangPageProps = {
   params: Promise<{ tokoid: string }>
@@ -17,6 +20,21 @@ type ActionResult<T> = {
 
 export default async function AdminAuditGudangPage({ params }: AdminAuditGudangPageProps) {
   const { tokoid } = await params
+  const access = await getPageFeatureAccess(tokoid, "inventory.audit")
+
+  if (access.reason === "unauthorized") redirect("/auth")
+  if (access.reason === "toko_denied") redirect("/dashboard")
+  if (!access.allowed) {
+    return (
+      <FeatureLocked
+        featureLabel={access.metadata.label}
+        featureDescription={access.metadata.description}
+        requiredPlan={access.metadata.minimumPlan}
+        reason={access.reason ?? "plan_required"}
+        tokoId={tokoid}
+      />
+    )
+  }
 
   const [toko, overviewResult] = await Promise.all([
     prisma.toko.findUnique({

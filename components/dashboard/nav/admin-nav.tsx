@@ -8,32 +8,58 @@ import {
 import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine, RiFileList3Line } from "@remixicon/react";
 import { NavItem, NavFilterGroup, NavGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
+import type { FeatureAccessMap } from "@/lib/features";
+import type { ReactNode } from "react";
 
 interface AdminNavProps {
   tokoid: string;
+  featureAccess: FeatureAccessMap;
   serviceStats?: ServiceStats | null;
 }
 
-export function AdminNav({ tokoid, serviceStats }: AdminNavProps) {
+export function AdminNav({ tokoid, featureAccess, serviceStats }: AdminNavProps) {
+  const inventoryItems: { href: string; icon: ReactNode; label: string }[] = [];
+
+  if (featureAccess["inventory.management"]) {
+    inventoryItems.push({
+      href: `/${tokoid}/admin/inventory`,
+      icon: <RiToolsLine />,
+      label: "Sparepart & Jasa",
+    });
+  }
+
+  if (featureAccess["inventory.audit"]) {
+    inventoryItems.push({
+      href: `/${tokoid}/admin/inventory/audit-gudang`,
+      icon: <RiFileList3Line />,
+      label: "Audit Gudang",
+    });
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          <NavItem
-            href={`/${tokoid}/admin`}
-            icon={<RiDashboardLine />}
-            label="Admin Overview"
-          />
-          <NavItem
-            href={`/${tokoid}/admin/toko`}
-            icon={<RiStore2Line />}
-            label="Toko"
-          />
-          <NavFilterGroup
-            title="Service"
-            icon={<RiToolsLine />}
-            defaultOpen={true}
-            items={[
+          {featureAccess["dashboard.overview"] && (
+            <NavItem
+              href={`/${tokoid}/admin`}
+              icon={<RiDashboardLine />}
+              label="Admin Overview"
+            />
+          )}
+          {featureAccess["toko.manage"] && (
+            <NavItem
+              href={`/${tokoid}/admin/toko`}
+              icon={<RiStore2Line />}
+              label="Toko"
+            />
+          )}
+          {featureAccess["service.management"] && (
+            <NavFilterGroup
+              title="Service"
+              icon={<RiToolsLine />}
+              defaultOpen={true}
+              items={[
               {
                 href: `/${tokoid}/admin/service`,
                 icon: <RiToolsLine />,
@@ -67,30 +93,24 @@ export function AdminNav({ tokoid, serviceStats }: AdminNavProps) {
                 badge: serviceStats?.pickedUp,
                 badgeVariant: "outline",
               },
-            ]}
-          />
-          <NavItem
-            href={`/${tokoid}/admin/karyawan`}
-            icon={<RiUserSettingsLine />}
-            label="Karyawan"
-          />
-          <NavGroup
-            title="Inventory"
-            icon={<RiArchiveLine />}
-            defaultOpen={true}
-            items={[
-              {
-                href: `/${tokoid}/admin/inventory`,
-                icon: <RiToolsLine />,
-                label: "Sparepart & Jasa",
-              },
-              {
-                href: `/${tokoid}/admin/inventory/audit-gudang`,
-                icon: <RiFileList3Line />,
-                label: "Audit Gudang",
-              },
-            ]}
-          />
+              ]}
+            />
+          )}
+          {featureAccess["karyawan.management"] && (
+            <NavItem
+              href={`/${tokoid}/admin/karyawan`}
+              icon={<RiUserSettingsLine />}
+              label="Karyawan"
+            />
+          )}
+          {inventoryItems.length > 0 && (
+            <NavGroup
+              title="Inventory"
+              icon={<RiArchiveLine />}
+              defaultOpen={true}
+              items={inventoryItems}
+            />
+          )}
 
         </SidebarMenu>
       </SidebarGroupContent>

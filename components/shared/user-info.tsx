@@ -1,23 +1,51 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RiLogoutBoxRLine, RiUserLine, RiSettings3Line, RiPaletteLine, RiArrowRightSLine } from "@remixicon/react";
 import { ModeToggle } from "@/components/shared/theme-toggle";
 import { UserSettings } from "@/components/ui/user-settings";
+import type { SettingsTab } from "@/components/ui/user-settings";
+import { useAuth } from "@/components/auth/auth-provider";
+import { normalizePlan, type SubscriptionPlan } from "@/lib/features";
 import { useState } from "react";
+
+const planLabels: Record<SubscriptionPlan, string> = {
+  free: "Free",
+  premium: "Premium",
+  enterprise: "Enterprise",
+};
 
 export function UserInfo() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { data: session, isPending } = useSession();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { user: authUser } = useAuth();
+
+  const settingsParam = searchParams.get("settings");
+  const initialTab = settingsParam as SettingsTab | null;
+  const [settingsOpen, setSettingsOpen] = useState(Boolean(settingsParam));
+
+  const handleClose = (open: boolean) => {
+    setSettingsOpen(open);
+    if (!open && settingsParam) {
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete("settings");
+      const newUrl = newSearchParams.toString() ? `${pathname}?${newSearchParams.toString()}` : pathname;
+      router.replace(newUrl);
+    }
+  };
 
   if (isPending) {
     return (
@@ -43,6 +71,7 @@ export function UserInfo() {
   }
 
   const { user } = session;
+  const currentPlan = authUser?.plan ?? normalizePlan(user.subscription?.plan);
 
   const handleSignOut = async () => {
     await signOut();
@@ -65,7 +94,12 @@ export function UserInfo() {
               </Avatar>
               <div className="hidden min-w-0 flex-1 flex-col sm:flex">
                 <span className="text-sm font-semibold truncate transition-colors duration-300 group-hover:text-foreground/90">{user.name}</span>
-                <span className="text-xs text-muted-foreground/70 capitalize">{user.role}</span>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                  <span className="capitalize">{user.role}</span>
+                  <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-primary">
+                    {planLabels[currentPlan]}
+                  </span>
+                </span>
               </div>
               <span className="max-w-20 truncate text-xs font-semibold sm:hidden">{user.name}</span>
               <RiArrowRightSLine className="hidden size-4 text-muted-foreground/50 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-muted-foreground sm:block" />
@@ -73,6 +107,11 @@ export function UserInfo() {
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="space-y-1">
+            <div className="text-xs font-normal text-muted-foreground">Current plan</div>
+            <Badge variant={currentPlan === "free" ? "outline" : "default"}>{planLabels[currentPlan]}</Badge>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setSettingsOpen(true)}
             className="cursor-pointer gap-2"
@@ -102,7 +141,7 @@ export function UserInfo() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <UserSettings open={settingsOpen} onOpenChange={setSettingsOpen} user={user} />
+      <UserSettings open={settingsOpen} onOpenChange={handleClose} user={user} initialTab={initialTab ?? undefined} />
     </>
   );
 }

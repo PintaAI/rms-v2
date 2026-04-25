@@ -1,10 +1,13 @@
 "use server"
 
 import { createActivityLogIfUser } from "@/lib/activity-log"
+import { ensureFeatureAccess } from "@/lib/feature-enforcement"
 import prisma from "@/lib/prisma"
-import { canAccessToko, getAuthUser, isAdmin, type ActionResult, type ActionResultWithData } from "@/lib/rbac"
+import { canAccessToko, getAuthUser, getEffectivePlanForToko, isAdmin, type ActionResult, type ActionResultWithData } from "@/lib/rbac"
 import { revalidateInventoryPaths } from "@/lib/revalidation"
+import type { FeatureKey } from "@/lib/features"
 import { z } from "zod"
+import { getDisabledFeaturesForToko } from "./feature-settings"
 
 export type Sparepart = {
   id: string
@@ -70,7 +73,11 @@ const updateServicePricelistSchema = z.object({
   defaultPrice: z.number().int().min(0, "Price must be 0 or greater").optional(),
 })
 
-async function getInventoryUser(tokoId: string, requireWriteAccess: boolean = false) {
+async function getInventoryUser(
+  tokoId: string,
+  requireWriteAccess: boolean = false,
+  feature: FeatureKey = "inventory.management"
+) {
   const user = await getAuthUser()
 
   if (!user) {
@@ -84,6 +91,14 @@ async function getInventoryUser(tokoId: string, requireWriteAccess: boolean = fa
   if (requireWriteAccess && !isAdmin(user)) {
     return { success: false as const, error: "Only admins can manage inventory" }
   }
+
+  const plan = await getEffectivePlanForToko(user, tokoId)
+  const featureError = ensureFeatureAccess(
+    { role: user.role, plan },
+    feature,
+    await getDisabledFeaturesForToko(tokoId)
+  )
+  if (featureError) return { success: false as const, error: featureError.error }
 
   return { success: true as const, user }
 }
@@ -117,7 +132,7 @@ export async function getSpareparts(tokoId: string): Promise<ActionResultWithDat
 
 export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: string): Promise<ActionResultWithData<SparepartListItem[]>> {
   try {
-    const access = await getInventoryUser(tokoId)
+    const access = await getInventoryUser(tokoId, false, "service.inventoryItems")
     if (!access.success) return access
 
     const whereClause: {

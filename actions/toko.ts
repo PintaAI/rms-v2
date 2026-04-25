@@ -1,9 +1,12 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { ensurePlanLimit } from "@/lib/feature-enforcement";
+import { FEATURE_REGISTRY, isFeatureKey, isPlanAtLeast, type FeatureKey } from "@/lib/features";
 import { canAccessToko, getAuthUser, isAdmin } from "@/lib/rbac";
 import { createCredentialUserWithToko } from "@/lib/auth-helpers";
 import { revalidateTokoPaths } from "@/lib/revalidation";
+import { Prisma } from "@/prisma/generated/prisma/client";
 import { revalidatePath } from "next/cache";
 
 interface UserData {
@@ -19,6 +22,7 @@ interface CreateTokoInput {
   phone?: string;
   staff: UserData[];
   technician: UserData[];
+  disabledFeatures?: FeatureKey[];
 }
 
 interface CreateTokoResult {
@@ -57,15 +61,17 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
     return { success: false, error: "Only admins can create toko" };
   }
 
-  const existingToko = await prisma.userToko.findFirst({
-    where: { userId: user.id },
-  });
+  const tokoLimitError = ensurePlanLimit(user, "maxTokos", user.tokoIds.length);
+  if (tokoLimitError) return tokoLimitError;
 
-  if (existingToko) {
-    return { success: false, error: "Admin already has a toko" };
-  }
+  const staffLimitError = ensurePlanLimit(user, "maxStaff", 0, input.staff.length);
+  if (staffLimitError) return staffLimitError;
+
+  const technicianLimitError = ensurePlanLimit(user, "maxTechnicians", 0, input.technician.length);
+  if (technicianLimitError) return technicianLimitError;
 
   const allEmails = [...input.staff.map(s => s.email), ...input.technician.map(t => t.email)];
+  const disabledFeatures = getAllowedDisabledFeatures(input.disabledFeatures ?? [], user.plan);
   const existingUsers = await prisma.user.findMany({
     where: { email: { in: allEmails } },
     select: { email: true },
@@ -78,6 +84,16 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const tokoCount = await tx.userToko.count({ where: { userId: user.id } });
+      const tokoLimitError = ensurePlanLimit(user, "maxTokos", tokoCount);
+      if (tokoLimitError) throw new Error(tokoLimitError.error);
+
+      const staffLimitError = ensurePlanLimit(user, "maxStaff", 0, input.staff.length);
+      if (staffLimitError) throw new Error(staffLimitError.error);
+
+      const technicianLimitError = ensurePlanLimit(user, "maxTechnicians", 0, input.technician.length);
+      if (technicianLimitError) throw new Error(technicianLimitError.error);
+
       const toko = await tx.toko.create({
         data: {
           name: input.name,
@@ -95,6 +111,15 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
           role: "owner",
         },
       });
+
+      if (disabledFeatures.length > 0) {
+        await tx.tokoFeatureSetting.create({
+          data: {
+            tokoId: toko.id,
+            disabledFeatures: JSON.stringify(disabledFeatures),
+          },
+        });
+      }
 
       for (const staff of input.staff) {
         await createCredentialUserWithToko(tx, {
@@ -117,13 +142,25 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
       }
 
       return toko.id;
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return { success: true, tokoId: result };
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Your ")) {
+      return { success: false, error: error.message };
+    }
     console.error("Failed to create toko:", error);
     return { success: false, error: "Failed to create toko. Please try again." };
   }
+}
+
+function getAllowedDisabledFeatures(features: FeatureKey[], plan: string | null | undefined): FeatureKey[] {
+  return [...new Set(features)].filter((feature) => {
+    if (!isFeatureKey(feature)) return false;
+
+    const metadata = FEATURE_REGISTRY[feature];
+    return metadata.configurable && isPlanAtLeast(plan, metadata.minimumPlan);
+  });
 }
 
 export async function createToko(input: {
@@ -146,29 +183,43 @@ export async function createToko(input: {
     return { success: false, error: "Toko name must be at least 2 characters" };
   }
 
-  try {
-    const toko = await prisma.toko.create({
-      data: {
-        name: input.name.trim(),
-        logoUrl: input.logoUrl?.trim(),
-        address: input.address?.trim(),
-        phone: input.phone?.trim(),
-        status: "active",
-      },
-    });
+  const tokoLimitError = ensurePlanLimit(user, "maxTokos", user.tokoIds.length);
+  if (tokoLimitError) return tokoLimitError;
 
-    await prisma.userToko.create({
-      data: {
-        userId: user.id,
-        tokoId: toko.id,
-        role: "owner",
-      },
-    });
+  try {
+    const toko = await prisma.$transaction(async (tx) => {
+      const tokoCount = await tx.userToko.count({ where: { userId: user.id } });
+      const tokoLimitError = ensurePlanLimit(user, "maxTokos", tokoCount);
+      if (tokoLimitError) throw new Error(tokoLimitError.error);
+
+      const createdToko = await tx.toko.create({
+        data: {
+          name: input.name.trim(),
+          logoUrl: input.logoUrl?.trim(),
+          address: input.address?.trim(),
+          phone: input.phone?.trim(),
+          status: "active",
+        },
+      });
+
+      await tx.userToko.create({
+        data: {
+          userId: user.id,
+          tokoId: createdToko.id,
+          role: "owner",
+        },
+      });
+
+      return createdToko;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     revalidatePath("/dashboard");
 
     return { success: true, tokoId: toko.id };
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Your ")) {
+      return { success: false, error: error.message };
+    }
     console.error("Failed to create toko:", error);
     return { success: false, error: "Failed to create toko" };
   }

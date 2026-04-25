@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
+import { isPlanAtLeast, normalizePlan, type SubscriptionPlan } from "@/lib/features";
 
 export type UserRole = "admin" | "staff" | "technician";
 
@@ -9,6 +10,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: UserRole;
+  plan: SubscriptionPlan;
   tokoIds: string[];
 }
 
@@ -27,18 +29,85 @@ export async function getAuthUser(): Promise<AuthUser | null> {
 
   if (!session?.user) return null;
 
+  const role = session.user.role as UserRole;
+
   const userToko = await prisma.userToko.findMany({
     where: { userId: session.user.id },
     select: { tokoId: true },
   });
 
+  const tokoIds = userToko.map((t) => t.tokoId);
+  const plan = await resolveEffectivePlan(session.user.id, role, tokoIds);
+
   return {
     id: session.user.id,
     name: session.user.name,
     email: session.user.email,
-    role: session.user.role as UserRole,
-    tokoIds: userToko.map((t) => t.tokoId),
+    role,
+    plan,
+    tokoIds,
   };
+}
+
+async function resolveEffectivePlan(userId: string, role: UserRole, tokoIds: string[]): Promise<SubscriptionPlan> {
+  const subscription = await prisma.subscription.findUnique({
+    where: { userId },
+    select: { plan: true },
+  });
+
+  if (role === "admin" || tokoIds.length === 0) {
+    return normalizePlan(subscription?.plan);
+  }
+
+  const adminUsers = await prisma.user.findMany({
+    where: {
+      role: "admin",
+      tokoAssignments: {
+        some: {
+          tokoId: { in: tokoIds },
+        },
+      },
+    },
+    select: {
+      subscription: {
+        select: { plan: true },
+      },
+    },
+  });
+
+  return getHighestPlan([
+    subscription?.plan,
+    ...adminUsers.map((admin) => admin.subscription?.plan),
+  ]);
+}
+
+export async function getEffectivePlanForToko(user: AuthUser, tokoId: string): Promise<SubscriptionPlan> {
+  if (user.role === "admin") {
+    return user.plan;
+  }
+
+  const adminUsers = await prisma.user.findMany({
+    where: {
+      role: "admin",
+      tokoAssignments: {
+        some: { tokoId },
+      },
+    },
+    select: {
+      subscription: {
+        select: { plan: true },
+      },
+    },
+  });
+
+  return getHighestPlan(adminUsers.map((admin) => admin.subscription?.plan));
+}
+
+function getHighestPlan(plans: Array<string | null | undefined>): SubscriptionPlan {
+  return plans.reduce<SubscriptionPlan>((highestPlan, plan) => {
+    const normalizedPlan = normalizePlan(plan);
+    return isPlanAtLeast(normalizedPlan, highestPlan) ? normalizedPlan : highestPlan;
+  }, "free");
 }
 
 export async function requireAuth(): Promise<AuthUser> {

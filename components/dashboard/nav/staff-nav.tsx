@@ -8,13 +8,17 @@ import {
 import { RiArchiveLine, RiDashboardLine, RiToolsLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiLogoutBoxLine } from "@remixicon/react";
 import { NavItem, NavFilterGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
+import type { FeatureAccessMap } from "@/lib/features";
 
 interface StaffNavProps {
   tokoid: string;
+  featureAccess: FeatureAccessMap;
   serviceStats?: ServiceStats | null;
 }
 
-export function StaffNav({ tokoid, serviceStats }: StaffNavProps) {
+export function StaffNav({ tokoid, featureAccess, serviceStats }: StaffNavProps) {
+  if (!featureAccess["staff.workflow"]) return null;
+
   const serviceItems = [
     {
       href: `/${tokoid}/staff/service`,
@@ -61,17 +65,21 @@ export function StaffNav({ tokoid, serviceStats }: StaffNavProps) {
             icon={<RiDashboardLine />}
             label="Staff Overview"
           />
-          <NavFilterGroup
-            title="Service"
-            icon={<RiToolsLine />}
-            defaultOpen={true}
-            items={serviceItems}
-          />
-          <NavItem
-            href={`/${tokoid}/staff/inventory`}
-            icon={<RiArchiveLine />}
-            label="Inventory"
-          />
+          {featureAccess["service.management"] && (
+            <NavFilterGroup
+              title="Service"
+              icon={<RiToolsLine />}
+              defaultOpen={true}
+              items={serviceItems}
+            />
+          )}
+          {featureAccess["inventory.management"] && (
+            <NavItem
+              href={`/${tokoid}/staff/inventory`}
+              icon={<RiArchiveLine />}
+              label="Inventory"
+            />
+          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

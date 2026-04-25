@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -27,8 +27,10 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
-import { changePassword, updateProfile, uploadAvatar } from "@/actions"
+import { changePassword, getBillingPlanSummary, updateProfile, uploadAvatar, setDevUserPlan, type BillingPlanSummary } from "@/actions"
 import { useAuth } from "@/components/auth/auth-provider"
+import { FeatureSettingsTab } from "@/components/dashboard/admin/feature-settings-tab"
+import type { SubscriptionPlan } from "@/lib/features"
 import { getThemeMode, setThemeMode, type ThemeMode } from "@/lib/theme-preference"
 import {
   RiUserLine,
@@ -38,9 +40,12 @@ import {
   RiPencilLine,
   RiLoader4Line,
   RiPaletteLine,
+  RiCheckboxCircleLine,
+  RiLock2Line,
+  RiSettings4Line,
 } from "@remixicon/react"
 
-type SettingsTab = "profile" | "password" | "billing" | "premium" | "appearance"
+export type SettingsTab = "profile" | "features" | "password" | "billing" | "premium" | "appearance"
 
 interface UserSettingsProps {
   open: boolean
@@ -51,15 +56,35 @@ interface UserSettingsProps {
     image?: string | null
     role?: string | null
   } | null
+  initialTab?: SettingsTab
 }
 
 const menuItems: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: "profile", label: "Profile", icon: <RiUserLine /> },
+  { id: "features", label: "Pengaturan Fitur", icon: <RiSettings4Line /> },
   { id: "password", label: "Password", icon: <RiLockPasswordLine /> },
   { id: "appearance", label: "Tampilan", icon: <RiPaletteLine /> },
   { id: "billing", label: "Billing", icon: <RiBankCard2Line /> },
   { id: "premium", label: "Upgrade to Premium", icon: <RiVipCrownLine /> },
 ]
+
+const planLabels: Record<SubscriptionPlan, string> = {
+  free: "Free",
+  premium: "Premium",
+  enterprise: "Enterprise",
+}
+
+function formatLimit(limit: number | null) {
+  return limit === null ? "Unlimited" : String(limit)
+}
+
+function formatUsage(used: number, limit: number | null) {
+  return `${used} / ${formatLimit(limit)}`
+}
+
+function getParamValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value
+}
 
 function ProfileSettings({ user, onSuccess }: { user?: UserSettingsProps["user"]; onSuccess?: () => void }) {
   const router = useRouter()
@@ -307,64 +332,163 @@ function PasswordSettings({ onSuccess }: { onSuccess?: () => void }) {
   )
 }
 
-function BillingSettings() {
+function BillingSettings({ summary, isLoading }: { summary: BillingPlanSummary | null; isLoading: boolean }) {
+  const plan = summary?.plan ?? "free"
+
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border p-4">
+      <div className="rounded-lg border bg-card p-4">
         <div className="flex items-center justify-between">
           <div>
             <p className="font-medium">Current Plan</p>
-            <p className="text-xs text-muted-foreground">Free Plan</p>
+            <p className="text-xs text-muted-foreground">
+              {isLoading ? "Loading plan usage..." : `${planLabels[plan]} plan`}
+            </p>
           </div>
-          <Badge variant="outline">Free</Badge>
+          <Badge variant={plan === "free" ? "outline" : "default"}>{planLabels[plan]}</Badge>
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <UsageTile label="Toko" value={summary ? formatUsage(summary.usage.tokos, summary.limits.tokos) : "-"} />
+        <UsageTile label="Staff" value={summary ? formatUsage(summary.usage.staff, summary.limits.staff) : "-"} />
+        <UsageTile label="Teknisi" value={summary ? formatUsage(summary.usage.technicians, summary.limits.technicians) : "-"} />
+      </div>
+
+      <Separator />
+      <div className="space-y-2">
+        <p className="font-medium">Billing History</p>
+        <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+          Belum ada billing history. Payment provider belum dihubungkan.
         </div>
       </div>
       <Separator />
       <div className="space-y-2">
-        <p className="font-medium">Billing History</p>
-        <div className="text-xs text-muted-foreground">No billing history available</div>
-      </div>
-      <Separator />
-      <div className="space-y-2">
-        <p className="font-medium">Payment Method</p>
-        <Button variant="outline" className="w-full">
-          Add Payment Method
+        <p className="font-medium">Upgrade</p>
+        <Button variant="outline" className="w-full" disabled>
+          Upgrade flow belum tersedia
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          Integrasi pembayaran sengaja di luar scope MVP ini.
+        </p>
       </div>
     </div>
   )
 }
 
-function PremiumSettings() {
+function UsageTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold tabular-nums">{value}</p>
+    </div>
+  )
+}
+
+function PremiumSettings({ summary, isLoading, currentTokoId, onPlanChanged }: { summary: BillingPlanSummary | null; isLoading: boolean; currentTokoId?: string; onPlanChanged?: () => void }) {
+  const plan = summary?.plan ?? "free"
+  const { refetchSession } = useAuth()
+  const [isUpgrading, setIsUpgrading] = React.useState(false)
+
+  const handleDevUpgrade = async (targetPlan: SubscriptionPlan) => {
+    setIsUpgrading(true)
+    try {
+      const result = await setDevUserPlan(targetPlan)
+      if (result.success) {
+        await refetchSession()
+        if (currentTokoId) {
+          const newSummary = await getBillingPlanSummary(currentTokoId)
+          if (newSummary.success && newSummary.data) {
+            onPlanChanged?.()
+          }
+        }
+        toast.success(`Plan updated to ${targetPlan}`)
+      } else {
+        toast.error(result.error || "Failed to update plan")
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update plan")
+    } finally {
+      setIsUpgrading(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
         <div className="flex items-center gap-2 mb-2">
           <RiVipCrownLine className="size-5 text-primary" />
-          <p className="font-medium">Premium Features</p>
+          <p className="font-medium">{planLabels[plan]} Feature Access</p>
         </div>
-        <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-          <li>Unlimited services tracking</li>
-          <li>Advanced analytics dashboard</li>
-          <li>Priority customer support</li>
-          <li>Custom branding options</li>
-          <li>API access</li>
-        </ul>
+        <p className="text-xs text-muted-foreground">
+          {isLoading ? "Loading feature access..." : "Fitur di bawah mengikuti registry dan plan aktif akun/toko."}
+        </p>
       </div>
+
       <div className="space-y-2">
-        <p className="font-medium">Pricing</p>
-        <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold">$19.99</span>
-          <span className="text-xs text-muted-foreground">/month</span>
+        <p className="font-medium">Included</p>
+        <FeatureList features={summary?.includedFeatures ?? []} emptyLabel="Tidak ada fitur included yang bisa ditampilkan." included />
+      </div>
+
+      <Separator />
+
+      <div className="space-y-2">
+        <p className="font-medium">Locked</p>
+        <FeatureList features={summary?.lockedFeatures ?? []} emptyLabel="Semua fitur plan sudah terbuka." />
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide">DEV-ONLY</p>
+        <p className="text-xs text-muted-foreground">Bypass payment flow for testing. Remove before production.</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Button variant="outline" onClick={() => handleDevUpgrade("free")} disabled={isUpgrading || plan === "free"}>
+            {isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Free"}
+          </Button>
+          <Button onClick={() => handleDevUpgrade("premium")} disabled={isUpgrading || plan === "premium"}>
+            {isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Premium"}
+          </Button>
+          <Button onClick={() => handleDevUpgrade("enterprise")} disabled={isUpgrading || plan === "enterprise"}>
+            {isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Enterprise"}
+          </Button>
         </div>
       </div>
-      <Button className="w-full">
-        <RiVipCrownLine className="size-4 mr-2" />
-        Upgrade to Premium
-      </Button>
-      <p className="text-xs text-muted-foreground text-center">
-        Cancel anytime. No questions asked.
-      </p>
+    </div>
+  )
+}
+
+function FeatureList({
+  features,
+  emptyLabel,
+  included = false,
+}: {
+  features: BillingPlanSummary["includedFeatures"]
+  emptyLabel: string
+  included?: boolean
+}) {
+  if (features.length === 0) {
+    return <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">{emptyLabel}</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      {features.map((feature) => (
+        <div key={feature.key} className="flex gap-3 rounded-lg border bg-card p-3">
+          {included ? (
+            <RiCheckboxCircleLine className="mt-0.5 size-4 shrink-0 text-green-600" />
+          ) : (
+            <RiLock2Line className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium">{feature.label}</p>
+              <Badge variant={included ? "success" : "outline"}>{planLabels[feature.minimumPlan]}</Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{feature.description}</p>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -408,11 +532,47 @@ function AppearanceSettings() {
   )
 }
 
-export function UserSettings({ open, onOpenChange, user }: UserSettingsProps) {
-  const [activeTab, setActiveTab] = React.useState<SettingsTab>("profile")
+export function UserSettings({ open, onOpenChange, user, initialTab }: UserSettingsProps) {
+  const [activeTab, setActiveTab] = React.useState<SettingsTab>(() => initialTab || "profile")
+  const params = useParams<{ tokoid?: string | string[] }>()
+  const currentTokoId = getParamValue(params?.tokoid)
+  const [billingSummary, setBillingSummary] = React.useState<BillingPlanSummary | null>(null)
+  const [isBillingLoading, setIsBillingLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    let active = true
+
+    async function loadBillingSummary() {
+      if (!open || (activeTab !== "billing" && activeTab !== "premium")) return
+
+      setIsBillingLoading(true)
+      try {
+        const result = await getBillingPlanSummary(currentTokoId)
+        if (!active) return
+
+        if (result.success && result.data) {
+          setBillingSummary(result.data)
+        } else {
+          toast.error(result.error || "Gagal memuat data plan")
+        }
+      } catch (error) {
+        if (active) {
+          toast.error(error instanceof Error ? error.message : "Gagal memuat data plan")
+        }
+      } finally {
+        if (active) setIsBillingLoading(false)
+      }
+    }
+
+    void loadBillingSummary()
+
+    return () => {
+      active = false
+    }
+  }, [activeTab, currentTokoId, open])
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (newOpen) {
+    if (newOpen && !initialTab) {
       setActiveTab("profile")
     }
     onOpenChange(newOpen)
@@ -422,14 +582,16 @@ export function UserSettings({ open, onOpenChange, user }: UserSettingsProps) {
     switch (activeTab) {
       case "profile":
         return <ProfileSettings key={`${user?.name ?? "user"}-${user?.image ?? "no-image"}`} user={user} onSuccess={() => onOpenChange(false)} />
+      case "features":
+        return currentTokoId ? <FeatureSettingsTab tokoId={currentTokoId} /> : <div className="text-center text-muted-foreground py-8">Pilih toko untuk mengatur fitur.</div>
       case "password":
         return <PasswordSettings onSuccess={() => onOpenChange(false)} />
       case "appearance":
         return <AppearanceSettings />
       case "billing":
-        return <BillingSettings />
+        return <BillingSettings summary={billingSummary} isLoading={isBillingLoading} />
       case "premium":
-        return <PremiumSettings />
+        return <PremiumSettings summary={billingSummary} isLoading={isBillingLoading} currentTokoId={currentTokoId} onPlanChanged={() => setBillingSummary(null)} />
       default:
         return <ProfileSettings key={`${user?.name ?? "user"}-${user?.image ?? "no-image"}`} user={user} onSuccess={() => onOpenChange(false)} />
     }
@@ -442,12 +604,12 @@ export function UserSettings({ open, onOpenChange, user }: UserSettingsProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="min-w-3xl h-[500px] p-0 overflow-hidden" showCloseButton={true}>
+      <DialogContent className="min-w-3xl h-[500px] max-h-[85vh] p-0 overflow-hidden" showCloseButton={true}>
         <DialogHeader className="sr-only">
           <DialogTitle>User Settings</DialogTitle>
         </DialogHeader>
-        <SidebarProvider defaultOpen={true} className="h-full">
-          <div className="flex h-full w-full">
+        <SidebarProvider defaultOpen={true} className="h-full min-h-0">
+          <div className="flex h-full min-h-0 w-full">
             <Sidebar collapsible="none" className="w-[200px] border-r shrink-0" side="left">
               <SidebarContent>
                 <SidebarGroup>
@@ -470,7 +632,7 @@ export function UserSettings({ open, onOpenChange, user }: UserSettingsProps) {
                 </SidebarGroup>
               </SidebarContent>
             </Sidebar>
-            <main className="flex-1 p-6 overflow-auto">
+            <main className="min-h-0 flex-1 overflow-y-auto p-6">
               <div className="mb-4">
                 <h2 className="font-heading text-sm font-medium">{getTabTitle()}</h2>
                 <Separator className="mt-2" />

@@ -8,13 +8,17 @@ import {
 import { RiDashboardLine, RiTaskLine, RiArchiveLine, RiCheckLine, RiCloseCircleLine, RiFolderLine, RiToolsLine, RiHistoryLine } from "@remixicon/react";
 import { NavItem, NavFilterGroup } from "./nav-item";
 import type { TechnicianTaskStats } from "@/actions/service";
+import type { FeatureAccessMap } from "@/lib/features";
 
 interface TeknisiNavProps {
   tokoid: string;
+  featureAccess: FeatureAccessMap;
   taskStats?: TechnicianTaskStats | null;
 }
 
-export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
+export function TeknisiNav({ tokoid, featureAccess, taskStats }: TeknisiNavProps) {
+  if (!featureAccess["technician.workflow"]) return null;
+
   const taskItems = [
     {
       href: `/${tokoid}/teknisi/task`,
@@ -72,11 +76,13 @@ export function TeknisiNav({ tokoid, taskStats }: TeknisiNavProps) {
             defaultOpen={true}
             items={taskItems}
           />
-          <NavItem
-            href={`/${tokoid}/teknisi/inventory`}
-            icon={<RiArchiveLine />}
-            label="Inventory"
-          />
+          {featureAccess["inventory.management"] && (
+            <NavItem
+              href={`/${tokoid}/teknisi/inventory`}
+              icon={<RiArchiveLine />}
+              label="Inventory"
+            />
+          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

@@ -4,10 +4,11 @@ import { Separator } from "@/components/ui/separator";
 import { DynamicBreadcrumb } from "@/components/dashboard/layout/dynamic-breadcrumb";
 import { UserInfo } from "@/components/shared/user-info";
 import { LiveClock } from "@/components/shared/live-clock";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { getServiceStats, getTechnicianTaskStats } from "@/actions/service";
+import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
+import { canUseFeature, type FeatureAccessMap, type FeatureKey } from "@/lib/features";
+import { getAuthUser, getEffectivePlanForToko } from "@/lib/rbac";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -16,19 +17,22 @@ interface DashboardLayoutProps {
 
 export default async function DashboardLayout({ children, params }: DashboardLayoutProps) {
   const { tokoid } = await params;
-  const headersList = await headers();
-  const session = await auth.api.getSession({ headers: headersList });
+  const user = await getAuthUser();
 
   let serviceStats: ServiceStats | null = null;
   let technicianTaskStats: TechnicianTaskStats | null = null;
+  const [plan, disabledFeatures] = user
+    ? await Promise.all([getEffectivePlanForToko(user, tokoid), getDisabledFeaturesForToko(tokoid)])
+    : [null, [] as FeatureKey[]];
+  const featureAccess = getDashboardFeatureAccess(user, plan, disabledFeatures);
 
-  if (session?.user) {
-    if (session.user.role === "admin" || session.user.role === "staff") {
+  if (user) {
+    if (user.role === "admin" || user.role === "staff") {
       const result = await getServiceStats(tokoid);
       if (result.success && result.data) {
         serviceStats = result.data;
       }
-    } else if (session.user.role === "technician") {
+    } else if (user.role === "technician") {
       const result = await getTechnicianTaskStats(tokoid);
       if (result.success && result.data) {
         technicianTaskStats = result.data;
@@ -38,7 +42,12 @@ export default async function DashboardLayout({ children, params }: DashboardLay
 
   return (
     <SidebarProvider>
-      <AppSidebar tokoid={tokoid} serviceStats={serviceStats} technicianTaskStats={technicianTaskStats} />
+      <AppSidebar
+        tokoid={tokoid}
+        featureAccess={featureAccess}
+        serviceStats={serviceStats}
+        technicianTaskStats={technicianTaskStats}
+      />
       <SidebarInset>
         <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-3 py-2 sm:flex-nowrap sm:px-4 sm:py-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -61,4 +70,30 @@ export default async function DashboardLayout({ children, params }: DashboardLay
       </SidebarInset>
     </SidebarProvider>
   );
+}
+
+function getDashboardFeatureAccess(
+  user: Awaited<ReturnType<typeof getAuthUser>>,
+  plan: string | null,
+  disabledFeatures: FeatureKey[]
+): FeatureAccessMap {
+  if (!user || !plan) return {};
+
+  const features: FeatureKey[] = [
+    "dashboard.overview",
+    "toko.manage",
+    "service.management",
+    "inventory.management",
+    "karyawan.management",
+    "staff.workflow",
+    "technician.workflow",
+    "inventory.audit",
+  ];
+
+  return Object.fromEntries(
+    features.map((feature) => [
+      feature,
+      canUseFeature({ plan, role: user.role, feature, disabledFeatures }),
+    ])
+  ) as FeatureAccessMap;
 }

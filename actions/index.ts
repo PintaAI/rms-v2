@@ -6,3 +6,4 @@ export * from "./device";
 export * from "./inventory";
 export * from "./inventory-audit";
 export * from "./karyawan";
+export * from "./dev-action";

@@ -1,9 +1,12 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { ensureFeatureAccess, ensurePlanLimit } from "@/lib/feature-enforcement";
 import { canAccessToko, getAuthUser, isAdmin } from "@/lib/rbac";
+import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import { createCredentialUserWithToko } from "@/lib/auth-helpers";
 import { revalidateKaryawanPaths } from "@/lib/revalidation";
+import { Prisma } from "@/prisma/generated/prisma/client";
 
 export interface KaryawanPerformance {
   servicesCreated: number;
@@ -135,6 +138,9 @@ export async function getKaryawanList(tokoId: string): Promise<{
     return { success: false, error: "Access denied" };
   }
 
+  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
+  if (featureError) return featureError;
+
   const assignments = await prisma.userToko.findMany({
     where: { tokoId },
     include: {
@@ -180,6 +186,11 @@ export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
     return { staff: 0, technician: 0, total: 0 };
   }
 
+  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
+  if (featureError) {
+    return { staff: 0, technician: 0, total: 0 };
+  }
+
   const [staff, technician] = await Promise.all([
     prisma.userToko.count({
       where: {
@@ -216,6 +227,9 @@ export async function createKaryawan(
     return { success: false, error: "Access denied" };
   }
 
+  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
+  if (featureError) return featureError;
+
   if (!input.name.trim() || input.name.trim().length < 2) {
     return { success: false, error: "Name must be at least 2 characters" };
   }
@@ -243,7 +257,17 @@ export async function createKaryawan(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const user = await createCredentialUserWithToko(tx, {
+      const limitKey = input.role === "staff" ? "maxStaff" : "maxTechnicians";
+      const currentCount = await tx.userToko.count({
+        where: {
+          tokoId,
+          user: { role: input.role },
+        },
+      });
+      const limitError = ensurePlanLimit(user, limitKey, currentCount);
+      if (limitError) throw new Error(limitError.error);
+
+      const createdUser = await createCredentialUserWithToko(tx, {
         name: input.name,
         email: input.email,
         password: input.password,
@@ -251,8 +275,8 @@ export async function createKaryawan(
         tokoId: tokoId,
       });
 
-      return user;
-    }, { timeout: 15000 });
+      return createdUser;
+    }, { timeout: 15000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     revalidateKaryawanPaths(tokoId);
 
@@ -272,6 +296,9 @@ export async function createKaryawan(
       },
     };
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Your ")) {
+      return { success: false, error: error.message };
+    }
     console.error("Failed to create karyawan:", error);
     return { success: false, error: "Failed to create karyawan" };
   }
@@ -294,6 +321,9 @@ export async function deleteKaryawan(
   if (!canAccessToko(user, tokoId)) {
     return { success: false, error: "Access denied" };
   }
+
+  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
+  if (featureError) return featureError;
 
   if (userId === user.id) {
     return { success: false, error: "Cannot delete yourself" };
