@@ -571,6 +571,7 @@ const getPageTitle = () => {
               <ServiceTaskCard
                 task={selectedService}
                 variant={["done", "failed"].includes(selectedService.status) ? "completed" : "active"}
+                showActions={!!statusFilter && statusFilter !== "received"}
                 onRefresh={handleRefreshDetail}
                 onStatusChange={() => {
                   router.refresh();

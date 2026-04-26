@@ -120,6 +120,7 @@ export interface ServiceTaskItem {
 export interface ServiceTaskCardProps {
   task: ServiceTaskItem;
   variant?: "active" | "completed";
+  showActions?: boolean;
   onAddItem?: (task: ServiceTaskItem) => void;
   onRemoveItem?: (itemId: string) => void;
   onRefresh?: () => void;
@@ -129,6 +130,7 @@ export interface ServiceTaskCardProps {
 export function ServiceTaskCard({
   task,
   variant = "active",
+  showActions = true,
   onAddItem,
   onRemoveItem,
   onRefresh,
@@ -455,7 +457,7 @@ export function ServiceTaskCard({
                 {localTask.customerName || "No customer name"} • {localTask.noWa}
               </CardDescription>
             </div>
-            {isActive && (
+            {isActive && showActions && (
               <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
                 <Button
                   size="sm"
@@ -633,7 +635,7 @@ export function ServiceTaskCard({
             </div>
 
             {/* Done & Failed buttons – bottom-right for active tasks */}
-            {isActive && (
+            {isActive && showActions && (
               <div className="pt-4 border-t mt-4 space-y-4">
                 <p className="text-sm font-medium text-center text-muted-foreground">
                   Sudah selesai service?
