@@ -2,46 +2,6 @@
 
 /**
  * ServiceTaskCard - A card component for displaying and managing service tasks
- *
- * FEATURES:
- * - Displays service details: device, customer, complaint, items, invoice
- * - Optimistic UI updates for all mutations (add/remove items, status changes)
- * - Two variants: "active" (for in-progress tasks) and "completed" (for done/failed)
- * - Built-in dialogs for marking done/failed, undoing status, adding items, viewing pattern lock
- *
- * OPTIMISTIC UI ARCHITECTURE:
- * This component implements optimistic updates to provide instant feedback while
- * server mutations run in background. The pattern uses:
- *
- * 1. `localTask` state - local copy that receives optimistic updates immediately
- * 2. `pendingMutationsRef` - counter of in-flight mutations
- * 3. `taskFingerprint` - stable identity for prop comparison
- *
- * MUTATION LIFECYCLE:
- * - Before mutation: pendingMutationsRef += 1, apply optimistic update to localTask
- * - During mutation: useEffect skips syncing because pendingMutationsRef > 0
- * - On success: pendingMutationsRef -= 1, call onRefresh() to trigger parent re-fetch
- * - On failure: pendingMutationsRef -= 1, revert localTask to pre-mutation snapshot
- *
- * REQUIRED USAGE:
- * Parent MUST provide `onRefresh` that triggers a silent re-fetch:
- *   onRefresh={() => fetchData(true)}  // silent=true skips loading state
- *
- * Without silent refresh, the loading state will unmount the card and destroy
- * optimistic state, causing items to "reappear" or disappear incorrectly.
- *
- * EXAMPLE:
- * ```tsx
- * <ServiceTaskCard
- *   task={task}
- *   variant="active"
- *   onRefresh={() => fetchTasks(true)}  // MUST be silent re-fetch
- * />
- * ```
- *
- * OPTIONAL PROPS:
- * - `onUpdateStatus`, `onAddItem`, `onRemoveItem`: Override default handlers
- *   for parent-controlled mutations (e.g., when using a shared dialog)
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -95,6 +55,7 @@ import {
   getServicePricelists,
 } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
+import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 // Status badge colors
@@ -174,6 +135,7 @@ export function ServiceTaskCard({
   onStatusChange,
 }: ServiceTaskCardProps) {
   const isActive = variant === "active";
+  const { inventoryEnabled } = useFeatureAccess();
 
   // ─── Optimistic local state ────────────────────────────────────────────────
   // We keep a local copy of the task so we can apply optimistic updates
@@ -244,9 +206,9 @@ export function ServiceTaskCard({
     Array<{ id: string; title: string; defaultPrice: number }>
   >([]);
 
-  // Fetch spareparts and pricelists once (only for active cards)
+  // Fetch spareparts and pricelists once (only for active cards with inventory enabled)
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || !inventoryEnabled) return;
     async function fetchData() {
       try {
         const [sparepartsResult, pricelistsResult] = await Promise.all([
@@ -264,7 +226,7 @@ export function ServiceTaskCard({
       }
     }
     fetchData();
-  }, [isActive, localTask.tokoId, localTask.hpCatalog.id]);
+  }, [isActive, inventoryEnabled, localTask.tokoId, localTask.hpCatalog.id]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -884,8 +846,6 @@ export function ServiceTaskCard({
         servicePricelists={servicePricelists}
         onSuccess={() => {
           setItemDialogOpen(false);
-          // Unblock useEffect sync, then trigger silent re-fetch so the
-          // real server item (with actual ID) replaces the temp-* one.
           handleAddItemSuccess();
           onRefresh?.();
         }}

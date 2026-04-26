@@ -576,7 +576,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
     }
 
     if (validated.type === "sparepart" && validated.sparepartId) {
-      const featureError = ensureFeatureAccess(scopedUser, "service.inventoryItems", disabledFeatures);
+      const featureError = ensureFeatureAccess(scopedUser, "inventory.management", disabledFeatures);
       if (featureError) return featureError;
 
       const sparepart = await prisma.sparepart.findUnique({

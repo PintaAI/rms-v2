@@ -32,9 +32,7 @@ export interface OnboardingPlanRecommendation {
 }
 
 const optionalFeatureKeys: FeatureKey[] = [
-  "appearance.dynamicTheme",
   "inventory.management",
-  "service.inventoryItems",
   "karyawan.management",
   "staff.workflow",
   "technician.workflow",
@@ -91,7 +89,6 @@ export function getOnboardingPlanRecommendation(
 
   if (answers.usesInventory) {
     neededFeatures.add("inventory.management");
-    neededFeatures.add("service.inventoryItems");
     requirePlan("premium", "Stok sparepart dan pemakaian inventory membutuhkan Premium.");
   }
 
@@ -114,10 +111,6 @@ export function getOnboardingPlanRecommendation(
   if (answers.needsAudit) {
     neededFeatures.add("inventory.audit");
     requirePlan("enterprise", "Audit stok gudang adalah fitur Enterprise.");
-  }
-
-  if (answers.wantsBranding) {
-    neededFeatures.add("appearance.dynamicTheme");
   }
 
   if (reasons.length === 0) {

@@ -132,7 +132,7 @@ export async function getSpareparts(tokoId: string): Promise<ActionResultWithDat
 
 export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: string): Promise<ActionResultWithData<SparepartListItem[]>> {
   try {
-    const access = await getInventoryUser(tokoId, false, "service.inventoryItems")
+    const access = await getInventoryUser(tokoId, false, "inventory.management")
     if (!access.success) return access
 
     const whereClause: {

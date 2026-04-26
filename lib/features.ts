@@ -2,16 +2,14 @@ export type UserRole = "admin" | "staff" | "technician";
 
 export type SubscriptionPlan = "free" | "premium" | "enterprise";
 
-export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "team" | "analytics" | "appearance";
+export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "team" | "analytics";
 
 export type FeatureKey =
   | "dashboard.overview"
   | "toko.manage"
   | "service.management"
   | "service.manualItems"
-  | "service.inventoryItems"
   | "inventory.management"
-  | "appearance.dynamicTheme"
   | "karyawan.management"
   | "staff.workflow"
   | "technician.workflow"
@@ -105,15 +103,6 @@ export const FEATURE_REGISTRY = {
     minimumPlan: "free",
     configurable: false,
   },
-  "service.inventoryItems": {
-    key: "service.inventoryItems",
-    label: "Inventory-backed Service Items",
-    description: "Gunakan sparepart dari inventory pada pekerjaan service dan kurangi stok otomatis.",
-    category: "service",
-    allowedRoles: ["admin", "staff", "technician"],
-    minimumPlan: "premium",
-    configurable: true,
-  },
   "inventory.management": {
     key: "inventory.management",
     label: "Manajemen Inventory",
@@ -121,15 +110,6 @@ export const FEATURE_REGISTRY = {
     category: "inventory",
     allowedRoles: ["admin", "staff", "technician"],
     minimumPlan: "premium",
-    configurable: true,
-  },
-  "appearance.dynamicTheme": {
-    key: "appearance.dynamicTheme",
-    label: "Dynamic Theme",
-    description: "Sesuaikan tampilan aplikasi berdasarkan identitas toko.",
-    category: "appearance",
-    allowedRoles: ["admin"],
-    minimumPlan: "free",
     configurable: true,
   },
   "karyawan.management": {

@@ -2,43 +2,6 @@
 
 /**
  * AddRepairItemForm - Dialog for adding spareparts or services to a repair task
- *
- * OPTIMISTIC UI CALLBACKS:
- * This form supports optimistic UI updates via three callbacks:
- *
- * 1. `onAddItem` - Called BEFORE the server request with a temp item:
- *    - Receives: { id: `temp-${timestamp}`, type, name, qty, price }
- *    - Parent should: increment pendingMutationsRef, add item to localTask.items
- *    - Dialog closes immediately for instant feedback
- *
- * 2. `onSuccess` - Called AFTER server request succeeds:
- *    - Parent should: decrement pendingMutationsRef, trigger silent re-fetch
- *    - Re-fetch brings the real item (with server ID) replacing the temp item
- *
- * 3. `onAddItemError` - Called if server request fails:
- *    - Parent should: decrement pendingMutationsRef, revert localTask to previous state
- *
- * CRITICAL: `onSuccess` must be called AFTER server success, not before.
- * Calling it too early causes the re-fetch to return stale data (server hasn't saved),
- * and the temp item disappears because pendingMutationsRef === 0 allows sync.
- *
- * EXAMPLE USAGE:
- * ```tsx
- * <AddRepairItemForm
- *   onAddItem={(item) => {
- *     pendingMutationsRef.current += 1;
- *     setLocalTask(prev => ({ ...prev, items: [...prev.items, item] }));
- *   }}
- *   onSuccess={() => {
- *     pendingMutationsRef.current -= 1;
- *     onRefresh?.();  // Silent re-fetch
- *   }}
- *   onAddItemError={() => {
- *     pendingMutationsRef.current -= 1;
- *     setLocalTask(snapshot);  // Revert
- *   }}
- * />
- * ```
  */
 
 import { useState } from "react";
@@ -56,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { addItem } from "@/actions";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
 
 interface AddRepairItemFormProps {
   open: boolean;
@@ -82,6 +46,7 @@ export function AddRepairItemForm({
   onAddItem,
   onAddItemError,
 }: AddRepairItemFormProps) {
+  const { inventoryEnabled } = useFeatureAccess();
   const [itemType, setItemType] = useState<"manual-sparepart" | "manual-service" | "sparepart" | "service">("manual-sparepart");
   const [selectedSparepartId, setSelectedSparepartId] = useState<string>("");
   const [selectedPricelistId, setSelectedPricelistId] = useState<string>("");
@@ -241,15 +206,20 @@ export function AddRepairItemForm({
               <button
                 type="button"
                 onClick={() => {
-                  setItemType("sparepart");
-                  setSelectedSparepartId("");
-                  setSelectedPricelistId("");
+                  if (inventoryEnabled) {
+                    setItemType("sparepart");
+                    setSelectedSparepartId("");
+                    setSelectedPricelistId("");
+                  }
                 }}
+                disabled={!inventoryEnabled}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
-                  itemType === "sparepart"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                  !inventoryEnabled
+                    ? "border-muted bg-muted/30 text-muted-foreground cursor-not-allowed opacity-50"
+                    : itemType === "sparepart"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
                 Inventory Sparepart
@@ -257,15 +227,20 @@ export function AddRepairItemForm({
               <button
                 type="button"
                 onClick={() => {
-                  setItemType("service");
-                  setSelectedSparepartId("");
-                  setSelectedPricelistId("");
+                  if (inventoryEnabled) {
+                    setItemType("service");
+                    setSelectedSparepartId("");
+                    setSelectedPricelistId("");
+                  }
                 }}
+                disabled={!inventoryEnabled}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
-                  itemType === "service"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                  !inventoryEnabled
+                    ? "border-muted bg-muted/30 text-muted-foreground cursor-not-allowed opacity-50"
+                    : itemType === "service"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
                 Pricelist Service

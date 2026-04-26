@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RiLogoutBoxRLine, RiUserLine, RiSettings3Line, RiPaletteLine, RiArrowRightSLine } from "@remixicon/react";
+import { RiLogoutBoxRLine, RiUserLine, RiSettings3Line, RiPaletteLine, RiArrowRightSLine, RiBook2Line } from "@remixicon/react";
 import { ModeToggle } from "@/components/shared/theme-toggle";
 import { UserSettings } from "@/components/ui/user-settings";
 import type { SettingsTab } from "@/components/ui/user-settings";
@@ -129,6 +129,15 @@ export function UserInfo() {
               <span>Tema</span>
             </div>
             <ModeToggle />
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => router.push("/user-manual")}
+            className="cursor-pointer gap-2"
+          >
+            <div className="size-6 rounded-md bg-muted/50 flex items-center justify-center">
+              <RiBook2Line className="size-3.5" />
+            </div>
+            <span>Buku Panduan</span>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={handleSignOut}

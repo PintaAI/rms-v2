@@ -15,10 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RiCheckboxCircleLine, RiLoader4Line, RiLockLine, RiSettings4Line, RiStore2Line, RiVipCrownLine } from "@remixicon/react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RiCheckboxCircleLine, RiLoader4Line, RiLockLine, RiStore2Line, RiVipCrownLine } from "@remixicon/react";
+import Image from "next/image";
 import { toast } from "sonner";
+import { FaArrowCircleUp } from "react-icons/fa";
 
 const categoryLabels: Record<string, string> = {
   dashboard: "Dashboard",
@@ -41,7 +42,8 @@ interface FeatureSettingsTabProps {
 }
 
 export function FeatureSettingsTab({ tokoId }: FeatureSettingsTabProps) {
-  const { user } = useAuth();
+  const { user, tokoList } = useAuth();
+  const currentToko = tokoList.find((t) => t.id === tokoId);
   const [features, setFeatures] = useState<FeatureSettingRow[]>([]);
   const [settingsInfo, setSettingsInfo] = useState<Omit<FeatureSettingsStatusData, "features"> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,108 +144,83 @@ export function FeatureSettingsTab({ tokoId }: FeatureSettingsTabProps) {
     );
   }
 
-  const fixedFeatures = features.filter((feature) => !feature.configurable);
-  const configurableFeatures = features.filter((feature) => feature.configurable);
-  const enabledConfigurableCount = configurableFeatures.filter((feature) => feature.enabled).length;
+  const featuresByCategory = features.reduce<Record<string, FeatureSettingRow[]>>((acc, feature) => {
+    const cat = feature.category;
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(feature);
+    return acc;
+  }, {});
 
-  console.group("[feature-settings-tab] render decision");
-  console.log("Toko:", settingsInfo ?? { tokoId });
-  console.table(
-    features.map((feature) => ({
-      key: feature.key,
-      label: feature.label,
-      configurable: feature.configurable,
-      enabled: feature.enabled,
-      status: feature.status,
-      section: feature.configurable ? "Fitur yang Bisa Diatur" : "Required",
-      switchDisabled: feature.status === "plan_required",
-      decision: feature.configurable
-        ? feature.status === "plan_required"
-          ? "render in configurable list, disabled by plan"
-          : "render in configurable list, can toggle"
-        : "render in required list, cannot toggle",
-    }))
-  );
-  console.groupEnd();
+  const hasAnyFeatures = Object.keys(featuresByCategory).length > 0;
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <RiStore2Line className="size-5 text-muted-foreground" />
-            <p className="font-medium">{settingsInfo?.tokoName ?? "Toko ini"}</p>
-            <Badge variant="outline" className="gap-1">
-              <RiVipCrownLine className="size-3" />
-              {planLabels[settingsInfo?.plan ?? "free"]} plan
-            </Badge>
+          <div className="flex items-center gap-3">
+            {currentToko?.logoUrl ? (
+              <Image
+                src={currentToko.logoUrl}
+                alt={currentToko.name}
+                width={40}
+                height={40}
+                className="rounded-full object-cover"
+              />
+            ) : (
+              <RiStore2Line className="size-10 text-muted-foreground" />
+            )}
+            <div>
+              <p className="font-medium">{settingsInfo?.tokoName ?? "Toko ini"}</p>
+              <Badge variant="outline" className="gap-1">
+                <RiVipCrownLine className="size-3" />
+                {planLabels[settingsInfo?.plan ?? "free"]}
+              </Badge>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <RiSettings4Line className="size-4 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               Pengaturan ini berlaku untuk semua user di toko {settingsInfo?.tokoName ?? "ini"}.
             </p>
           </div>
-          <p className="text-xs text-muted-foreground/70">
-            Fitur yang wajib aktif mengikuti sistem inti dan plan aktif toko.
-          </p>
         </div>
         <Button variant="outline" size="sm" onClick={loadFeatures} disabled={isLoading}>
+          <FaArrowCircleUp />
           Refresh
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Fitur</CardTitle>
-          <CardDescription>
-            Fitur dasar dan fitur opsional yang berlaku untuk {settingsInfo?.tokoName ?? "toko ini"}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Required</p>
-            <p className="text-xs text-muted-foreground">Fitur inti yang selalu aktif dan tidak bisa dimatikan.</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {fixedFeatures.map((feature) => (
-              <FeatureRequiredChip key={feature.key} feature={feature} />
-            ))}
-          </div>
+      {!hasAnyFeatures && (
+        <Card>
+          <CardContent className="py-8">
+            <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground text-center">
+              Tidak ada fitur yang tersedia untuk toko ini.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-          <Separator />
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Fitur yang Bisa Diatur</p>
-              <p className="text-xs text-muted-foreground">
-                {enabledConfigurableCount} dari {configurableFeatures.length} fitur opsional aktif. Fitur yang tidak terkunci plan bisa dimatikan atau dinyalakan.
-              </p>
-            </div>
-            <Badge variant="secondary">Admin only</Badge>
-          </div>
-
-          <div className="space-y-2">
-            {configurableFeatures.length === 0 ? (
-              <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                Tidak ada fitur opsional yang bisa diatur untuk toko ini.
-              </p>
-            ) : (
-              configurableFeatures.map((feature) => {
+      {hasAnyFeatures &&
+        Object.entries(featuresByCategory).map(([category, categoryFeatures]) => (
+          <Card key={category}>
+            <CardHeader>
+              <CardTitle className="text-base">{categoryLabels[category] || category}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {categoryFeatures.map((feature) => {
                 const isPending = pendingFeatures.has(feature.key);
                 const isLockedByPlan = feature.status === "plan_required";
+                const isRequired = feature.status === "required";
 
                 return (
                   <div
                     key={feature.key}
-                    className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border/50 bg-card/50 hover:bg-card transition-colors"
+                    className={`flex items-center justify-between gap-4 p-4 rounded-lg border border-border/50 transition-colors ${
+                      isRequired ? "bg-muted/20" : "bg-card/50 hover:bg-card"
+                    }`}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="font-medium">{feature.label}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {categoryLabels[feature.category] || feature.category}
-                        </Badge>
                         <FeatureStatusBadge feature={feature} />
                       </div>
                       <p className="text-xs text-muted-foreground">{feature.description}</p>
@@ -258,7 +235,9 @@ export function FeatureSettingsTab({ tokoId }: FeatureSettingsTabProps) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {isPending ? (
+                      {isRequired ? (
+                        <RiCheckboxCircleLine className="size-5 shrink-0 text-green-600" />
+                      ) : isPending ? (
                         <RiLoader4Line className="size-4 animate-spin text-muted-foreground" />
                       ) : (
                         <Switch
@@ -271,27 +250,17 @@ export function FeatureSettingsTab({ tokoId }: FeatureSettingsTabProps) {
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              })}
+            </CardContent>
+          </Card>
+        ))}
 
       <div className="pt-4 border-t border-border/50">
         <p className="text-xs text-muted-foreground/70">
-          Fitur yang terkunci membutuhkan upgrade plan. Fitur wajib tidak bisa dimatikan karena dipakai operasi dasar aplikasi.
+          Fitur dengan ikon ✓ wajib aktif karena merupakan bagian dari sistem inti. Fitur yang terkunci membutuhkan
+          upgrade plan.
         </p>
       </div>
-    </div>
-  );
-}
-
-function FeatureRequiredChip({ feature }: { feature: FeatureSettingRow }) {
-  return (
-    <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2">
-      <RiCheckboxCircleLine className="size-4 shrink-0 text-green-600" />
-      <p className="min-w-0 flex-1 truncate text-sm font-medium">{feature.label}</p>
-      <Badge variant="outline" className="text-xs">Required</Badge>
     </div>
   );
 }
@@ -305,9 +274,5 @@ function FeatureStatusBadge({ feature }: { feature: FeatureSettingRow }) {
     return <Badge variant="outline" className="text-xs">Required</Badge>;
   }
 
-  if (feature.status === "disabled_by_toko") {
-    return <Badge variant="outline" className="text-xs border-muted-foreground/30 text-muted-foreground">Off</Badge>;
-  }
-
-  return <Badge variant="success" className="text-xs">On</Badge>;
+  return null;
 }

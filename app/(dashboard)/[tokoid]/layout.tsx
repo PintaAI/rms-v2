@@ -4,6 +4,8 @@ import { Separator } from "@/components/ui/separator";
 import { DynamicBreadcrumb } from "@/components/dashboard/layout/dynamic-breadcrumb";
 import { UserInfo } from "@/components/shared/user-info";
 import { LiveClock } from "@/components/shared/live-clock";
+import { SettingsButton } from "@/components/shared/settings-button";
+import { FeatureAccessProvider } from "@/components/dashboard/layout/feature-access-context";
 import { getServiceStats, getTechnicianTaskStats } from "@/actions/service";
 import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
@@ -42,32 +44,35 @@ export default async function DashboardLayout({ children, params }: DashboardLay
 
   return (
     <SidebarProvider>
-      <AppSidebar
-        tokoid={tokoid}
-        featureAccess={featureAccess}
-        serviceStats={serviceStats}
-        technicianTaskStats={technicianTaskStats}
-      />
-      <SidebarInset>
-        <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-3 py-2 sm:flex-nowrap sm:px-4 sm:py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <SidebarTrigger data-tour="sidebar-trigger" />
-            <Separator orientation="vertical" className="h-6 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <DynamicBreadcrumb />
+      <FeatureAccessProvider featureAccess={featureAccess}>
+        <AppSidebar
+          tokoid={tokoid}
+          featureAccess={featureAccess}
+          serviceStats={serviceStats}
+          technicianTaskStats={technicianTaskStats}
+        />
+        <SidebarInset>
+          <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-3 py-2 sm:flex-nowrap sm:px-4 sm:py-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <SidebarTrigger data-tour="sidebar-trigger" />
+              <Separator orientation="vertical" className="h-6 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <DynamicBreadcrumb />
+              </div>
             </div>
-          </div>
-          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
-            <div className="hidden md:block">
-              <LiveClock />
+            <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+              <div className="hidden md:block">
+                <LiveClock />
+              </div>
+              <SettingsButton />
+              <UserInfo />
             </div>
-            <UserInfo />
-          </div>
-        </header>
-        <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
-          {children}
-        </main>
-      </SidebarInset>
+          </header>
+          <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
+            {children}
+          </main>
+        </SidebarInset>
+      </FeatureAccessProvider>
     </SidebarProvider>
   );
 }

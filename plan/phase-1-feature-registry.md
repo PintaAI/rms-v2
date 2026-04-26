@@ -22,8 +22,9 @@ type FeatureKey =
   | "dashboard.overview"
   | "toko.manage"
   | "service.management"
+  | "service.manualItems"
+  | "service.inventoryItems"
   | "inventory.management"
-  | "appearance.dynamicTheme"
   | "karyawan.management"
   | "staff.workflow"
   | "technician.workflow"
@@ -42,8 +43,7 @@ free: {
     "dashboard.overview",
     "toko.manage",
     "service.management",
-    "inventory.management",
-    "appearance.dynamicTheme",
+    "service.manualItems",
   ],
   limits: {
     maxTokos: 1,
