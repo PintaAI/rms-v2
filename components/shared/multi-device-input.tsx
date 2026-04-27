@@ -63,16 +63,16 @@ export function MultiDeviceInput({
 
     searchTimeoutRef.current = setTimeout(async () => {
       setIsSearching(true);
-      const result = await searchDevices(query);
-      if (!active) return;
-      setIsSearching(false);
-
-      if (result.success && result.data) {
-        const filtered = result.data.filter((d) => !value.some((v) => v.id === d.id));
+      try {
+        const results = await searchDevices(query);
+        if (!active) return;
+        const filtered = results.filter((d) => !value.some((v) => v.id === d.id));
         setResults(filtered);
-      } else {
+      } catch {
+        if (!active) return;
         setResults([]);
       }
+      setIsSearching(false);
       setHighlightedIndex(-1);
     }, 150);
 
@@ -107,17 +107,18 @@ export function MultiDeviceInput({
     const brandName = parts.length >= 2 ? parts[0] : "Unknown";
     const modelName = parts.length >= 2 ? parts.slice(1).join(" ") : parts[0];
 
-    const result = await createDevice({ brandName, modelName });
-    setIsCreating(false);
-
-    if (result.success && result.data) {
-      if (value.some((v) => v.id === result.data!.id)) {
+    try {
+      const device = await createDevice({ brandName, modelName });
+      if (value.some((v) => v.id === device.id)) {
         setQuery("");
         setShowDropdown(false);
         return;
       }
-      handleSelect(result.data);
+      handleSelect(device);
+    } catch {
+      // Silently fail - user can retry
     }
+    setIsCreating(false);
   }, [query, value, handleSelect]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {

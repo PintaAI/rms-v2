@@ -18,43 +18,47 @@ interface AdminNavProps {
 }
 
 export function AdminNav({ tokoid, featureAccess, serviceStats }: AdminNavProps) {
-  const inventoryItems: { href: string; icon: ReactNode; label: string }[] = [];
+  const inventoryItems: { href: string; icon: ReactNode; label: string; isLocked?: boolean }[] = [];
 
-  if (featureAccess["inventory.management"]) {
-    inventoryItems.push({
-      href: `/${tokoid}/admin/inventory`,
-      icon: <RiToolsLine />,
-      label: "Sparepart & Jasa",
-    });
-  }
+  const inventoryEnabled = featureAccess["inventory.management"] ?? false;
+  const auditEnabled = featureAccess["inventory.audit"] ?? false;
 
-  if (featureAccess["inventory.audit"]) {
-    inventoryItems.push({
-      href: `/${tokoid}/admin/inventory/audit-gudang`,
-      icon: <RiFileList3Line />,
-      label: "Audit Gudang",
-    });
-  }
+  inventoryItems.push({
+    href: `/${tokoid}/admin/inventory`,
+    icon: <RiToolsLine />,
+    label: "Sparepart & Jasa",
+    isLocked: !inventoryEnabled,
+  });
+
+  inventoryItems.push({
+    href: `/${tokoid}/admin/inventory/audit-gudang`,
+    icon: <RiFileList3Line />,
+    label: "Audit Gudang",
+    isLocked: !auditEnabled,
+  });
+
+  const karyawanEnabled = featureAccess["karyawan.management"] ?? false;
+  const dashboardEnabled = featureAccess["dashboard.overview"] ?? false;
+  const tokoEnabled = featureAccess["toko.manage"] ?? false;
+  const serviceEnabled = featureAccess["service.management"] ?? false;
 
   return (
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          {featureAccess["dashboard.overview"] && (
-            <NavItem
-              href={`/${tokoid}/admin`}
-              icon={<RiDashboardLine />}
-              label="Admin Overview"
-            />
-          )}
-          {featureAccess["toko.manage"] && (
-            <NavItem
-              href={`/${tokoid}/admin/toko`}
-              icon={<RiStore2Line />}
-              label="Toko"
-            />
-          )}
-          {featureAccess["service.management"] && (
+          <NavItem
+            href={`/${tokoid}/admin`}
+            icon={<RiDashboardLine />}
+            label="Admin Overview"
+            isLocked={!dashboardEnabled}
+          />
+          <NavItem
+            href={`/${tokoid}/admin/toko`}
+            icon={<RiStore2Line />}
+            label="Toko"
+            isLocked={!tokoEnabled}
+          />
+          {serviceEnabled && (
             <NavFilterGroup
               title="Service"
               icon={<RiToolsLine />}
@@ -96,21 +100,18 @@ export function AdminNav({ tokoid, featureAccess, serviceStats }: AdminNavProps)
               ]}
             />
           )}
-          {featureAccess["karyawan.management"] && (
-            <NavItem
-              href={`/${tokoid}/admin/karyawan`}
-              icon={<RiUserSettingsLine />}
-              label="Karyawan"
-            />
-          )}
-          {inventoryItems.length > 0 && (
-            <NavGroup
-              title="Inventory"
-              icon={<RiArchiveLine />}
-              defaultOpen={true}
-              items={inventoryItems}
-            />
-          )}
+          <NavItem
+            href={`/${tokoid}/admin/karyawan`}
+            icon={<RiUserSettingsLine />}
+            label="Karyawan"
+            isLocked={!karyawanEnabled}
+          />
+          <NavGroup
+            title="Inventory"
+            icon={<RiArchiveLine />}
+            defaultOpen={true}
+            items={inventoryItems}
+          />
 
         </SidebarMenu>
       </SidebarGroupContent>

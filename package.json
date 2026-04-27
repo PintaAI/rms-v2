@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:tail": "next dev --hostname 100.127.81.7",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

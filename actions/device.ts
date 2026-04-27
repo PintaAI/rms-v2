@@ -1,8 +1,8 @@
 "use server"
 
 import prisma from "@/lib/prisma"
-import { getAuthUser, isAdmin, type ActionResult, type ActionResultWithData } from "@/lib/rbac"
-import { revalidatePath } from "next/cache"
+import { getAuthUser, isAdmin } from "@/lib/rbac"
+import { revalidatePath, cacheTag, updateTag } from "next/cache"
 import { z } from "zod"
 
 export interface Brand {
@@ -23,181 +23,105 @@ export interface DeviceListItem {
   brandName: string
 }
 
-async function getDeviceUser(requireWriteAccess: boolean = false) {
+async function getDeviceWriteUser() {
   const user = await getAuthUser()
-
-  if (!user) {
-    return { success: false as const, error: "Unauthorized" }
-  }
-
-  if (requireWriteAccess && !isAdmin(user)) {
-    return { success: false as const, error: "Only admins can manage device data" }
-  }
-
-  return { success: true as const, user }
+  if (!user) throw new Error("Unauthorized")
+  if (!isAdmin(user)) throw new Error("Only admins can manage device data")
+  return user
 }
 
-export async function getBrandList(): Promise<ActionResultWithData<Brand[]>> {
-  try {
-    const access = await getDeviceUser()
-    if (!access.success) return access
+export async function getBrandList(): Promise<Brand[]> {
+  'use cache'
+  cacheTag('brands')
 
-    const brands = await prisma.brand.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-      take: 100,
-    })
+  const brands = await prisma.brand.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+    take: 100,
+  })
 
-    return { success: true, data: brands }
-  } catch (error) {
-    console.error("Error fetching brands:", error)
-    return { success: false, error: "Failed to fetch brands" }
-  }
+  return brands
 }
 
-export async function searchBrands(query: string): Promise<ActionResultWithData<Brand[]>> {
-  try {
-    const access = await getDeviceUser()
-    if (!access.success) return access
+export async function searchBrands(query: string): Promise<Brand[]> {
+  'use cache'
+  cacheTag('brands')
 
-    if (!query.trim()) {
-      const brands = await prisma.brand.findMany({
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
-        take: 10,
-      })
-      return { success: true, data: brands }
-    }
-
+  if (!query.trim()) {
     const brands = await prisma.brand.findMany({
-      where: {
-        name: { contains: query, mode: "insensitive" },
-      },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
       take: 10,
     })
-
-    return { success: true, data: brands }
-  } catch (error) {
-    console.error("Error searching brands:", error)
-    return { success: false, error: "Failed to search brands" }
+    return brands
   }
+
+  const brands = await prisma.brand.findMany({
+    where: {
+      name: { contains: query, mode: "insensitive" },
+    },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+    take: 10,
+  })
+
+  return brands
 }
 
 const createBrandSchema = z.object({
   name: z.string().min(1, "Brand name is required"),
 })
 
-export async function createBrand(
-  name: string
-): Promise<ActionResultWithData<Brand>> {
-  try {
-    const access = await getDeviceUser(true)
-    if (!access.success) return access
+export async function createBrand(name: string): Promise<Brand> {
+  await getDeviceWriteUser()
 
-    const validated = createBrandSchema.parse({ name })
+  const validated = createBrandSchema.parse({ name })
 
-    const existing = await prisma.brand.findUnique({
-      where: { name: validated.name },
-    })
+  const existing = await prisma.brand.findUnique({
+    where: { name: validated.name },
+  })
 
-    if (existing) {
-      return { success: true, data: existing }
-    }
-
-    const brand = await prisma.brand.create({
-      data: { name: validated.name },
-      select: { id: true, name: true },
-    })
-
-    return { success: true, data: brand }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0].message }
-    }
-    console.error("Error creating brand:", error)
-    return { success: false, error: "Failed to create brand" }
+  if (existing) {
+    updateTag('brands')
+    return existing
   }
+
+  const brand = await prisma.brand.create({
+    data: { name: validated.name },
+    select: { id: true, name: true },
+  })
+
+  updateTag('brands')
+  return brand
 }
 
-export async function getDeviceList(): Promise<ActionResultWithData<DeviceListItem[]>> {
-  try {
-    const access = await getDeviceUser()
-    if (!access.success) return access
+export async function getDeviceList(): Promise<DeviceListItem[]> {
+  'use cache'
+  cacheTag('devices')
 
-    const devices = await prisma.hpCatalog.findMany({
-      orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
-      select: {
-        id: true,
-        modelName: true,
-        brand: { select: { id: true, name: true } },
-      },
-      take: 500,
-    })
+  const devices = await prisma.hpCatalog.findMany({
+    orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
+    select: {
+      id: true,
+      modelName: true,
+      brand: { select: { id: true, name: true } },
+    },
+    take: 500,
+  })
 
-    return {
-      success: true,
-      data: devices.map((d) => ({
-        id: d.id,
-        modelName: d.modelName,
-        brandName: d.brand.name,
-      })),
-    }
-  } catch (error) {
-    console.error("Error fetching devices:", error)
-    return { success: false, error: "Failed to fetch devices" }
-  }
+  return devices.map((d) => ({
+    id: d.id,
+    modelName: d.modelName,
+    brandName: d.brand.name,
+  }))
 }
 
-export async function searchDevices(query: string): Promise<ActionResultWithData<DeviceListItem[]>> {
-  try {
-    const access = await getDeviceUser()
-    if (!access.success) return access
+export async function searchDevices(query: string): Promise<DeviceListItem[]> {
+  'use cache'
+  cacheTag('devices')
 
-    if (!query.trim()) {
-      const devices = await prisma.hpCatalog.findMany({
-        orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
-        select: {
-          id: true,
-          modelName: true,
-          brand: { select: { name: true } },
-        },
-        take: 20,
-      })
-      return {
-        success: true,
-        data: devices.map((d) => ({
-          id: d.id,
-          modelName: d.modelName,
-          brandName: d.brand.name,
-        })),
-      }
-    }
-
-    const queryWords = query.trim().split(/\s+/)
-    const firstWord = queryWords[0]
-    const restWords = queryWords.slice(1).join(" ")
-
-    const insensitiveMode = "insensitive" as const
-
+  if (!query.trim()) {
     const devices = await prisma.hpCatalog.findMany({
-      where: {
-        OR: [
-          { modelName: { contains: query, mode: insensitiveMode } },
-          { brand: { name: { contains: query, mode: insensitiveMode } } },
-          ...(queryWords.length >= 2
-            ? [
-                {
-                  AND: [
-                    { brand: { name: { contains: firstWord, mode: insensitiveMode } } },
-                    { modelName: { contains: restWords, mode: insensitiveMode } },
-                  ],
-                },
-              ]
-            : []),
-        ],
-      },
       orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
       select: {
         id: true,
@@ -206,43 +130,69 @@ export async function searchDevices(query: string): Promise<ActionResultWithData
       },
       take: 20,
     })
-
-    return {
-      success: true,
-      data: devices.map((d) => ({
-        id: d.id,
-        modelName: d.modelName,
-        brandName: d.brand.name,
-      })),
-    }
-  } catch (error) {
-    console.error("Error searching devices:", error)
-    return { success: false, error: "Failed to search devices" }
+    return devices.map((d) => ({
+      id: d.id,
+      modelName: d.modelName,
+      brandName: d.brand.name,
+    }))
   }
+
+  const queryWords = query.trim().split(/\s+/)
+  const firstWord = queryWords[0]
+  const restWords = queryWords.slice(1).join(" ")
+
+  const insensitiveMode = "insensitive" as const
+
+  const devices = await prisma.hpCatalog.findMany({
+    where: {
+      OR: [
+        { modelName: { contains: query, mode: insensitiveMode } },
+        { brand: { name: { contains: query, mode: insensitiveMode } } },
+        ...(queryWords.length >= 2
+          ? [
+              {
+                AND: [
+                  { brand: { name: { contains: firstWord, mode: insensitiveMode } } },
+                  { modelName: { contains: restWords, mode: insensitiveMode } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    },
+    orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
+    select: {
+      id: true,
+      modelName: true,
+      brand: { select: { name: true } },
+    },
+    take: 20,
+  })
+
+  return devices.map((d) => ({
+    id: d.id,
+    modelName: d.modelName,
+    brandName: d.brand.name,
+  }))
 }
 
-export async function getDevice(id: string): Promise<ActionResultWithData<Device>> {
-  try {
-    const access = await getDeviceUser()
-    if (!access.success) return access
+export async function getDevice(id: string): Promise<Device> {
+  'use cache'
+  cacheTag('devices')
 
-    const device = await prisma.hpCatalog.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        modelName: true,
-        modelNumber: true,
-        brand: { select: { id: true, name: true } },
-      },
-    })
+  const device = await prisma.hpCatalog.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      modelName: true,
+      modelNumber: true,
+      brand: { select: { id: true, name: true } },
+    },
+  })
 
-    if (!device) return { success: false, error: "Device not found" }
+  if (!device) throw new Error("Device not found")
 
-    return { success: true, data: device }
-  } catch (error) {
-    console.error("Error fetching device:", error)
-    return { success: false, error: "Failed to fetch device" }
-  }
+  return device
 }
 
 const createDeviceSchema = z.object({
@@ -253,68 +203,57 @@ const createDeviceSchema = z.object({
 
 export async function createDevice(
   data: z.infer<typeof createDeviceSchema>
-): Promise<ActionResultWithData<DeviceListItem>> {
-  try {
-    const access = await getDeviceUser(true)
-    if (!access.success) return access
+): Promise<DeviceListItem> {
+  await getDeviceWriteUser()
 
-    const validated = createDeviceSchema.parse(data)
+  const validated = createDeviceSchema.parse(data)
 
-    const existingBrand = await prisma.brand.findUnique({
-      where: { name: validated.brandName },
-      select: { id: true, name: true },
-    })
+  const existingBrand = await prisma.brand.findUnique({
+    where: { name: validated.brandName },
+    select: { id: true, name: true },
+  })
 
-    const brand = existingBrand ?? await prisma.brand.create({
-      data: { name: validated.brandName },
-      select: { id: true, name: true },
-    })
+  const brand = existingBrand ?? await prisma.brand.create({
+    data: { name: validated.brandName },
+    select: { id: true, name: true },
+  })
 
-    const existingDevice = await prisma.hpCatalog.findFirst({
-      where: {
-        brandId: brand.id,
-        modelName: validated.modelName,
-      },
-      include: { brand: { select: { name: true } } },
-    })
+  const existingDevice = await prisma.hpCatalog.findFirst({
+    where: {
+      brandId: brand.id,
+      modelName: validated.modelName,
+    },
+    include: { brand: { select: { name: true } } },
+  })
 
-    if (existingDevice) {
-      return {
-        success: true,
-        data: {
-          id: existingDevice.id,
-          modelName: existingDevice.modelName,
-          brandName: existingDevice.brand.name,
-        },
-      }
-    }
-
-    const device = await prisma.hpCatalog.create({
-      data: {
-        brandId: brand.id,
-        modelName: validated.modelName,
-        modelNumber: validated.modelNumber || null,
-      },
-      include: { brand: { select: { name: true } } },
-    })
-
-    revalidatePath("/dashboard/admin/devices")
-    revalidatePath("/dashboard/staff/services")
-
+  if (existingDevice) {
+    updateTag('devices')
+    updateTag('brands')
     return {
-      success: true,
-      data: {
-        id: device.id,
-        modelName: device.modelName,
-        brandName: device.brand.name,
-      },
+      id: existingDevice.id,
+      modelName: existingDevice.modelName,
+      brandName: existingDevice.brand.name,
     }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0].message }
-    }
-    console.error("Error creating device:", error)
-    return { success: false, error: "Failed to create device" }
+  }
+
+  const device = await prisma.hpCatalog.create({
+    data: {
+      brandId: brand.id,
+      modelName: validated.modelName,
+      modelNumber: validated.modelNumber || null,
+    },
+    include: { brand: { select: { name: true } } },
+  })
+
+  revalidatePath("/dashboard/admin/devices")
+  revalidatePath("/dashboard/staff/services")
+  updateTag('devices')
+  updateTag('brands')
+
+  return {
+    id: device.id,
+    modelName: device.modelName,
+    brandName: device.brand.name,
   }
 }
 
@@ -327,96 +266,82 @@ const updateDeviceSchema = z.object({
 
 export async function updateDevice(
   data: z.infer<typeof updateDeviceSchema>
-): Promise<ActionResultWithData<Device>> {
-  try {
-    const access = await getDeviceUser(true)
-    if (!access.success) return access
+): Promise<Device> {
+  await getDeviceWriteUser()
 
-    const validated = updateDeviceSchema.parse(data)
+  const validated = updateDeviceSchema.parse(data)
 
-    const device = await prisma.hpCatalog.findUnique({
-      where: { id: validated.id },
-      include: { brand: { select: { id: true, name: true } } },
+  const device = await prisma.hpCatalog.findUnique({
+    where: { id: validated.id },
+    include: { brand: { select: { id: true, name: true } } },
+  })
+
+  if (!device) throw new Error("Device not found")
+
+  let brandId = device.brand.id
+
+  if (validated.brandName && validated.brandName !== device.brand.name) {
+    let brand = await prisma.brand.findUnique({
+      where: { name: validated.brandName },
     })
 
-    if (!device) return { success: false, error: "Device not found" }
-
-    let brandId = device.brand.id
-
-    if (validated.brandName && validated.brandName !== device.brand.name) {
-      let brand = await prisma.brand.findUnique({
-        where: { name: validated.brandName },
+    if (!brand) {
+      brand = await prisma.brand.create({
+        data: { name: validated.brandName },
       })
-
-      if (!brand) {
-        brand = await prisma.brand.create({
-          data: { name: validated.brandName },
-        })
-      }
-
-      brandId = brand.id
     }
 
-    const updated = await prisma.hpCatalog.update({
-      where: { id: validated.id },
-      data: {
-        brandId,
-        modelName: validated.modelName ?? device.modelName,
-        modelNumber: validated.modelNumber ?? device.modelNumber,
-      },
-      select: {
-        id: true,
-        modelName: true,
-        modelNumber: true,
-        brand: { select: { id: true, name: true } },
-      },
-    })
-
-    revalidatePath("/dashboard/admin/devices")
-
-    return { success: true, data: updated }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0].message }
-    }
-    console.error("Error updating device:", error)
-    return { success: false, error: "Failed to update device" }
+    brandId = brand.id
   }
+
+  const updated = await prisma.hpCatalog.update({
+    where: { id: validated.id },
+    data: {
+      brandId,
+      modelName: validated.modelName ?? device.modelName,
+      modelNumber: validated.modelNumber ?? device.modelNumber,
+    },
+    select: {
+      id: true,
+      modelName: true,
+      modelNumber: true,
+      brand: { select: { id: true, name: true } },
+    },
+  })
+
+  revalidatePath("/dashboard/admin/devices")
+  updateTag('devices')
+  updateTag('brands')
+
+  return updated
 }
 
-export async function deleteDevice(id: string): Promise<ActionResult> {
-  try {
-    const access = await getDeviceUser(true)
-    if (!access.success) return access
+export async function deleteDevice(id: string): Promise<void> {
+  await getDeviceWriteUser()
 
-    const device = await prisma.hpCatalog.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        services: { select: { id: true }, take: 1 },
-        compatibilities: { select: { sparepartId: true }, take: 1 },
-      },
-    })
+  const device = await prisma.hpCatalog.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      services: { select: { id: true }, take: 1 },
+      compatibilities: { select: { sparepartId: true }, take: 1 },
+    },
+  })
 
-    if (!device) return { success: false, error: "Device not found" }
+  if (!device) throw new Error("Device not found")
 
-    if (device.services.length > 0) {
-      return { success: false, error: "Cannot delete device that has service records" }
-    }
-
-    if (device.compatibilities.length > 0) {
-      await prisma.sparepartCompatibility.deleteMany({
-        where: { hpCatalogId: id },
-      })
-    }
-
-    await prisma.hpCatalog.delete({ where: { id } })
-
-    revalidatePath("/dashboard/admin/devices")
-
-    return { success: true }
-  } catch (error) {
-    console.error("Error deleting device:", error)
-    return { success: false, error: "Failed to delete device" }
+  if (device.services.length > 0) {
+    throw new Error("Cannot delete device that has service records")
   }
+
+  if (device.compatibilities.length > 0) {
+    await prisma.sparepartCompatibility.deleteMany({
+      where: { hpCatalogId: id },
+    })
+  }
+
+  await prisma.hpCatalog.delete({ where: { id } })
+
+  revalidatePath("/dashboard/admin/devices")
+  updateTag('devices')
 }

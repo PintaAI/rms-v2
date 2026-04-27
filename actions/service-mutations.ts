@@ -3,7 +3,7 @@
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/activity-log";
-import { ensureFeatureAccess } from "@/lib/feature-enforcement";
+import { ensureFeatureAccess, ensureMonthlyActivityLimit } from "@/lib/feature-enforcement";
 import { canUseFeature } from "@/lib/features";
 import { revalidateServicePaths } from "@/lib/revalidation";
 import { getEffectivePlanForToko, type AuthUser } from "@/lib/rbac";
@@ -55,6 +55,11 @@ async function updateInvoiceIfAllowed(user: AuthUser, serviceId: string, tokoId:
     return;
   }
 
+  const limitError = await ensureMonthlyActivityLimit(scopedUser, "maxInvoicesMonthly", "invoice_created", tokoId);
+  if (limitError) {
+    throw new Error(limitError.error);
+  }
+
   const invoiceResult = await updateInvoiceTotal(serviceId);
 
   if (invoiceResult.created) {
@@ -81,6 +86,9 @@ export async function createService(
     if (!hasTokoAccess(tokoIds, targetTokoId) || !isStaffOrAdminRole(user.role)) {
       return { success: false, error: "Access denied" };
     }
+
+    const limitError = await ensureMonthlyActivityLimit(user, "maxServicesMonthly", "service_created", targetTokoId);
+    if (limitError) return limitError;
 
     const validated = createServiceSchema.parse(data);
 

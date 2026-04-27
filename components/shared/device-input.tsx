@@ -84,14 +84,15 @@ export function DeviceInput({
 
     searchTimeoutRef.current = setTimeout(async () => {
       setIsSearching(true);
-      const result = await searchDevices(query);
-      if (!active) return;
-      setIsSearching(false);
-      if (result.success && result.data) {
-        setResults(result.data);
-      } else {
+      try {
+        const results = await searchDevices(query);
+        if (!active) return;
+        setResults(results);
+      } catch {
+        if (!active) return;
         setResults([]);
       }
+      setIsSearching(false);
       setHighlightedIndex(-1);
     }, 150);
 
@@ -117,12 +118,13 @@ export function DeviceInput({
     const brandName = parts.length >= 2 ? parts[0] : "Unknown";
     const modelName = parts.length >= 2 ? parts.slice(1).join(" ") : parts[0];
 
-    const result = await createDevice({ brandName, modelName });
-    setIsCreating(false);
-
-    if (result.success && result.data) {
-      handleSelect(result.data);
+    try {
+      const device = await createDevice({ brandName, modelName });
+      handleSelect(device);
+    } catch {
+      // Silently fail - user can retry
     }
+    setIsCreating(false);
   }, [query, handleSelect]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
