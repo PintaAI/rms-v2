@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
   SheetContent,
@@ -20,6 +21,7 @@ import { ServiceTaskCard } from "@/components/dashboard/services/service-task-ca
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
 import { getService, takeService } from "@/actions";
 import type { ServiceDetail, ServiceListItem, TechnicianStats } from "@/actions/service";
+import { useRealtimePolling } from "@/lib/use-idle-detection";
 import {
   RiArrowRightLine,
   RiCheckLine,
@@ -27,6 +29,7 @@ import {
   RiStore2Line,
   RiTaskLine,
   RiToolsLine,
+  RiPulseLine,
 } from "@remixicon/react";
 
 interface TeknisiOverviewProps {
@@ -50,6 +53,22 @@ export function TeknisiOverview({
   const [isTakingTask, setIsTakingTask] = useState<string | null>(null);
   const [pendingTakeoverTask, setPendingTakeoverTask] = useState<ServiceListItem | null>(null);
   const currentToko = tokoList.find((t) => t.id === tokoId);
+
+  const { shouldPoll, interval } = useRealtimePolling({
+    interval: 15000,
+  });
+
+  useEffect(() => {
+    if (!shouldPoll) return;
+
+    const pollingInterval = setInterval(() => {
+      router.refresh();
+    }, interval);
+
+    return () => clearInterval(pollingInterval);
+  }, [shouldPoll, interval, router]);
+
+  const isPollingActive = shouldPoll;
 
   const submitTakeTask = useCallback(async (serviceId: string) => {
     setIsTakingTask(serviceId);
@@ -125,6 +144,12 @@ export function TeknisiOverview({
               )}
               <span className="text-sm font-medium text-muted-foreground">{currentToko?.name || "Toko"}</span>
             </div>
+            {isPollingActive && (
+              <Badge variant="success" className="gap-1.5">
+                <RiPulseLine className="h-3 w-3" />
+                Live {Math.round(interval / 1000)}d
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground/70">Ringkasan task teknisi dan antrian servis saat ini</p>
         </div>

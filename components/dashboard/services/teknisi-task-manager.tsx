@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
   SheetContent,
@@ -22,6 +23,7 @@ import {
   OverviewSectionHeader,
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
+import { useRealtimePolling } from "@/lib/use-idle-detection";
 import {
   RiTaskLine,
   RiCheckLine,
@@ -32,6 +34,7 @@ import {
   RiArrowRightLine,
   RiLoader4Line,
   RiStore2Line,
+  RiPulseLine,
 } from "@remixicon/react";
 
 interface TechnicianTaskStats {
@@ -76,6 +79,22 @@ export function TeknisiTaskManager({
 
   const pendingMutationsRef = useRef(0);
   const userId = user?.id;
+
+  const { shouldPoll, interval } = useRealtimePolling({
+    interval: 15000,
+  });
+
+  useEffect(() => {
+    if (!shouldPoll) return;
+
+    const pollingInterval = setInterval(() => {
+      router.refresh();
+    }, interval);
+
+    return () => clearInterval(pollingInterval);
+  }, [shouldPoll, interval, router]);
+
+  const isPollingActive = shouldPoll;
 
   useEffect(() => {
     if (pendingMutationsRef.current === 0) {
@@ -226,6 +245,12 @@ export function TeknisiTaskManager({
               )}
               <span className="text-sm font-medium text-muted-foreground">{currentToko?.name || "Toko"}</span>
             </div>
+            {isPollingActive && (
+              <Badge variant="success" className="gap-1.5">
+                <RiPulseLine className="h-3 w-3" />
+                Live {Math.round(interval / 1000)}d
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground/70">
             {tableItems.length} task{status ? ` dengan status ${status}` : ""}
