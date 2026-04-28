@@ -25,7 +25,7 @@ export type InvoicePreviewService = ServiceTableItem & {
 };
 
 export function isPaidInvoiceService(service: ServiceTableItem): service is InvoicePreviewService {
-  return Boolean(service.invoice && service.invoice.paymentStatus === "paid");
+  return Boolean(service.invoice && (service.invoice.paymentStatus === "paid" || service.invoice.paymentStatus === "dp"));
 }
 
 function formatInvoiceDate(value: Date | string | null | undefined): string {
@@ -62,6 +62,7 @@ function InvoicePreviewCard({
   const items = getInvoiceItems(service);
   const hasDetailedItems = Boolean(service.invoice.items?.length);
   const brandIcon = getBrandIcon(service.hpCatalog.brand.name);
+  const isDp = service.invoice.paymentStatus === "dp";
 
   return (
     <div ref={invoiceRef} className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
@@ -79,15 +80,26 @@ function InvoicePreviewCard({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm shadow-sm">
-          <div className="flex items-center gap-2 font-semibold text-emerald-700">
-            <RiCheckboxCircleLine className="h-4 w-4" />
-            Lunas
+        {isDp ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-amber-700">
+              DP {service.invoice.dpAmount ? formatCurrency(service.invoice.dpAmount) : ""}
+            </div>
+            <p className="mt-1 text-xs text-amber-700/80">
+              Sisa: {formatCurrency(service.invoice.grandTotal - (service.invoice.dpAmount || 0))}
+            </p>
           </div>
-          <p className="mt-1 text-xs text-emerald-700/80">
-            Dibayar pada {formatInvoiceDate(service.invoice.paidAt ?? service.checkoutAt)}
-          </p>
-        </div>
+        ) : (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-emerald-700">
+              <RiCheckboxCircleLine className="h-4 w-4" />
+              Lunas
+            </div>
+            <p className="mt-1 text-xs text-emerald-700/80">
+              Dibayar pada {formatInvoiceDate(service.invoice.paidAt ?? service.checkoutAt)}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 py-6 sm:grid-cols-2">
@@ -169,10 +181,13 @@ function InvoicePreviewCard({
         <div className="min-w-full rounded-2xl bg-slate-950 px-5 py-4 text-white shadow-sm sm:min-w-22">
           <div className=" flex items-end justify-between gap-6">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Grand Total</p>
-              <p className="mt-1 text-2xl font-black tracking-tight">{formatCurrency(service.invoice.grandTotal)}</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/50">{isDp ? "Sisa Tagihan" : "Grand Total"}</p>
+              <p className="mt-1 text-2xl font-black tracking-tight">{formatCurrency(isDp ? service.invoice.grandTotal - (service.invoice.dpAmount || 0) : service.invoice.grandTotal)}</p>
+              {isDp && (
+                <p className="mt-0.5 text-[0.65rem] text-white/40">DP: {formatCurrency(service.invoice.dpAmount || 0)}</p>
+              )}
             </div>
-            <Badge className="border-0 bg-white/12 px-3 py-1 text-white hover:bg-white/12">Lunas</Badge>
+            <Badge className="border-0 bg-white/12 px-3 py-1 text-white hover:bg-white/12">{isDp ? "DP" : "Lunas"}</Badge>
           </div>
         </div>
       </div>
@@ -224,7 +239,7 @@ export function InvoiceDialog({
                 Invoice {getInvoiceNumber(service)}
               </DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                Invoice berstatus paid. Anda bisa mengunduhnya sebagai PNG.
+                Invoice berstatus {service.invoice.paymentStatus === "dp" ? "DP" : "paid"}. Anda bisa mengunduhnya sebagai PNG.
               </DialogDescription>
             </DialogHeader>
 

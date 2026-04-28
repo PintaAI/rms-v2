@@ -84,6 +84,35 @@ export const columnRegistry: Record<string, ColumnDef> = {
     width: 120,
   },
 
+  includedItems: {
+    key: "includedItems",
+    header: "Items",
+    render: (service) => {
+      if (!service.includedItems || service.includedItems.length === 0) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+      const items = service.includedItems as string[];
+      return (
+        <Tooltip>
+          <TooltipTrigger className="flex gap-1 flex-wrap cursor-default">
+            {items.slice(0, 2).map((item, i) => (
+              <Badge key={i} variant="outline" className="text-xs">{item}</Badge>
+            ))}
+            {items.length > 2 && <Badge variant="outline" className="text-xs">+{items.length - 2}</Badge>}
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <div className="flex flex-wrap gap-1">
+              {items.map((item, i) => (
+                <Badge key={i} variant="outline" className="text-xs">{item}</Badge>
+              ))}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    },
+    width: 120,
+  },
+
   note: {
     key: "note",
     header: "Note",
@@ -188,13 +217,14 @@ export const columnRegistry: Record<string, ColumnDef> = {
     render: (service) => {
       if (!service.invoice) return <span className="text-muted-foreground">-</span>;
       const isPaid = service.invoice.paymentStatus === "paid";
+      const isDp = service.invoice.paymentStatus === "dp";
       return (
         <div className="flex flex-col gap-1">
           <span className="text-sm font-semibold tabular-nums">{formatCurrency(service.invoice.grandTotal)}</span>
           <div className="flex items-center gap-1">
             {isPaid && <RiCheckLine className="h-3 w-3 text-chart-1" />}
             <Badge variant={getPaymentStatusColor(service.invoice.paymentStatus)} className="text-[0.6rem]">
-              {isPaid ? "Paid" : "Unpaid"}
+              {isPaid ? "Paid" : isDp ? `DP${service.invoice.dpAmount ? " " + formatCurrency(service.invoice.dpAmount) : ""}` : "Unpaid"}
             </Badge>
           </div>
         </div>

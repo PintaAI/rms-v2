@@ -5,7 +5,6 @@ import { searchDevices, createDevice } from "@/actions";
 import { getBrandIcon } from "@/lib/brand-icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   RiCheckLine,
@@ -14,6 +13,7 @@ import {
   RiAddLine,
   RiAlertLine,
   RiEditLine,
+  RiSmartphoneLine,
 } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
@@ -191,10 +191,11 @@ export function DeviceInput({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <Label htmlFor="device" className="text-base font-medium">
-          Device
+        <Label htmlFor="device" className="text-base font-medium flex items-center gap-1.5">
+          <RiSmartphoneLine className="h-4 w-4" />
+          Perangkat
         </Label>
-        <Badge variant="secondary" className="text-xs">Required</Badge>
+        <span className="text-destructive text-sm leading-none">*</span>
       </div>
 
       {value && !showInput ? (
@@ -215,7 +216,7 @@ export function DeviceInput({
             className="text-muted-foreground hover:text-foreground"
           >
             <RiEditLine className="w-4 h-4" />
-            Change
+            Ubah
           </Button>
         </div>
       ) : (
@@ -227,7 +228,7 @@ export function DeviceInput({
             onChange={handleChange}
             onFocus={handleFocus}
             onKeyDown={handleKeyDown}
-            placeholder="Search or type new device..."
+            placeholder="Cari atau ketik perangkat baru..."
             disabled={disabled || isCreating}
             autoComplete="off"
             className="w-full"
@@ -238,12 +239,12 @@ export function DeviceInput({
               {isSearching ? (
                 <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
                   <RiLoader4Line className="w-4 h-4 animate-spin" />
-                  Searching devices...
+                  Mencari perangkat...
                 </div>
               ) : results.length > 0 ? (
                 <div className="py-1">
                   <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Existing Devices
+                    Perangkat yang Ada
                   </div>
                   {results.map((device, index) => (
                     <button
@@ -274,7 +275,7 @@ export function DeviceInput({
                 <div className="p-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                     <RiSearchLine className="w-4 h-4" />
-                    No existing device found
+                    Tidak ada perangkat yang ditemukan
                   </div>
                   <Button
                     type="button"
@@ -287,12 +288,12 @@ export function DeviceInput({
                     {isCreating ? (
                       <>
                         <RiLoader4Line className="w-4 h-4 mr-2 animate-spin" />
-                        Creating...
+                        Membuat...
                       </>
                     ) : (
                       <>
                         <RiAddLine className="w-4 h-4 mr-2" />
-                        Create &quot;{createLabel}&quot;
+                        Buat &quot;{createLabel}&quot;
                       </>
                     )}
                   </Button>

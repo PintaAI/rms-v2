@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/rbac";
 import type { PaymentStatus, ServiceStatus } from "@/prisma/generated/prisma/enums";
+import type { JsonValue } from "@/prisma/generated/prisma/internal/prismaNamespace";
 import type { ServiceItem, ServiceListItem, TimeFilter } from "./service-types";
 
 export const technicianAvailableStatuses: ServiceStatus[] = ["received", "repairing"];
@@ -11,6 +12,7 @@ export const serviceSelectBase = {
   customerName: true,
   noWa: true,
   complaint: true,
+  includedItems: true,
   status: true,
   isPickedUp: true,
   checkinAt: true,
@@ -37,6 +39,7 @@ export const serviceSelectBase = {
       id: true,
       grandTotal: true,
       paymentStatus: true,
+      dpAmount: true,
     },
   },
 };
@@ -55,6 +58,7 @@ export type ServiceWithSelectBase = {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  includedItems: JsonValue | null;
   status: ServiceStatus;
   isPickedUp: boolean;
   checkinAt: Date;
@@ -74,6 +78,7 @@ export type ServiceWithSelectBase = {
     id: string;
     grandTotal: number;
     paymentStatus: PaymentStatus;
+    dpAmount: number;
   } | null;
 };
 
@@ -89,6 +94,7 @@ export function mapServiceToListItem(service: ServiceWithSelectBase): ServiceLis
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
+    includedItems: service.includedItems as string[] | null,
     note: service.note,
     status: service.status,
     isPickedUp: service.isPickedUp,

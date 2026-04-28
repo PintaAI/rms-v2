@@ -14,7 +14,7 @@ import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { deleteService, getService, payInvoice, pickupService } from "@/actions";
+import { deleteService, getService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { RiAddLine } from "@remixicon/react";
@@ -79,6 +79,7 @@ const filteredServices = useMemo(() => {
     customerName: s.customerName,
     noWa: s.noWa,
     complaint: s.complaint,
+    includedItems: s.includedItems,
     note: s.note,
     status: s.status,
     isPickedUp: s.isPickedUp,
@@ -166,56 +167,6 @@ const filteredServices = useMemo(() => {
     router.refresh();
   }, [deleteTarget, router]);
 
-  const handleMarkPaid = useCallback(async (invoiceId: string, serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service || !service.invoice) return;
-
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === serviceId && s.invoice
-          ? { ...s, invoice: { ...s.invoice, paymentStatus: "paid" } }
-          : s
-      )
-    );
-
-    const result = await payInvoice(invoiceId);
-    if (!result.success) {
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId && s.invoice
-            ? { ...s, invoice: { ...s.invoice, paymentStatus: "unpaid" } }
-            : s
-        )
-      );
-    }
-    router.refresh();
-  }, [services, router]);
-
-  const handlePickup = useCallback(async (serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service) return;
-
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === serviceId
-          ? { ...s, isPickedUp: true, checkoutAt: new Date() }
-          : s
-      )
-    );
-
-    const result = await pickupService(serviceId);
-    if (!result.success) {
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId
-            ? { ...s, isPickedUp: service.isPickedUp, checkoutAt: service.checkoutAt }
-            : s
-        )
-      );
-    }
-    router.refresh();
-  }, [services, router]);
-
   const handlePageChange = useCallback((newPage: number) => {
     setCurrentPage(newPage);
   }, []);
@@ -256,7 +207,7 @@ const filteredServices = useMemo(() => {
     }
   }, [statusFilter, pickedUpFilter]);
 
-const getPageTitle = () => {
+  const getPageTitle = () => {
     if (pickedUpFilter) return "Service Diambil";
     if (!statusFilter) return "Semua Service";
     if (statusFilter === "received") return "Service Masuk";
@@ -304,9 +255,6 @@ const getPageTitle = () => {
               onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
               onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
               onAssignTech={handleAssignTech}
-              onMarkPaid={handleMarkPaid}
-              onPickup={!pickedUpFilter && statusFilter ? handlePickup : undefined}
-              onCall={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? (() => {}) : undefined}
               onRowClick={handleRowClick}
               tokoId={tokoId}
               disableAssignment={disableAssignment}
@@ -385,7 +333,6 @@ const getPageTitle = () => {
         <SheetContent side="bottom" className="h-[90vh] rounded-t-lg p-2 max-w-4xl mx-auto overflow-y-auto">
           <SheetHeader className="p-2 flex items-center justify-between">
             <SheetTitle className="font-bold" >Detail servis</SheetTitle>
-            <p className="text-sm text-muted-foreground">tambahkan detail servis</p>
           </SheetHeader>
           {isLoadingDetail && (
             <div className="flex items-center justify-center py-8">

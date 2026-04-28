@@ -76,6 +76,17 @@ export function TaskList({
             {service.complaint.slice(0, 72)}
           </p>
 
+          {service.includedItems && service.includedItems.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {service.includedItems.slice(0, 2).map((item: string, i: number) => (
+                <Badge key={i} variant="outline" className="text-[10px] px-1.5 py-0">{item}</Badge>
+              ))}
+              {service.includedItems.length > 2 && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">+{service.includedItems.length - 2}</Badge>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-[11px] font-medium">
               <RiTimeLine className="mr-1 h-3 w-3" />

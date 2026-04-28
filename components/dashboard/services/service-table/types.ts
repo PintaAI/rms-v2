@@ -1,6 +1,6 @@
 export type StatusKey = "received" | "repairing" | "done" | "failed";
 
-export type PaymentStatusKey = "unpaid" | "paid";
+export type PaymentStatusKey = "unpaid" | "dp" | "paid";
 
 export type PresetKey =
   | "adminActive"
@@ -20,6 +20,7 @@ export interface ServiceTableItem {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  includedItems?: string[] | null;
   note?: string | null;
   status: StatusKey | string;
   isPickedUp?: boolean;
@@ -35,6 +36,7 @@ export interface ServiceTableItem {
     id: string;
     grandTotal: number;
     paymentStatus: PaymentStatusKey | string;
+    dpAmount?: number;
     invoiceNumber?: string | null;
     createdAt?: Date | string | null;
     paidAt?: Date | string | null;

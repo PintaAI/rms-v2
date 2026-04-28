@@ -17,12 +17,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
-  RiMoreLine,
+  RiMenuLine,
   RiPencilLine,
   RiDeleteBinLine,
-  RiWhatsappLine,
-  RiCheckLine,
-  RiMoneyDollarCircleLine,
   RiTaskLine,
   RiUserStarLine,
   RiUserLine,
@@ -32,7 +29,7 @@ import { InvoiceDialog, isPaidInvoiceService, type InvoicePreviewService } from 
 import { TechnicianDropdown } from "./technician-dropdown";
 import { columnRegistry, type ColumnContext, type ColumnKey } from "./column-registry";
 import { resolveColumns, type RoleKey } from "./presets";
-import { formatWhatsApp, getStatusColor } from "./utils";
+import { getStatusColor } from "./utils";
 import type { ServiceTableItem } from "./types";
 
 export interface ServiceTableProps {
@@ -45,9 +42,6 @@ export interface ServiceTableProps {
   onEdit?: (service: ServiceTableItem) => void;
   onDelete?: (service: ServiceTableItem) => void;
   onAssignTech?: (service: ServiceTableItem) => void;
-  onMarkPaid?: (invoiceId: string, serviceId: string) => void;
-  onCall?: (phone: string, service: ServiceTableItem) => void;
-  onPickup?: (serviceId: string) => void;
   onTake?: (serviceId: string) => void;
   onRowClick?: (service: ServiceTableItem) => void;
   tokoId?: string;
@@ -64,9 +58,6 @@ export function ServiceTable({
   onEdit,
   onDelete,
   onAssignTech,
-  onMarkPaid,
-  onCall,
-  onPickup,
   onTake,
   onRowClick,
   tokoId,
@@ -76,10 +67,8 @@ export function ServiceTable({
   const effectiveColumns = columnsOverride || resolveColumns(role, context);
 
   const showDropdownActions = onEdit || onDelete;
-  const showCompletedActions = onCall || onPickup;
-  const showMarkPaid = onMarkPaid;
   const showTakeTask = onTake;
-  const hasActions = showDropdownActions || showCompletedActions || showMarkPaid || showTakeTask;
+  const hasActions = showDropdownActions || showTakeTask;
 
   const getEmptyColSpan = () => effectiveColumns.length + (hasActions ? 1 : 0);
 
@@ -89,12 +78,6 @@ export function ServiceTable({
     if (!isPaidInvoiceService(service)) return;
     setSelectedInvoiceService(service);
   }, [setSelectedInvoiceService]);
-
-  const handleCallClick = (phone: string, service: ServiceTableItem) => {
-    const formattedPhone = formatWhatsApp(phone);
-    window.open(`https://wa.me/${formattedPhone}`, "_blank");
-    onCall?.(phone, service);
-  };
 
   const getRowStatusClass = (statusColor: ReturnType<typeof getStatusColor>) => {
     switch (statusColor) {
@@ -215,7 +198,7 @@ export function ServiceTable({
                   ))}
                   {hasActions && (
                     <TableCell>
-                      <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-1">
                         {onTake && (service.status === "received" || service.status === "repairing") && (
                           (() => {
                             const isTakeover = Boolean(service.technician && service.technician.id);
@@ -231,41 +214,11 @@ export function ServiceTable({
                             );
                           })()
                         )}
-                        {showMarkPaid && service.invoice?.paymentStatus === "unpaid" && (
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs bg-chart-1 hover:bg-chart-1/80 text-primary-foreground shadow-sm"
-                            onClick={(e) => { e.stopPropagation(); onMarkPaid!(service.invoice!.id, service.id); }}
-                          >
-                            <RiMoneyDollarCircleLine className="h-3.5 w-3.5 mr-1" />
-                            Bayar
-                          </Button>
-                        )}
-                        {onCall && (
-                          <Button
-                            size="sm"
-                            className="h-7 border border-green-200 bg-green-100 text-xs text-green-700 hover:bg-green-200 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/60"
-                            onClick={(e) => { e.stopPropagation(); handleCallClick(service.noWa, service); }}
-                          >
-                            <RiWhatsappLine className="h-3.5 w-3.5 mr-1" />
-                            WhatsApp
-                          </Button>
-                        )}
-                        {onPickup && !service.isPickedUp && (service.status === "done" || service.status === "failed") && (
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs shadow-sm bg-muted/60 text-foreground hover:bg-muted/80 dark:bg-muted/30 dark:hover:bg-muted/50"
-                            onClick={(e) => { e.stopPropagation(); onPickup(service.id); }}
-                          >
-                            <RiCheckLine className="h-3.5 w-3.5 mr-1" />
-                            Picked up
-                          </Button>
-                        )}
                         {showDropdownActions && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted">
-                                <RiMoreLine className="h-3.5 w-3.5" />
+                                <RiMenuLine className="h-3.5 w-3.5" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-[120px]">
@@ -275,7 +228,7 @@ export function ServiceTable({
                                   Edit
                                 </DropdownMenuItem>
                               )}
-                              {onDelete && service.invoice?.paymentStatus !== "paid" && (
+                              {onDelete && service.invoice?.paymentStatus !== "paid" && service.invoice?.paymentStatus !== "dp" && (
                                 <DropdownMenuItem
                                   variant="destructive"
                                   onClick={(e) => { e.stopPropagation(); onDelete(service); }}

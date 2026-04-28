@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { deleteService, payInvoice, pickupService } from "@/actions";
+import { deleteService } from "@/actions";
 import type { ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { RiAddLine } from "@remixicon/react";
@@ -69,6 +69,7 @@ export function StaffManageService({
     customerName: s.customerName,
     noWa: s.noWa,
     complaint: s.complaint,
+    includedItems: s.includedItems,
     note: s.note,
     status: s.status,
     isPickedUp: s.isPickedUp,
@@ -156,56 +157,6 @@ export function StaffManageService({
     router.refresh();
   }, [deleteTarget, router]);
 
-  const handleMarkPaid = useCallback(async (invoiceId: string, serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service || !service.invoice) return;
-
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === serviceId && s.invoice
-          ? { ...s, invoice: { ...s.invoice, paymentStatus: "paid" } }
-          : s
-      )
-    );
-
-    const result = await payInvoice(invoiceId);
-    if (!result.success) {
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId && s.invoice
-            ? { ...s, invoice: { ...s.invoice, paymentStatus: "unpaid" } }
-            : s
-        )
-      );
-    }
-    router.refresh();
-  }, [services, router]);
-
-  const handlePickup = useCallback(async (serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service) return;
-
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === serviceId
-          ? { ...s, isPickedUp: true, checkoutAt: new Date() }
-          : s
-      )
-    );
-
-    const result = await pickupService(serviceId);
-    if (!result.success) {
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId
-            ? { ...s, isPickedUp: service.isPickedUp, checkoutAt: service.checkoutAt }
-            : s
-        )
-      );
-    }
-    router.refresh();
-  }, [services, router]);
-
   const handlePageChange = useCallback((newPage: number) => {
     setCurrentPage(newPage);
   }, []);
@@ -274,9 +225,6 @@ export function StaffManageService({
             emptyMessage={getEmptyMessage()}
             onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
             onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
-            onMarkPaid={!statusFilter ? undefined : handleMarkPaid}
-            onPickup={!pickedUpFilter && statusFilter ? handlePickup : undefined}
-              onCall={undefined}
               tokoId={tokoId}
               disableAssignment={true}
             />

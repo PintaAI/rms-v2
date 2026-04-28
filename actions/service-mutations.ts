@@ -27,8 +27,10 @@ const createServiceSchema = z.object({
   customerName: z.string().optional(),
   noWa: z.string().min(1),
   complaint: z.string().min(1),
+  includedItems: z.array(z.string()).optional(),
   passwordPattern: z.string().optional(),
   imei: z.string().optional(),
+  dpAmount: z.number().int().min(0).optional(),
 });
 
 const updateServiceSchema = createServiceSchema;
@@ -97,38 +99,60 @@ export async function createService(
     });
     if (!hpCatalog) return { success: false, error: "Device not found" };
 
-    const service = await prisma.$transaction(async (tx) => {
-      const createdService = await tx.service.create({
-        data: {
+      const service = await prisma.$transaction(async (tx) => {
+        const createdService = await tx.service.create({
+          data: {
+            tokoId: targetTokoId,
+            hpCatalogId: validated.hpCatalogId,
+            createdById: user.id,
+            customerName: validated.customerName || null,
+            noWa: validated.noWa,
+            complaint: validated.complaint,
+            includedItems: validated.includedItems as any || undefined,
+            passwordPattern: validated.passwordPattern || null,
+            imei: validated.imei || null,
+            status: "received",
+          },
+          select: { id: true },
+        });
+
+        if (validated.dpAmount && validated.dpAmount > 0) {
+          await tx.invoice.create({
+            data: {
+              serviceId: createdService.id,
+              grandTotal: 0,
+              paymentStatus: "dp",
+              dpAmount: validated.dpAmount,
+            },
+          });
+
+          await createActivityLog(tx, {
+            tokoId: targetTokoId,
+            userId: user.id,
+            serviceId: createdService.id,
+            type: "invoice_dp",
+            title: "Invoice marked as DP",
+            payload: { dpAmount: validated.dpAmount },
+          });
+        }
+
+        await createActivityLog(tx, {
           tokoId: targetTokoId,
-          hpCatalogId: validated.hpCatalogId,
-          createdById: user.id,
-          customerName: validated.customerName || null,
-          noWa: validated.noWa,
-          complaint: validated.complaint,
-          passwordPattern: validated.passwordPattern || null,
-          imei: validated.imei || null,
-          status: "received",
-        },
-        select: { id: true },
-      });
+          userId: user.id,
+          serviceId: createdService.id,
+          type: "service_created",
+          title: "Service created",
+          payload: {
+            hpCatalogId: validated.hpCatalogId,
+            customerName: validated.customerName || null,
+            noWa: validated.noWa,
+            complaint: validated.complaint,
+            includedItems: validated.includedItems || undefined,
+          },
+        });
 
-      await createActivityLog(tx, {
-        tokoId: targetTokoId,
-        userId: user.id,
-        serviceId: createdService.id,
-        type: "service_created",
-        title: "Service created",
-        payload: {
-          hpCatalogId: validated.hpCatalogId,
-          customerName: validated.customerName || null,
-          noWa: validated.noWa,
-          complaint: validated.complaint,
-        },
+        return createdService;
       });
-
-      return createdService;
-    });
 
     revalidateServicePaths(targetTokoId);
 
@@ -175,10 +199,43 @@ export async function updateService(
           customerName: validated.customerName || null,
           noWa: validated.noWa,
           complaint: validated.complaint,
+          includedItems: validated.includedItems as any || undefined,
           passwordPattern: validated.passwordPattern || null,
           imei: validated.imei || null,
         },
       });
+
+      if (validated.dpAmount && validated.dpAmount > 0) {
+        const existingInvoice = await tx.invoice.findUnique({
+          where: { serviceId },
+          select: { id: true },
+        });
+
+        if (existingInvoice) {
+          await tx.invoice.update({
+            where: { serviceId },
+            data: { dpAmount: validated.dpAmount, paymentStatus: "dp" },
+          });
+        } else {
+          await tx.invoice.create({
+            data: {
+              serviceId,
+              grandTotal: 0,
+              paymentStatus: "dp",
+              dpAmount: validated.dpAmount,
+            },
+          });
+        }
+
+        await createActivityLog(tx, {
+          tokoId: service.tokoId,
+          userId: user.id,
+          serviceId,
+          type: "invoice_dp",
+          title: "Invoice marked as DP",
+          payload: { dpAmount: validated.dpAmount },
+        });
+      }
 
       await createActivityLog(tx, {
         tokoId: service.tokoId,
@@ -191,6 +248,7 @@ export async function updateService(
           customerName: validated.customerName || null,
           noWa: validated.noWa,
           complaint: validated.complaint,
+          includedItems: validated.includedItems || undefined,
           imei: validated.imei || null,
           hasPasswordPattern: Boolean(validated.passwordPattern),
         },
@@ -245,7 +303,7 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
       return { success: false, error: "Cannot delete a service that has been picked up" };
     }
 
-    if (service.invoice?.paymentStatus === "paid") {
+    if (service.invoice?.paymentStatus === "paid" || service.invoice?.paymentStatus === "dp") {
       return { success: false, error: "Cannot delete a service with a paid invoice" };
     }
 
@@ -821,7 +879,7 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
     const disabledFeatures = await getDisabledFeaturesForToko(invoice.service.tokoId);
     const invoiceError = ensureFeatureAccess(scopedUser, "service.invoice", disabledFeatures);
     if (invoiceError) return invoiceError;
-    if (invoice.paymentStatus === "paid") return { success: false, error: "Invoice has already been paid" };
+    if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "dp") return { success: false, error: "Invoice has already been paid" };
     if (invoice.service.status !== "done" && invoice.service.status !== "failed") {
       return { success: false, error: "Only completed services can be marked as paid" };
     }
@@ -854,5 +912,52 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
   } catch (error) {
     console.error("Error paying invoice:", error);
     return { success: false, error: "Failed to pay invoice" };
+  }
+}
+
+export async function markDpInvoice(invoiceId: string, dpAmount: number): Promise<ActionResult> {
+  try {
+    const { user, tokoIds } = await getSessionAndTokos();
+    if (!user) return { success: false, error: "Unauthorized" };
+    if (!isStaffOrAdminRole(user.role)) return { success: false, error: "Access denied" };
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: {
+        paymentStatus: true,
+        service: { select: { id: true, tokoId: true, status: true, isPickedUp: true } },
+      },
+    });
+    if (!invoice) return { success: false, error: "Invoice not found" };
+    if (!hasTokoAccess(tokoIds, invoice.service.tokoId)) return { success: false, error: "Access denied" };
+    const scopedUser = await getTokoScopedUser(user, invoice.service.tokoId);
+    const disabledFeatures = await getDisabledFeaturesForToko(invoice.service.tokoId);
+    const invoiceError = ensureFeatureAccess(scopedUser, "service.invoice", disabledFeatures);
+    if (invoiceError) return invoiceError;
+    if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "dp") return { success: false, error: "Invoice already has DP or is paid" };
+    if (dpAmount <= 0) return { success: false, error: "DP amount must be greater than zero" };
+
+    await prisma.$transaction(async (tx) => {
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { paymentStatus: "dp", dpAmount },
+      });
+
+      await createActivityLog(tx, {
+        tokoId: invoice.service.tokoId,
+        userId: scopedUser.id,
+        serviceId: invoice.service.id,
+        type: "invoice_dp",
+        title: "Invoice marked as DP",
+        payload: { invoiceId, dpAmount },
+      });
+    });
+
+    revalidateServicePaths(invoice.service.tokoId);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error marking DP:", error);
+    return { success: false, error: "Failed to mark DP" };
   }
 }

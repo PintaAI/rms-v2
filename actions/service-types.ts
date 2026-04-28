@@ -17,6 +17,7 @@ export interface ServiceListItem {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  includedItems?: string[] | null;
   note: string | null;
   status: ServiceStatus;
   isPickedUp?: boolean;
@@ -36,6 +37,7 @@ export interface ServiceListItem {
     id: string;
     grandTotal: number;
     paymentStatus: PaymentStatus;
+    dpAmount: number;
   } | null;
 }
 
