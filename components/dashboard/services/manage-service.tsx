@@ -14,6 +14,7 @@ import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
+import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
 import { deleteService, getService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
@@ -46,6 +47,7 @@ export function ManageService({
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [sparepartDialogOpen, setSparepartDialogOpen] = useState(false);
   const pendingMutationsRef = useRef(0);
 
   useEffect(() => {
@@ -197,6 +199,11 @@ const filteredServices = useMemo(() => {
     router.refresh();
   }, [selectedService, router]);
 
+  const handleSparepartSuccess = useCallback(() => {
+    setSparepartDialogOpen(false);
+    router.refresh();
+  }, [router]);
+
   // Reset to page 1 when filter changes
   const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}`);
   useEffect(() => {
@@ -331,8 +338,18 @@ const filteredServices = useMemo(() => {
 
       <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
         <SheetContent side="bottom" className="h-[90vh] rounded-t-lg p-2 max-w-4xl mx-auto overflow-y-auto">
-          <SheetHeader className="p-2 flex items-center justify-between">
-            <SheetTitle className="font-bold" >Detail servis</SheetTitle>
+          <SheetHeader className="p-2">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="font-bold">Detail servis</SheetTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSparepartDialogOpen(true)}
+              >
+                <RiAddLine className="h-4 w-4 mr-1.5" />
+                Add Sparepart
+              </Button>
+            </div>
           </SheetHeader>
           {isLoadingDetail && (
             <div className="flex items-center justify-center py-8">
@@ -352,6 +369,13 @@ const filteredServices = useMemo(() => {
           )}
         </SheetContent>
       </Sheet>
+
+      <SparepartFormDialog
+        open={sparepartDialogOpen}
+        onOpenChange={setSparepartDialogOpen}
+        tokoId={tokoId}
+        onSuccess={handleSparepartSuccess}
+      />
     </div>
   );
 }
