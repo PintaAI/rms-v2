@@ -1,7 +1,7 @@
 "use client";
 
-import { ServiceTable } from "@/components/dashboard/services/service-table/service-table";
-import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
+import { ServiceTable } from "@/components/dashboard/services/service-table";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 
 const mockServices: ServiceTableItem[] = [
   {
@@ -135,7 +135,7 @@ export function ServiceTableDemo() {
   return (
     <ServiceTable
       services={mockServices}
-      preset="adminActive"
+      role="admin"
       disableAssignment
     />
   );

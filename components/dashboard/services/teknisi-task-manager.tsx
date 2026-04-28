@@ -17,7 +17,7 @@ import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-
 import { getService, takeService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import { useAuth } from "@/components/auth/auth-provider";
-import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import {
   OverviewSectionHeader,
   OverviewStatsCard,
@@ -302,7 +302,7 @@ export function TeknisiTaskManager({
             {status === "tersedia" ? (
               <ServiceTable
                 services={tableItems}
-                preset="technicianAvailable"
+                role="technician"
                 emptyMessage="Tidak ada task yang bisa diambil atau takeover"
                 onTake={handleTakeTask}
                 onRowClick={handleOpenTask}
@@ -310,7 +310,7 @@ export function TeknisiTaskManager({
             ) : (
               <ServiceTable
                 services={tableItems}
-                preset="technicianMyTasks"
+                role="technicianMyTasks"
                 emptyMessage={`Tidak ada task${status ? ` dengan status ${status}` : ""}`}
                 onRowClick={handleOpenTask}
               />

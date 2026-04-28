@@ -211,7 +211,7 @@ export function TaskList({
             <div className="space-y-4">
               <ServiceTable
                 services={myTasks.slice(0, 5)}
-                preset="technicianMyTasks"
+                role="technicianMyTasks"
                 emptyMessage="Tidak ada task yang sedang dikerjakan."
                 onRowClick={(task) => onOpenTask(task.id)}
               />

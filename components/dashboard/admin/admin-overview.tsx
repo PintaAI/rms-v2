@@ -273,7 +273,7 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
               <div className="min-w-[48rem]">
                 <ServiceTable
                   services={tableServices}
-                  preset="adminActive"
+                  role="admin"
                   emptyMessage="Tidak ada service"
                   tokoId={tokoId}
                   disableAssignment={true}

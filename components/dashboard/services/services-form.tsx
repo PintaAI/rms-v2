@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { createService, updateService } from "@/actions";
 import type { ServiceListItem as ServiceListItemType } from "@/actions";
-import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import {
   Dialog,
   DialogContent,

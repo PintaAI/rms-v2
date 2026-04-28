@@ -1,9 +1,10 @@
 import { getServiceList, getServiceStats } from "@/actions/service";
 import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import { ManageService } from "@/components/dashboard/services/manage-service";
+import { OverviewStatsCard } from "@/components/dashboard/shared/overview-cards";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
-import { RiStore2Line } from "@remixicon/react";
+import { RiStore2Line, RiInboxLine, RiToolsLine, RiCheckDoubleLine, RiLogoutBoxLine } from "@remixicon/react";
 
 interface AdminServicePageProps {
   params: Promise<{ tokoid: string }>;
@@ -86,9 +87,18 @@ export default async function AdminServicePage({ params }: AdminServicePageProps
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola semua service di toko</p>
       </div>
+      <section className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <OverviewStatsCard title="Masuk" value={stats.received} icon={<RiInboxLine className="h-4 w-4" />} description="menunggu teknisi" variant="primary" />
+          <OverviewStatsCard title="Proses" value={stats.repairing} icon={<RiToolsLine className="h-4 w-4" />} description="sedang diperbaiki" variant="accent" />
+          <OverviewStatsCard title="Selesai & Gagal" value={stats.done + stats.failed} icon={<RiCheckDoubleLine className="h-4 w-4" />} description={`${stats.done} selesai, ${stats.failed} gagal`} variant={stats.failed > 0 ? "warning" : "success"} />
+          <OverviewStatsCard title="Diambil" value={stats.pickedUp} icon={<RiLogoutBoxLine className="h-4 w-4" />} description="sudah selesai" />
+          <OverviewStatsCard title="Total" value={stats.total} icon={<RiInboxLine className="h-4 w-4" />} description="semua service" />
+        </div>
+      </section>
+
       <ManageService
         allServices={servicesResult.data.data}
-        initialStats={stats}
         tokoId={tokoid}
         pageSize={pageSize}
         disableAssignment={disabledFeatures.includes("service.technicianAssignment")}

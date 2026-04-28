@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { createAuthMiddleware } from "better-auth/api";
 import { headers } from "next/headers";
+import { kv } from "@vercel/kv";
 import prisma from "./prisma";
 
 const devOrigins = [
@@ -23,6 +24,26 @@ const trustedOrigins =
 
 export const auth = betterAuth({
   trustedOrigins,
+
+  secondaryStorage: {
+    get: async (key) => await kv.get(key),
+    set: async (key, value, ttl) => {
+      if (ttl) await kv.set(key, value, { ex: ttl });
+      else await kv.set(key, value);
+    },
+    delete: async (key) => { await kv.del(key); },
+  },
+
+  rateLimit: {
+    storage: "secondary-storage",
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-up/email": { window: 3600, max: 3 },
+      "/sign-in/email": { window: 60, max: 5 },
+    },
+  },
+
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),

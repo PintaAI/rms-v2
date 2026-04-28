@@ -1,0 +1,243 @@
+import type { ServiceTableItem } from "./types";
+import {
+  RiUserLine,
+  RiUserStarLine,
+  RiCalendarLine,
+  RiCheckLine,
+  RiCheckDoubleLine,
+  RiLogoutBoxLine,
+} from "@remixicon/react";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getBrandIcon } from "@/lib/brand-icons";
+import { formatDate, formatCurrency, getStatusColor, getStatusLabel, getPaymentStatusColor, getStatusIcon } from "./utils";
+
+export interface ColumnDef {
+  key: string;
+  header: string;
+  render: (service: ServiceTableItem) => React.ReactNode;
+  width?: number;
+}
+
+export interface ColumnContext {
+  pickedUpFilter?: boolean;
+  statusFilter?: string;
+  isHistory?: boolean;
+}
+
+function parseNoteStatus(note: string) {
+  const match = note.match(/^\{(GAGAL|BERHASIL)\}\s*/);
+  if (!match) return { label: null, note };
+  const label = match[1];
+  return {
+    label,
+    note: note.replace(/^\{(?:GAGAL|BERHASIL)\}\s*/, "").trim() || label,
+  };
+}
+
+export const columnRegistry: Record<string, ColumnDef> = {
+  customer: {
+    key: "customer",
+    header: "Customer",
+    render: (service) => (
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center text-primary">
+          <RiUserLine className="h-4 w-4" />
+        </div>
+        <div className="flex flex-col min-w-0">
+          <span className="font-semibold truncate">{service.customerName || "-"}</span>
+          <span className="text-xs text-muted-foreground truncate">{service.noWa}</span>
+        </div>
+      </div>
+    ),
+    width: 180,
+  },
+
+  device: {
+    key: "device",
+    header: "Device",
+    render: (service) => (
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center text-muted-foreground">
+          {getBrandIcon(service.hpCatalog.brand.name)}
+        </div>
+        <div className="min-w-0">
+          <div className="font-semibold truncate">{service.hpCatalog.brand.name}</div>
+          <div className="text-xs text-muted-foreground truncate">{service.hpCatalog.modelName}</div>
+        </div>
+      </div>
+    ),
+    width: 150,
+  },
+
+  complaint: {
+    key: "complaint",
+    header: "Complaint",
+    render: (service) => (
+      <Tooltip>
+        <TooltipTrigger className="block max-w-[100px] truncate text-left cursor-default">
+          {service.complaint}
+        </TooltipTrigger>
+        <TooltipContent className="max-w-sm">{service.complaint}</TooltipContent>
+      </Tooltip>
+    ),
+    width: 120,
+  },
+
+  note: {
+    key: "note",
+    header: "Note",
+    render: (service) => {
+      if (!service.note) return <span className="text-muted-foreground">-</span>;
+      const parsedNote = parseNoteStatus(service.note);
+      return (
+        <Tooltip>
+          <TooltipTrigger className="block max-w-xs cursor-default text-left">
+            <div className="flex items-center gap-2 truncate">
+              {parsedNote.label && (
+                <Badge variant={parsedNote.label === "GAGAL" ? "destructive" : "outline"} className="shrink-0 text-[0.6rem] uppercase">
+                  {parsedNote.label}
+                </Badge>
+              )}
+              <span className="truncate">{parsedNote.note}</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm">
+            <div className="flex items-start gap-2">
+              {parsedNote.label && (
+                <Badge variant={parsedNote.label === "GAGAL" ? "destructive" : "outline"} className="shrink-0 text-[0.6rem] uppercase">
+                  {parsedNote.label}
+                </Badge>
+              )}
+              <span>{parsedNote.note}</span>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    },
+    width: 100,
+  },
+
+  createdBy: {
+    key: "createdBy",
+    header: "Created By",
+    render: (service) =>
+      service.createdBy?.name ? (
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+            <RiUserStarLine className="h-3 w-3 text-primary" />
+          </div>
+          <span className="font-medium text-sm">{service.createdBy.name}</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded-lg bg-muted/50 flex items-center justify-center">
+            <RiUserLine className="h-3 w-3 text-muted-foreground" />
+          </div>
+          <span className="text-sm text-muted-foreground">Unknown</span>
+        </div>
+      ),
+    width: 120,
+  },
+
+  status: {
+    key: "status",
+    header: "Status",
+    render: (service) => {
+      const StatusIcon = getStatusIcon(service.status);
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={getStatusColor(service.status)}>
+            {StatusIcon && <StatusIcon className="h-3 w-3 mr-1" />}
+            {getStatusLabel(service.status)}
+          </Badge>
+          {service.isPickedUp && <Badge variant="outline">Picked Up</Badge>}
+        </div>
+      );
+    },
+    width: 120,
+  },
+
+  technician: {
+    key: "technician",
+    header: "Technician",
+    width: 140,
+    render: (service) =>
+      service.technician
+        ? (
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center">
+              <RiUserStarLine className="h-3 w-3 text-sky-500" />
+            </div>
+            <span className="font-medium text-sm">{service.technician.name}</span>
+          </div>
+        )
+        : (
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-lg bg-muted/50 flex items-center justify-center">
+              <RiUserLine className="h-3 w-3 text-muted-foreground" />
+            </div>
+            <span className="text-sm text-muted-foreground">Unassigned</span>
+          </div>
+        ),
+  },
+
+  invoice: {
+    key: "invoice",
+    header: "Invoice",
+    render: (service) => {
+      if (!service.invoice) return <span className="text-muted-foreground">-</span>;
+      const isPaid = service.invoice.paymentStatus === "paid";
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-semibold tabular-nums">{formatCurrency(service.invoice.grandTotal)}</span>
+          <div className="flex items-center gap-1">
+            {isPaid && <RiCheckLine className="h-3 w-3 text-chart-1" />}
+            <Badge variant={getPaymentStatusColor(service.invoice.paymentStatus)} className="text-[0.6rem]">
+              {isPaid ? "Paid" : "Unpaid"}
+            </Badge>
+          </div>
+        </div>
+      );
+    },
+    width: 100,
+  },
+
+  checkinAt: {
+    key: "checkinAt",
+    header: "Check-in",
+    render: (service) => (
+      <div className="flex items-center gap-2">
+        <RiCalendarLine className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">{formatDate(service.checkinAt)}</span>
+      </div>
+    ),
+    width: 100,
+  },
+
+  doneAt: {
+    key: "doneAt",
+    header: "Completed At",
+    render: (service) => (
+      <div className="flex items-center gap-2">
+        <RiCheckDoubleLine className="h-3.5 w-3.5 text-green-600" />
+        <span className="text-xs text-muted-foreground">{formatDate(service.doneAt)}</span>
+      </div>
+    ),
+    width: 120,
+  },
+
+  checkoutAt: {
+    key: "checkoutAt",
+    header: "Picked Up At",
+    render: (service) => (
+      <div className="flex items-center gap-2">
+        <RiLogoutBoxLine className="h-3.5 w-3.5 text-primary" />
+        <span className="text-xs text-muted-foreground">{formatDate(service.checkoutAt)}</span>
+      </div>
+    ),
+    width: 120,
+  },
+};
+
+export type ColumnKey = keyof typeof columnRegistry;
