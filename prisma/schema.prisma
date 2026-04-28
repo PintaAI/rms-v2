@@ -53,6 +53,7 @@ enum ActivityType {
   service_taken_over
   invoice_created
   invoice_paid
+  invoice_dp
   sparepart_created
   sparepart_updated
   sparepart_deleted
@@ -88,6 +89,7 @@ enum InventoryAuditMismatchReason {
 
 enum PaymentStatus {
   unpaid
+  dp
   paid
 }
 
@@ -312,6 +314,7 @@ model Service {
   customerName    String?
   noWa            String
   complaint       String
+  includedItems   Json?
   passwordPattern String?
   note            String?
 
@@ -373,6 +376,7 @@ model Invoice {
 
   grandTotal    Int
   paymentStatus PaymentStatus @default(unpaid)
+  dpAmount      Int      @default(0)
   paidAt        DateTime?
   createdAt     DateTime      @default(now())
 

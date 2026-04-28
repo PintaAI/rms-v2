@@ -19,7 +19,7 @@ export type FeatureKey =
   | "analytics.revenue"
   | "inventory.audit";
 
-export type PlanLimitKey = "maxTokos" | "maxStaff" | "maxTechnicians";
+export type PlanLimitKey = "maxTokos" | "maxStaff" | "maxTechnicians" | "maxServicesMonthly" | "maxInvoicesMonthly";
 
 export type FeatureLockReason = "role_denied" | "plan_required" | "disabled_by_toko";
 
@@ -53,16 +53,22 @@ const PLAN_LIMITS: Record<SubscriptionPlan, Record<PlanLimitKey, number | null>>
     maxTokos: 1,
     maxStaff: 0,
     maxTechnicians: 0,
+    maxServicesMonthly: 50,
+    maxInvoicesMonthly: 50,
   },
   premium: {
     maxTokos: 3,
     maxStaff: 5,
     maxTechnicians: 5,
+    maxServicesMonthly: null,
+    maxInvoicesMonthly: null,
   },
   enterprise: {
     maxTokos: null,
     maxStaff: null,
     maxTechnicians: null,
+    maxServicesMonthly: null,
+    maxInvoicesMonthly: null,
   },
 };
 
@@ -96,12 +102,12 @@ export const FEATURE_REGISTRY = {
   },
   "service.manualItems": {
     key: "service.manualItems",
-    label: "Manual Service Items",
+    label: "Tambah Invoice Manual",
     description: "Tambahkan item manual ke pekerjaan service tanpa memakai inventory.",
     category: "service",
     allowedRoles: ["admin", "staff", "technician"],
     minimumPlan: "free",
-    configurable: false,
+    configurable: true,
   },
   "inventory.management": {
     key: "inventory.management",

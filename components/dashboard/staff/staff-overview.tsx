@@ -130,7 +130,7 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
           <CardContent className="p-0">
             <ServiceTable
               services={tableServices}
-              preset="staffActive"
+              role="staff"
               emptyMessage="Tidak ada service"
               tokoId={tokoId}
               disableAssignment={true}

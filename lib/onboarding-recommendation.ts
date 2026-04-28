@@ -32,6 +32,7 @@ export interface OnboardingPlanRecommendation {
 }
 
 const optionalFeatureKeys: FeatureKey[] = [
+  "service.manualItems",
   "inventory.management",
   "karyawan.management",
   "staff.workflow",

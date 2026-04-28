@@ -89,6 +89,7 @@ export interface ServiceTaskItem {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  includedItems?: string[] | null;
   passwordPattern: string | null;
   imei: string | null;
   status: string;
@@ -358,9 +359,6 @@ export function ServiceTaskCard({
 
     const snapshot = localTaskRef.current;
     const doneNoteValue = doneNote.trim();
-    const doneStatusNote = doneNoteValue
-      ? `{BERHASIL} ${doneNoteValue}`
-      : "{BERHASIL}";
 
     // Block useEffect sync while the mutation is in-flight
     pendingMutationsRef.current += 1;
@@ -376,7 +374,7 @@ export function ServiceTaskCard({
       const result = await updateStatus(
         snapshot.id,
         "done",
-        doneStatusNote
+        doneNoteValue || undefined
       );
       if (result.success) {
         setDoneDialogOpen(false);
@@ -406,7 +404,7 @@ export function ServiceTaskCard({
     setIsMarkingFailed(true);
 
     const snapshot = localTaskRef.current;
-    const failedStatusNote = `{GAGAL} ${failedNote.trim()}`;
+    const failedNoteValue = failedNote.trim();
 
     // Block useEffect sync while the mutation is in-flight
     pendingMutationsRef.current += 1;
@@ -419,7 +417,7 @@ export function ServiceTaskCard({
     }));
 
     try {
-      const result = await updateStatus(snapshot.id, "failed", failedStatusNote);
+      const result = await updateStatus(snapshot.id, "failed", failedNoteValue || undefined);
       if (result.success) {
         setFailedDialogOpen(false);
         pendingMutationsRef.current -= 1;
@@ -452,10 +450,26 @@ export function ServiceTaskCard({
                   {statusLabels[localTask.status] || localTask.status}
                 </Badge>
                 {localTask.isPickedUp && <Badge variant="outline">Picked Up</Badge>}
+                {localTask.invoice && (
+                  <Badge
+                    variant={
+                      localTask.invoice.paymentStatus === "paid"
+                        ? "outline"
+                        : localTask.invoice.paymentStatus === "dp"
+                          ? "accent"
+                          : "destructive"
+                    }
+                  >
+                    {isActive ? "Invoice" : formatCurrency(localTask.invoice.grandTotal)} • {localTask.invoice.paymentStatus === "paid" ? "Paid" : localTask.invoice.paymentStatus === "dp" ? `DP ${localTask.invoice.dpAmount ? formatCurrency(localTask.invoice.dpAmount) : ""}` : "Unpaid"}
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription className="break-words">
                 {localTask.customerName || "No customer name"} • {localTask.noWa}
               </CardDescription>
+              <p className="text-xs text-muted-foreground">
+                Check-in: {formatDate(localTask.checkinAt)}
+              </p>
             </div>
             {isActive && showActions && (
               <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
@@ -497,6 +511,18 @@ export function ServiceTaskCard({
               <Label className="text-muted-foreground">Complaint</Label>
               <p className="text-sm">{localTask.complaint}</p>
             </div>
+
+            {/* Included Items */}
+            {localTask.includedItems && localTask.includedItems.length > 0 && (
+              <div>
+                <Label className="text-muted-foreground">Included Items</Label>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {localTask.includedItems.map((item, index) => (
+                    <Badge key={index} variant="outline" className="text-xs">{item}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Password / Pattern - only show for active tasks */}
             {isActive && (localTask.passwordPattern || localTask.imei) && (
@@ -602,65 +628,28 @@ export function ServiceTaskCard({
               </div>
             )}
 
-            {/* Invoice info */}
-            {localTask.invoice && (
-              <div className="flex justify-between items-center pt-2 border-t">
-                <span className="text-muted-foreground">
-                  {isActive ? "Invoice Status" : "Invoice"}
-                </span>
-                <div className="flex items-center gap-2">
-                  {!isActive && (
-                    <span>{formatCurrency(localTask.invoice.grandTotal)}</span>
-                  )}
-                  <Badge
-                    variant={
-                      localTask.invoice.paymentStatus === "paid"
-                        ? "outline"
-                        : "destructive"
-                    }
-                  >
-                    {localTask.invoice.paymentStatus === "paid" ? "Paid" : "Unpaid"}
-                  </Badge>
-                </div>
-              </div>
-            )}
-
-            {/* Timestamps */}
-            <div className="text-xs text-muted-foreground pt-2 border-t">
-              <div>Check-in: {formatDate(localTask.checkinAt)}</div>
-              {localTask.doneAt && <div>Done: {formatDate(localTask.doneAt)}</div>}
-              {localTask.isPickedUp && localTask.checkoutAt && (
-                <div>Picked Up: {formatDate(localTask.checkoutAt)}</div>
-              )}
-            </div>
-
-            {/* Done & Failed buttons – bottom-right for active tasks */}
+            {/* Done & Failed buttons */}
             {isActive && showActions && (
-              <div className="pt-4 border-t mt-4 space-y-4">
-                <p className="text-sm font-medium text-center text-muted-foreground">
-                  Sudah selesai service?
+              <div className="pt-4 mt-4">
+                <p className="text-sm font-medium text-center text-muted-foreground mb-3">
+                  Service completion
                 </p>
-                <div className="flex flex-col sm:flex-row items-stretch justify-center gap-3 max-w-md mx-auto">
-                  <button
-                    type="button"
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant="outline"
                     onClick={openFailedDialog}
-                    className="flex min-h-[96px] flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50/70 px-5 py-4 text-red-600 transition-colors hover:bg-red-100 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 focus-visible:ring-offset-2"
+                    className="flex-col h-auto py-3 gap-1.5 border-red-300 bg-red-100 text-red-700 hover:bg-red-200 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60"
                   >
-                    <RiCloseCircleLine className="h-6 w-6 shrink-0" />
-                    <span className="text-sm font-semibold leading-none">
-                      Gagal Servis
-                    </span>
-                  </button>
-                  <button
-                    type="button"
+                    <RiCloseCircleLine className="h-5 w-5" />
+                    <span className="text-xs font-medium">Mark as Failed</span>
+                  </Button>
+                  <Button
                     onClick={openDoneDialog}
-                    className="flex min-h-[96px] flex-1 flex-col items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-4 text-white transition-colors hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-2"
+                    className="flex-col h-auto py-3 gap-1.5 bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800"
                   >
-                    <RiCheckDoubleLine className="h-6 w-6 shrink-0" />
-                    <span className="text-sm font-semibold leading-none">
-                      Selesai Servis
-                    </span>
-                  </button>
+                    <RiCheckDoubleLine className="h-5 w-5" />
+                    <span className="text-xs font-medium">Mark as Done</span>
+                  </Button>
                 </div>
               </div>
             )}

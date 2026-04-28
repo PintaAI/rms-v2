@@ -1,7 +1,10 @@
 import { InventoryTabs } from "@/components/dashboard/inventory/inventory-tabs";
+import { FeaturePreview } from "@/components/dashboard/feature-preview";
+import { getPageFeatureAccess } from "@/lib/page-feature-gates";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
 import { RiStore2Line } from "@remixicon/react";
+import { redirect } from "next/navigation";
 
 interface AdminInventoryPageProps {
   params: Promise<{ tokoid: string }>;
@@ -9,6 +12,28 @@ interface AdminInventoryPageProps {
 
 export default async function AdminInventoryPage({ params }: AdminInventoryPageProps) {
   const { tokoid } = await params;
+  const access = await getPageFeatureAccess(tokoid, "inventory.management");
+
+  if (access.reason === "unauthorized") redirect("/auth");
+  if (access.reason === "toko_denied") redirect("/dashboard");
+  if (access.reason === "role_denied") redirect("/dashboard");
+  if (access.reason === "disabled_by_toko") redirect(`/${tokoid}/admin`);
+
+  if (access.reason === "plan_required") {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black tracking-tight">Inventory</h1>
+          <p className="text-sm text-muted-foreground/70">Kelola sparepart dan jasa service</p>
+        </div>
+        <FeaturePreview
+          featureKey="inventory.management"
+          requiredPlan={access.metadata.minimumPlan}
+          tokoId={tokoid}
+        />
+      </div>
+    );
+  }
 
   const toko = await prisma.toko.findUnique({
     where: { id: tokoid },

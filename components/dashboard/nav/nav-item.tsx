@@ -10,7 +10,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-import { RiArrowDownSLine } from "@remixicon/react";
+import { RiArrowDownSLine, RiVipCrownLine } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
@@ -18,11 +18,12 @@ interface NavItemProps {
   href: string;
   icon?: ReactNode;
   label: string;
+  isLocked?: boolean;
 }
 
-export function NavItem({ href, icon, label }: NavItemProps) {
+export function NavItem({ href, icon, label, isLocked }: NavItemProps) {
   const pathname = usePathname();
-  const isActive = pathname === href;
+  const isActive = pathname === href.split("?")[0];
 
   return (
     <SidebarMenuItem>
@@ -30,6 +31,9 @@ export function NavItem({ href, icon, label }: NavItemProps) {
         <Link href={href}>
           {icon}
           <span className="truncate">{label}</span>
+          {isLocked && (
+            <RiVipCrownLine className="size-4 ml-auto text-amber-500 shrink-0" />
+          )}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -39,7 +43,7 @@ export function NavItem({ href, icon, label }: NavItemProps) {
 interface NavGroupProps {
   title: string;
   icon?: ReactNode;
-  items: { href: string; icon?: ReactNode; label: string }[];
+  items: { href: string; icon?: ReactNode; label: string; isLocked?: boolean }[];
   defaultOpen?: boolean;
 }
 
@@ -47,7 +51,7 @@ export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupPro
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const isGroupActive = items.some(
-    (item) => pathname === item.href || pathname.startsWith(item.href.split("?")[0] + "/")
+    (item) => pathname === item.href.split("?")[0] || pathname.startsWith(item.href.split("?")[0] + "/")
   );
 
   return (
@@ -77,6 +81,9 @@ export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupPro
                 <Link href={item.href}>
                   {item.icon}
                   <span className="truncate">{item.label}</span>
+                  {item.isLocked && (
+                    <RiVipCrownLine className="size-4 ml-auto text-amber-500 shrink-0" />
+                  )}
                 </Link>
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>

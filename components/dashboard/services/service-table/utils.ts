@@ -32,8 +32,9 @@ export const statusLabels: Record<StatusKey, string> = {
   failed: "gagal service",
 };
 
-export const paymentStatusColors: Record<PaymentStatusKey, "success" | "destructive"> = {
+export const paymentStatusColors: Record<PaymentStatusKey, "success" | "destructive" | "accent"> = {
   unpaid: "destructive",
+  dp: "accent",
   paid: "success",
 };
 
@@ -49,7 +50,7 @@ export function getStatusIcon(status: string): React.ComponentType<{ className?:
   return statusIcons[status as StatusKey] || null;
 }
 
-export function getPaymentStatusColor(status: string): "success" | "destructive" {
+export function getPaymentStatusColor(status: string): "success" | "destructive" | "accent" {
   return paymentStatusColors[status as PaymentStatusKey] || "destructive";
 }
 

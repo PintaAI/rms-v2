@@ -4,41 +4,22 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { OverviewStatsCard } from "@/components/dashboard/shared/overview-cards";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { deleteService, payInvoice, pickupService } from "@/actions";
+import { deleteService } from "@/actions";
 import type { ServiceListItem } from "@/actions";
-import type { ServiceTableItem } from "@/components/dashboard/services/service-table/types";
-import {
-  RiInboxLine,
-  RiToolsLine,
-  RiCheckLine,
-  RiLogoutBoxLine,
-  RiAddLine,
-} from "@remixicon/react";
-
-interface ServiceStats {
-  received: number;
-  repairing: number;
-  done: number;
-  pickedUp: number;
-  failed: number;
-  history: number;
-  total: number;
-}
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
+import { RiAddLine } from "@remixicon/react";
 
 interface StaffManageServiceProps {
   allServices: ServiceListItem[];
-  initialStats: ServiceStats;
   tokoId: string;
   pageSize: number;
 }
 
 export function StaffManageService({
   allServices,
-  initialStats,
   tokoId,
   pageSize,
 }: StaffManageServiceProps) {
@@ -48,7 +29,6 @@ export function StaffManageService({
   const pickedUpFilter = searchParams.get("pickedup") === "true";
 
   const [services, setServices] = useState<ServiceListItem[]>(allServices);
-  const [stats, setStats] = useState<ServiceStats>(initialStats);
   const [currentPage, setCurrentPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [editData, setEditData] = useState<ServiceListItem | null>(null);
@@ -61,10 +41,9 @@ export function StaffManageService({
   useEffect(() => {
     if (pendingMutationsRef.current === 0) {
       setServices(allServices);
-      setStats(initialStats);
       setCurrentPage(1);
     }
-  }, [allServices, initialStats]);
+  }, [allServices]);
 
   const filteredServices = useMemo(() => {
     if (pickedUpFilter) {
@@ -90,6 +69,7 @@ export function StaffManageService({
     customerName: s.customerName,
     noWa: s.noWa,
     complaint: s.complaint,
+    includedItems: s.includedItems,
     note: s.note,
     status: s.status,
     isPickedUp: s.isPickedUp,
@@ -104,70 +84,29 @@ export function StaffManageService({
     imei: s.imei,
   }));
 
-  const incrementStat = useCallback((status: string) => {
-    setStats((prev) => {
-      const newStats = { ...prev, total: prev.total + 1 };
-      if (status === "received") newStats.received = prev.received + 1;
-      else if (status === "repairing") newStats.repairing = prev.repairing + 1;
-      else if (status === "done") newStats.done = prev.done + 1;
-      else if (status === "pickedUp") newStats.pickedUp = prev.pickedUp + 1;
-      else if (status === "failed") newStats.failed = prev.failed + 1;
-      return newStats;
-    });
-  }, []);
-
-  const decrementStat = useCallback((status: string) => {
-    setStats((prev) => {
-      const newStats = { ...prev, total: prev.total - 1 };
-      if (status === "received") newStats.received = prev.received - 1;
-      else if (status === "repairing") newStats.repairing = prev.repairing - 1;
-      else if (status === "done") newStats.done = prev.done - 1;
-      else if (status === "pickedUp") newStats.pickedUp = prev.pickedUp - 1;
-      else if (status === "failed") newStats.failed = prev.failed - 1;
-      return newStats;
-    });
-  }, []);
-
   const handleOptimisticCreate = useCallback((tempService: ServiceListItem) => {
     pendingMutationsRef.current++;
-    incrementStat(tempService.status);
     setServices((prev) => [tempService, ...prev]);
-  }, [incrementStat]);
+  }, []);
 
   const handleRevertCreate = useCallback((tempId: string) => {
     pendingMutationsRef.current--;
-    setServices((prev) => {
-      const tempService = prev.find((s) => s.id === tempId);
-      if (tempService) {
-        decrementStat(tempService.status);
-      }
-      return prev.filter((s) => s.id !== tempId);
-    });
-  }, [decrementStat]);
+    setServices((prev) => prev.filter((s) => s.id !== tempId));
+  }, []);
 
   const handleOptimisticUpdate = useCallback((updatedService: ServiceListItem) => {
     pendingMutationsRef.current++;
-    setServices((prev) => {
-      const oldService = prev.find((s) => s.id === updatedService.id);
-      if (oldService && oldService.status !== updatedService.status) {
-        decrementStat(oldService.status);
-        incrementStat(updatedService.status);
-      }
-      return prev.map((s) => (s.id === updatedService.id ? updatedService : s));
-    });
-  }, [incrementStat, decrementStat]);
+    setServices((prev) =>
+      prev.map((s) => (s.id === updatedService.id ? updatedService : s))
+    );
+  }, []);
 
   const handleRevertUpdate = useCallback((originalService: ServiceListItem) => {
     pendingMutationsRef.current--;
-    setServices((prev) => {
-      const currentService = prev.find((s) => s.id === originalService.id);
-      if (currentService && currentService.status !== originalService.status) {
-        decrementStat(currentService.status);
-        incrementStat(originalService.status);
-      }
-      return prev.map((s) => (s.id === originalService.id ? originalService : s));
-    });
-  }, [incrementStat, decrementStat]);
+    setServices((prev) =>
+      prev.map((s) => (s.id === originalService.id ? originalService : s))
+    );
+  }, []);
 
   const handleCreateSuccess = useCallback(() => {
     pendingMutationsRef.current--;
@@ -196,10 +135,8 @@ export function StaffManageService({
     setIsDeleting(true);
 
     const deletedService = deleteTarget;
-    const deletedStatus = deletedService.status;
     const tempId = deletedService.id;
 
-    decrementStat(deletedStatus);
     setServices((prev) => prev.filter((s) => s.id !== tempId));
 
     setDeleteDialogOpen(false);
@@ -208,7 +145,6 @@ export function StaffManageService({
     const result = await deleteService(tempId);
 
     if (!result.success) {
-      incrementStat(deletedStatus);
       setServices((prev) => {
         const restored = [...prev, deletedService].sort(
           (a, b) => new Date(b.checkinAt).getTime() - new Date(a.checkinAt).getTime()
@@ -219,61 +155,7 @@ export function StaffManageService({
 
     setIsDeleting(false);
     router.refresh();
-  }, [deleteTarget, decrementStat, incrementStat, router]);
-
-  const handleMarkPaid = useCallback(async (invoiceId: string, serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service || !service.invoice) return;
-
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === serviceId && s.invoice
-          ? { ...s, invoice: { ...s.invoice, paymentStatus: "paid" } }
-          : s
-      )
-    );
-
-    const result = await payInvoice(invoiceId);
-    if (!result.success) {
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId && s.invoice
-            ? { ...s, invoice: { ...s.invoice, paymentStatus: "unpaid" } }
-            : s
-        )
-      );
-    }
-    router.refresh();
-  }, [services, router]);
-
-  const handlePickup = useCallback(async (serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId);
-    if (!service) return;
-
-    decrementStat(service.status);
-    incrementStat("pickedUp");
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === serviceId
-          ? { ...s, isPickedUp: true, checkoutAt: new Date() }
-          : s
-      )
-    );
-
-    const result = await pickupService(serviceId);
-    if (!result.success) {
-      incrementStat(service.status);
-      decrementStat("pickedUp");
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId
-            ? { ...s, isPickedUp: service.isPickedUp, checkoutAt: service.checkoutAt }
-            : s
-        )
-      );
-    }
-    router.refresh();
-  }, [services, decrementStat, incrementStat, router]);
+  }, [deleteTarget, router]);
 
   const handlePageChange = useCallback((newPage: number) => {
     setCurrentPage(newPage);
@@ -326,44 +208,6 @@ export function StaffManageService({
         </Button>
       </div>
 
-      <section className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <OverviewStatsCard
-          title="Masuk"
-          value={stats.received}
-          icon={<RiInboxLine className="h-4 w-4" />}
-          description="menunggu teknisi"
-          variant="primary"
-        />
-        <OverviewStatsCard
-          title="Proses"
-          value={stats.repairing}
-          icon={<RiToolsLine className="h-4 w-4" />}
-          description="sedang diperbaiki"
-          variant="accent"
-        />
-        <OverviewStatsCard
-          title="Selesai & Gagal"
-          value={stats.done + stats.failed}
-          icon={<RiCheckLine className="h-4 w-4" />}
-          description={`${stats.done} selesai, ${stats.failed} gagal`}
-          variant={stats.failed > 0 ? "warning" : "success"}
-        />
-        <OverviewStatsCard
-          title="Diambil"
-          value={stats.pickedUp}
-          icon={<RiLogoutBoxLine className="h-4 w-4" />}
-          description="sudah selesai"
-        />
-        <OverviewStatsCard
-          title="Total"
-          value={stats.total}
-          icon={<RiInboxLine className="h-4 w-4" />}
-          description="semua service"
-        />
-        </div>
-      </section>
-
       <section>
         <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
           <CardHeader className="border-b pt-4 border-border/50 bg-muted/30">
@@ -375,15 +219,12 @@ export function StaffManageService({
           <CardContent className="p-0">
           <ServiceTable
             services={tableServices}
-            preset="staffActive"
+            role="staff"
             statusFilter={statusFilter}
             pickedUpFilter={pickedUpFilter}
             emptyMessage={getEmptyMessage()}
             onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
             onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
-            onMarkPaid={!statusFilter ? undefined : handleMarkPaid}
-            onPickup={!pickedUpFilter && statusFilter ? handlePickup : undefined}
-              onCall={undefined}
               tokoId={tokoId}
               disableAssignment={true}
             />

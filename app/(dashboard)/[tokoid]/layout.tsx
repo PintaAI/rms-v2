@@ -88,6 +88,7 @@ function getDashboardFeatureAccess(
     "dashboard.overview",
     "toko.manage",
     "service.management",
+    "service.manualItems",
     "inventory.management",
     "karyawan.management",
     "staff.workflow",

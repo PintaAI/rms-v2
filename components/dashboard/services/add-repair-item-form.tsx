@@ -46,8 +46,11 @@ export function AddRepairItemForm({
   onAddItem,
   onAddItemError,
 }: AddRepairItemFormProps) {
-  const { inventoryEnabled } = useFeatureAccess();
-  const [itemType, setItemType] = useState<"manual-sparepart" | "manual-service" | "sparepart" | "service">("manual-sparepart");
+  const { inventoryEnabled, manualItemsEnabled } = useFeatureAccess();
+  
+  // Determine default item type based on enabled features
+  const defaultItemType = !manualItemsEnabled && inventoryEnabled ? "sparepart" : "manual-sparepart";
+  const [itemType, setItemType] = useState<"manual-sparepart" | "manual-service" | "sparepart" | "service">(defaultItemType);
   const [selectedSparepartId, setSelectedSparepartId] = useState<string>("");
   const [selectedPricelistId, setSelectedPricelistId] = useState<string>("");
   const [manualName, setManualName] = useState("");
@@ -69,7 +72,7 @@ export function AddRepairItemForm({
       : !!selectedPricelistId;
 
   function resetForm() {
-    setItemType("manual-sparepart");
+    setItemType(defaultItemType);
     setSelectedSparepartId("");
     setSelectedPricelistId("");
     setManualName("");
@@ -167,15 +170,20 @@ export function AddRepairItemForm({
               <button
                 type="button"
                 onClick={() => {
-                  setItemType("manual-sparepart");
-                  setSelectedSparepartId("");
-                  setSelectedPricelistId("");
+                  if (manualItemsEnabled) {
+                    setItemType("manual-sparepart");
+                    setSelectedSparepartId("");
+                    setSelectedPricelistId("");
+                  }
                 }}
+                disabled={!manualItemsEnabled}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
-                  itemType === "manual-sparepart"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                  !manualItemsEnabled
+                    ? "border-muted bg-muted/30 text-muted-foreground cursor-not-allowed opacity-50"
+                    : itemType === "manual-sparepart"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,15 +195,20 @@ export function AddRepairItemForm({
               <button
                 type="button"
                 onClick={() => {
-                  setItemType("manual-service");
-                  setSelectedSparepartId("");
-                  setSelectedPricelistId("");
+                  if (manualItemsEnabled) {
+                    setItemType("manual-service");
+                    setSelectedSparepartId("");
+                    setSelectedPricelistId("");
+                  }
                 }}
+                disabled={!manualItemsEnabled}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
-                  itemType === "manual-service"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+                  !manualItemsEnabled
+                    ? "border-muted bg-muted/30 text-muted-foreground cursor-not-allowed opacity-50"
+                    : itemType === "manual-service"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

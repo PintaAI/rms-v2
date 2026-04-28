@@ -221,6 +221,7 @@ type InvoiceSeedRow = {
   serviceId: string;
   grandTotal: number;
   paymentStatus: PaymentStatus;
+  dpAmount: number;
   paidAt: Date | null;
   createdAt: Date;
 };
@@ -621,17 +622,21 @@ async function seedServices(
         const invoiceCreatedAt = shiftMinutes(assignedAt ?? checkinAt, 15, 180);
         const grandTotal = rows.reduce((sum, item) => sum + item.price, 0);
         const paymentStatus: PaymentStatus = lifecycle.isPickedUp || lifecycle.status === "done"
-          ? faker.helpers.arrayElement(["paid", "unpaid", "paid"])
-          : faker.helpers.arrayElement(["unpaid", "unpaid", "paid"]);
+          ? faker.helpers.arrayElement(["paid", "unpaid", "paid", "dp"])
+          : faker.helpers.arrayElement(["unpaid", "unpaid", "paid", "dp"]);
         const paidAt = paymentStatus === "paid"
           ? shiftMinutes(doneAt ?? invoiceCreatedAt, 30, lifecycle.isPickedUp ? 1_440 : 4_320)
           : null;
+        const dpAmountVal = paymentStatus === "dp"
+          ? faker.number.int({ min: 10000, max: Math.max(10000, grandTotal) })
+          : 0;
 
         invoices.push({
           id: faker.string.uuid(),
           serviceId,
           grandTotal,
           paymentStatus,
+          dpAmount: dpAmountVal,
           paidAt,
           createdAt: invoiceCreatedAt,
         });

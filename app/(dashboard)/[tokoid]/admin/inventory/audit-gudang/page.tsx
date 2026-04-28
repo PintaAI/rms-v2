@@ -1,5 +1,6 @@
 import { getInventoryAuditOverview } from "@/actions/inventory-audit"
 import { FeatureLocked } from "@/components/dashboard/feature-locked"
+import { FeaturePreview } from "@/components/dashboard/feature-preview"
 import { AuditDashboard } from "@/components/dashboard/inventory/audit-gudang/audit-dashboard"
 import type { InventoryAuditOverview } from "@/components/dashboard/inventory/audit-gudang/types"
 import { getPageFeatureAccess } from "@/lib/page-feature-gates"
@@ -24,6 +25,27 @@ export default async function AdminAuditGudangPage({ params }: AdminAuditGudangP
 
   if (access.reason === "unauthorized") redirect("/auth")
   if (access.reason === "toko_denied") redirect("/dashboard")
+  if (access.reason === "role_denied") redirect("/dashboard")
+  if (access.reason === "disabled_by_toko") redirect(`/${tokoid}/admin/inventory`)
+
+  if (access.reason === "plan_required") {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black tracking-tight">Audit Gudang</h1>
+          <p className="text-sm text-muted-foreground/70">
+            Cocokkan stok sistem dengan stok fisik, temukan penyebab selisih.
+          </p>
+        </div>
+        <FeaturePreview
+          featureKey="inventory.audit"
+          requiredPlan={access.metadata.minimumPlan}
+          tokoId={tokoid}
+        />
+      </div>
+    )
+  }
+
   if (!access.allowed) {
     return (
       <FeatureLocked

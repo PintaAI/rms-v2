@@ -1,6 +1,7 @@
 import { getKaryawanList, getKaryawanStats } from "@/actions/karyawan";
 import { ManageKaryawan } from "@/components/dashboard/admin/manage-karyawan";
 import { FeatureLocked } from "@/components/dashboard/feature-locked";
+import { FeaturePreview } from "@/components/dashboard/feature-preview";
 import { getPageFeatureAccess } from "@/lib/page-feature-gates";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
@@ -17,6 +18,25 @@ export default async function AdminKaryawanPage({ params }: AdminKaryawanPagePro
 
   if (access.reason === "unauthorized") redirect("/auth");
   if (access.reason === "toko_denied") redirect("/dashboard");
+  if (access.reason === "role_denied") redirect("/dashboard");
+  if (access.reason === "disabled_by_toko") redirect(`/${tokoid}/admin`);
+
+  if (access.reason === "plan_required") {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-black tracking-tight">Karyawan</h1>
+          <p className="text-sm text-muted-foreground/70">Kelola karyawan toko</p>
+        </div>
+        <FeaturePreview
+          featureKey="karyawan.management"
+          requiredPlan={access.metadata.minimumPlan}
+          tokoId={tokoid}
+        />
+      </div>
+    );
+  }
+
   if (!access.allowed) {
     return (
       <FeatureLocked

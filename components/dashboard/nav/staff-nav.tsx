@@ -17,7 +17,9 @@ interface StaffNavProps {
 }
 
 export function StaffNav({ tokoid, featureAccess, serviceStats }: StaffNavProps) {
-  if (!featureAccess["staff.workflow"]) return null;
+  const workflowEnabled = featureAccess["staff.workflow"] ?? false;
+  const serviceEnabled = featureAccess["service.management"] ?? false;
+  const inventoryEnabled = featureAccess["inventory.management"] ?? false;
 
   const serviceItems = [
     {
@@ -64,8 +66,9 @@ export function StaffNav({ tokoid, featureAccess, serviceStats }: StaffNavProps)
             href={`/${tokoid}/staff`}
             icon={<RiDashboardLine />}
             label="Staff Overview"
+            isLocked={!workflowEnabled}
           />
-          {featureAccess["service.management"] && (
+          {serviceEnabled && (
             <NavFilterGroup
               title="Service"
               icon={<RiToolsLine />}
@@ -73,13 +76,12 @@ export function StaffNav({ tokoid, featureAccess, serviceStats }: StaffNavProps)
               items={serviceItems}
             />
           )}
-          {featureAccess["inventory.management"] && (
-            <NavItem
-              href={`/${tokoid}/staff/inventory`}
-              icon={<RiArchiveLine />}
-              label="Inventory"
-            />
-          )}
+          <NavItem
+            href={`/${tokoid}/staff/inventory`}
+            icon={<RiArchiveLine />}
+            label="Inventory"
+            isLocked={!inventoryEnabled}
+          />
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

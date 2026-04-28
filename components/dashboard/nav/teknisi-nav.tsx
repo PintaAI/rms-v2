@@ -17,7 +17,8 @@ interface TeknisiNavProps {
 }
 
 export function TeknisiNav({ tokoid, featureAccess, taskStats }: TeknisiNavProps) {
-  if (!featureAccess["technician.workflow"]) return null;
+  const workflowEnabled = featureAccess["technician.workflow"] ?? false;
+  const inventoryEnabled = featureAccess["inventory.management"] ?? false;
 
   const taskItems = [
     {
@@ -69,6 +70,7 @@ export function TeknisiNav({ tokoid, featureAccess, taskStats }: TeknisiNavProps
             href={`/${tokoid}/teknisi`}
             icon={<RiDashboardLine />}
             label="Teknisi Overview"
+            isLocked={!workflowEnabled}
           />
           <NavFilterGroup
             title="Task"
@@ -76,13 +78,12 @@ export function TeknisiNav({ tokoid, featureAccess, taskStats }: TeknisiNavProps
             defaultOpen={true}
             items={taskItems}
           />
-          {featureAccess["inventory.management"] && (
-            <NavItem
-              href={`/${tokoid}/teknisi/inventory`}
-              icon={<RiArchiveLine />}
-              label="Inventory"
-            />
-          )}
+          <NavItem
+            href={`/${tokoid}/teknisi/inventory`}
+            icon={<RiArchiveLine />}
+            label="Inventory"
+            isLocked={!inventoryEnabled}
+          />
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

@@ -6,6 +6,8 @@ import {
   type FeatureKey,
   type PlanLimitKey,
 } from "@/lib/features";
+import prisma from "@/lib/prisma";
+import type { ActivityType } from "@/prisma/generated/prisma/enums";
 
 const planLabels = {
   free: "Free",
@@ -17,6 +19,8 @@ const limitLabels: Record<PlanLimitKey, string> = {
   maxTokos: "toko",
   maxStaff: "staff",
   maxTechnicians: "technicians",
+  maxServicesMonthly: "services per month",
+  maxInvoicesMonthly: "invoices per month",
 };
 
 export function ensureFeatureAccess(
@@ -67,4 +71,34 @@ export function ensurePlanLimit(
     success: false,
     error: `Your ${planLabels[user.plan]} plan allows ${limit} ${limitLabels[limitKey]}. Upgrade to add more.`,
   };
+}
+
+export async function ensureMonthlyActivityLimit(
+  user: Pick<AuthUser, "plan">,
+  limitKey: "maxServicesMonthly" | "maxInvoicesMonthly",
+  activityType: ActivityType,
+  tokoId: string
+): Promise<ActionResult | null> {
+  const limit = getPlanLimit(user.plan, limitKey);
+  if (limit === null) return null;
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+  const count = await prisma.activityLog.count({
+    where: {
+      tokoId,
+      type: activityType,
+      createdAt: { gte: startOfMonth },
+    },
+  });
+
+  if (count >= limit) {
+    return {
+      success: false,
+      error: `Your ${planLabels[user.plan]} plan allows ${limit} ${limitLabels[limitKey]}. Upgrade to continue.`,
+    };
+  }
+
+  return null;
 }

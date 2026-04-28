@@ -46,6 +46,7 @@ export interface AdminOverviewRecentService {
     id: string;
     grandTotal: number;
     paymentStatus: PaymentStatus;
+    dpAmount: number;
   } | null;
 }
 
@@ -117,6 +118,7 @@ const recentServiceSelect = {
       id: true,
       grandTotal: true,
       paymentStatus: true,
+      dpAmount: true,
     },
   },
 };
@@ -252,7 +254,7 @@ export async function getAdminOverview(
         ? prisma.invoice.aggregate({
             where: {
               service: { tokoId: targetTokoId },
-              paymentStatus: "unpaid",
+              paymentStatus: { in: ["unpaid", "dp"] },
               createdAt: { gte: monthlyStart },
             },
             _sum: { grandTotal: true },
