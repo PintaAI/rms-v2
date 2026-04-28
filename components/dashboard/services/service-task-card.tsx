@@ -115,6 +115,7 @@ export interface ServiceTaskItem {
     id: string;
     grandTotal: number;
     paymentStatus: string;
+    dpAmount?: number | null;
   } | null;
 }
 

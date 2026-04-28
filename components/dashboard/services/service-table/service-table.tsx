@@ -11,13 +11,18 @@ import {
 } from "@/components/ui/table";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
   RiMenuLine,
+  RiSettings3Line,
   RiPencilLine,
   RiDeleteBinLine,
   RiTaskLine,
@@ -31,6 +36,96 @@ import { columnRegistry, type ColumnContext, type ColumnKey } from "./column-reg
 import { resolveColumns, type RoleKey } from "./presets";
 import { getStatusColor } from "./utils";
 import type { ServiceTableItem } from "./types";
+
+const PREFERENCES_VERSION = 1;
+const MIN_COLUMN_WIDTH = 80;
+const MAX_COLUMN_WIDTH = 420;
+const PREFERENCES_CHANGE_EVENT = "service-table-preferences-change";
+const preferencesCache = new Map<string, { raw: string | null; preferences: ServiceTablePreferences }>();
+
+type ServiceTablePreferences = {
+  version: typeof PREFERENCES_VERSION;
+  hiddenColumns: ColumnKey[];
+  widths: Partial<Record<ColumnKey, number>>;
+};
+
+const defaultPreferences: ServiceTablePreferences = {
+  version: PREFERENCES_VERSION,
+  hiddenColumns: [],
+  widths: {},
+};
+
+function isColumnKey(value: string): value is ColumnKey {
+  return value in columnRegistry;
+}
+
+function sanitizePreferences(value: unknown): ServiceTablePreferences {
+  if (!value || typeof value !== "object") return defaultPreferences;
+
+  const candidate = value as Partial<ServiceTablePreferences>;
+  if (candidate.version !== PREFERENCES_VERSION) return defaultPreferences;
+
+  const hiddenColumns = Array.isArray(candidate.hiddenColumns)
+    ? candidate.hiddenColumns.filter((column): column is ColumnKey => typeof column === "string" && isColumnKey(column))
+    : [];
+
+  const widths = Object.entries(candidate.widths || {}).reduce<Partial<Record<ColumnKey, number>>>((acc, [key, width]) => {
+    if (isColumnKey(key) && typeof width === "number" && Number.isFinite(width)) {
+      acc[key] = Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, width));
+    }
+    return acc;
+  }, {});
+
+  return { version: PREFERENCES_VERSION, hiddenColumns, widths };
+}
+
+function readPreferences(storageKey: string): ServiceTablePreferences {
+  if (typeof window === "undefined") return defaultPreferences;
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    const cached = preferencesCache.get(storageKey);
+    if (cached?.raw === raw) return cached.preferences;
+
+    const preferences = raw ? sanitizePreferences(JSON.parse(raw)) : defaultPreferences;
+    preferencesCache.set(storageKey, { raw, preferences });
+    return preferences;
+  } catch {
+    window.localStorage.removeItem(storageKey);
+    preferencesCache.set(storageKey, { raw: null, preferences: defaultPreferences });
+    return defaultPreferences;
+  }
+}
+
+function useServiceTablePreferences(storageKey: string) {
+  const subscribe = React.useCallback((onStoreChange: () => void) => {
+    window.addEventListener(PREFERENCES_CHANGE_EVENT, onStoreChange);
+    window.addEventListener("storage", onStoreChange);
+
+    return () => {
+      window.removeEventListener(PREFERENCES_CHANGE_EVENT, onStoreChange);
+      window.removeEventListener("storage", onStoreChange);
+    };
+  }, []);
+
+  const getSnapshot = React.useCallback(() => readPreferences(storageKey), [storageKey]);
+  const preferences = React.useSyncExternalStore(subscribe, getSnapshot, () => defaultPreferences);
+
+  const setPreferences = React.useCallback((updater: React.SetStateAction<ServiceTablePreferences>) => {
+    const current = readPreferences(storageKey);
+    const next = typeof updater === "function" ? updater(current) : updater;
+
+    window.localStorage.setItem(storageKey, JSON.stringify(sanitizePreferences(next)));
+    window.dispatchEvent(new Event(PREFERENCES_CHANGE_EVENT));
+  }, [storageKey]);
+
+  const resetPreferences = React.useCallback(() => {
+    window.localStorage.removeItem(storageKey);
+    window.dispatchEvent(new Event(PREFERENCES_CHANGE_EVENT));
+  }, [storageKey]);
+
+  return { preferences, setPreferences, resetPreferences };
+}
 
 export interface ServiceTableProps {
   services: ServiceTableItem[];
@@ -63,8 +158,25 @@ export function ServiceTable({
   tokoId,
   disableAssignment,
 }: ServiceTableProps) {
-  const context: ColumnContext = { pickedUpFilter, statusFilter, isHistory: statusFilter === "done,failed" };
-  const effectiveColumns = columnsOverride || resolveColumns(role, context);
+  const context: ColumnContext = React.useMemo(() => ({
+    pickedUpFilter,
+    statusFilter,
+    isHistory: statusFilter === "done,failed" || statusFilter === "failed,done",
+  }), [pickedUpFilter, statusFilter]);
+  const defaultColumns = React.useMemo(
+    () => columnsOverride || resolveColumns(role, context),
+    [columnsOverride, context, role]
+  );
+  const storageKey = React.useMemo(() => {
+    const viewKey = pickedUpFilter ? "picked-up" : statusFilter || "all";
+    return `service-table:${role}:${viewKey}`;
+  }, [pickedUpFilter, role, statusFilter]);
+  const { preferences, setPreferences, resetPreferences } = useServiceTablePreferences(storageKey);
+  const effectiveColumns = React.useMemo(() => {
+    const visibleColumns = defaultColumns.filter((column) => !preferences.hiddenColumns.includes(column));
+    if (visibleColumns.length > 0) return visibleColumns;
+    return defaultColumns.includes("customer") ? ["customer"] : defaultColumns.slice(0, 1);
+  }, [defaultColumns, preferences.hiddenColumns]);
 
   const showDropdownActions = onEdit || onDelete;
   const showTakeTask = onTake;
@@ -73,6 +185,50 @@ export function ServiceTable({
   const getEmptyColSpan = () => effectiveColumns.length + (hasActions ? 1 : 0);
 
   const [selectedInvoiceService, setSelectedInvoiceService] = React.useState<InvoicePreviewService | null>(null);
+
+  const toggleColumn = React.useCallback((column: ColumnKey) => {
+    if (column === "customer") return;
+
+    setPreferences((current) => {
+      const hiddenColumns = current.hiddenColumns.includes(column)
+        ? current.hiddenColumns.filter((hiddenColumn) => hiddenColumn !== column)
+        : [...current.hiddenColumns, column];
+
+      return { ...current, hiddenColumns };
+    });
+  }, [setPreferences]);
+
+  const getColumnWidth = React.useCallback((column: ColumnKey) => {
+    return preferences.widths[column] ?? columnRegistry[column]?.width ?? 120;
+  }, [preferences.widths]);
+
+  const startColumnResize = React.useCallback((event: React.PointerEvent, column: ColumnKey) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startX = event.clientX;
+    const startWidth = getColumnWidth(column);
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.min(
+        MAX_COLUMN_WIDTH,
+        Math.max(MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX)
+      );
+
+      setPreferences((current) => ({
+        ...current,
+        widths: { ...current.widths, [column]: nextWidth },
+      }));
+    };
+
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
+  }, [getColumnWidth, setPreferences]);
 
   const openInvoiceDialog = React.useCallback((service: ServiceTableItem) => {
     if (!isPaidInvoiceService(service)) return;
@@ -129,14 +285,67 @@ export function ServiceTable({
 
   return (
     <TooltipProvider>
-      <Table>
+      <div className="flex items-center justify-end gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 text-xs">
+              <RiSettings3Line className="h-3.5 w-3.5" />
+              Columns
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuLabel>Table columns</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              {defaultColumns.map((colKey) => {
+                const columnDef = columnRegistry[colKey];
+                const isRequired = colKey === "customer";
+
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={colKey}
+                    checked={!preferences.hiddenColumns.includes(colKey)}
+                    disabled={isRequired}
+                    onCheckedChange={() => toggleColumn(colKey)}
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    {columnDef?.header || colKey}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={resetPreferences}>
+                Restore default
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <Table className="table-fixed">
+        <colgroup>
+          {effectiveColumns.map((colKey) => (
+            <col key={colKey} style={{ width: getColumnWidth(colKey) }} />
+          ))}
+          {hasActions && <col style={{ width: 96 }} />}
+        </colgroup>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border/50">
             {effectiveColumns.map((colKey) => {
               const columnDef = columnRegistry[colKey as keyof typeof columnRegistry];
               return (
-                <TableHead key={colKey} className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground h-9">
-                  {columnDef?.header || colKey}
+                <TableHead
+                  key={colKey}
+                  className="relative h-9 select-none text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground"
+                  style={{ width: getColumnWidth(colKey), minWidth: getColumnWidth(colKey) }}
+                >
+                  <span className="block truncate pr-2">{columnDef?.header || colKey}</span>
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-0 top-1/2 h-5 w-1 -translate-y-1/2 cursor-col-resize rounded-full bg-border transition-colors hover:bg-primary/60"
+                    onPointerDown={(event) => startColumnResize(event, colKey)}
+                  />
                 </TableHead>
               );
             })}
@@ -169,7 +378,11 @@ export function ServiceTable({
                   onClick={() => onRowClick?.(service)}
                 >
                   {effectiveColumns.map((colKey, index) => (
-                    <TableCell key={colKey} className={index === 0 ? "relative pl-4" : ""}>
+                    <TableCell
+                      key={colKey}
+                      className={index === 0 ? "relative pl-4" : ""}
+                      style={{ width: getColumnWidth(colKey), minWidth: getColumnWidth(colKey) }}
+                    >
                       {index === 0 && (
                         <div className={`absolute left-0 top-0 bottom-0 w-1 ${indicatorClass} rounded-full transition-all duration-200 group-hover:w-1.5`} />
                       )}
