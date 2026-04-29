@@ -7,12 +7,14 @@ const FeatureAccessContext = createContext<FeatureAccessContextValue>({
   featureAccess: {},
   inventoryEnabled: false,
   manualItemsEnabled: false,
+  invoiceEnabled: false,
 });
 
 export interface FeatureAccessContextValue {
   featureAccess: FeatureAccessMap;
   inventoryEnabled: boolean;
   manualItemsEnabled: boolean;
+  invoiceEnabled: boolean;
 }
 
 export function useFeatureAccess(): FeatureAccessContextValue {
@@ -31,9 +33,10 @@ interface FeatureAccessProviderProps {
 export function FeatureAccessProvider({ children, featureAccess }: FeatureAccessProviderProps) {
   const inventoryEnabled = featureAccess["inventory.management"] ?? false;
   const manualItemsEnabled = featureAccess["service.manualItems"] ?? false;
+  const invoiceEnabled = featureAccess["service.invoice"] ?? false;
 
   return (
-    <FeatureAccessContext.Provider value={{ featureAccess, inventoryEnabled, manualItemsEnabled }}>
+    <FeatureAccessContext.Provider value={{ featureAccess, inventoryEnabled, manualItemsEnabled, invoiceEnabled }}>
       {children}
     </FeatureAccessContext.Provider>
   );

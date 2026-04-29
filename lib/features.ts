@@ -160,7 +160,7 @@ export const FEATURE_REGISTRY = {
     description: "Buat dan kelola invoice untuk pekerjaan service.",
     category: "service",
     allowedRoles: ["admin", "staff"],
-    minimumPlan: "premium",
+    minimumPlan: "free",
     configurable: true,
   },
   "activityLog.view": {

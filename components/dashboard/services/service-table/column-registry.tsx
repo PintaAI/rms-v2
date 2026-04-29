@@ -66,7 +66,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
 
   complaint: {
     key: "complaint",
-    header: "Complaint",
+    header: "Keluhan & Kelengkapan",
     render: (service) => (
       <div className="flex flex-col gap-1.5">
         <Tooltip>
@@ -214,7 +214,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
 
   technician: {
     key: "technician",
-    header: "Technician",
+    header: "Teknisi",
     width: 140,
     render: (service) =>
       service.technician

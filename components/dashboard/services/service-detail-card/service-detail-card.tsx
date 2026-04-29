@@ -160,7 +160,7 @@ export function ServiceDetailCard({
   onStatusChange,
 }: ServiceDetailCardProps) {
   const isActive = variant === "active";
-  const { inventoryEnabled } = useFeatureAccess();
+  const { inventoryEnabled, invoiceEnabled } = useFeatureAccess();
   const canHandleCustomerHandoff = viewerRole === "admin" || viewerRole === "staff";
   const roleTone = roleToneClasses[viewerRole];
 
@@ -337,10 +337,10 @@ export function ServiceDetailCard({
   const [isPickingUp, setIsPickingUp] = useState(false);
 
   const hasCompletedStatus = localService.status === "done" || localService.status === "failed";
-  const canPayInvoice = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && localService.invoice?.paymentStatus === "unpaid";
+  const canPayInvoice = invoiceEnabled && canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.invoice?.paymentStatus === "unpaid" || localService.invoice?.paymentStatus === "dp");
   const canMarkPickedUp = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp;
   const canContactDuringRepair = (localService.status === "received" || localService.status === "repairing") && Boolean(localService.noWa);
-  const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (localService.noWa || canPayInvoice || canMarkPickedUp);
+  const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp);
   const customerHandoffActionCount = Number(canPayInvoice) + Number(Boolean(localService.noWa)) + Number(canMarkPickedUp);
   const customerHandoffGridClass = customerHandoffActionCount >= 4
     ? "lg:grid-cols-4"
@@ -964,6 +964,7 @@ export function ServiceDetailCard({
         open={paymentDialogOpen}
         onOpenChange={setPaymentDialogOpen}
         invoiceTotal={localService.invoice?.grandTotal || 0}
+        dpAmount={localService.invoice?.dpAmount || 0}
         isSubmitting={isPayingInvoice}
         onConfirm={handlePayInvoice}
       />
