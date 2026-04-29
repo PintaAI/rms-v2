@@ -8,34 +8,40 @@ import {
 import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine, RiFileList3Line } from "@remixicon/react";
 import { NavItem, NavFilterGroup, NavGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
-import type { FeatureAccessMap } from "@/lib/features";
+import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
 import type { ReactNode } from "react";
 
 interface AdminNavProps {
   tokoid: string;
   featureAccess: FeatureAccessMap;
+  disabledFeatures: FeatureKey[];
   serviceStats?: ServiceStats | null;
 }
 
-export function AdminNav({ tokoid, featureAccess, serviceStats }: AdminNavProps) {
+export function AdminNav({ tokoid, featureAccess, disabledFeatures, serviceStats }: AdminNavProps) {
   const inventoryItems: { href: string; icon: ReactNode; label: string; isLocked?: boolean }[] = [];
+  const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
 
   const inventoryEnabled = featureAccess["inventory.management"] ?? false;
   const auditEnabled = featureAccess["inventory.audit"] ?? false;
 
-  inventoryItems.push({
-    href: `/${tokoid}/admin/inventory`,
-    icon: <RiToolsLine />,
-    label: "Sparepart & Jasa",
-    isLocked: !inventoryEnabled,
-  });
+  if (!isFeatureDisabled("inventory.management")) {
+    inventoryItems.push({
+      href: `/${tokoid}/admin/inventory`,
+      icon: <RiToolsLine />,
+      label: "Sparepart & Jasa",
+      isLocked: !inventoryEnabled,
+    });
+  }
 
-  inventoryItems.push({
-    href: `/${tokoid}/admin/inventory/audit-gudang`,
-    icon: <RiFileList3Line />,
-    label: "Audit Gudang",
-    isLocked: !auditEnabled,
-  });
+  if (!isFeatureDisabled("inventory.audit")) {
+    inventoryItems.push({
+      href: `/${tokoid}/admin/inventory/audit-gudang`,
+      icon: <RiFileList3Line />,
+      label: "Audit Gudang",
+      isLocked: !auditEnabled,
+    });
+  }
 
   const karyawanEnabled = featureAccess["karyawan.management"] ?? false;
   const dashboardEnabled = featureAccess["dashboard.overview"] ?? false;
@@ -100,18 +106,22 @@ export function AdminNav({ tokoid, featureAccess, serviceStats }: AdminNavProps)
               ]}
             />
           )}
-          <NavItem
-            href={`/${tokoid}/admin/karyawan`}
-            icon={<RiUserSettingsLine />}
-            label="Karyawan"
-            isLocked={!karyawanEnabled}
-          />
-          <NavGroup
-            title="Inventory"
-            icon={<RiArchiveLine />}
-            defaultOpen={true}
-            items={inventoryItems}
-          />
+          {!isFeatureDisabled("karyawan.management") && (
+            <NavItem
+              href={`/${tokoid}/admin/karyawan`}
+              icon={<RiUserSettingsLine />}
+              label="Karyawan"
+              isLocked={!karyawanEnabled}
+            />
+          )}
+          {inventoryItems.length > 0 && (
+            <NavGroup
+              title="Inventory"
+              icon={<RiArchiveLine />}
+              defaultOpen={true}
+              items={inventoryItems}
+            />
+          )}
 
         </SidebarMenu>
       </SidebarGroupContent>

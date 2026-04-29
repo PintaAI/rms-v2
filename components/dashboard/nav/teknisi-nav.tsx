@@ -8,15 +8,17 @@ import {
 import { RiDashboardLine, RiTaskLine, RiArchiveLine, RiCheckLine, RiCloseCircleLine, RiFolderLine, RiToolsLine, RiHistoryLine } from "@remixicon/react";
 import { NavItem, NavFilterGroup } from "./nav-item";
 import type { TechnicianTaskStats } from "@/actions/service";
-import type { FeatureAccessMap } from "@/lib/features";
+import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
 
 interface TeknisiNavProps {
   tokoid: string;
   featureAccess: FeatureAccessMap;
+  disabledFeatures: FeatureKey[];
   taskStats?: TechnicianTaskStats | null;
 }
 
-export function TeknisiNav({ tokoid, featureAccess, taskStats }: TeknisiNavProps) {
+export function TeknisiNav({ tokoid, featureAccess, disabledFeatures, taskStats }: TeknisiNavProps) {
+  const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
   const workflowEnabled = featureAccess["technician.workflow"] ?? false;
   const inventoryEnabled = featureAccess["inventory.management"] ?? false;
 
@@ -66,24 +68,30 @@ export function TeknisiNav({ tokoid, featureAccess, taskStats }: TeknisiNavProps
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          <NavItem
-            href={`/${tokoid}/teknisi`}
-            icon={<RiDashboardLine />}
-            label="Teknisi Overview"
-            isLocked={!workflowEnabled}
-          />
-          <NavFilterGroup
-            title="Task"
-            icon={<RiTaskLine />}
-            defaultOpen={true}
-            items={taskItems}
-          />
-          <NavItem
-            href={`/${tokoid}/teknisi/inventory`}
-            icon={<RiArchiveLine />}
-            label="Inventory"
-            isLocked={!inventoryEnabled}
-          />
+          {!isFeatureDisabled("technician.workflow") && (
+            <>
+              <NavItem
+                href={`/${tokoid}/teknisi`}
+                icon={<RiDashboardLine />}
+                label="Teknisi Overview"
+                isLocked={!workflowEnabled}
+              />
+              <NavFilterGroup
+                title="Task"
+                icon={<RiTaskLine />}
+                defaultOpen={true}
+                items={taskItems}
+              />
+            </>
+          )}
+          {!isFeatureDisabled("inventory.management") && (
+            <NavItem
+              href={`/${tokoid}/teknisi/inventory`}
+              icon={<RiArchiveLine />}
+              label="Inventory"
+              isLocked={!inventoryEnabled}
+            />
+          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

@@ -48,6 +48,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
         <AppSidebar
           tokoid={tokoid}
           featureAccess={featureAccess}
+          disabledFeatures={disabledFeatures}
           serviceStats={serviceStats}
           technicianTaskStats={technicianTaskStats}
         />
