@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import {
   OverviewMobileGroupCard,
@@ -262,18 +262,15 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
           data-tour="service-table"
           className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10"
         >
-          <CardHeader className="border-b border-border/50 bg-muted/30 px-4 pt-4 sm:px-6">
-            <div className="flex items-center gap-3">
-              <div className="h-5 w-1 shrink-0 rounded-full bg-primary" />
-              <CardTitle className="text-lg font-bold">Service Terbaru</CardTitle>
-            </div>
-          </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <div className="min-w-[48rem]">
                 <ServiceTable
                   services={tableServices}
                   role="admin"
+                  headerTitle="Service Terbaru"
+                  headerDescription="Service terbaru dari toko ini"
+                  headerBadge={tableServices.length}
                   emptyMessage="Tidak ada service"
                   tokoId={tokoId}
                   disableAssignment={true}

@@ -2,13 +2,20 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
+import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { deleteService } from "@/actions";
-import type { ServiceListItem } from "@/actions";
+import { deleteService, getService } from "@/actions";
+import type { ServiceDetail, ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { RiAddLine } from "@remixicon/react";
 
@@ -35,6 +42,9 @@ export function StaffManageService({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ServiceListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   const pendingMutationsRef = useRef(0);
 
@@ -157,6 +167,28 @@ export function StaffManageService({
     router.refresh();
   }, [deleteTarget, router]);
 
+  const handleRowClick = useCallback(async (service: ServiceTableItem) => {
+    setIsLoadingDetail(true);
+    setDetailDialogOpen(true);
+
+    const result = await getService(service.id);
+    if (result.success && result.data) {
+      setSelectedService(result.data);
+    }
+    setIsLoadingDetail(false);
+  }, []);
+
+  const handleRefreshDetail = useCallback(() => {
+    if (selectedService) {
+      getService(selectedService.id).then((result) => {
+        if (result.success && result.data) {
+          setSelectedService(result.data);
+        }
+      });
+    }
+    router.refresh();
+  }, [selectedService, router]);
+
   const handlePageChange = useCallback((newPage: number) => {
     setCurrentPage(newPage);
   }, []);
@@ -189,16 +221,7 @@ export function StaffManageService({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="h-5 w-1 bg-primary rounded-full" />
-          <div>
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{getPageTitle()}</h2>
-            <p className="text-sm text-muted-foreground/70">
-            Halaman {currentPage} dari {totalPages || 1} ({filteredServices.length} dari {services.length} total)
-            </p>
-          </div>
-        </div>
+      <div className="flex justify-end">
         <Button
           onClick={() => { setEditData(null); setFormOpen(true); }}
           className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
@@ -210,27 +233,24 @@ export function StaffManageService({
 
       <section>
         <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-          <CardHeader className="border-b pt-4 border-border/50 bg-muted/30">
-            <div className="flex items-center gap-3">
-              <div className="h-5 w-1 bg-primary rounded-full" />
-              <CardTitle className="text-lg font-bold">Daftar Service</CardTitle>
-            </div>
-          </CardHeader>
           <CardContent className="p-0">
-          <ServiceTable
-            services={tableServices}
-            role="staff"
-            statusFilter={statusFilter}
-            pickedUpFilter={pickedUpFilter}
-            emptyMessage={getEmptyMessage()}
-            onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
-            onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
+            <ServiceTable
+              services={tableServices}
+              role="staff"
+              headerTitle={getPageTitle()}
+              headerDescription={`Halaman ${currentPage} dari ${totalPages || 1} (${filteredServices.length} dari ${services.length} total)`}
+              headerBadge={filteredServices.length}
+              statusFilter={statusFilter}
+              emptyMessage={getEmptyMessage()}
+              onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
+              onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
+              onRowClick={handleRowClick}
               tokoId={tokoId}
               disableAssignment={true}
             />
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 px-6 py-4 border-t border-border/50 bg-muted/30">
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 px-6 py-4 border-t border-border/50 bg-muted/30">
               <Button
                 variant="outline"
                 size="sm"
@@ -297,6 +317,31 @@ export function StaffManageService({
         description={`Are you sure you want to delete service for ${deleteTarget?.customerName || "this customer"}?`}
         isLoading={isDeleting}
       />
+
+      <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
+        <SheetContent side="bottom" className="h-[90vh] rounded-t-lg p-2 max-w-4xl mx-auto overflow-y-auto">
+          <SheetHeader className="p-2">
+            <SheetTitle className="font-bold">Detail servis</SheetTitle>
+            <p className="text-sm text-muted-foreground">kelola pembayaran dan pengambilan</p>
+          </SheetHeader>
+          {isLoadingDetail && (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-muted-foreground">Loading service details...</p>
+            </div>
+          )}
+          {!isLoadingDetail && selectedService && (
+            <div className="p-2">
+              <ServiceDetailCard
+                service={selectedService}
+                variant={["done", "failed"].includes(selectedService.status) ? "completed" : "active"}
+                viewerRole="staff"
+                onRefresh={handleRefreshDetail}
+                onStatusChange={() => router.refresh()}
+              />
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

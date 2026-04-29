@@ -12,9 +12,18 @@ import {
 } from "@/components/ui/sheet";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
-import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
+import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { deleteService, getService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
@@ -57,7 +66,7 @@ export function ManageService({
     }
   }, [allServices]);
 
-const filteredServices = useMemo(() => {
+  const filteredServices = useMemo(() => {
     if (pickedUpFilter) {
       return services.filter((s) => s.isPickedUp);
     }
@@ -74,6 +83,24 @@ const filteredServices = useMemo(() => {
   const totalPages = useMemo(() => {
     return Math.ceil(filteredServices.length / pageSize);
   }, [filteredServices.length, pageSize]);
+
+  const paginationItems = useMemo(() => {
+    if (totalPages <= 1) return [];
+
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    if (currentPage <= 3) {
+      return [1, 2, 3, "ellipsis", totalPages];
+    }
+
+    if (currentPage >= totalPages - 2) {
+      return [1, "ellipsis", totalPages - 2, totalPages - 1, totalPages];
+    }
+
+    return [1, "ellipsis", currentPage - 1, currentPage, currentPage + 1, "ellipsis", totalPages];
+  }, [currentPage, totalPages]);
 
   const tableServices: ServiceTableItem[] = paginatedServices.map((s) => ({
     id: s.id,
@@ -233,20 +260,13 @@ const filteredServices = useMemo(() => {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-5 w-1 bg-primary rounded-full" />
-          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{getPageTitle()}</h2>
-          <span className="text-xs text-muted-foreground/60">
-            Halaman {currentPage} dari {totalPages || 1} ({filteredServices.length} dari {services.length})
-          </span>
-        </div>
+      <div className="flex justify-end">
         <Button
           onClick={() => { setEditData(null); setFormOpen(true); }}
           className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
         >
           <RiAddLine className="h-4 w-4 mr-1.5" />
-          New Service
+          Tambah Service
         </Button>
       </div>
 
@@ -256,8 +276,10 @@ const filteredServices = useMemo(() => {
             <ServiceTable
               services={tableServices}
               role="admin"
+              headerTitle={getPageTitle()}
+              headerDescription={`Halaman ${currentPage} dari ${totalPages || 1} (${filteredServices.length} dari ${services.length} total)`}
+              headerBadge={filteredServices.length}
               statusFilter={statusFilter}
-              pickedUpFilter={pickedUpFilter}
               emptyMessage={getEmptyMessage()}
               onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
               onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
@@ -268,47 +290,57 @@ const filteredServices = useMemo(() => {
             />
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 px-6 py-4 border-t border-border/50 bg-muted/30">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => handlePageChange(currentPage - 1)}
-                >
-                  Previous
-                </Button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handlePageChange(pageNum)}
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => handlePageChange(currentPage + 1)}
-                >
-                  Next
-                </Button>
+              <div className="border-t border-border/50 bg-muted/30 px-6 py-4">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        className={currentPage <= 1 ? "pointer-events-none opacity-50" : undefined}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          if (currentPage > 1) {
+                            handlePageChange(currentPage - 1);
+                          }
+                        }}
+                      />
+                    </PaginationItem>
+
+                    {paginationItems.map((item, index) =>
+                      item === "ellipsis" ? (
+                        <PaginationItem key={`ellipsis-${index}`}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      ) : typeof item === "number" ? (
+                        <PaginationItem key={item}>
+                          <PaginationLink
+                            href="#"
+                            isActive={currentPage === item}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              handlePageChange(item);
+                            }}
+                          >
+                            {item}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ) : null
+                    )}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        className={currentPage >= totalPages ? "pointer-events-none opacity-50" : undefined}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          if (currentPage < totalPages) {
+                            handlePageChange(currentPage + 1);
+                          }
+                        }}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
               </div>
             )}
           </CardContent>
@@ -357,15 +389,18 @@ const filteredServices = useMemo(() => {
             </div>
           )}
           {!isLoadingDetail && selectedService && (
-              <ServiceTaskCard
-                task={selectedService}
-                variant={["done", "failed"].includes(selectedService.status) ? "completed" : "active"}
-                showActions={!!statusFilter && statusFilter !== "received"}
-                onRefresh={handleRefreshDetail}
-                onStatusChange={() => {
-                  router.refresh();
-                }}
-              />
+            <ServiceDetailCard
+              service={selectedService}
+              variant={[
+                "done",
+                "failed",
+              ].includes(selectedService.status) ? "completed" : "active"}
+              viewerRole="admin"
+              onRefresh={handleRefreshDetail}
+              onStatusChange={() => {
+                router.refresh();
+              }}
+            />
           )}
         </SheetContent>
       </Sheet>

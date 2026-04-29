@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,7 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
-import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
+import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
 import { getService, takeService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
@@ -314,22 +314,14 @@ export function TeknisiTaskManager({
 
       <section>
         <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-          <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-5 w-1 rounded-full bg-primary" />
-                <span className="text-lg font-bold">{getPageTitle()}</span>
-              </div>
-              <span className="rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                {tableItems.length}
-              </span>
-            </CardTitle>
-          </CardHeader>
           <CardContent className="p-0">
             {status === "tersedia" ? (
               <ServiceTable
                 services={tableItems}
                 role="technician"
+                headerTitle={getPageTitle()}
+                headerDescription="Task yang bisa diambil atau takeover"
+                headerBadge={tableItems.length}
                 emptyMessage="Tidak ada task yang bisa diambil atau takeover"
                 onTake={handleTakeTask}
                 onRowClick={handleOpenTask}
@@ -338,6 +330,9 @@ export function TeknisiTaskManager({
               <ServiceTable
                 services={tableItems}
                 role="technicianMyTasks"
+                headerTitle={getPageTitle()}
+                headerDescription="Task yang sedang atau pernah kamu tangani"
+                headerBadge={tableItems.length}
                 emptyMessage={`Tidak ada task${status ? ` dengan status ${status}` : ""}`}
                 onRowClick={handleOpenTask}
               />
@@ -359,14 +354,15 @@ export function TeknisiTaskManager({
           )}
           {!isLoadingDetail && selectedTask && (
             <div className="p-2">
-              <ServiceTaskCard
-                task={selectedTask}
+              <ServiceDetailCard
+                service={selectedTask}
                 variant={
                   selectedTask.status === "done" ||
                   selectedTask.status === "failed"
                     ? "completed"
                     : "active"
                 }
+                viewerRole="technician"
                 onRefresh={handleRefreshDetail}
                 onStatusChange={() => router.refresh()}
               />

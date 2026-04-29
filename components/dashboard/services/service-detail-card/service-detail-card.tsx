@@ -1,9 +1,5 @@
 "use client";
 
-/**
- * ServiceTaskCard - A card component for displaying and managing service tasks
- */
-
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Card,
@@ -46,6 +42,9 @@ import {
   RiArrowGoBackLine,
   RiCheckDoubleLine,
   RiCloseCircleLine,
+  RiWhatsappLine,
+  RiMoneyDollarCircleLine,
+  RiLogoutBoxLine,
 } from "@remixicon/react";
 import { PatternLock } from "@/components/shared/pattern-lock";
 import {
@@ -53,12 +52,33 @@ import {
   removeItem,
   getCompatibleSpareparts,
   getServicePricelists,
+  payInvoice,
+  pickupService,
 } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
+import { PaymentDialog } from "./payment-dialog";
 import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { toast } from "sonner";
 
-// Status badge colors
+const roleToneClasses = {
+  admin: {
+    card: "border-primary/20 bg-gradient-to-br from-primary/[0.035] via-background to-background",
+    rail: "from-primary/40 to-primary/10",
+    label: "text-primary",
+  },
+  staff: {
+    card: "border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.04] via-background to-background",
+    rail: "from-emerald-500/40 to-emerald-500/10",
+    label: "text-emerald-700 dark:text-emerald-400",
+  },
+  technician: {
+    card: "border-sky-500/20 bg-gradient-to-br from-sky-500/[0.04] via-background to-background",
+    rail: "from-sky-500/40 to-sky-500/10",
+    label: "text-sky-700 dark:text-sky-400",
+  },
+} satisfies Record<"admin" | "staff" | "technician", { card: string; rail: string; label: string }>;
+
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   received: "secondary",
   repairing: "default",
@@ -66,7 +86,6 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
   failed: "destructive",
 };
 
-// Status labels
 const statusLabels: Record<string, string> = {
   received: "Received",
   repairing: "In Progress",
@@ -74,7 +93,6 @@ const statusLabels: Record<string, string> = {
   failed: "Failed",
 };
 
-// Parse pattern string to array
 function parsePatternString(patternStr: string | null): number[] {
   if (!patternStr) return [];
   return patternStr
@@ -83,7 +101,7 @@ function parsePatternString(patternStr: string | null): number[] {
     .filter((n) => !isNaN(n));
 }
 
-export interface ServiceTaskItem {
+export interface ServiceDetailCardItem {
   id: string;
   tokoId: string;
   customerName: string | null;
@@ -104,6 +122,7 @@ export interface ServiceTaskItem {
       name: string;
     };
   };
+  technician: { id: string; name: string } | null;
   items: Array<{
     id: string;
     type: string;
@@ -119,89 +138,73 @@ export interface ServiceTaskItem {
   } | null;
 }
 
-export interface ServiceTaskCardProps {
-  task: ServiceTaskItem;
+export interface ServiceDetailCardProps {
+  service: ServiceDetailCardItem;
   variant?: "active" | "completed";
+  viewerRole?: "admin" | "staff" | "technician";
   showActions?: boolean;
-  onAddItem?: (task: ServiceTaskItem) => void;
+  onAddItem?: (service: ServiceDetailCardItem) => void;
   onRemoveItem?: (itemId: string) => void;
   onRefresh?: () => void;
   onStatusChange?: (newStatus: string) => void;
 }
 
-export function ServiceTaskCard({
-  task,
+export function ServiceDetailCard({
+  service,
   variant = "active",
+  viewerRole = "technician",
   showActions = true,
   onAddItem,
   onRemoveItem,
   onRefresh,
   onStatusChange,
-}: ServiceTaskCardProps) {
+}: ServiceDetailCardProps) {
   const isActive = variant === "active";
   const { inventoryEnabled } = useFeatureAccess();
+  const canHandleCustomerHandoff = viewerRole === "admin" || viewerRole === "staff";
+  const roleTone = roleToneClasses[viewerRole];
 
-  // ─── Optimistic local state ────────────────────────────────────────────────
-  // We keep a local copy of the task so we can apply optimistic updates
-  // immediately. When the parent silently re-fetches and passes a new `task`
-  // prop the useEffect below syncs us to the authoritative server data —
-  // BUT ONLY when no mutation is currently in-flight. Without this guard,
-  // any parent re-render (which creates a new object reference for `task`)
-  // would fire the effect and revert the optimistic state, making removed
-  // items "reappear" while the server call is still awaited.
-  const [localTask, setLocalTask] = useState<ServiceTaskItem>(task);
+  const [localService, setLocalService] = useState<ServiceDetailCardItem>(service);
 
-  // Always-current refs so callbacks can read the latest values without
-  // needing them in their dependency arrays (avoids stale closures).
-  const localTaskRef = useRef(localTask);
-  const taskPropRef = useRef(task);
+  const localServiceRef = useRef(localService);
+  const servicePropRef = useRef(service);
 
   useEffect(() => {
-    localTaskRef.current = localTask;
-  }, [localTask]);
+    localServiceRef.current = localService;
+  }, [localService]);
 
   useEffect(() => {
-    taskPropRef.current = task;
-  }, [task]);
+    servicePropRef.current = service;
+  }, [service]);
 
-  // Counter of in-flight mutations. Incremented before the server call,
-  // decremented in `finally`. The effect skips the sync while it is > 0.
   const pendingMutationsRef = useRef(0);
 
-  // Stable identity for the incoming task prop — only changes when the
-  // serialised content actually differs, preventing spurious effect runs
-  // caused by the parent creating a new object reference on every render.
-  const taskFingerprint = useMemo(
+  const serviceFingerprint = useMemo(
     () => JSON.stringify({
-      id: task.id,
-      status: task.status,
-      isPickedUp: task.isPickedUp,
-      checkoutAt: task.checkoutAt,
-      items: task.items,
-      doneAt: task.doneAt,
+      id: service.id,
+      status: service.status,
+      isPickedUp: service.isPickedUp,
+      checkoutAt: service.checkoutAt,
+      items: service.items,
+      doneAt: service.doneAt,
     }),
-    [task.id, task.status, task.isPickedUp, task.checkoutAt, task.items, task.doneAt]
+    [service.id, service.status, service.isPickedUp, service.checkoutAt, service.items, service.doneAt]
   );
 
   useEffect(() => {
-    // Only accept fresh server data when nothing is pending.
     if (pendingMutationsRef.current === 0) {
-      setLocalTask(task);
+      setLocalService(service);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskFingerprint]);
+  }, [serviceFingerprint]);
 
-  // ─── Pattern lock dialog ────────────────────────────────────────────────────
   const [patternDialogOpen, setPatternDialogOpen] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
 
-
-  // ─── Undo status dialog (for completed tasks) ───────────────────────────────
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
   const [undoStatus, setUndoStatus] = useState<string>("repairing");
   const [isUndoingStatus, setIsUndoingStatus] = useState(false);
 
-  // ─── Add item dialog ────────────────────────────────────────────────────────
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [spareparts, setSpareparts] = useState<
     Array<{ id: string; name: string; defaultPrice: number; stock: number }>
@@ -210,14 +213,13 @@ export function ServiceTaskCard({
     Array<{ id: string; title: string; defaultPrice: number }>
   >([]);
 
-  // Fetch spareparts and pricelists once (only for active cards with inventory enabled)
   useEffect(() => {
     if (!isActive || !inventoryEnabled) return;
     async function fetchData() {
       try {
         const [sparepartsResult, pricelistsResult] = await Promise.all([
-          getCompatibleSpareparts(localTask.tokoId, localTask.hpCatalog.id),
-          getServicePricelists(localTask.tokoId),
+          getCompatibleSpareparts(localService.tokoId, localService.hpCatalog.id),
+          getServicePricelists(localService.tokoId),
         ]);
         if (sparepartsResult.success && sparepartsResult.data) {
           setSpareparts(sparepartsResult.data);
@@ -230,9 +232,7 @@ export function ServiceTaskCard({
       }
     }
     fetchData();
-  }, [isActive, inventoryEnabled, localTask.tokoId, localTask.hpCatalog.id]);
-
-  // ─── Handlers ──────────────────────────────────────────────────────────────
+  }, [isActive, inventoryEnabled, localService.tokoId, localService.hpCatalog.id]);
 
   function openAddItemDialog() {
     setItemDialogOpen(true);
@@ -243,7 +243,7 @@ export function ServiceTaskCard({
   }
 
   function openUndoDialog() {
-    setUndoStatus("repairing"); // Default to repairing
+    setUndoStatus("repairing");
     setUndoDialogOpen(true);
   }
 
@@ -251,104 +251,102 @@ export function ServiceTaskCard({
     if (!undoStatus) return;
     setIsUndoingStatus(true);
 
-    // Read the latest localTask via ref — avoids stale closure issues
-    const snapshot = localTaskRef.current;
+    const snapshot = localServiceRef.current;
 
-    // Block useEffect sync while the mutation is in-flight
     pendingMutationsRef.current += 1;
 
-    // --- Optimistic update ---
-    setLocalTask((prev) => ({
+    setLocalService((prev) => ({
       ...prev,
       status: undoStatus,
-      doneAt: null, // Clear doneAt when undoing
+      doneAt: null,
     }));
 
     try {
       const result = await updateStatus(snapshot.id, undoStatus as "received" | "repairing");
       if (result.success) {
         setUndoDialogOpen(false);
-        // Allow the next prop change (from the silent re-fetch) to sync
         pendingMutationsRef.current -= 1;
         onRefresh?.();
       } else {
         pendingMutationsRef.current -= 1;
-        setLocalTask(snapshot);
+        setLocalService(snapshot);
       }
     } catch (err) {
       console.error("Error undoing status:", err);
       pendingMutationsRef.current -= 1;
-      setLocalTask(snapshot);
+      setLocalService(snapshot);
     } finally {
       setIsUndoingStatus(false);
     }
   }, [undoStatus, onRefresh]);
 
   const handleRemoveItem = useCallback(async (itemId: string) => {
-    // Read the latest localTask via ref — avoids stale closure issues
-    const snapshot = localTaskRef.current;
+    const snapshot = localServiceRef.current;
 
-    // Block useEffect sync while the mutation is in-flight
     pendingMutationsRef.current += 1;
 
-    // --- Optimistic update ---
-    setLocalTask((prev) => ({ ...prev, items: prev.items.filter((item) => item.id !== itemId) }));
+    setLocalService((prev) => ({ ...prev, items: prev.items.filter((item) => item.id !== itemId) }));
 
     try {
       const result = await removeItem(itemId);
       if (result.success) {
-        // Allow the next prop change (from the silent re-fetch) to sync
         pendingMutationsRef.current -= 1;
         onRefresh?.();
       } else {
         pendingMutationsRef.current -= 1;
-        setLocalTask(snapshot);
+        setLocalService(snapshot);
       }
     } catch (err) {
       console.error("Error removing item:", err);
       pendingMutationsRef.current -= 1;
-      setLocalTask(snapshot);
+      setLocalService(snapshot);
     }
   }, [onRefresh]);
 
-  // Called by AddRepairItemForm for optimistic add (before server call)
   const handleOptimisticAddItem = useCallback(
     (newItem: { id: string; type: string; name: string; qty: number; price: number }) => {
       pendingMutationsRef.current += 1;
-      setLocalTask((prev) => ({ ...prev, items: [...prev.items, newItem] }));
+      setLocalService((prev) => ({ ...prev, items: [...prev.items, newItem] }));
     },
     []
   );
 
-  // Called by AddRepairItemForm on server success — unblocks the sync so the
-  // next prop update (with the real server ID) will be accepted.
   const handleAddItemSuccess = useCallback(() => {
     pendingMutationsRef.current -= 1;
   }, []);
 
-  // Called by AddRepairItemForm when the server request fails so we can
-  // revert the optimistic add.
   const handleAddItemRevert = useCallback(() => {
     pendingMutationsRef.current -= 1;
-    // Sync back to whatever the server prop currently says (via ref to avoid stale closure)
-    setLocalTask(taskPropRef.current);
+    setLocalService(servicePropRef.current);
   }, []);
 
-  // ─── Derived values ────────────────────────────────────────────────────────
-  const totalAmount = localTask.items.reduce(
+  const totalAmount = localService.items.reduce(
     (sum, item) => sum + item.price * item.qty,
     0
   );
 
-  // ─── Done dialog ────────────────────────────────────────────────────────────
   const [doneDialogOpen, setDoneDialogOpen] = useState(false);
   const [doneNote, setDoneNote] = useState("");
   const [isMarkingDone, setIsMarkingDone] = useState(false);
 
-  // ─── Failed dialog ─────────────────────────────────────────────────────────
   const [failedDialogOpen, setFailedDialogOpen] = useState(false);
   const [failedNote, setFailedNote] = useState("");
   const [isMarkingFailed, setIsMarkingFailed] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [isPayingInvoice, setIsPayingInvoice] = useState(false);
+  const [isPickingUp, setIsPickingUp] = useState(false);
+
+  const hasCompletedStatus = localService.status === "done" || localService.status === "failed";
+  const canPayInvoice = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && localService.invoice?.paymentStatus === "unpaid";
+  const canMarkPickedUp = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp;
+  const canContactDuringRepair = (localService.status === "received" || localService.status === "repairing") && Boolean(localService.noWa);
+  const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (localService.noWa || canPayInvoice || canMarkPickedUp);
+  const customerHandoffActionCount = Number(canPayInvoice) + Number(Boolean(localService.noWa)) + Number(canMarkPickedUp);
+  const customerHandoffGridClass = customerHandoffActionCount >= 4
+    ? "lg:grid-cols-4"
+    : customerHandoffActionCount === 3
+      ? "lg:grid-cols-3"
+      : "lg:grid-cols-2";
 
   function openDoneDialog() {
     setDoneNote("");
@@ -358,14 +356,12 @@ export function ServiceTaskCard({
   async function handleMarkDone() {
     setIsMarkingDone(true);
 
-    const snapshot = localTaskRef.current;
+    const snapshot = localServiceRef.current;
     const doneNoteValue = doneNote.trim();
 
-    // Block useEffect sync while the mutation is in-flight
     pendingMutationsRef.current += 1;
 
-    // --- Optimistic update ---
-    setLocalTask((prev) => ({
+    setLocalService((prev) => ({
       ...prev,
       status: "done",
       doneAt: new Date(),
@@ -384,12 +380,12 @@ export function ServiceTaskCard({
         onStatusChange?.("done");
       } else {
         pendingMutationsRef.current -= 1;
-        setLocalTask(snapshot);
+        setLocalService(snapshot);
       }
     } catch (err) {
       console.error("Error marking as done:", err);
       pendingMutationsRef.current -= 1;
-      setLocalTask(snapshot);
+      setLocalService(snapshot);
     } finally {
       setIsMarkingDone(false);
     }
@@ -404,14 +400,12 @@ export function ServiceTaskCard({
     if (!failedNote.trim()) return;
     setIsMarkingFailed(true);
 
-    const snapshot = localTaskRef.current;
+    const snapshot = localServiceRef.current;
     const failedNoteValue = failedNote.trim();
 
-    // Block useEffect sync while the mutation is in-flight
     pendingMutationsRef.current += 1;
 
-    // --- Optimistic update ---
-    setLocalTask((prev) => ({
+    setLocalService((prev) => ({
       ...prev,
       status: "failed",
       doneAt: new Date(),
@@ -426,50 +420,131 @@ export function ServiceTaskCard({
         onStatusChange?.("failed");
       } else {
         pendingMutationsRef.current -= 1;
-        setLocalTask(snapshot);
+        setLocalService(snapshot);
       }
     } catch (err) {
       console.error("Error marking as failed:", err);
       pendingMutationsRef.current -= 1;
-      setLocalTask(snapshot);
+      setLocalService(snapshot);
     } finally {
       setIsMarkingFailed(false);
     }
   }
 
+  function openWhatsApp() {
+    const normalized = localService.noWa.replace(/\D/g, "").replace(/^0/, "62");
+    if (!normalized) return;
+    window.open(`https://wa.me/${normalized}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function handlePayInvoice() {
+    if (!localService.invoice || !canPayInvoice) return false;
+    setIsPayingInvoice(true);
+
+    const snapshot = localServiceRef.current;
+    pendingMutationsRef.current += 1;
+    setLocalService((prev) => prev.invoice ? {
+      ...prev,
+      invoice: { ...prev.invoice, paymentStatus: "paid" },
+    } : prev);
+
+    try {
+      const result = await payInvoice(localService.invoice.id);
+      if (result.success) {
+        toast.success("Invoice ditandai lunas");
+        pendingMutationsRef.current -= 1;
+        onRefresh?.();
+        return true;
+      } else {
+        toast.error(result.error || "Gagal menandai invoice lunas");
+        pendingMutationsRef.current -= 1;
+        setLocalService(snapshot);
+        return false;
+      }
+    } catch (err) {
+      console.error("Error paying invoice:", err);
+      toast.error("Gagal menandai invoice lunas");
+      pendingMutationsRef.current -= 1;
+      setLocalService(snapshot);
+      return false;
+    } finally {
+      setIsPayingInvoice(false);
+    }
+  }
+
+  async function handlePickup() {
+    if (!canMarkPickedUp) return;
+    setIsPickingUp(true);
+
+    const snapshot = localServiceRef.current;
+    const checkoutAt = new Date();
+    pendingMutationsRef.current += 1;
+    setLocalService((prev) => ({ ...prev, isPickedUp: true, checkoutAt }));
+
+    try {
+      const result = await pickupService(localService.id);
+      if (result.success) {
+        toast.success("Service ditandai sudah diambil");
+        pendingMutationsRef.current -= 1;
+        onRefresh?.();
+      } else {
+        toast.error(result.error || "Gagal menandai service diambil");
+        pendingMutationsRef.current -= 1;
+        setLocalService(snapshot);
+      }
+    } catch (err) {
+      console.error("Error picking up service:", err);
+      toast.error("Gagal menandai service diambil");
+      pendingMutationsRef.current -= 1;
+      setLocalService(snapshot);
+    } finally {
+      setIsPickingUp(false);
+    }
+  }
+
   return (
     <>
-      <Card>
+      <Card className={cn("relative overflow-hidden", roleTone.card)}>
+        <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r", roleTone.rail)} />
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <CardTitle className="flex flex-wrap items-center gap-2">
                 <span className="break-words">
-                  {localTask.hpCatalog.brand.name} {localTask.hpCatalog.modelName}
+                  {localService.hpCatalog.brand.name} {localService.hpCatalog.modelName}
                 </span>
-                <Badge variant={statusColors[localTask.status] || "outline"}>
-                  {statusLabels[localTask.status] || localTask.status}
+                <Badge variant={statusColors[localService.status] || "outline"}>
+                  {statusLabels[localService.status] || localService.status}
                 </Badge>
-                {localTask.isPickedUp && <Badge variant="outline">Picked Up</Badge>}
-                {localTask.invoice && (
+                {localService.technician ? (
+                  <Badge variant="outline" className="border-sky-500/30 bg-sky-500/8 text-sky-700 dark:text-sky-400">
+                    Teknisi: {localService.technician.name}
+                  </Badge>
+                ) : localService.status === "received" ? (
+                  <Badge variant="secondary" className="text-muted-foreground">
+                    Belum ada teknisi
+                  </Badge>
+                ) : null}
+                {localService.isPickedUp && <Badge variant="outline">Picked Up</Badge>}
+                {localService.invoice && (
                   <Badge
                     variant={
-                      localTask.invoice.paymentStatus === "paid"
+                      localService.invoice.paymentStatus === "paid"
                         ? "outline"
-                        : localTask.invoice.paymentStatus === "dp"
+                        : localService.invoice.paymentStatus === "dp"
                           ? "accent"
                           : "destructive"
                     }
                   >
-                    {isActive ? "Invoice" : formatCurrency(localTask.invoice.grandTotal)} • {localTask.invoice.paymentStatus === "paid" ? "Paid" : localTask.invoice.paymentStatus === "dp" ? `DP ${localTask.invoice.dpAmount ? formatCurrency(localTask.invoice.dpAmount) : ""}` : "Unpaid"}
+                    {isActive ? "Invoice" : formatCurrency(localService.invoice.grandTotal)} • {localService.invoice.paymentStatus === "paid" ? "Paid" : localService.invoice.paymentStatus === "dp" ? `DP ${localService.invoice.dpAmount ? formatCurrency(localService.invoice.dpAmount) : ""}` : "Unpaid"}
                   </Badge>
                 )}
               </CardTitle>
               <CardDescription className="break-words">
-                {localTask.customerName || "No customer name"} • {localTask.noWa}
+                {localService.customerName || "No customer name"} • {localService.noWa}
               </CardDescription>
               <p className="text-xs text-muted-foreground">
-                Check-in: {formatDate(localTask.checkinAt)}
+                Check-in: {formatDate(localService.checkinAt)}
               </p>
             </div>
             {isActive && showActions && (
@@ -479,7 +554,7 @@ export function ServiceTaskCard({
                   className="w-full xs:w-auto"
                   onClick={() => {
                     if (onAddItem) {
-                      onAddItem(localTask);
+                      onAddItem(localService);
                     } else {
                       openAddItemDialog();
                     }
@@ -490,7 +565,7 @@ export function ServiceTaskCard({
                 </Button>
               </div>
             )}
-            {!isActive && (localTask.status === "done" || localTask.status === "failed") && (
+            {!isActive && (localService.status === "done" || localService.status === "failed") && (
               <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
                 <Button
                   variant="outline"
@@ -507,35 +582,32 @@ export function ServiceTaskCard({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* Complaint */}
             <div>
               <Label className="text-muted-foreground">Complaint</Label>
-              <p className="text-sm">{localTask.complaint}</p>
+              <p className="text-sm">{localService.complaint}</p>
             </div>
 
-            {/* Included Items */}
-            {localTask.includedItems && localTask.includedItems.length > 0 && (
+            {localService.includedItems && localService.includedItems.length > 0 && (
               <div>
                 <Label className="text-muted-foreground">Included Items</Label>
                 <div className="flex flex-wrap gap-1.5 mt-1">
-                  {localTask.includedItems.map((item, index) => (
+                  {localService.includedItems.map((item, index) => (
                     <Badge key={index} variant="outline" className="text-xs">{item}</Badge>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Password / Pattern - only show for active tasks */}
-            {isActive && (localTask.passwordPattern || localTask.imei) && (
+            {isActive && (localService.passwordPattern || localService.imei) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {localTask.passwordPattern && (
+                {localService.passwordPattern && (
                   <div>
                     <Label className="text-muted-foreground">Password / Pattern</Label>
                     <div className="flex items-center gap-2 mt-1">
-                      {localTask.passwordPattern.includes("-") ? (
+                      {localService.passwordPattern.includes("-") ? (
                         <>
                           <Badge variant="outline" className="font-mono">
-                            Pattern: {parsePatternString(localTask.passwordPattern).join(" → ")}
+                            Pattern: {parsePatternString(localService.passwordPattern).join(" → ")}
                           </Badge>
                           <Button
                             variant="ghost"
@@ -548,23 +620,22 @@ export function ServiceTaskCard({
                         </>
                       ) : (
                         <Badge variant="outline" className="font-mono">
-                          {localTask.passwordPattern}
+                          {localService.passwordPattern}
                         </Badge>
                       )}
                     </div>
                   </div>
                 )}
-                {localTask.imei && (
+                {localService.imei && (
                   <div>
                     <Label className="text-muted-foreground">IMEI</Label>
-                    <p className="text-sm font-mono">{localTask.imei}</p>
+                    <p className="text-sm font-mono">{localService.imei}</p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Items */}
-            {localTask.items.length > 0 && (
+            {localService.items.length > 0 && (
               <div>
                 <Label className="text-muted-foreground">Repair Items</Label>
                 <Table>
@@ -579,7 +650,7 @@ export function ServiceTaskCard({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {localTask.items.map((item) => (
+                    {localService.items.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           <Badge variant="outline">{item.type}</Badge>
@@ -614,28 +685,36 @@ export function ServiceTaskCard({
               </div>
             )}
 
-            {localTask.items.length === 0 && isActive && (
+            {localService.items.length === 0 && isActive && (
               <div>
                 <Label className="text-muted-foreground">Repair Items</Label>
                 <p className="text-sm text-muted-foreground">No items added yet</p>
               </div>
             )}
 
-            {/* Total */}
-            {localTask.items.length > 0 && (
+            {localService.items.length > 0 && (
               <div className="flex justify-between items-center pt-2 border-t">
                 <span className="font-medium">Total</span>
                 <span className="font-bold">{formatCurrency(totalAmount)}</span>
               </div>
             )}
 
-            {/* Done & Failed buttons */}
             {isActive && showActions && (
               <div className="pt-4 mt-4">
-                <p className="text-sm font-medium text-center text-muted-foreground mb-3">
+                <p className={cn("text-sm font-medium text-center mb-3", roleTone.label)}>
                   Service completion
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid gap-3 ${canContactDuringRepair ? "sm:grid-cols-3" : "grid-cols-2"}`}>
+                  {canContactDuringRepair && (
+                    <Button
+                      variant="outline"
+                      onClick={openWhatsApp}
+                      className="flex-col h-auto py-3 gap-1.5 border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
+                    >
+                      <RiWhatsappLine className="h-5 w-5" />
+                      <span className="text-xs font-medium">WhatsApp</span>
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={openFailedDialog}
@@ -654,11 +733,51 @@ export function ServiceTaskCard({
                 </div>
               </div>
             )}
+
+            {showCustomerHandoffActions && (
+              <div className="pt-4 mt-4">
+                <p className={cn("text-sm font-medium text-center mb-3", roleTone.label)}>
+                  Customer handoff
+                </p>
+                <div className={`grid gap-3 sm:grid-cols-2 ${customerHandoffGridClass}`}>
+                  {canPayInvoice && (
+                    <Button
+                      variant="outline"
+                      disabled={isPayingInvoice}
+                      onClick={() => setPaymentDialogOpen(true)}
+                      className="flex-col h-auto py-3 gap-1.5"
+                    >
+                      <RiMoneyDollarCircleLine className="h-5 w-5" />
+                      <span className="text-xs font-medium">Bayar</span>
+                    </Button>
+                  )}
+                  {localService.noWa && (
+                    <Button
+                      variant="outline"
+                      onClick={openWhatsApp}
+                      className="flex-col h-auto py-3 gap-1.5 border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
+                    >
+                      <RiWhatsappLine className="h-5 w-5" />
+                      <span className="text-xs font-medium">WhatsApp</span>
+                    </Button>
+                  )}
+                  {canMarkPickedUp && (
+                    <Button
+                      disabled={isPickingUp}
+                      onClick={handlePickup}
+                      className="flex-col h-auto py-3 gap-1.5"
+                    >
+                      <RiLogoutBoxLine className="h-5 w-5" />
+                      <span className="text-xs font-medium">Diambil</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Pattern Lock View Dialog */}
       <Dialog open={patternDialogOpen} onOpenChange={setPatternDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -673,16 +792,16 @@ export function ServiceTaskCard({
               <PatternLock
                 width={200}
                 height={200}
-                pattern={parsePatternString(localTask.passwordPattern)}
+                pattern={parsePatternString(localService.passwordPattern)}
                 animatePattern
                 animationKey={animationKey}
                 disabled
                 showPatternNumbers
               />
             </div>
-            {localTask.passwordPattern ? (
+            {localService.passwordPattern ? (
               <p className="text-center text-sm text-muted-foreground">
-                Pattern: {parsePatternString(localTask.passwordPattern).join(" → ")}
+                Pattern: {parsePatternString(localService.passwordPattern).join(" → ")}
               </p>
             ) : (
               <p className="text-center text-sm text-muted-foreground">
@@ -692,7 +811,7 @@ export function ServiceTaskCard({
           </div>
 
           <DialogFooter className="flex gap-2">
-            {localTask.passwordPattern && (
+            {localService.passwordPattern && (
               <Button
                 variant="outline"
                 size="sm"
@@ -709,7 +828,6 @@ export function ServiceTaskCard({
         </DialogContent>
       </Dialog>
 
-      {/* Undo Status Dialog */}
       <Dialog open={undoDialogOpen} onOpenChange={setUndoDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -751,7 +869,6 @@ export function ServiceTaskCard({
         </DialogContent>
       </Dialog>
 
-      {/* Mark Done Dialog */}
       <Dialog open={doneDialogOpen} onOpenChange={setDoneDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -790,7 +907,6 @@ export function ServiceTaskCard({
         </DialogContent>
       </Dialog>
 
-      {/* Mark Failed Dialog */}
       <Dialog open={failedDialogOpen} onOpenChange={setFailedDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -829,11 +945,10 @@ export function ServiceTaskCard({
         </DialogContent>
       </Dialog>
 
-      {/* Add Item Dialog */}
       <AddRepairItemForm
         open={itemDialogOpen}
         onOpenChange={setItemDialogOpen}
-        serviceId={localTask.id}
+        serviceId={localService.id}
         spareparts={spareparts}
         servicePricelists={servicePricelists}
         onSuccess={() => {
@@ -844,6 +959,13 @@ export function ServiceTaskCard({
         onError={(err) => console.error("Error adding item:", err)}
         onAddItem={handleOptimisticAddItem}
         onAddItemError={handleAddItemRevert}
+      />
+      <PaymentDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+        invoiceTotal={localService.invoice?.grandTotal || 0}
+        isSubmitting={isPayingInvoice}
+        onConfirm={handlePayInvoice}
       />
     </>
   );

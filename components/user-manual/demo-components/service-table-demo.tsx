@@ -10,6 +10,7 @@ const mockServices: ServiceTableItem[] = [
     customerName: "Ahmad",
     noWa: "08123456789",
     complaint: "LCD pecah, tidak bisa dilihat",
+    includedItems: ["Charger", "SIM tray", "Dus"],
     status: "received",
     checkinAt: new Date("2024-01-15T10:00:00"),
     hpCatalog: {
@@ -136,6 +137,9 @@ export function ServiceTableDemo() {
     <ServiceTable
       services={mockServices}
       role="admin"
+      headerTitle="Demo Service Table"
+      headerDescription="Contoh tabel service dengan pengaturan kolom"
+      headerBadge={mockServices.length}
       disableAssignment
     />
   );

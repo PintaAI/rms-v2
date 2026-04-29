@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import { isPlanAtLeast, normalizePlan, type SubscriptionPlan } from "@/lib/features";
 
-export type UserRole = "admin" | "staff" | "technician";
+export type UserRole = "admin" | "staff" | "technician" | "superuser";
 
 export interface AuthUser {
   id: string;
@@ -118,8 +118,16 @@ export async function requireAuth(): Promise<AuthUser> {
 
 export async function requireRole(role: UserRole): Promise<AuthUser> {
   const user = await requireAuth();
-  if (user.role !== role && user.role !== "admin") {
+  if (user.role !== role && user.role !== "admin" && user.role !== "superuser") {
     throw new Error("Access denied");
+  }
+  return user;
+}
+
+export async function requireSuperuser(): Promise<AuthUser> {
+  const user = await requireAuth();
+  if (user.role !== "superuser") {
+    throw new Error("Superuser access required");
   }
   return user;
 }
@@ -190,6 +198,10 @@ export function isStaff(user: AuthUser): boolean {
 
 export function isTechnician(user: AuthUser): boolean {
   return user.role === "technician";
+}
+
+export function isSuperuser(user: AuthUser): boolean {
+  return user.role === "superuser";
 }
 
 export function canAccessToko(user: AuthUser, tokoId: string): boolean {

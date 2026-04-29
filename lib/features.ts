@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "staff" | "technician";
+export type UserRole = "admin" | "staff" | "technician" | "superuser";
 
 export type SubscriptionPlan = "free" | "premium" | "enterprise";
 

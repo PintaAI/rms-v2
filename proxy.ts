@@ -5,7 +5,7 @@ import { getSessionCookie } from "better-auth/cookies";
 const publicRoutes = ["/", "/auth"];
 const authApiRoutes = "/api/auth";
 const userManualRoute = "/user-manual";
-const protectedRoutePrefixes = ["/dashboard", "/onboard"];
+const protectedRoutePrefixes = ["/dashboard", "/onboard", "/superuser"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

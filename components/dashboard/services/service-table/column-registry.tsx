@@ -2,10 +2,10 @@ import type { ServiceTableItem } from "./types";
 import {
   RiUserLine,
   RiUserStarLine,
-  RiCalendarLine,
+  RiInboxArchiveLine,
+  RiInboxUnarchiveLine,
   RiCheckLine,
   RiCheckDoubleLine,
-  RiLogoutBoxLine,
 } from "@remixicon/react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,12 +17,6 @@ export interface ColumnDef {
   header: string;
   render: (service: ServiceTableItem) => React.ReactNode;
   width?: number;
-}
-
-export interface ColumnContext {
-  pickedUpFilter?: boolean;
-  statusFilter?: string;
-  isHistory?: boolean;
 }
 
 function parseNoteStatus(note: string) {
@@ -74,14 +68,33 @@ export const columnRegistry: Record<string, ColumnDef> = {
     key: "complaint",
     header: "Complaint",
     render: (service) => (
-      <Tooltip>
-        <TooltipTrigger className="block max-w-[100px] truncate text-left cursor-default">
-          {service.complaint}
-        </TooltipTrigger>
-        <TooltipContent className="max-w-sm">{service.complaint}</TooltipContent>
-      </Tooltip>
+      <div className="flex flex-col gap-1.5">
+        <Tooltip>
+          <TooltipTrigger className="block max-w-[500px] truncate text-left cursor-default">
+            {service.complaint}
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm">{service.complaint}</TooltipContent>
+        </Tooltip>
+        {service.includedItems && service.includedItems.length > 0 && (
+          <Tooltip>
+            <TooltipTrigger className="flex flex-wrap gap-1 cursor-default">
+              {service.includedItems.slice(0, 2).map((item, i) => (
+                <Badge key={i} variant="outline" className="text-xs">{item}</Badge>
+              ))}
+              {service.includedItems.length > 2 && <Badge variant="outline" className="text-xs">+{service.includedItems.length - 2}</Badge>}
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <div className="flex flex-wrap gap-1">
+                {service.includedItems.map((item, i) => (
+                  <Badge key={i} variant="default" className="bg-black text-foreground text-xs hover:bg-black/90">{item}</Badge>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
     ),
-    width: 120,
+    width: 180,
   },
 
   includedItems: {
@@ -175,12 +188,24 @@ export const columnRegistry: Record<string, ColumnDef> = {
     render: (service) => {
       const StatusIcon = getStatusIcon(service.status);
       return (
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={getStatusColor(service.status)}>
-            {StatusIcon && <StatusIcon className="h-3 w-3 mr-1" />}
-            {getStatusLabel(service.status)}
-          </Badge>
-          {service.isPickedUp && <Badge variant="outline">Picked Up</Badge>}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={getStatusColor(service.status)}>
+              {StatusIcon && <StatusIcon className="h-3 w-3 mr-1" />}
+              {getStatusLabel(service.status)}
+              {service.status === "done" && service.doneAt && (
+                <span className="ml-1.5 text-[0.65rem] font-normal opacity-90">
+                  {new Intl.DateTimeFormat("id-ID", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }).format(new Date(service.doneAt))}
+                </span>
+              )}
+            </Badge>
+          </div>
+          {service.isPickedUp && <Badge variant="outline" className="w-fit">Di Ambil</Badge>}
         </div>
       );
     },
@@ -235,14 +260,24 @@ export const columnRegistry: Record<string, ColumnDef> = {
 
   checkinAt: {
     key: "checkinAt",
-    header: "Check-in",
+    header: "Check-in / Out",
     render: (service) => (
-      <div className="flex items-center gap-2">
-        <RiCalendarLine className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">{formatDate(service.checkinAt)}</span>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <RiInboxArchiveLine className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground/80">Check-in</span>
+          <span className="text-xs text-muted-foreground">{formatDate(service.checkinAt)}</span>
+        </div>
+        {service.checkoutAt && (
+          <div className="flex items-center gap-2">
+            <RiInboxUnarchiveLine className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+            <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground/80">Check-out</span>
+            <span className="text-xs text-muted-foreground">{formatDate(service.checkoutAt)}</span>
+          </div>
+        )}
       </div>
     ),
-    width: 100,
+    width: 150,
   },
 
   doneAt: {
@@ -257,17 +292,6 @@ export const columnRegistry: Record<string, ColumnDef> = {
     width: 120,
   },
 
-  checkoutAt: {
-    key: "checkoutAt",
-    header: "Picked Up At",
-    render: (service) => (
-      <div className="flex items-center gap-2">
-        <RiLogoutBoxLine className="h-3.5 w-3.5 text-primary" />
-        <span className="text-xs text-muted-foreground">{formatDate(service.checkoutAt)}</span>
-      </div>
-    ),
-    width: 120,
-  },
 };
 
 export type ColumnKey = keyof typeof columnRegistry;

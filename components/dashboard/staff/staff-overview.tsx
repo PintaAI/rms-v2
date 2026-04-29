@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import {
   OverviewPeriodCard,
@@ -121,16 +121,13 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
 
       <section>
         <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-          <CardHeader className="border-b border-border/50 bg-muted/30 pt-4">
-            <div className="flex items-center gap-3">
-              <div className="h-5 w-1 rounded-full bg-primary" />
-              <CardTitle className="text-lg font-bold">Service Terbaru</CardTitle>
-            </div>
-          </CardHeader>
           <CardContent className="p-0">
             <ServiceTable
               services={tableServices}
               role="staff"
+              headerTitle="Service Terbaru"
+              headerDescription="Service terbaru yang masuk ke toko"
+              headerBadge={tableServices.length}
               emptyMessage="Tidak ada service"
               tokoId={tokoId}
               disableAssignment={true}

@@ -110,7 +110,7 @@ export function TechnicianDropdown({
               <div className="h-5 w-5 rounded-md bg-muted/50 flex items-center justify-center">
                 <RiUserLine className="h-3 w-3 text-muted-foreground" />
               </div>
-              <span className="text-sm text-muted-foreground">Unassigned</span>
+              <span className="text-sm text-muted-foreground">Pilih Teknisi</span>
             </div>
           )}
           {!isDisabled && <RiArrowDownSLine className="h-3 w-3 ml-0.5 text-muted-foreground" />}

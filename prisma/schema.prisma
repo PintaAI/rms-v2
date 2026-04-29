@@ -16,6 +16,7 @@ enum UserRole {
   admin
   staff
   technician
+  superuser
 }
 
 enum TokoStatus {

@@ -17,7 +17,7 @@ import {
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
 import { TaskList } from "@/components/dashboard/teknisi/task-list";
-import { ServiceTaskCard } from "@/components/dashboard/services/service-task-card";
+import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
 import { getService, takeService } from "@/actions";
 import type { ServiceDetail, ServiceListItem, TechnicianStats } from "@/actions/service";
@@ -223,14 +223,15 @@ export function TeknisiOverview({
           )}
           {!isLoadingDetail && selectedTask && (
             <div className="p-2">
-              <ServiceTaskCard
-                task={selectedTask}
+              <ServiceDetailCard
+                service={selectedTask}
                 variant={
                   selectedTask.status === "done" ||
                   selectedTask.status === "failed"
                     ? "completed"
                     : "active"
                 }
+                viewerRole="technician"
                 onRefresh={handleRefreshDetail}
                 onStatusChange={() => router.refresh()}
               />

@@ -10,7 +10,6 @@ import { getBrandIcon } from "@/lib/brand-icons";
 import { formatDate } from "@/lib/utils";
 import {
   RiArrowRightLine,
-  RiCheckboxCircleLine,
   RiLoader4Line,
   RiTimeLine,
   RiShieldUserLine,
@@ -197,45 +196,26 @@ export function TaskList({
       </Card>
 
       <Card className="overflow-hidden border-border/50 bg-card/90 py-0 shadow-lg shadow-black/5 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/10 lg:col-span-3">
-        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-sky-500/10 via-muted/20 to-transparent pt-4">
-          <CardTitle className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 ring-1 ring-inset ring-sky-500/15 dark:text-sky-400">
-                <RiCheckboxCircleLine className="h-4 w-4" />
-              </div>
-              <div>
-                <span className="block text-lg font-bold leading-none">My Tasks</span>
-                <span className="mt-1 block text-xs font-medium text-muted-foreground">Task yang sedang kamu pegang</span>
-              </div>
-            </div>
-            <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-semibold">
-              {myTasks.length}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
         <CardContent className="p-0">
-          {myTasks.length === 0 ? (
-            <div className="m-4 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-5 text-sm text-muted-foreground">
-              Tidak ada task yang sedang dikerjakan.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <ServiceTable
-                services={myTasks.slice(0, 5)}
-                role="technicianMyTasks"
-                emptyMessage="Tidak ada task yang sedang dikerjakan."
-                onRowClick={(task) => onOpenTask(task.id)}
-              />
-              {myTasks.length > 5 && (
-                <div className="px-4 pb-4">
-                  <Button variant="outline" className="w-full rounded-xl border-dashed bg-background/70" onClick={onViewAllMyTasks}>
-                    <RiArrowRightLine className="mr-1.5 h-4 w-4" />
-                    Lihat semua ({myTasks.length})
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
+          <div className="space-y-4">
+            <ServiceTable
+              services={myTasks.slice(0, 5)}
+              role="technicianMyTasks"
+              headerTitle="My Tasks"
+              headerDescription="Task yang sedang kamu pegang"
+              headerBadge={myTasks.length}
+              emptyMessage="Tidak ada task yang sedang dikerjakan."
+              onRowClick={(task) => onOpenTask(task.id)}
+            />
+            {myTasks.length > 5 && (
+              <div className="px-4 pb-4">
+                <Button variant="outline" className="w-full rounded-xl border-dashed bg-background/70" onClick={onViewAllMyTasks}>
+                  <RiArrowRightLine className="mr-1.5 h-4 w-4" />
+                  Lihat semua ({myTasks.length})
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </section>

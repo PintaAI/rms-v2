@@ -12,6 +12,11 @@ export default function DashboardLandingPage() {
   useEffect(() => {
     if (isLoading || !user) return;
 
+    if (user.role === "superuser") {
+      router.replace("/superuser");
+      return;
+    }
+
     if (tokoList.length === 0) {
       if (user.role === "admin") {
         router.replace("/onboard");
@@ -22,6 +27,10 @@ export default function DashboardLandingPage() {
     const firstToko = tokoList[0];
     router.replace(getRoleRedirectPath(firstToko.id, user.role));
   }, [user, tokoList, isLoading, router]);
+
+  if (!isLoading && user && user.role === "superuser") {
+    return null;
+  }
 
   if (!isLoading && user && tokoList.length === 0 && user.role !== "admin") {
     return (

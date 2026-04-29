@@ -32,7 +32,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InvoiceDialog, isPaidInvoiceService, type InvoicePreviewService } from "./invoice-dialog";
 import { TechnicianDropdown } from "./technician-dropdown";
-import { columnRegistry, type ColumnContext, type ColumnKey } from "./column-registry";
+import { columnRegistry, type ColumnKey } from "./column-registry";
 import { resolveColumns, type RoleKey } from "./presets";
 import { getStatusColor } from "./utils";
 import type { ServiceTableItem } from "./types";
@@ -40,6 +40,7 @@ import type { ServiceTableItem } from "./types";
 const PREFERENCES_VERSION = 1;
 const MIN_COLUMN_WIDTH = 80;
 const MAX_COLUMN_WIDTH = 420;
+const ACTION_COLUMN_WIDTH = 96;
 const PREFERENCES_CHANGE_EVENT = "service-table-preferences-change";
 const preferencesCache = new Map<string, { raw: string | null; preferences: ServiceTablePreferences }>();
 
@@ -131,7 +132,10 @@ export interface ServiceTableProps {
   services: ServiceTableItem[];
   role?: RoleKey;
   columnsOverride?: ColumnKey[];
-  pickedUpFilter?: boolean;
+  headerTitle?: string;
+  headerDescription?: React.ReactNode;
+  headerBadge?: React.ReactNode;
+  showHeader?: boolean;
   statusFilter?: string;
   emptyMessage?: string;
   onEdit?: (service: ServiceTableItem) => void;
@@ -147,7 +151,10 @@ export function ServiceTable({
   services,
   role = "admin",
   columnsOverride,
-  pickedUpFilter,
+  headerTitle = "Daftar Service",
+  headerDescription,
+  headerBadge,
+  showHeader = true,
   statusFilter,
   emptyMessage = "No services found",
   onEdit,
@@ -158,19 +165,14 @@ export function ServiceTable({
   tokoId,
   disableAssignment,
 }: ServiceTableProps) {
-  const context: ColumnContext = React.useMemo(() => ({
-    pickedUpFilter,
-    statusFilter,
-    isHistory: statusFilter === "done,failed" || statusFilter === "failed,done",
-  }), [pickedUpFilter, statusFilter]);
   const defaultColumns = React.useMemo(
-    () => columnsOverride || resolveColumns(role, context),
-    [columnsOverride, context, role]
+    () => columnsOverride || resolveColumns(role),
+    [columnsOverride, role]
   );
   const storageKey = React.useMemo(() => {
-    const viewKey = pickedUpFilter ? "picked-up" : statusFilter || "all";
+    const viewKey = statusFilter || "all";
     return `service-table:${role}:${viewKey}`;
-  }, [pickedUpFilter, role, statusFilter]);
+  }, [role, statusFilter]);
   const { preferences, setPreferences, resetPreferences } = useServiceTablePreferences(storageKey);
   const effectiveColumns = React.useMemo(() => {
     const visibleColumns = defaultColumns.filter((column) => !preferences.hiddenColumns.includes(column));
@@ -201,6 +203,11 @@ export function ServiceTable({
   const getColumnWidth = React.useCallback((column: ColumnKey) => {
     return preferences.widths[column] ?? columnRegistry[column]?.width ?? 120;
   }, [preferences.widths]);
+
+  const tableWidth = React.useMemo(() => {
+    const columnWidth = effectiveColumns.reduce((total, colKey) => total + getColumnWidth(colKey), 0);
+    return columnWidth + (hasActions ? ACTION_COLUMN_WIDTH : 0);
+  }, [effectiveColumns, getColumnWidth, hasActions]);
 
   const startColumnResize = React.useCallback((event: React.PointerEvent, column: ColumnKey) => {
     event.preventDefault();
@@ -272,7 +279,7 @@ export function ServiceTable({
           <div className="h-6 w-6 rounded-lg bg-muted/50 flex items-center justify-center">
             <RiUserLine className="h-3 w-3 text-muted-foreground" />
           </div>
-          <span className="text-sm text-muted-foreground">Unassigned</span>
+          <span className="text-sm text-muted-foreground">Belum Ada Teknisi</span>
         </div>
       );
     }
@@ -283,52 +290,82 @@ export function ServiceTable({
     return columnDef.render(service);
   };
 
+  const columnSettingsDropdown = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label="Atur kolom tabel">
+          <RiSettings3Line className="h-3.5 w-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>Kolom tabel</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          {defaultColumns.map((colKey) => {
+            const columnDef = columnRegistry[colKey];
+            const isRequired = colKey === "customer";
+
+            return (
+              <DropdownMenuCheckboxItem
+                key={colKey}
+                checked={!preferences.hiddenColumns.includes(colKey)}
+                disabled={isRequired}
+                onCheckedChange={() => toggleColumn(colKey)}
+                onSelect={(event) => event.preventDefault()}
+              >
+                {columnDef?.header || colKey}
+              </DropdownMenuCheckboxItem>
+            );
+          })}
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={resetPreferences}>
+            Restore default
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <TooltipProvider>
-      <div className="flex items-center justify-end gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 text-xs">
-              <RiSettings3Line className="h-3.5 w-3.5" />
-              Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel>Table columns</DropdownMenuLabel>
-            <DropdownMenuGroup>
-              {defaultColumns.map((colKey) => {
-                const columnDef = columnRegistry[colKey];
-                const isRequired = colKey === "customer";
+      {showHeader && (
+        <div className="flex items-start justify-between gap-4 border-b border-border/50 bg-muted/30 px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="mt-0.5 min-h-5 w-1 self-stretch rounded-full bg-primary" />
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2">
+                <h3 className="truncate text-lg font-bold leading-tight">{headerTitle}</h3>
+                {headerBadge !== undefined && headerBadge !== null && (
+                  <span className="shrink-0 rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                    {headerBadge}
+                  </span>
+                )}
+              </div>
+              {headerDescription && (
+                <p className="mt-1 text-sm text-muted-foreground/70">{headerDescription}</p>
+              )}
+            </div>
+          </div>
 
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={colKey}
-                    checked={!preferences.hiddenColumns.includes(colKey)}
-                    disabled={isRequired}
-                    onCheckedChange={() => toggleColumn(colKey)}
-                    onSelect={(event) => event.preventDefault()}
-                  >
-                    {columnDef?.header || colKey}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={resetPreferences}>
-                Restore default
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+          <div >
+            {columnSettingsDropdown}
+          </div>
+        </div>
+      )}
 
-      <Table className="table-fixed">
+      {!showHeader && (
+        <div className="flex items-center justify-end gap-2 border-b border-border/50 bg-muted/20 px-3 py-2">
+          {columnSettingsDropdown}
+        </div>
+      )}
+
+      <Table className="table-fixed" style={{ minWidth: tableWidth }}>
         <colgroup>
           {effectiveColumns.map((colKey) => (
             <col key={colKey} style={{ width: getColumnWidth(colKey) }} />
           ))}
-          {hasActions && <col style={{ width: 96 }} />}
+          {hasActions && <col style={{ width: ACTION_COLUMN_WIDTH }} />}
         </colgroup>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border/50">
@@ -380,14 +417,18 @@ export function ServiceTable({
                   {effectiveColumns.map((colKey, index) => (
                     <TableCell
                       key={colKey}
-                      className={index === 0 ? "relative pl-4" : ""}
+                      className={index === 0 ? "relative overflow-hidden truncate pl-4" : "overflow-hidden truncate"}
                       style={{ width: getColumnWidth(colKey), minWidth: getColumnWidth(colKey) }}
                     >
                       {index === 0 && (
                         <div className={`absolute left-0 top-0 bottom-0 w-1 ${indicatorClass} rounded-full transition-all duration-200 group-hover:w-1.5`} />
                       )}
                       {(() => {
-                        const cellContent = renderCell(colKey, service);
+                        const cellContent = (
+                          <div className="min-w-0 overflow-hidden truncate">
+                            {renderCell(colKey, service)}
+                          </div>
+                        );
                         
                         if (colKey !== "invoice" || !service.invoice) return cellContent;
                         
