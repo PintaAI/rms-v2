@@ -949,6 +949,7 @@ export function ServiceDetailCard({
         open={itemDialogOpen}
         onOpenChange={setItemDialogOpen}
         serviceId={localService.id}
+        tokoId={localService.tokoId}
         spareparts={spareparts}
         servicePricelists={servicePricelists}
         onSuccess={() => {
@@ -959,6 +960,14 @@ export function ServiceDetailCard({
         onError={(err) => console.error("Error adding item:", err)}
         onAddItem={handleOptimisticAddItem}
         onAddItemError={handleAddItemRevert}
+        onSparepartCreated={async () => {
+          const result = await getCompatibleSpareparts(localService.tokoId, localService.hpCatalog.id);
+          if (result.success && result.data) setSpareparts(result.data);
+        }}
+        onPricelistCreated={async () => {
+          const result = await getServicePricelists(localService.tokoId);
+          if (result.success && result.data) setServicePricelists(result.data);
+        }}
       />
       <PaymentDialog
         open={paymentDialogOpen}

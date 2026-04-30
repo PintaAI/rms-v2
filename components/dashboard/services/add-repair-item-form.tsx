@@ -20,31 +20,37 @@ import { Badge } from "@/components/ui/badge";
 import { addItem } from "@/actions";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
+import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
+import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
 
 interface AddRepairItemFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   serviceId: string;
+  tokoId: string;
   spareparts: Array<{ id: string; name: string; defaultPrice: number; stock: number }>;
   servicePricelists: Array<{ id: string; title: string; defaultPrice: number }>;
   onSuccess: () => void;
   onError: (error: string) => void;
-  /** Called immediately before the server request with the optimistic item */
   onAddItem?: (item: { id: string; type: string; name: string; qty: number; price: number }) => void;
-  /** Called when the server request fails so the caller can revert the optimistic add */
   onAddItemError?: () => void;
+  onSparepartCreated?: () => void;
+  onPricelistCreated?: () => void;
 }
 
 export function AddRepairItemForm({
   open,
   onOpenChange,
   serviceId,
+  tokoId,
   spareparts,
   servicePricelists,
   onSuccess,
   onError,
   onAddItem,
   onAddItemError,
+  onSparepartCreated,
+  onPricelistCreated,
 }: AddRepairItemFormProps) {
   const { inventoryEnabled, manualItemsEnabled } = useFeatureAccess();
   
@@ -57,6 +63,8 @@ export function AddRepairItemForm({
   const [manualPrice, setManualPrice] = useState("");
   const [itemQty, setItemQty] = useState("1");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sparepartFormOpen, setSparepartFormOpen] = useState(false);
+  const [pricelistFormOpen, setPricelistFormOpen] = useState(false);
 
   // Get selected item details
   const isManualItem = itemType === "manual-sparepart" || itemType === "manual-service";
@@ -164,7 +172,7 @@ export function AddRepairItemForm({
 
     try {
       for (const item of itemsToAdd) {
-        const itemNameToUse = isManualItem ? itemName : itemType === "sparepart" ? item.name : (item as any).title;
+        const itemNameToUse = isManualItem ? itemName : "name" in item ? item.name : (item as { title: string }).title;
         const itemPriceToUse = isManualItem ? parseInt(itemPrice, 10) : item.defaultPrice;
 
         // Build the optimistic item and notify the parent immediately
@@ -203,8 +211,9 @@ export function AddRepairItemForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">Add Repair Item</DialogTitle>
           <DialogDescription className="text-base">
@@ -344,13 +353,42 @@ export function AddRepairItemForm({
 
           {/* Item Selection - Card Grid */}
           {!isManualItem && <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Label className="text-base font-medium">
-                {itemType === "sparepart" ? "Select Sparepart" : "Select Service"}
-              </Label>
-              <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                Required
-              </Badge>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Label className="text-base font-medium">
+                  {itemType === "sparepart" ? "Select Sparepart" : "Select Service"}
+                </Label>
+                <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                  Required
+                </Badge>
+              </div>
+              {itemType === "sparepart" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSparepartFormOpen(true)}
+                  className="h-8 text-sm"
+                >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Sparepart
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPricelistFormOpen(true)}
+                  className="h-8 text-sm"
+                >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Service
+                </Button>
+              )}
             </div>
             
             {/* Search Input */}
@@ -643,5 +681,24 @@ export function AddRepairItemForm({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <SparepartFormDialog
+      open={sparepartFormOpen}
+      onOpenChange={setSparepartFormOpen}
+      tokoId={tokoId}
+      onSuccess={() => {
+        setSparepartFormOpen(false);
+        onSparepartCreated?.();
+      }}
+    />
+    <ServicePricelistFormDialog
+      open={pricelistFormOpen}
+      onOpenChange={setPricelistFormOpen}
+      tokoId={tokoId}
+      onSuccess={() => {
+        setPricelistFormOpen(false);
+        onPricelistCreated?.();
+      }}
+    />
+    </>
   );
 }
