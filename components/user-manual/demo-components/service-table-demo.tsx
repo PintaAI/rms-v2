@@ -140,7 +140,6 @@ export function ServiceTableDemo() {
       headerTitle="Demo Service Table"
       headerDescription="Contoh tabel service dengan pengaturan kolom"
       headerBadge={mockServices.length}
-      disableAssignment
     />
   );
 }

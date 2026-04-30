@@ -8,15 +8,16 @@ import {
 } from "@/lib/features";
 
 export type BranchPlan = "one" | "twoToThree" | "moreThanThree";
-export type MonthlyServiceVolume = "low" | "medium" | "high";
+export type TeamSize = "ownerOnly" | "smallTeam" | "largerTeam";
+export type TeamAccess = "none" | "staffOnly" | "technicianOnly" | "staffAndTechnician";
 
 export interface OnboardingSurveyAnswers {
   branchPlan: BranchPlan;
-  monthlyServiceVolume: MonthlyServiceVolume;
+  teamSize: TeamSize;
+  teamAccess: TeamAccess;
   usesInventory: boolean;
-  needsTechnicianAssignment: boolean;
   needsInvoices: boolean;
-  needsAnalytics: boolean;
+  needsAnalyticsAndLogs: boolean;
   needsAudit: boolean;
   wantsBranding: boolean;
   staffCount: number;
@@ -37,7 +38,6 @@ const optionalFeatureKeys: FeatureKey[] = [
   "karyawan.management",
   "staff.workflow",
   "technician.workflow",
-  "service.technicianAssignment",
   "service.invoice",
   "activityLog.view",
   "analytics.revenue",
@@ -60,7 +60,7 @@ export function getOnboardingPlanRecommendation(
   };
 
   if (answers.branchPlan === "twoToThree") {
-    requirePlan("premium", "Anda berencana mengelola lebih dari 1 toko.");
+    requirePlan("premium", "Anda berencana mengelola 2-3 cabang.");
   }
 
   if (answers.branchPlan === "moreThanThree") {
@@ -69,7 +69,7 @@ export function getOnboardingPlanRecommendation(
 
   if (answers.staffCount > 0 || answers.technicianCount > 0) {
     neededFeatures.add("karyawan.management");
-    requirePlan("premium", "Akun staff dan teknisi membutuhkan fitur manajemen karyawan.");
+    requirePlan("premium", "Akses staff atau teknisi membutuhkan fitur manajemen karyawan.");
   }
 
   if (answers.staffCount > 0) {
@@ -80,38 +80,33 @@ export function getOnboardingPlanRecommendation(
     neededFeatures.add("technician.workflow");
   }
 
-  if (answers.staffCount > (getPlanLimit("premium", "maxStaff") ?? Number.POSITIVE_INFINITY)) {
-    requirePlan("enterprise", "Jumlah staff melewati batas Premium.");
-  }
+  const premiumStaffLimit = getPlanLimit("premium", "maxStaff") ?? Number.POSITIVE_INFINITY;
+  const premiumTechnicianLimit = getPlanLimit("premium", "maxTechnicians") ?? Number.POSITIVE_INFINITY;
 
-  if (answers.technicianCount > (getPlanLimit("premium", "maxTechnicians") ?? Number.POSITIVE_INFINITY)) {
-    requirePlan("enterprise", "Jumlah teknisi melewati batas Premium.");
+  if (answers.staffCount > premiumStaffLimit || answers.technicianCount > premiumTechnicianLimit) {
+    requirePlan("enterprise", "Jumlah tim melewati batas Premium.");
   }
 
   if (answers.usesInventory) {
     neededFeatures.add("inventory.management");
-    requirePlan("premium", "Stok sparepart dan pemakaian inventory membutuhkan Premium.");
+    requirePlan("premium", "Manajemen inventory/sparepart membutuhkan Premium.");
+  } else {
+    neededFeatures.add("service.manualItems");
   }
 
-  if (answers.needsTechnicianAssignment) {
-    neededFeatures.add("service.technicianAssignment");
-    requirePlan("premium", "Assignment teknisi membutuhkan workflow operasional Premium.");
+  if (answers.usesInventory && answers.needsAudit) {
+    neededFeatures.add("inventory.audit");
+    requirePlan("enterprise", "Audit stok gudang adalah fitur Enterprise.");
+  }
+
+  if (answers.needsAnalyticsAndLogs) {
+    neededFeatures.add("activityLog.view");
+    neededFeatures.add("analytics.revenue");
+    requirePlan("premium", "Statistik dan pantauan proses membutuhkan fitur analytics dan activity log Premium.");
   }
 
   if (answers.needsInvoices) {
     neededFeatures.add("service.invoice");
-    requirePlan("premium", "Invoice service tersedia mulai Premium.");
-  }
-
-  if (answers.needsAnalytics || answers.monthlyServiceVolume === "high") {
-    neededFeatures.add("activityLog.view");
-    neededFeatures.add("analytics.revenue");
-    requirePlan("premium", "Monitoring performa dan aktivitas toko membutuhkan fitur analytics Premium.");
-  }
-
-  if (answers.needsAudit) {
-    neededFeatures.add("inventory.audit");
-    requirePlan("enterprise", "Audit stok gudang adalah fitur Enterprise.");
   }
 
   if (reasons.length === 0) {

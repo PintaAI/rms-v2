@@ -14,6 +14,7 @@ import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
+import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
 import { deleteService, getService } from "@/actions";
 import type { ServiceDetail, ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
@@ -34,6 +35,9 @@ export function StaffManageService({
   const searchParams = useSearchParams();
   const statusFilter = searchParams.get("status") ?? undefined;
   const pickedUpFilter = searchParams.get("pickedup") === "true";
+
+  const { featureAccess } = useFeatureAccess();
+  const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
 
   const [services, setServices] = useState<ServiceListItem[]>(allServices);
   const [currentPage, setCurrentPage] = useState(1);
@@ -193,6 +197,10 @@ export function StaffManageService({
     setCurrentPage(newPage);
   }, []);
 
+  const handleAssignTech = useCallback(() => {
+    router.refresh();
+  }, [router]);
+
   const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}`);
   useEffect(() => {
     const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}`;
@@ -246,7 +254,8 @@ export function StaffManageService({
               onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
               onRowClick={handleRowClick}
               tokoId={tokoId}
-              disableAssignment={true}
+              hideTechnicianColumn={!technicianWorkflowEnabled}
+              onAssignTech={technicianWorkflowEnabled ? handleAssignTech : undefined}
             />
 
             {totalPages > 1 && (

@@ -136,6 +136,13 @@ export async function getAvailableTasks(
       return { success: false, error: "Access denied" };
     }
 
+    const workflowError = ensureFeatureAccess(
+      { role: user.role, plan: await getEffectivePlanForToko(user, targetTokoId) },
+      "technician.workflow",
+      await getDisabledFeaturesForToko(targetTokoId)
+    );
+    if (workflowError) return workflowError;
+
     const services = await getAvailableTaskRecords(targetTokoId, user.id, technicianTaskListLimit);
 
     return { success: true, data: services.map(mapServiceToListItem) };
@@ -155,6 +162,13 @@ export async function getMyTasks(
     if (!hasTokoAccess(tokoIds, tokoId) || !isTechnicianOrAdminRole(user.role)) {
       return { success: false, error: "Access denied" };
     }
+
+    const workflowError = ensureFeatureAccess(
+      { role: user.role, plan: await getEffectivePlanForToko(user, tokoId) },
+      "technician.workflow",
+      await getDisabledFeaturesForToko(tokoId)
+    );
+    if (workflowError) return workflowError;
 
     const services = await getMyTaskRecords(tokoId, user.id, statuses, technicianTaskListLimit);
 
@@ -177,6 +191,13 @@ export async function getTechnicianDashboard(
     if (!hasTokoAccess(tokoIds, userTokoId) || !isTechnicianOrAdminRole(user.role)) {
       return { success: false, error: "Access denied" };
     }
+
+    const workflowError = ensureFeatureAccess(
+      { role: user.role, plan: await getEffectivePlanForToko(user, userTokoId) },
+      "technician.workflow",
+      await getDisabledFeaturesForToko(userTokoId)
+    );
+    if (workflowError) return workflowError;
 
     const monthlyStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -241,7 +262,7 @@ export async function getTechniciansByToko(
 
     const assignmentError = ensureFeatureAccess(
       { role: user.role, plan: await getEffectivePlanForToko(user, tokoId) },
-      "service.technicianAssignment",
+      "technician.workflow",
       await getDisabledFeaturesForToko(tokoId)
     );
     if (assignmentError) return assignmentError;

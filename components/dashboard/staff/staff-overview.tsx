@@ -6,6 +6,7 @@ import {
   OverviewSectionHeader,
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
+import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
 import type { StaffOverviewData } from "@/actions/overview";
 import {
   RiArchiveLine,
@@ -30,6 +31,8 @@ interface StaffOverviewProps {
 
 export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps) {
   const { stats, recentServices } = data;
+  const { featureAccess } = useFeatureAccess();
+  const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
 
   const tableServices = recentServices.map((service) => ({
     id: service.id,
@@ -130,7 +133,7 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
               headerBadge={tableServices.length}
               emptyMessage="Tidak ada service"
               tokoId={tokoId}
-              disableAssignment={true}
+              hideTechnicianColumn={!technicianWorkflowEnabled}
             />
           </CardContent>
         </Card>

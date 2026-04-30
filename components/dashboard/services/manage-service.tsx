@@ -32,14 +32,14 @@ interface ManageServiceProps {
   allServices: ServiceListItem[];
   tokoId: string;
   pageSize: number;
-  disableAssignment?: boolean;
+  hideTechnicianColumn?: boolean;
 }
 
 export function ManageService({
   allServices,
   tokoId,
   pageSize,
-  disableAssignment,
+  hideTechnicianColumn,
 }: ManageServiceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -276,10 +276,10 @@ export function ManageService({
               emptyMessage={getEmptyMessage()}
               onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
               onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
-              onAssignTech={handleAssignTech}
+              onAssignTech={hideTechnicianColumn ? undefined : handleAssignTech}
               onRowClick={handleRowClick}
               tokoId={tokoId}
-              disableAssignment={disableAssignment}
+              hideTechnicianColumn={hideTechnicianColumn}
             />
 
             {totalPages > 1 && (

@@ -2,7 +2,8 @@
 
 import prisma from "@/lib/prisma";
 import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
-import { canAccessToko, getAuthUser, isAdmin, isStaff } from "@/lib/rbac";
+import { canAccessToko, getAuthUser, getEffectivePlanForToko, isAdmin, isStaff } from "@/lib/rbac";
+import { canUseFeature } from "@/lib/features";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus } from "@/prisma/generated/prisma/enums";
 import type { ActionResultWithData } from "./service";
@@ -57,6 +58,7 @@ export interface AdminOverviewData {
   featureAccess: {
     activityLog: boolean;
     revenueAnalytics: boolean;
+    technicianWorkflow: boolean;
   };
 }
 
@@ -235,9 +237,13 @@ export async function getAdminOverview(
 
     const { dailyStart, monthlyStart, statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
-    const disabledFeatures = await getDisabledFeaturesForToko(targetTokoId);
-    const canViewActivityLog = !disabledFeatures.includes("activityLog.view");
-    const canViewRevenueAnalytics = !disabledFeatures.includes("analytics.revenue");
+    const [plan, disabledFeatures] = await Promise.all([
+      getEffectivePlanForToko(user, targetTokoId),
+      getDisabledFeaturesForToko(targetTokoId),
+    ]);
+    const canViewActivityLog = canUseFeature({ plan, role: user.role, feature: "activityLog.view", disabledFeatures });
+    const canViewRevenueAnalytics = canUseFeature({ plan, role: user.role, feature: "analytics.revenue", disabledFeatures });
+    const canUseTechnicianWorkflow = canUseFeature({ plan, role: user.role, feature: "technician.workflow", disabledFeatures });
 
     const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, recentActivities] = await Promise.all([
       canViewRevenueAnalytics
@@ -308,6 +314,7 @@ export async function getAdminOverview(
         featureAccess: {
           activityLog: canViewActivityLog,
           revenueAnalytics: canViewRevenueAnalytics,
+          technicianWorkflow: canUseTechnicianWorkflow,
         },
       },
     };

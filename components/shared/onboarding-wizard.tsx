@@ -19,7 +19,8 @@ import { FEATURE_REGISTRY, isPlanAtLeast, type FeatureKey, type SubscriptionPlan
 import {
   getOnboardingPlanRecommendation,
   type BranchPlan,
-  type MonthlyServiceVolume,
+  type TeamSize,
+  type TeamAccess,
 } from "@/lib/onboarding-recommendation";
 import {
   RiAddLine,
@@ -32,7 +33,6 @@ import {
   RiMapPinLine,
   RiPaletteLine,
   RiPhoneLine,
-  RiSettings4Line,
   RiStore2Line,
   RiTeamLine,
   RiUserLine,
@@ -46,8 +46,8 @@ interface UserData {
   password: string;
 }
 
-type PlannedTeamSize = "ownerOnly" | "smallTeam" | "largerTeam";
 type PlanDecision = "free" | "upgrade";
+type StepKey = "toko" | "survey" | "recommendation" | "team" | "contact" | "summary";
 
 interface WizardData {
   tokoName: string;
@@ -55,12 +55,11 @@ interface WizardData {
   address: string;
   phone: string;
   branchPlan: BranchPlan;
-  monthlyServiceVolume: MonthlyServiceVolume;
-  plannedTeamSize: PlannedTeamSize;
+  teamSize: TeamSize;
+  teamAccess: TeamAccess;
   usesInventory: boolean;
-  needsTechnicianAssignment: boolean;
   needsInvoices: boolean;
-  needsAnalytics: boolean;
+  needsAnalyticsAndLogs: boolean;
   needsAudit: boolean;
   wantsBranding: boolean;
   planDecision: PlanDecision;
@@ -78,12 +77,11 @@ const initialData: WizardData = {
   address: "",
   phone: "",
   branchPlan: "one",
-  monthlyServiceVolume: "low",
-  plannedTeamSize: "ownerOnly",
+  teamSize: "ownerOnly",
+  teamAccess: "none",
   usesInventory: false,
-  needsTechnicianAssignment: false,
   needsInvoices: false,
-  needsAnalytics: false,
+  needsAnalyticsAndLogs: false,
   needsAudit: false,
   wantsBranding: false,
   planDecision: "free",
@@ -93,13 +91,13 @@ const initialData: WizardData = {
   themeMode: "default",
 };
 
-const steps = [
-  { id: 1, title: "Toko Info", description: "Masukkan identitas dasar toko." },
-  { id: 2, title: "Survei Kebutuhan", description: "Jawaban ini menentukan rekomendasi fitur dan plan." },
-  { id: 3, title: "Rekomendasi", description: "Pilih tetap Free atau lanjut upgrade saat billing tersedia." },
-  { id: 4, title: "Team Members", description: "Tambahkan akun tim jika plan aktif mengizinkan." },
-  { id: 5, title: "Contact Details", description: "Tambahkan alamat dan nomor telepon opsional." },
-  { id: 6, title: "Summary", description: "Review konfigurasi akhir toko." },
+const allSteps: { key: StepKey; title: string; description: string }[] = [
+  { key: "toko", title: "Toko Info", description: "Masukkan identitas dasar toko." },
+  { key: "survey", title: "Survei Kebutuhan", description: "Jawaban ini menentukan rekomendasi fitur dan plan." },
+  { key: "recommendation", title: "Rekomendasi", description: "Pilih tetap Free atau lanjut upgrade saat billing tersedia." },
+  { key: "team", title: "Team Members", description: "Tambahkan akun tim jika plan aktif mengizinkan." },
+  { key: "contact", title: "Contact Details", description: "Tambahkan alamat dan nomor telepon opsional." },
+  { key: "summary", title: "Summary", description: "Review konfigurasi akhir toko." },
 ];
 
 const planLabels: Record<SubscriptionPlan, string> = {
@@ -111,30 +109,33 @@ const planLabels: Record<SubscriptionPlan, string> = {
 export function OnboardingWizard() {
   const router = useRouter();
   const { user, refetchTokoList, refetchSession } = useAuth();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStepKey, setCurrentStepKey] = useState<StepKey>("toko");
   const [data, setData] = useState<WizardData>(initialData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDevUpgrading, setIsDevUpgrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
-  const estimatedTeamCounts = getEstimatedTeamCounts(data.plannedTeamSize);
-  const actualTeamCounts = {
-    staffCount: data.hasEmployees ? data.staff.length : estimatedTeamCounts.staffCount,
-    technicianCount: data.hasEmployees ? data.technician.length : estimatedTeamCounts.technicianCount,
-  };
+  const visibleSteps = allSteps.filter((step) => {
+    if (step.key === "team" && data.teamSize === "ownerOnly") return false;
+    return true;
+  });
+  const currentStepIndex = visibleSteps.findIndex((step) => step.key === currentStepKey);
+  const currentStep = visibleSteps[currentStepIndex];
+
+  const estimatedTeamCounts = getEstimatedTeamCounts(data.teamSize, data.teamAccess);
   const recommendation = getOnboardingPlanRecommendation(
     {
       branchPlan: data.branchPlan,
-      monthlyServiceVolume: data.monthlyServiceVolume,
+      teamSize: data.teamSize,
+      teamAccess: data.teamAccess,
       usesInventory: data.usesInventory,
-      needsTechnicianAssignment: data.needsTechnicianAssignment,
       needsInvoices: data.needsInvoices,
-      needsAnalytics: data.needsAnalytics,
+      needsAnalyticsAndLogs: data.needsAnalyticsAndLogs,
       needsAudit: data.needsAudit,
       wantsBranding: data.wantsBranding,
-      staffCount: actualTeamCounts.staffCount,
-      technicianCount: actualTeamCounts.technicianCount,
+      staffCount: estimatedTeamCounts.staffCount,
+      technicianCount: estimatedTeamCounts.technicianCount,
     },
     user?.plan
   );
@@ -195,7 +196,7 @@ export function OnboardingWizard() {
   const validateStep = (): boolean => {
     setError(null);
 
-    if (currentStep === 1) {
+    if (currentStepKey === "toko") {
       if (!data.tokoName.trim()) {
         setError("Toko name is required");
         return false;
@@ -206,8 +207,11 @@ export function OnboardingWizard() {
       }
     }
 
-    if (currentStep === 4 && data.hasEmployees && canCreateTeam) {
-      for (const staff of data.staff) {
+    if (currentStepKey === "team" && data.hasEmployees && canCreateTeam) {
+      const staffToValidate = shouldUseStaff(data.teamAccess) ? data.staff : [];
+      const technicianToValidate = shouldUseTechnician(data.teamAccess) ? data.technician : [];
+
+      for (const staff of staffToValidate) {
         if (!staff.name.trim() || !staff.email.trim() || !staff.password) {
           setError("All staff fields are required");
           return false;
@@ -222,7 +226,7 @@ export function OnboardingWizard() {
         }
       }
 
-      for (const tech of data.technician) {
+      for (const tech of technicianToValidate) {
         if (!tech.name.trim() || !tech.email.trim() || !tech.password) {
           setError("All technician fields are required");
           return false;
@@ -237,7 +241,7 @@ export function OnboardingWizard() {
         }
       }
 
-      const allEmails = [...data.staff.map((s) => s.email), ...data.technician.map((t) => t.email)];
+      const allEmails = [...staffToValidate.map((s) => s.email), ...technicianToValidate.map((t) => t.email)];
       if (allEmails.length !== new Set(allEmails).size) {
         setError("Duplicate emails detected");
         return false;
@@ -248,11 +252,19 @@ export function OnboardingWizard() {
   };
 
   const handleNext = () => {
-    if (validateStep()) setCurrentStep((prev) => Math.min(prev + 1, steps.length));
+    if (validateStep()) {
+      const nextIndex = currentStepIndex + 1;
+      if (nextIndex < visibleSteps.length) {
+        setCurrentStepKey(visibleSteps[nextIndex].key);
+      }
+    }
   };
 
   const handleBack = () => {
-    setCurrentStep((prev) => Math.max(prev - 1, 1));
+    const prevIndex = currentStepIndex - 1;
+    if (prevIndex >= 0) {
+      setCurrentStepKey(visibleSteps[prevIndex].key);
+    }
     setError(null);
   };
 
@@ -265,13 +277,15 @@ export function OnboardingWizard() {
     try {
       const logoUrl = await uploadLogo();
       const shouldCreateTeam = data.hasEmployees && canCreateTeam;
+      const staff = shouldCreateTeam && shouldUseStaff(data.teamAccess) ? cleanUsers(data.staff) : [];
+      const technician = shouldCreateTeam && shouldUseTechnician(data.teamAccess) ? cleanUsers(data.technician) : [];
       const result = await createTokoWithUsers({
         name: data.tokoName.trim(),
         logoUrl,
         address: data.address.trim() || undefined,
         phone: data.phone.trim() || undefined,
-        staff: shouldCreateTeam ? cleanUsers(data.staff) : [],
-        technician: shouldCreateTeam ? cleanUsers(data.technician) : [],
+        staff,
+        technician,
         disabledFeatures: recommendation.recommendedDisabledFeatures,
       });
 
@@ -295,33 +309,33 @@ export function OnboardingWizard() {
     <Card>
       <CardHeader>
         <div className="mb-4 flex items-center justify-center gap-2">
-          {steps.map((step, idx) => (
-            <div key={step.id} className="flex items-center">
+          {visibleSteps.map((step, idx) => (
+            <div key={step.key} className="flex items-center">
               <div
                 className={cn(
                   "flex size-8 items-center justify-center rounded-full border-2 text-xs font-medium transition-colors",
-                  currentStep >= step.id
+                  currentStepIndex >= idx
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-muted-foreground/30 bg-muted text-muted-foreground"
                 )}
               >
-                {step.id}
+                {idx + 1}
               </div>
-              {idx < steps.length - 1 && (
-                <div className={cn("mx-1 h-0.5 w-6 transition-colors", currentStep > step.id ? "bg-primary" : "bg-muted-foreground/30")} />
+              {idx < visibleSteps.length - 1 && (
+                <div className={cn("mx-1 h-0.5 w-6 transition-colors", currentStepIndex > idx ? "bg-primary" : "bg-muted-foreground/30")} />
               )}
             </div>
           ))}
         </div>
-        <CardTitle className="text-center text-lg">{steps[currentStep - 1].title}</CardTitle>
-        <CardDescription className="text-center">{steps[currentStep - 1].description}</CardDescription>
+        <CardTitle className="text-center text-lg">{currentStep?.title}</CardTitle>
+        <CardDescription className="text-center">{currentStep?.description}</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">
         {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {currentStep === 1 && renderTokoStep(data, setData, logoPreview, setLogoPreview, handleLogoChange)}
-        {currentStep === 2 && <SurveyStep data={data} setData={setData} />}
-        {currentStep === 3 && (
+        {currentStepKey === "toko" && renderTokoStep(data, setData, logoPreview, setLogoPreview, handleLogoChange)}
+        {currentStepKey === "survey" && <SurveyStep data={data} setData={setData} />}
+        {currentStepKey === "recommendation" && (
           <RecommendationStep
             currentPlan={currentPlan}
             recommendation={recommendation}
@@ -332,7 +346,7 @@ export function OnboardingWizard() {
             isDevUpgrading={isDevUpgrading}
           />
         )}
-        {currentStep === 4 && (
+        {currentStepKey === "team" && (
           <TeamStep
             data={data}
             setData={setData}
@@ -340,8 +354,8 @@ export function OnboardingWizard() {
             recommendedPlan={recommendation.recommendedPlan}
           />
         )}
-        {currentStep === 5 && <ContactStep data={data} setData={setData} />}
-        {currentStep === 6 && (
+        {currentStepKey === "contact" && <ContactStep data={data} setData={setData} />}
+        {currentStepKey === "summary" && (
           <SummaryStep
             data={data}
             recommendation={recommendation}
@@ -352,7 +366,7 @@ export function OnboardingWizard() {
       </CardContent>
 
       <CardFooter className="flex justify-between">
-        {currentStep > 1 ? (
+        {currentStepIndex > 0 ? (
           <Button variant="outline" onClick={handleBack} disabled={isSubmitting}>
             Back
           </Button>
@@ -360,7 +374,7 @@ export function OnboardingWizard() {
           <div />
         )}
 
-        {currentStep < steps.length ? (
+        {currentStepIndex < visibleSteps.length - 1 ? (
           <Button onClick={handleNext} disabled={isSubmitting}>
             Next
           </Button>
@@ -463,49 +477,100 @@ function renderTokoStep(
 }
 
 function SurveyStep({ data, setData }: WizardStepProps) {
+  const handleTeamSizeChange = (teamSize: TeamSize) => {
+    if (teamSize === "ownerOnly") {
+      setData((prev) => ({ ...prev, teamSize, teamAccess: "none", hasEmployees: false, staff: [], technician: [] }));
+    } else {
+      setData((prev) => ({ ...prev, teamSize, teamAccess: prev.teamAccess === "none" ? "staffAndTechnician" : prev.teamAccess }));
+    }
+  };
+
+  const handleUsesInventoryChange = (usesInventory: boolean) => {
+    if (!usesInventory) {
+      setData((prev) => ({ ...prev, usesInventory, needsAudit: false }));
+    } else {
+      setData((prev) => ({ ...prev, usesInventory }));
+    }
+  };
+
   return (
     <div className="space-y-5">
       <ChoiceGroup
-        label="Berapa toko yang ingin dikelola?"
+        label="Apakah bisnismu punya cabang, atau hanya satu cabang saja?"
         options={[
-          { value: "one", title: "1 toko", description: "Cukup untuk memulai di Free" },
-          { value: "twoToThree", title: "2-3 toko", description: "Cocok dengan Premium" },
-          { value: "moreThanThree", title: ">3 toko", description: "Butuh Enterprise" },
+          { value: "one", title: "Satu cabang saja", description: "Cukup untuk memulai di Free" },
+          { value: "twoToThree", title: "2-3 cabang", description: "Cocok dengan Premium" },
+          { value: "moreThanThree", title: "Lebih dari 3 cabang", description: "Butuh Enterprise" },
         ]}
         value={data.branchPlan}
-        onChange={(branchPlan) => setData((prev) => ({ ...prev, branchPlan }))}
+        onChange={(branchPlan) => setData((prev) => ({ ...prev, branchPlan: branchPlan as BranchPlan }))}
       />
 
       <ChoiceGroup
-        label="Seberapa ramai service bulanan?"
+        label="Ada berapa banyak orang di bisnismu sekarang?"
         options={[
-          { value: "low", title: "Ringan", description: "Kurang dari 50 service" },
-          { value: "medium", title: "Sedang", description: "50-200 service" },
-          { value: "high", title: "Tinggi", description: "Butuh analytics rutin" },
+          { value: "ownerOnly", title: "Hanya saya sendiri", description: "Operasional sederhana" },
+          { value: "smallTeam", title: "1-5 orang", description: "Tim kecil" },
+          { value: "largerTeam", title: "Lebih dari 5 orang", description: "Kemungkinan butuh limit Enterprise" },
         ]}
-        value={data.monthlyServiceVolume}
-        onChange={(monthlyServiceVolume) => setData((prev) => ({ ...prev, monthlyServiceVolume }))}
+        value={data.teamSize}
+        onChange={handleTeamSizeChange}
+      />
+
+      {data.teamSize !== "ownerOnly" && (
+        <ChoiceGroup
+          label="Siapa saja yang perlu akses sistem?"
+          options={[
+            { value: "staffOnly", title: "Staff/admin toko saja", description: "Workflow staff" },
+            { value: "technicianOnly", title: "Teknisi saja", description: "Workflow teknisi" },
+            { value: "staffAndTechnician", title: "Staff dan teknisi", description: "Keduanya" },
+          ]}
+          value={data.teamAccess}
+          onChange={(teamAccess) => setData((prev) => ({ ...prev, teamAccess: teamAccess as TeamAccess }))}
+        />
+      )}
+
+      <ChoiceGroup
+        label="Apakah bisnismu butuh manajemen inventory/sparepart?"
+        options={[
+          { value: "true", title: "Ya, perlu stok sparepart", description: "Kelola inventory dan stok" },
+          { value: "false", title: "Tidak, cukup input item manual", description: "Item manual tanpa inventory" },
+        ]}
+        value={data.usesInventory ? "true" : "false"}
+        onChange={(value) => handleUsesInventoryChange(value === "true")}
+      />
+
+      {data.usesInventory && (
+        <ChoiceGroup
+          label="Apakah bisnismu butuh audit inventory atau stok fisik?"
+          options={[
+            { value: "false", title: "Tidak perlu audit", description: "Inventory management saja" },
+            { value: "true", title: "Ya, perlu audit stok", description: "Fitur Enterprise" },
+          ]}
+          value={data.needsAudit ? "true" : "false"}
+          onChange={(value) => setData((prev) => ({ ...prev, needsAudit: value === "true" }))}
+        />
+      )}
+
+      <ChoiceGroup
+        label="Apakah bisnismu butuh statistik dan pantauan proses manajemen?"
+        options={[
+          { value: "false", title: "Tidak dulu", description: "Tanpa analytics" },
+          { value: "true", title: "Ya, perlu pantauan", description: "Analytics dan activity log" },
+        ]}
+        value={data.needsAnalyticsAndLogs ? "true" : "false"}
+        onChange={(value) => setData((prev) => ({ ...prev, needsAnalyticsAndLogs: value === "true" }))}
       />
 
       <ChoiceGroup
-        label="Siapa yang akan memakai sistem?"
+        label="Apakah bisnismu butuh invoice service?"
         options={[
-          { value: "ownerOnly", title: "Pemilik saja", description: "Operasional sederhana" },
-          { value: "smallTeam", title: "Tim kecil", description: "Staff dan teknisi terbatas" },
-          { value: "largerTeam", title: "Tim besar", description: "Kemungkinan butuh limit Enterprise" },
+          { value: "false", title: "Tidak perlu invoice", description: "Tanpa invoice" },
+          { value: "true", title: "Ya, perlu invoice", description: "Buat dan kelola invoice" },
         ]}
-        value={data.plannedTeamSize}
-        onChange={(plannedTeamSize) => setData((prev) => ({ ...prev, plannedTeamSize }))}
+        value={data.needsInvoices ? "true" : "false"}
+        onChange={(value) => setData((prev) => ({ ...prev, needsInvoices: value === "true" }))}
       />
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <SurveySwitch label="Kelola stok sparepart" checked={data.usesInventory} onChange={(usesInventory) => setData((prev) => ({ ...prev, usesInventory }))} />
-        <SurveySwitch label="Assign teknisi" checked={data.needsTechnicianAssignment} onChange={(needsTechnicianAssignment) => setData((prev) => ({ ...prev, needsTechnicianAssignment }))} />
-        <SurveySwitch label="Buat invoice" checked={data.needsInvoices} onChange={(needsInvoices) => setData((prev) => ({ ...prev, needsInvoices }))} />
-        <SurveySwitch label="Analytics revenue" checked={data.needsAnalytics} onChange={(needsAnalytics) => setData((prev) => ({ ...prev, needsAnalytics }))} />
-        <SurveySwitch label="Audit gudang" checked={data.needsAudit} onChange={(needsAudit) => setData((prev) => ({ ...prev, needsAudit }))} />
-        <SurveySwitch label="Branding dinamis" checked={data.wantsBranding} onChange={(wantsBranding) => setData((prev) => ({ ...prev, wantsBranding }))} />
-      </div>
     </div>
   );
 }
@@ -579,6 +644,10 @@ function RecommendationStep({
 }
 
 function TeamStep({ data, setData, canCreateTeam, recommendedPlan }: WizardStepProps & { canCreateTeam: boolean; recommendedPlan: SubscriptionPlan }) {
+  const canAddStaff = data.teamAccess === "staffOnly" || data.teamAccess === "staffAndTechnician";
+  const canAddTechnician = data.teamAccess === "technicianOnly" || data.teamAccess === "staffAndTechnician";
+  const teamDescription = data.teamAccess === "staffOnly" ? "Staff/admin toko" : data.teamAccess === "technicianOnly" ? "Teknisi" : "Staff & teknisi";
+
   return (
     <div className="space-y-6">
       {!canCreateTeam && (
@@ -592,15 +661,19 @@ function TeamStep({ data, setData, canCreateTeam, recommendedPlan }: WizardStepP
         <FieldContent>
           <div className="flex gap-3">
             <TeamModeButton active={!data.hasEmployees} title="Tidak" description="Pemilik saja" onClick={() => setData((prev) => ({ ...prev, hasEmployees: false, staff: [], technician: [] }))} />
-            <TeamModeButton active={data.hasEmployees} title="Ya" description="Staff & teknisi" onClick={() => setData((prev) => ({ ...prev, hasEmployees: true }))} disabled={!canCreateTeam} />
+            <TeamModeButton active={data.hasEmployees} title="Ya" description={teamDescription} onClick={() => setData((prev) => ({ ...prev, hasEmployees: true }))} disabled={!canCreateTeam} />
           </div>
         </FieldContent>
       </Field>
 
       {data.hasEmployees && canCreateTeam && (
         <>
-          <UserListSection title="Staff" users={data.staff} onAdd={() => setData((prev) => ({ ...prev, staff: [...prev.staff, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, staff: prev.staff.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, staff: prev.staff.map((staff, i) => (i === index ? { ...staff, [field]: value } : staff)) }))} />
-          <UserListSection title="Technician" users={data.technician} onAdd={() => setData((prev) => ({ ...prev, technician: [...prev.technician, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, technician: prev.technician.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, technician: prev.technician.map((tech, i) => (i === index ? { ...tech, [field]: value } : tech)) }))} />
+          {canAddStaff && (
+            <UserListSection title="Staff" users={data.staff} onAdd={() => setData((prev) => ({ ...prev, staff: [...prev.staff, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, staff: prev.staff.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, staff: prev.staff.map((staff, i) => (i === index ? { ...staff, [field]: value } : staff)) }))} />
+          )}
+          {canAddTechnician && (
+            <UserListSection title="Technician" users={data.technician} onAdd={() => setData((prev) => ({ ...prev, technician: [...prev.technician, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, technician: prev.technician.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, technician: prev.technician.map((tech, i) => (i === index ? { ...tech, [field]: value } : tech)) }))} />
+          )}
         </>
       )}
     </div>
@@ -651,6 +724,10 @@ function SummaryStep({
       ? "Tetap Free"
       : "Upgrade nanti";
 
+  const branchLabel = data.branchPlan === "one" ? "Satu cabang" : data.branchPlan === "twoToThree" ? "2-3 cabang" : "Lebih dari 3 cabang";
+  const teamLabel = data.teamSize === "ownerOnly" ? "Hanya pemilik" : data.teamAccess === "staffOnly" ? "Staff saja" : data.teamAccess === "technicianOnly" ? "Teknisi saja" : "Staff dan teknisi";
+  const inventoryLabel = data.usesInventory ? "Stok sparepart" : "Item manual tanpa inventory";
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg border p-4">
@@ -664,6 +741,18 @@ function SummaryStep({
           <SummaryRow label="Karyawan dibuat" value={createdTeamCount > 0 ? `${createdTeamCount} orang` : "Tidak ada"} />
           {data.address && <SummaryRow label="Address" value={data.address} />}
           {data.phone && <SummaryRow label="Phone" value={data.phone} />}
+        </div>
+      </div>
+
+      <div className="rounded-lg border p-4">
+        <h3 className="text-sm font-medium">Survei Kebutuhan</h3>
+        <div className="mt-3 grid gap-2 text-xs">
+          <SummaryRow label="Cabang" value={branchLabel} />
+          <SummaryRow label="Tim" value={teamLabel} />
+          <SummaryRow label="Inventory" value={inventoryLabel} />
+          {data.usesInventory && <SummaryRow label="Audit inventory" value={data.needsAudit ? "Ya" : "Tidak"} />}
+          <SummaryRow label="Statistik dan pantauan" value={data.needsAnalyticsAndLogs ? "Ya" : "Tidak"} />
+          <SummaryRow label="Invoice" value={data.needsInvoices ? "Ya" : "Tidak"} />
         </div>
       </div>
 
@@ -713,18 +802,6 @@ function ChoiceGroup<T extends string>({
         </div>
       </FieldContent>
     </Field>
-  );
-}
-
-function SurveySwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between rounded-lg border p-3">
-      <div className="flex items-center gap-2">
-        <RiSettings4Line className="size-4 text-muted-foreground" />
-        <span className="text-sm">{label}</span>
-      </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </div>
   );
 }
 
@@ -851,8 +928,20 @@ function cleanUsers(users: UserData[]): UserData[] {
   return users.map((user) => ({ name: user.name.trim(), email: user.email.trim(), password: user.password }));
 }
 
-function getEstimatedTeamCounts(plannedTeamSize: PlannedTeamSize) {
-  if (plannedTeamSize === "smallTeam") return { staffCount: 1, technicianCount: 1 };
-  if (plannedTeamSize === "largerTeam") return { staffCount: 6, technicianCount: 6 };
-  return { staffCount: 0, technicianCount: 0 };
+function shouldUseStaff(teamAccess: TeamAccess) {
+  return teamAccess === "staffOnly" || teamAccess === "staffAndTechnician";
+}
+
+function shouldUseTechnician(teamAccess: TeamAccess) {
+  return teamAccess === "technicianOnly" || teamAccess === "staffAndTechnician";
+}
+
+function getEstimatedTeamCounts(teamSize: TeamSize, teamAccess: TeamAccess) {
+  if (teamSize === "ownerOnly" || teamAccess === "none") return { staffCount: 0, technicianCount: 0 };
+
+  const baseCounts = teamSize === "smallTeam" ? 1 : 6;
+
+  if (teamAccess === "staffOnly") return { staffCount: baseCounts, technicianCount: 0 };
+  if (teamAccess === "technicianOnly") return { staffCount: 0, technicianCount: baseCounts };
+  return { staffCount: baseCounts, technicianCount: baseCounts };
 }

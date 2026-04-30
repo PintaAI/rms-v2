@@ -350,6 +350,14 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!hasTokoAccess(tokoIds, service.tokoId)) return { success: false, error: "Access denied" };
+
+    const workflowError = ensureFeatureAccess(
+      await getTokoScopedUser(user, service.tokoId),
+      "technician.workflow",
+      await getDisabledFeaturesForToko(service.tokoId)
+    );
+    if (workflowError) return workflowError;
+
     if (!technicianAvailableStatuses.includes(service.status)) {
       return { success: false, error: "Service is not available for takeover" };
     }
@@ -549,7 +557,7 @@ export async function assignTechnician(
     const disabledFeatures = await getDisabledFeaturesForToko(service.tokoId);
     const assignmentError = ensureFeatureAccess(
       await getTokoScopedUser(user, service.tokoId),
-      "service.technicianAssignment",
+      "technician.workflow",
       disabledFeatures
     );
     if (assignmentError) return assignmentError;

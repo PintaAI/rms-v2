@@ -13,7 +13,6 @@ export type FeatureKey =
   | "karyawan.management"
   | "staff.workflow"
   | "technician.workflow"
-  | "service.technicianAssignment"
   | "service.invoice"
   | "activityLog.view"
   | "analytics.revenue"
@@ -141,16 +140,7 @@ export const FEATURE_REGISTRY = {
     label: "Workflow Teknisi",
     description: "Akses tugas teknisi dan alur pengerjaan service.",
     category: "team",
-    allowedRoles: ["admin", "technician"],
-    minimumPlan: "premium",
-    configurable: true,
-  },
-  "service.technicianAssignment": {
-    key: "service.technicianAssignment",
-    label: "Assignment Teknisi",
-    description: "Assign teknisi ke pekerjaan service.",
-    category: "service",
-    allowedRoles: ["admin", "staff"],
+    allowedRoles: ["admin", "staff", "technician"],
     minimumPlan: "premium",
     configurable: true,
   },

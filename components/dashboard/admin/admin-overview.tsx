@@ -37,6 +37,7 @@ interface AdminOverviewProps {
 
 export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps) {
   const { stats, recentServices, recentActivities, featureAccess } = data;
+  const technicianWorkflowEnabled = featureAccess.technicianWorkflow;
 
   const tableServices = recentServices.map((service) => ({
     id: service.id,
@@ -273,7 +274,7 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
                   headerBadge={tableServices.length}
                   emptyMessage="Tidak ada service"
                   tokoId={tokoId}
-                  disableAssignment={true}
+                  hideTechnicianColumn={!technicianWorkflowEnabled}
                 />
               </div>
             </div>

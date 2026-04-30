@@ -144,7 +144,7 @@ export interface ServiceTableProps {
   onTake?: (serviceId: string) => void;
   onRowClick?: (service: ServiceTableItem) => void;
   tokoId?: string;
-  disableAssignment?: boolean;
+  hideTechnicianColumn?: boolean;
 }
 
 export function ServiceTable({
@@ -163,11 +163,15 @@ export function ServiceTable({
   onTake,
   onRowClick,
   tokoId,
-  disableAssignment,
+  hideTechnicianColumn,
 }: ServiceTableProps) {
   const defaultColumns = React.useMemo(
     () => columnsOverride || resolveColumns(role),
     [columnsOverride, role]
+  );
+  const filteredColumns = React.useMemo(
+    () => hideTechnicianColumn ? defaultColumns.filter((col) => col !== "technician") : defaultColumns,
+    [defaultColumns, hideTechnicianColumn]
   );
   const storageKey = React.useMemo(() => {
     const viewKey = statusFilter || "all";
@@ -175,10 +179,10 @@ export function ServiceTable({
   }, [role, statusFilter]);
   const { preferences, setPreferences, resetPreferences } = useServiceTablePreferences(storageKey);
   const effectiveColumns = React.useMemo(() => {
-    const visibleColumns = defaultColumns.filter((column) => !preferences.hiddenColumns.includes(column));
+    const visibleColumns = filteredColumns.filter((column) => !preferences.hiddenColumns.includes(column));
     if (visibleColumns.length > 0) return visibleColumns;
-    return defaultColumns.includes("customer") ? ["customer"] : defaultColumns.slice(0, 1);
-  }, [defaultColumns, preferences.hiddenColumns]);
+    return filteredColumns.includes("customer") ? ["customer"] : filteredColumns.slice(0, 1);
+  }, [filteredColumns, preferences.hiddenColumns]);
 
   const showDropdownActions = onEdit || onDelete;
   const showTakeTask = onTake;
@@ -254,13 +258,12 @@ export function ServiceTable({
 
   const renderCell = (colKey: string, service: ServiceTableItem) => {
     if (colKey === "technician") {
-      if (onAssignTech && tokoId && !disableAssignment) {
+      if (onAssignTech && tokoId) {
         return (
           <TechnicianDropdown
             service={service}
             tokoId={tokoId}
             onAssignmentChange={() => onAssignTech(service)}
-            disableAssignment={disableAssignment}
           />
         );
       }
@@ -300,7 +303,7 @@ export function ServiceTable({
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>Kolom tabel</DropdownMenuLabel>
         <DropdownMenuGroup>
-          {defaultColumns.map((colKey) => {
+          {filteredColumns.map((colKey) => {
             const columnDef = columnRegistry[colKey];
             const isRequired = colKey === "customer";
 

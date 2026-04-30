@@ -3,6 +3,8 @@ import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import { ManageService } from "@/components/dashboard/services/manage-service";
 import { OverviewStatsCard } from "@/components/dashboard/shared/overview-cards";
 import prisma from "@/lib/prisma";
+import { canUseFeature, type FeatureKey } from "@/lib/features";
+import { getAuthUser, getEffectivePlanForToko } from "@/lib/rbac";
 import Image from "next/image";
 import { RiStore2Line, RiInboxLine, RiToolsLine, RiCheckDoubleLine, RiLogoutBoxLine } from "@remixicon/react";
 
@@ -19,10 +21,18 @@ export default async function AdminServicePage({ params }: AdminServicePageProps
     select: { id: true, name: true, logoUrl: true },
   });
 
-  const [servicesResult, statsResult, disabledFeatures] = await Promise.all([
+  const user = await getAuthUser();
+  const [plan, disabledFeatures] = user
+    ? await Promise.all([getEffectivePlanForToko(user, tokoid), getDisabledFeaturesForToko(tokoid)])
+    : [null, [] as FeatureKey[]];
+
+  const technicianWorkflowEnabled = user && plan
+    ? canUseFeature({ plan, role: user.role, feature: "technician.workflow", disabledFeatures })
+    : false;
+
+  const [servicesResult, statsResult] = await Promise.all([
     getServiceList(tokoid, undefined, 1, 1000),
     getServiceStats(tokoid),
-    getDisabledFeaturesForToko(tokoid),
   ]);
 
   const stats = statsResult.success && statsResult.data
@@ -101,7 +111,7 @@ export default async function AdminServicePage({ params }: AdminServicePageProps
         allServices={servicesResult.data.data}
         tokoId={tokoid}
         pageSize={pageSize}
-        disableAssignment={disabledFeatures.includes("service.technicianAssignment")}
+        hideTechnicianColumn={!technicianWorkflowEnabled}
       />
     </div>
   );

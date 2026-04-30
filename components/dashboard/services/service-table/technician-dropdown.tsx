@@ -32,7 +32,6 @@ interface TechnicianDropdownProps {
   tokoId: string;
   onAssignmentChange?: () => void;
   disabled?: boolean;
-  disableAssignment?: boolean;
 }
 
 export function TechnicianDropdown({
@@ -40,7 +39,6 @@ export function TechnicianDropdown({
   tokoId,
   onAssignmentChange,
   disabled,
-  disableAssignment,
 }: TechnicianDropdownProps) {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -83,9 +81,9 @@ export function TechnicianDropdown({
     }
   };
 
-  const currentTechnician = service.technician;
+const currentTechnician = service.technician;
 
-  const isDisabled = disabled || disableAssignment;
+const isDisabled = disabled;
 
   return (
     <DropdownMenu open={isDisabled ? false : open} onOpenChange={setOpen}>
