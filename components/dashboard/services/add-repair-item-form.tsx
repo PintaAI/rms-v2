@@ -177,7 +177,7 @@ export function AddRepairItemForm({
 
         // Build the optimistic item and notify the parent immediately
         const newItem = {
-          id: `temp-${Date.now()}-${item.id}`,
+          id: `temp-${crypto.randomUUID()}`,
           type: submittedItemType,
           name: itemNameToUse || "",
           qty: parseInt(itemQty, 10),

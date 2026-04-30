@@ -68,7 +68,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
     key: "complaint",
     header: "Keluhan & Kelengkapan",
     render: (service) => (
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-start gap-1.5">
         <Tooltip>
           <TooltipTrigger className="block max-w-[500px] truncate text-left cursor-default">
             {service.complaint}
@@ -188,7 +188,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
     render: (service) => {
       const StatusIcon = getStatusIcon(service.status);
       return (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-start gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={getStatusColor(service.status)}>
               {StatusIcon && <StatusIcon className="h-3 w-3 mr-1" />}
@@ -205,7 +205,12 @@ export const columnRegistry: Record<string, ColumnDef> = {
               )}
             </Badge>
           </div>
-          {service.isPickedUp && <Badge variant="outline" className="w-fit">Di Ambil</Badge>}
+          {service.isPickedUp && (
+            <Badge variant="outline" className="w-fit">
+              <RiCheckLine className="h-3 w-3 mr-1" />
+              Di Ambil
+            </Badge>
+          )}
         </div>
       );
     },
@@ -243,9 +248,9 @@ export const columnRegistry: Record<string, ColumnDef> = {
       if (!service.invoice) return <span className="text-muted-foreground">-</span>;
       const isPaid = service.invoice.paymentStatus === "paid";
       const isDp = service.invoice.paymentStatus === "dp";
-      return (
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-semibold tabular-nums">{formatCurrency(service.invoice.grandTotal)}</span>
+    return (
+      <div className="flex items-start gap-2 flex-wrap">
+        <span className="text-sm font-semibold tabular-nums">{formatCurrency(service.invoice.grandTotal)}</span>
           <div className="flex items-center gap-1">
             {isPaid && <RiCheckLine className="h-3 w-3 text-chart-1" />}
             <Badge variant={getPaymentStatusColor(service.invoice.paymentStatus)} className="text-[0.6rem]">

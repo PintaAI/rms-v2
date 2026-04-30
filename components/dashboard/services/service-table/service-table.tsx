@@ -213,22 +213,23 @@ export function ServiceTable({
     return columnWidth + (hasActions ? ACTION_COLUMN_WIDTH : 0);
   }, [effectiveColumns, getColumnWidth, hasActions]);
 
-  const startColumnResize = React.useCallback((event: React.PointerEvent, column: ColumnKey) => {
+  const startColumnResize = React.useCallback((event: React.PointerEvent, column: ColumnKey, nextColumn: ColumnKey) => {
     event.preventDefault();
     event.stopPropagation();
 
     const startX = event.clientX;
     const startWidth = getColumnWidth(column);
+    const startNextWidth = getColumnWidth(nextColumn);
+    const pairWidth = startWidth + startNextWidth;
+    const minWidth = Math.max(MIN_COLUMN_WIDTH, pairWidth - MAX_COLUMN_WIDTH);
+    const maxWidth = Math.min(MAX_COLUMN_WIDTH, pairWidth - MIN_COLUMN_WIDTH);
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      const nextWidth = Math.min(
-        MAX_COLUMN_WIDTH,
-        Math.max(MIN_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX)
-      );
+      const nextWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + moveEvent.clientX - startX));
 
       setPreferences((current) => ({
         ...current,
-        widths: { ...current.widths, [column]: nextWidth },
+        widths: { ...current.widths, [column]: nextWidth, [nextColumn]: pairWidth - nextWidth },
       }));
     };
 
@@ -372,8 +373,9 @@ export function ServiceTable({
         </colgroup>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-border/50">
-            {effectiveColumns.map((colKey) => {
+            {effectiveColumns.map((colKey, index) => {
               const columnDef = columnRegistry[colKey as keyof typeof columnRegistry];
+              const nextColumn = effectiveColumns[index + 1];
               return (
                 <TableHead
                   key={colKey}
@@ -381,11 +383,13 @@ export function ServiceTable({
                   style={{ width: getColumnWidth(colKey), minWidth: getColumnWidth(colKey) }}
                 >
                   <span className="block truncate pr-2">{columnDef?.header || colKey}</span>
-                  <span
-                    aria-hidden="true"
-                    className="absolute right-0 top-1/2 h-5 w-1 -translate-y-1/2 cursor-col-resize rounded-full bg-border transition-colors hover:bg-primary/60"
-                    onPointerDown={(event) => startColumnResize(event, colKey)}
-                  />
+                  {nextColumn && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-0 top-1/2 h-5 w-1 -translate-y-1/2 cursor-col-resize rounded-full bg-border transition-colors hover:bg-primary/60"
+                      onPointerDown={(event) => startColumnResize(event, colKey, nextColumn)}
+                    />
+                  )}
                 </TableHead>
               );
             })}
