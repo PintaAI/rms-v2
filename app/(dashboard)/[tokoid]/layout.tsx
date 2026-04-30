@@ -48,6 +48,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
         <AppSidebar
           tokoid={tokoid}
           featureAccess={featureAccess}
+          disabledFeatures={disabledFeatures}
           serviceStats={serviceStats}
           technicianTaskStats={technicianTaskStats}
         />
@@ -89,6 +90,7 @@ function getDashboardFeatureAccess(
     "toko.manage",
     "service.management",
     "service.manualItems",
+    "service.invoice",
     "inventory.management",
     "karyawan.management",
     "staff.workflow",

@@ -22,15 +22,15 @@ export function FeaturePreview({ featureKey, requiredPlan, tokoId }: FeaturePrev
 
   return (
     <div className="relative min-h-[60vh]">
-      <div className="pointer-events-none select-none opacity-60 blur-[1px]">
+      <div className="pointer-events-none select-none opacity-70 blur-[0.5px]">
         {info.previewType === "staff" && <StaffPreviewUI />}
         {info.previewType === "sparepart" && <SparepartPreviewUI />}
         {info.previewType === "revenue" && <RevenuePreviewUI />}
         {info.previewType === "audit" && <AuditPreviewUI />}
       </div>
 
-      <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-        <Card className="max-w-lg border-primary/20 bg-gradient-to-br from-card via-card to-primary/5 shadow-lg">
+      <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/55 backdrop-blur-[1px]">
+        <Card className="mx-4 w-full max-w-lg border-primary/20 bg-card/95 shadow-lg">
           <CardHeader className="gap-3">
             <div className="flex items-center gap-3">
               <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">

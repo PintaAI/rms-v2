@@ -53,6 +53,7 @@ interface PaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoiceTotal: number;
+  dpAmount?: number;
   isSubmitting?: boolean;
   onConfirm: () => Promise<boolean>;
 }
@@ -70,6 +71,7 @@ export function PaymentDialog({
   open,
   onOpenChange,
   invoiceTotal,
+  dpAmount = 0,
   isSubmitting = false,
   onConfirm,
 }: PaymentDialogProps) {
@@ -78,11 +80,12 @@ export function PaymentDialog({
   const [discountInput, setDiscountInput] = useState("");
   const [cashInput, setCashInput] = useState("");
 
+  const remainingTotal = Math.max(invoiceTotal - dpAmount, 0);
   const rawDiscount = parseAmount(discountInput);
   const discount = usePercentDiscount
-    ? Math.min(Math.round(invoiceTotal * (Math.min(rawDiscount, 100) / 100)), invoiceTotal)
-    : Math.min(rawDiscount, invoiceTotal);
-  const finalTotal = Math.max(invoiceTotal - discount, 0);
+    ? Math.min(Math.round(remainingTotal * (Math.min(rawDiscount, 100) / 100)), remainingTotal)
+    : Math.min(rawDiscount, remainingTotal);
+  const finalTotal = Math.max(remainingTotal - discount, 0);
   const cashReceived = parseAmount(cashInput);
   const change = Math.max(cashReceived - finalTotal, 0);
   const cashIsInsufficient = paymentMethod === "cash" && cashReceived < finalTotal;
@@ -127,6 +130,12 @@ export function PaymentDialog({
               </span>
               <span className="text-lg font-bold tabular-nums">{formatCurrency(invoiceTotal)}</span>
             </div>
+            {dpAmount > 0 && (
+              <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3 text-sm">
+                <span className="text-muted-foreground">DP dibayar</span>
+                <span className="font-medium tabular-nums">- {formatCurrency(dpAmount)}</span>
+              </div>
+            )}
           </div>
 
           <FieldGroup>
@@ -182,7 +191,7 @@ export function PaymentDialog({
                   id="payment-discount"
                   inputMode="numeric"
                   min={0}
-                  max={usePercentDiscount ? 100 : invoiceTotal}
+                  max={usePercentDiscount ? 100 : remainingTotal}
                   placeholder="0"
                   type="number"
                   value={discountInput}
@@ -199,7 +208,7 @@ export function PaymentDialog({
                 <FieldDescription>
                   {Math.min(rawDiscount, 100)}% = {formatCurrency(discount)}.
                 </FieldDescription>
-              ) : discountInput && rawDiscount > invoiceTotal ? (
+              ) : discountInput && rawDiscount > remainingTotal ? (
                 <FieldDescription>Diskon nominal dibatasi maksimal total invoice.</FieldDescription>
               ) : null}
             </Field>
@@ -243,6 +252,18 @@ export function PaymentDialog({
               </span>
               <span className="font-medium tabular-nums">{formatCurrency(invoiceTotal)}</span>
             </div>
+            {dpAmount > 0 && (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">DP dibayar</span>
+                <span className="font-medium tabular-nums">- {formatCurrency(dpAmount)}</span>
+              </div>
+            )}
+            {dpAmount > 0 && (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Sisa tagihan</span>
+                <span className="font-medium tabular-nums">{formatCurrency(remainingTotal)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="flex items-center gap-2 text-muted-foreground">
                 <RiDiscountPercentLine className="size-3.5" />

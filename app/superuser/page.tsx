@@ -20,6 +20,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserManagementTable } from "@/components/superuser/user-management-table";
+import { UserInfo } from "@/components/shared/user-info";
 
 export default async function SuperuserPage() {
   const result = await getSuperuserDashboard();
@@ -41,14 +42,17 @@ export default async function SuperuserPage() {
     <div className="min-h-screen bg-background p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6 lg:space-y-8">
         <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
-              Superuser Dashboard
-            </h1>
-            <div className="h-5 w-1 shrink-0 rounded-full bg-primary sm:h-6" />
-            <Badge variant="outline" className="text-xs">
-              Platform Admin
-            </Badge>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+                Superuser Dashboard
+              </h1>
+              <div className="h-5 w-1 shrink-0 rounded-full bg-primary sm:h-6" />
+              <Badge variant="outline" className="text-xs">
+                Platform Admin
+              </Badge>
+            </div>
+            <UserInfo />
           </div>
           <p className="text-sm text-muted-foreground/70">
             Manage all users, subscriptions, and platform statistics

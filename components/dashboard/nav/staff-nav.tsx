@@ -8,15 +8,17 @@ import {
 import { RiArchiveLine, RiDashboardLine, RiToolsLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiLogoutBoxLine } from "@remixicon/react";
 import { NavItem, NavFilterGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
-import type { FeatureAccessMap } from "@/lib/features";
+import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
 
 interface StaffNavProps {
   tokoid: string;
   featureAccess: FeatureAccessMap;
+  disabledFeatures: FeatureKey[];
   serviceStats?: ServiceStats | null;
 }
 
-export function StaffNav({ tokoid, featureAccess, serviceStats }: StaffNavProps) {
+export function StaffNav({ tokoid, featureAccess, disabledFeatures, serviceStats }: StaffNavProps) {
+  const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
   const workflowEnabled = featureAccess["staff.workflow"] ?? false;
   const serviceEnabled = featureAccess["service.management"] ?? false;
   const inventoryEnabled = featureAccess["inventory.management"] ?? false;
@@ -62,12 +64,14 @@ export function StaffNav({ tokoid, featureAccess, serviceStats }: StaffNavProps)
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          <NavItem
-            href={`/${tokoid}/staff`}
-            icon={<RiDashboardLine />}
-            label="Staff Overview"
-            isLocked={!workflowEnabled}
-          />
+          {!isFeatureDisabled("staff.workflow") && (
+            <NavItem
+              href={`/${tokoid}/staff`}
+              icon={<RiDashboardLine />}
+              label="Staff Overview"
+              isLocked={!workflowEnabled}
+            />
+          )}
           {serviceEnabled && (
             <NavFilterGroup
               title="Service"
@@ -76,12 +80,14 @@ export function StaffNav({ tokoid, featureAccess, serviceStats }: StaffNavProps)
               items={serviceItems}
             />
           )}
-          <NavItem
-            href={`/${tokoid}/staff/inventory`}
-            icon={<RiArchiveLine />}
-            label="Inventory"
-            isLocked={!inventoryEnabled}
-          />
+          {!isFeatureDisabled("inventory.management") && (
+            <NavItem
+              href={`/${tokoid}/staff/inventory`}
+              icon={<RiArchiveLine />}
+              label="Inventory"
+              isLocked={!inventoryEnabled}
+            />
+          )}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

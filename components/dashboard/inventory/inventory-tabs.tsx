@@ -25,6 +25,7 @@ import {
   type ServicePricelist,
 } from "@/actions/inventory";
 import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
+import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/sparepart-label-print-dialog";
 import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
 import {
   RiAddLine,
@@ -36,6 +37,7 @@ import {
   RiPriceTag3Line,
   RiListCheck,
   RiGridFill,
+  RiPrinterLine,
 } from "@remixicon/react";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -66,6 +68,8 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
   const [deletingPricelist, setDeletingPricelist] = useState<ServicePricelist | null>(null);
   const [isDeletingSparepart, setIsDeletingSparepart] = useState(false);
   const [isDeletingPricelist, setIsDeletingPricelist] = useState(false);
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -115,6 +119,11 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
   const handleEditSparepart = (sparepart: SparepartWithCompatibilities) => {
     setEditingSparepart(sparepart);
     setSparepartDialogOpen(true);
+  };
+
+  const handlePrintSparepartLabel = (sparepart: SparepartWithCompatibilities) => {
+    setPrintingSparepart(sparepart);
+    setLabelDialogOpen(true);
   };
 
   const handleSparepartSuccess = (newSparepart?: SparepartWithCompatibilities) => {
@@ -348,6 +357,13 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                             <Button
                               variant="ghost"
                               size="icon-sm"
+                              onClick={() => handlePrintSparepartLabel(sparepart)}
+                            >
+                              <RiPrinterLine className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
                               onClick={() => handleEditSparepart(sparepart)}
                             >
                               <RiEditLine className="h-4 w-4" />
@@ -378,7 +394,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Price</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stock</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Compatibility</TableHead>
-                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[80px]">Actions</TableHead>}
+                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -437,6 +453,13 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                                 <Button
                                   variant="ghost"
                                   size="icon-sm"
+                                  onClick={() => handlePrintSparepartLabel(sparepart)}
+                                >
+                                  <RiPrinterLine className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
                                   onClick={() => handleEditSparepart(sparepart)}
                                 >
                                   <RiEditLine className="h-4 w-4" />
@@ -468,6 +491,14 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
             sparepart={editingSparepart}
             tokoId={tokoId}
             onSuccess={handleSparepartSuccess}
+          />
+        )}
+
+        {!readOnly && (
+          <SparepartLabelPrintDialog
+            open={labelDialogOpen}
+            onOpenChange={setLabelDialogOpen}
+            sparepart={printingSparepart}
           />
         )}
 

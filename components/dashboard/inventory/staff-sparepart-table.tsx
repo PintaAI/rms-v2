@@ -20,12 +20,14 @@ import {
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
 import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
+import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/sparepart-label-print-dialog";
 import {
   RiAddLine,
   RiEditLine,
   RiDeleteBinLine,
   RiLoader4Line,
   RiSearchLine,
+  RiPrinterLine,
 } from "@remixicon/react";
 import { formatCurrency } from "@/lib/utils";
 
@@ -44,6 +46,8 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
   const [deleteSparepartDialogOpen, setDeleteSparepartDialogOpen] = useState(false);
   const [deletingSparepart, setDeletingSparepart] = useState<SparepartWithCompatibilities | null>(null);
   const [isDeletingSparepart, setIsDeletingSparepart] = useState(false);
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -77,6 +81,11 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
   const handleEditSparepart = (sparepart: SparepartWithCompatibilities) => {
     setEditingSparepart(sparepart);
     setSparepartDialogOpen(true);
+  };
+
+  const handlePrintSparepartLabel = (sparepart: SparepartWithCompatibilities) => {
+    setPrintingSparepart(sparepart);
+    setLabelDialogOpen(true);
   };
 
   const handleSparepartSuccess = (newSparepart?: SparepartWithCompatibilities) => {
@@ -150,7 +159,7 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
                     <TableHead>Price</TableHead>
                     <TableHead>Stock</TableHead>
                     <TableHead>Compatibility</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
+                    <TableHead className="w-[132px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -208,6 +217,13 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
                             <Button
                               variant="ghost"
                               size="icon-sm"
+                              onClick={() => handlePrintSparepartLabel(sparepart)}
+                            >
+                              <RiPrinterLine className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
                               onClick={() => handleEditSparepart(sparepart)}
                             >
                               <RiEditLine className="size-4" />
@@ -237,6 +253,12 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
         sparepart={editingSparepart}
         tokoId={tokoId}
         onSuccess={handleSparepartSuccess}
+      />
+
+      <SparepartLabelPrintDialog
+        open={labelDialogOpen}
+        onOpenChange={setLabelDialogOpen}
+        sparepart={printingSparepart}
       />
 
       <DeleteDialog

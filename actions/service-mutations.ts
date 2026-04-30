@@ -879,7 +879,7 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
     const disabledFeatures = await getDisabledFeaturesForToko(invoice.service.tokoId);
     const invoiceError = ensureFeatureAccess(scopedUser, "service.invoice", disabledFeatures);
     if (invoiceError) return invoiceError;
-    if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "dp") return { success: false, error: "Invoice has already been paid" };
+    if (invoice.paymentStatus === "paid") return { success: false, error: "Invoice has already been paid" };
     if (invoice.service.status !== "done" && invoice.service.status !== "failed") {
       return { success: false, error: "Only completed services can be marked as paid" };
     }
