@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { TourProvider } from "@/lib/tour-context";
 import { DevTools } from "@/components/debug/dev-tools";
+import { Toaster } from "@/components/ui/sonner";
 import { RiLoader2Fill } from "@remixicon/react";
 
 const fontSans = Plus_Jakarta_Sans({
@@ -97,6 +98,7 @@ export default function RootLayout({
               <TourProvider>
                 {children}
                 <DevTools />
+                <Toaster />
               </TourProvider>
             </AuthProvider>
           </Suspense>

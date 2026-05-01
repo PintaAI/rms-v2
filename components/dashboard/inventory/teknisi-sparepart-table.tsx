@@ -57,7 +57,7 @@ export function TeknisiSparepartTable({ tokoId }: TeknisiSparepartTableProps) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-medium">Sparepart</h2>
         <Badge variant="outline" className="text-muted-foreground">
-          Read Only
+          (Hanya Baca)
         </Badge>
       </div>
 
@@ -66,7 +66,7 @@ export function TeknisiSparepartTable({ tokoId }: TeknisiSparepartTableProps) {
         <Input
           value={sparepartSearch}
           onChange={(e) => setSparepartSearch(e.target.value)}
-          placeholder="Search spareparts..."
+          placeholder="Cari sparepart..."
           className="pl-9"
         />
       </div>
@@ -81,19 +81,19 @@ export function TeknisiSparepartTable({ tokoId }: TeknisiSparepartTableProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Stock</TableHead>
-                  <TableHead>Compatibility</TableHead>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Harga</TableHead>
+                  <TableHead>Stok</TableHead>
+                  <TableHead>Kompatibilitas</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredSpareparts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center">
-                      {sparepartSearch
-                        ? "No spareparts found matching your search"
-                        : "No spareparts available"}
+                        {sparepartSearch
+                          ? "Tidak ditemukan sparepart sesuai pencarian"
+                          : "Tidak ada sparepart tersedia"}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -129,7 +129,7 @@ export function TeknisiSparepartTable({ tokoId }: TeknisiSparepartTableProps) {
                             ))}
                             {sparepart.compatibilities.length > 3 && (
                               <Badge variant="outline" className="text-xs">
-                                +{sparepart.compatibilities.length - 3} more
+                                +{sparepart.compatibilities.length - 3} lainnya
                               </Badge>
                             )}
                           </div>

@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * SparepartFormDialog - Form dialog for creating/updating spareparts
- */
+  * SparepartFormDialog - Dialog form untuk membuat/memperbarui sparepart
+  */
 
 import { useRef, useState } from "react";
 import {
@@ -22,6 +22,7 @@ import {
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
 import { MultiDeviceInput, type HpCatalogOption } from "@/components/shared/multi-device-input";
+import { RiEditLine, RiPencilLine, RiPriceTag3Line, RiStackLine, RiDeviceLine } from "@remixicon/react";
 
 interface SparepartFormProps {
   open: boolean;
@@ -77,13 +78,13 @@ function SparepartFormContent({
 
     const price = parseInt(defaultPrice, 10);
     if (isNaN(price) || price < 0) {
-      setError("Price must be a valid number");
+      setError("Harga harus berupa angka yang valid");
       return;
     }
 
     const stockValue = parseInt(stock, 10);
     if (isNaN(stockValue) || stockValue < 0) {
-      setError("Stock must be a valid number");
+      setError("Stok harus berupa angka yang valid");
       return;
     }
 
@@ -150,7 +151,7 @@ function SparepartFormContent({
     setIsLoading(false);
 
     if (!result.success) {
-      setError(result.error || "Failed to save sparepart");
+      setError(result.error || "Gagal menyimpan sparepart");
       if (!sparepartRef.current && onRevertCreate) onRevertCreate();
       if (sparepartRef.current && onRevertUpdate) onRevertUpdate();
       return;
@@ -165,32 +166,51 @@ function SparepartFormContent({
   return (
     <DialogContent className="max-w-md">
       <DialogHeader>
-        <DialogTitle>{sparepart ? "Edit Sparepart" : "Add Sparepart"}</DialogTitle>
+        <DialogTitle className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <RiEditLine className="h-4 w-4" />
+          </span>
+          {sparepart ? "Edit Sparepart" : "Tambah Sparepart"}
+        </DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit}>
         <div className="space-y-4 py-4">
           {error && <div className="rounded p-3 text-sm text-destructive bg-destructive/10">{error}</div>}
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., LCD iPhone 13" required />
+            <Label htmlFor="name" className="flex items-center gap-1.5">
+              <RiEditLine className="h-3.5 w-3.5 text-muted-foreground" />
+              Nama
+            </Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: LCD iPhone 13" required />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="price">Default Price</Label>
-            <Input id="price" type="number" value={defaultPrice} onChange={(e) => setDefaultPrice(e.target.value)} placeholder="0" min="0" required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="stock">Stock</Label>
-            <Input id="stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="0" min="0" required />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="price" className="flex items-center gap-1.5">
+                <RiPriceTag3Line className="h-3.5 w-3.5 text-muted-foreground" />
+                Harga Default
+              </Label>
+              <Input id="price" type="number" value={defaultPrice} onChange={(e) => setDefaultPrice(e.target.value)} placeholder="0" min="0" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stock" className="flex items-center gap-1.5">
+                <RiStackLine className="h-3.5 w-3.5 text-muted-foreground" />
+                Stok
+              </Label>
+              <Input id="stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="0" min="0" required />
+            </div>
           </div>
           {selectedDevices.length === 0 && (
             <div className="flex items-center space-x-2">
               <Checkbox id="isUniversal" checked={isUniversal} onCheckedChange={(checked) => setIsUniversal(checked === true)} />
-              <Label htmlFor="isUniversal">Universal (can be used on any device)</Label>
+              <Label htmlFor="isUniversal">Universal (dapat digunakan di perangkat apapun)</Label>
             </div>
           )}
           {!isUniversal && (
             <div className="space-y-2">
-              <Label>Compatible Devices</Label>
+              <Label className="flex items-center gap-1.5">
+                <RiDeviceLine className="h-3.5 w-3.5 text-muted-foreground" />
+                Perangkat Kompatibel
+              </Label>
               <MultiDeviceInput
                 value={selectedDevices}
                 onChange={(devices) => {
@@ -202,17 +222,17 @@ function SparepartFormContent({
                 disabled={isLoading}
               />
               <p className="text-xs text-muted-foreground">
-                Search and select device models this sparepart is compatible with.
+                Cari dan pilih model perangkat yang kompatibel dengan sparepart ini.
               </p>
             </div>
           )}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            Batal
           </Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Saving..." : sparepart ? "Update" : "Create"}
+            {isLoading ? "Menyimpan..." : sparepart ? "Perbarui" : "Buat"}
           </Button>
         </DialogFooter>
       </form>

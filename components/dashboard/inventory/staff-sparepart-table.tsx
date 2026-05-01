@@ -130,7 +130,7 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
           className="bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30"
         >
           <RiAddLine className="size-4 mr-1.5" />
-          Add Sparepart
+          Tambah Sparepart
         </Button>
       </div>
 
@@ -139,7 +139,7 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
         <Input
           value={sparepartSearch}
           onChange={(e) => setSparepartSearch(e.target.value)}
-          placeholder="Search spareparts..."
+          placeholder="Cari sparepart..."
           className="pl-9"
         />
       </div>
@@ -155,11 +155,11 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Stock</TableHead>
-                    <TableHead>Compatibility</TableHead>
-                    <TableHead className="w-[132px]">Actions</TableHead>
+                    <TableHead>Nama</TableHead>
+                    <TableHead>Harga</TableHead>
+                    <TableHead>Stok</TableHead>
+                    <TableHead>Kompatibilitas</TableHead>
+                    <TableHead className="w-[132px]">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -167,8 +167,8 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
                     <TableRow>
                       <TableCell colSpan={5} className="h-24 text-center">
                         {sparepartSearch
-                          ? "No spareparts found matching your search"
-                          : "No spareparts yet. Click \"Add Sparepart\" to add one."}
+                          ? "Tidak ditemukan sparepart sesuai pencarian"
+                          : "Belum ada sparepart. Klik \"Tambah Sparepart\" untuk menambahkan."}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -204,7 +204,7 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
                               ))}
                               {sparepart.compatibilities.length > 3 && (
                                 <Badge variant="outline" className="text-xs">
-                                  +{sparepart.compatibilities.length - 3} more
+                                  +{sparepart.compatibilities.length - 3} lainnya
                                 </Badge>
                               )}
                             </div>
@@ -264,8 +264,8 @@ export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
       <DeleteDialog
         open={deleteSparepartDialogOpen}
         onOpenChange={setDeleteSparepartDialogOpen}
-        title="Delete Sparepart"
-        description={`Are you sure you want to delete "${deletingSparepart?.name}"? This action cannot be undone.`}
+        title="Hapus Sparepart"
+        description={`Apakah Anda yakin ingin menghapus "${deletingSparepart?.name}"? Tindakan ini tidak dapat dibatalkan.`}
         onConfirm={handleDeleteSparepartConfirm}
         isLoading={isDeletingSparepart}
       />

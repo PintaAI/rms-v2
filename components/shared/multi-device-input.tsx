@@ -203,7 +203,7 @@ export function MultiDeviceInput({
             }
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Search or type new device..."
+          placeholder="Cari atau ketik perangkat baru..."
           disabled={disabled || isCreating}
           autoComplete="off"
           className="w-full"
@@ -214,12 +214,12 @@ export function MultiDeviceInput({
             {isSearching ? (
               <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
                 <RiLoader4Line className="w-4 h-4 animate-spin" />
-                Searching devices...
+                Mencari perangkat...
               </div>
             ) : results.length > 0 ? (
               <div className="py-1">
                 <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Existing Devices
+                  Perangkat yang Sudah Ada
                 </div>
                 {results.map((device, index) => (
                   <button
@@ -250,7 +250,7 @@ export function MultiDeviceInput({
               <div className="p-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                   <RiSearchLine className="w-4 h-4" />
-                  No existing device found
+                  Tidak ditemukan perangkat yang sesuai
                 </div>
                 <Button
                   type="button"
@@ -261,14 +261,14 @@ export function MultiDeviceInput({
                   className="w-full"
                 >
                   {isCreating ? (
-                    <>
-                      <RiLoader4Line className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <RiAddLine className="w-4 h-4 mr-2" />
-                      Create &quot;{displayQuery}&quot;
+                      <>
+                        <RiLoader4Line className="w-4 h-4 mr-2 animate-spin" />
+                        Membuat...
+                      </>
+                    ) : (
+                      <>
+                        <RiAddLine className="w-4 h-4 mr-2" />
+                        Buat &quot;{displayQuery}&quot;
                     </>
                   )}
                 </Button>

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import bwipjs from "bwip-js/browser";
 import { useReactToPrint } from "react-to-print";
-import { RiPrinterLine } from "@remixicon/react";
+import { RiPrinterLine, RiArticleLine } from "@remixicon/react";
 
 import type { SparepartWithCompatibilities } from "@/actions/inventory";
 import { Button } from "@/components/ui/button";
@@ -99,9 +99,14 @@ export function SparepartLabelPrintDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Print Sparepart Label</DialogTitle>
+          <DialogTitle className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <RiPrinterLine className="h-4 w-4" />
+            </span>
+            Cetak Label Sparepart
+          </DialogTitle>
           <DialogDescription>
-            Print a Code128 label using the sparepart ID for scanner input.
+            Mencetak label Code128 menggunakan ID sparepart untuk input pemindai.
           </DialogDescription>
         </DialogHeader>
 
@@ -121,7 +126,7 @@ export function SparepartLabelPrintDialog({
                         dangerouslySetInnerHTML={{ __html: barcodeSvg }}
                       />
                     ) : (
-                      <div className="text-[7px] font-medium text-black/70">Barcode unavailable</div>
+                      <div className="text-[7px] font-medium text-black/70">Barcode tidak tersedia</div>
                     )}
                   </div>
                   <div className="mt-[1mm] text-right text-[6px] font-medium uppercase tracking-wide text-black/70">
@@ -150,7 +155,7 @@ export function SparepartLabelPrintDialog({
           </Field>
           <Button onClick={handlePrint} disabled={!sparepart}>
             <RiPrinterLine data-icon="inline-start" />
-            Print {labelCount} Label{labelCount > 1 ? "s" : ""}
+            Cetak {labelCount} Label
           </Button>
         </DialogFooter>
       </DialogContent>

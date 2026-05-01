@@ -141,23 +141,23 @@ export function AddRepairItemForm({
   async function handleAddItem() {
     // Validate that an item is selected
     if (isManualItem && !itemName) {
-      onError("Please enter an item name");
+      onError("Silakan masukkan nama item");
       return;
     }
     if (isManualItem && (!itemPrice || parseInt(itemPrice, 10) < 0)) {
-      onError("Please enter a valid price");
+      onError("Silakan masukkan harga yang valid");
       return;
     }
     if (itemType === "sparepart" && selectedSparepartIds.length === 0) {
-      onError("Please select at least one sparepart from the list");
+      onError("Silakan pilih minimal satu sparepart dari daftar");
       return;
     }
     if (itemType === "service" && selectedPricelistIds.length === 0) {
-      onError("Please select at least one service from the list");
+      onError("Silakan pilih minimal satu jasa dari daftar");
       return;
     }
     if (!itemQty || parseInt(itemQty, 10) < 1) {
-      onError("Please enter a valid quantity");
+      onError("Silakan masukkan kuantitas yang valid");
       return;
     }
 
@@ -197,7 +197,7 @@ export function AddRepairItemForm({
 
         if (!result.success) {
           onAddItemError?.();
-          onError(result.error || "Failed to add item");
+          onError(result.error || "Gagal menambahkan item");
           return;
         }
       }
@@ -206,7 +206,7 @@ export function AddRepairItemForm({
     } catch (err) {
       console.error("Error adding item:", err);
       onAddItemError?.();
-      onError("Failed to add item");
+      onError("Gagal menambahkan item");
     }
   }
 
@@ -215,16 +215,16 @@ export function AddRepairItemForm({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Add Repair Item</DialogTitle>
+          <DialogTitle className="text-2xl">Tambah Item Perbaikan</DialogTitle>
           <DialogDescription className="text-base">
-            Add spareparts or services to this repair task
+            Tambahkan sparepart atau jasa ke tugas perbaikan ini
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {/* Item Type Toggle */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Item Type</Label>
+            <Label className="text-sm font-medium">Jenis Item</Label>
             <div className="grid grid-cols-4 gap-2">
               <button
                 type="button"
@@ -246,7 +246,7 @@ export function AddRepairItemForm({
                       : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
-                Manual Sparepart
+                Sparepart Manual
               </button>
               <button
                 type="button"
@@ -268,7 +268,7 @@ export function AddRepairItemForm({
                       : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
-                Manual Service
+                Jasa Manual
               </button>
               <button
                 type="button"
@@ -290,7 +290,7 @@ export function AddRepairItemForm({
                       : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
-                Inventory Sparepart
+                Sparepart Inventaris
               </button>
               <button
                 type="button"
@@ -312,7 +312,7 @@ export function AddRepairItemForm({
                       : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
                 )}
               >
-                Pricelist Service
+                Jasa Daftar Harga
               </button>
             </div>
           </div>
@@ -320,7 +320,7 @@ export function AddRepairItemForm({
           {isManualItem && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="manual-item-name" className="text-sm font-medium">Item Name</Label>
+                <Label htmlFor="manual-item-name" className="text-sm font-medium">Nama Item</Label>
                 <Input
                   id="manual-item-name"
                   value={manualName}
@@ -330,7 +330,7 @@ export function AddRepairItemForm({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="manual-item-price" className="text-sm font-medium">Price</Label>
+                <Label htmlFor="manual-item-price" className="text-sm font-medium">Harga</Label>
                 <Input
                   id="manual-item-price"
                   type="number"
@@ -349,10 +349,10 @@ export function AddRepairItemForm({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Label className="text-sm font-medium">
-                  {itemType === "sparepart" ? "Select Sparepart" : "Select Service"}
+                  {itemType === "sparepart" ? "Pilih Sparepart" : "Pilih Jasa"}
                 </Label>
                 <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                  Required
+                  Wajib
                 </Badge>
               </div>
               {itemType === "sparepart" ? (
@@ -366,7 +366,7 @@ export function AddRepairItemForm({
                   <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  New Sparepart
+                  Sparepart Baru
                 </Button>
               ) : (
                 <Button
@@ -379,7 +379,7 @@ export function AddRepairItemForm({
                   <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  New Service
+                  Jasa Baru
                 </Button>
               )}
             </div>
@@ -391,7 +391,7 @@ export function AddRepairItemForm({
               </svg>
               <Input
                 type="text"
-                placeholder={itemType === "sparepart" ? "Search spareparts..." : "Search services..."}
+                placeholder={itemType === "sparepart" ? "Cari sparepart..." : "Cari jasa..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9 text-sm"
@@ -414,7 +414,7 @@ export function AddRepairItemForm({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-medium text-muted-foreground">
-                    Selected ({selectedSpareparts.length})
+                    Dipilih ({selectedSpareparts.length})
                   </Label>
                   <span className="text-xs font-semibold text-foreground">
                     Subtotal: {formatCurrency(selectedItemsTotal)}
@@ -447,7 +447,7 @@ export function AddRepairItemForm({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-medium text-muted-foreground">
-                    Selected ({selectedPricelists.length})
+                    Dipilih ({selectedPricelists.length})
                   </Label>
                   <span className="text-xs font-semibold text-foreground">
                     Subtotal: {formatCurrency(selectedItemsTotal)}
@@ -482,7 +482,7 @@ export function AddRepairItemForm({
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                   </svg>
-                  {searchQuery ? "No spareparts found matching your search" : "No spareparts available in inventory"}
+                    {searchQuery ? "Tidak ditemukan sparepart sesuai pencarian" : "Tidak ada sparepart tersedia di inventaris"}
                 </div>
               ) : (
                 <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
@@ -543,7 +543,7 @@ export function AddRepairItemForm({
                             ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                             : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
                         )}>
-                          {sp.stock <= 0 ? "Out" : `Stok: ${sp.stock}`}
+                          {sp.stock <= 0 ? "Habis" : `Stok: ${sp.stock}`}
                         </span>
                       </div>
                     </button>
@@ -558,7 +558,7 @@ export function AddRepairItemForm({
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                   </svg>
-                  {searchQuery ? "No services found matching your search" : "No services available"}
+                    {searchQuery ? "Tidak ditemukan jasa sesuai pencarian" : "Tidak ada jasa tersedia"}
                 </div>
               ) : (
                 <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
@@ -614,7 +614,7 @@ export function AddRepairItemForm({
 
           {/* Quantity */}
           <div className="space-y-2">
-            <Label htmlFor="quantity" className="text-sm font-medium">Quantity per Item</Label>
+            <Label htmlFor="quantity" className="text-sm font-medium">Kuantitas per Item</Label>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -663,13 +663,13 @@ export function AddRepairItemForm({
 
         <DialogFooter className="gap-2 sm:gap-0 pt-1">
           <Button variant="outline" onClick={() => handleOpenChange(false)} className="h-9 px-4 text-sm">
-            Cancel
+            Batal
           </Button>
           <Button onClick={handleAddItem} disabled={!canSubmit} className="h-9 px-4 text-sm">
             <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Add {!isManualItem && hasSelectedItems ? `${itemType === "sparepart" ? selectedSparepartIds.length : selectedPricelistIds.length} Item${(itemType === "sparepart" ? selectedSparepartIds.length : selectedPricelistIds.length) > 1 ? "s" : ""}` : "Item"}
+            Tambah {!isManualItem && hasSelectedItems ? `${itemType === "sparepart" ? selectedSparepartIds.length : selectedPricelistIds.length} Item` : "Item"}
           </Button>
         </DialogFooter>
       </DialogContent>

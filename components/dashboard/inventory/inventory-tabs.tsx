@@ -26,6 +26,7 @@ import {
 } from "@/actions/inventory";
 import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
 import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/sparepart-label-print-dialog";
+import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepart-restock-dialog";
 import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
 import {
   RiAddLine,
@@ -38,6 +39,7 @@ import {
   RiListCheck,
   RiGridFill,
   RiPrinterLine,
+  RiStackLine,
 } from "@remixicon/react";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -68,8 +70,9 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
   const [deletingPricelist, setDeletingPricelist] = useState<ServicePricelist | null>(null);
   const [isDeletingSparepart, setIsDeletingSparepart] = useState(false);
   const [isDeletingPricelist, setIsDeletingPricelist] = useState(false);
-  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
-  const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+const [restockDialogOpen, setRestockDialogOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -137,6 +140,12 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
       }
     }
     setEditingSparepart(null);
+  };
+
+  const handleRestockSuccess = (updatedSparepart: SparepartWithCompatibilities) => {
+    setSpareparts((prev) =>
+      prev.map((sp) => (sp.id === updatedSparepart.id ? updatedSparepart : sp))
+    );
   };
 
   const handleDeleteSparepartClick = (sparepart: SparepartWithCompatibilities) => {
@@ -215,7 +224,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
             <div className="flex items-center gap-3">
               <div className="h-5 w-1 bg-primary rounded-full" />
               <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-                Sparepart {readOnly && <span className="text-muted-foreground/60">(Read-only)</span>}
+                Sparepart {readOnly && <span className="text-muted-foreground/60">(Hanya Baca)</span>}
               </h2>
             </div>
             <div className="flex items-center gap-2">
@@ -239,11 +248,20 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
               </ButtonGroup>
               {!readOnly && (
                 <Button
+                  variant="outline"
+                  onClick={() => setRestockDialogOpen(true)}
+                >
+                  <RiStackLine className="h-4 w-4 mr-1.5" />
+                  Restock
+                </Button>
+              )}
+              {!readOnly && (
+                <Button
                   onClick={handleAddSparepart}
                   className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
                 >
                   <RiAddLine className="h-4 w-4 mr-1.5" />
-                  Add Sparepart
+                  Tambah Sparepart
                 </Button>
               )}
             </div>
@@ -254,7 +272,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
             <Input
               value={sparepartSearch}
               onChange={(e) => setSparepartSearch(e.target.value)}
-              placeholder="Search spareparts..."
+              placeholder="Cari sparepart..."
               className="pl-9"
             />
           </div>
@@ -266,9 +284,9 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
           ) : viewMode === "card" ? (
             filteredSpareparts.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
-                {sparepartSearch
-                  ? "No spareparts found matching your search"
-                  : "No spareparts yet. Click \"Add Sparepart\" to add one."}
+                  {sparepartSearch
+                    ? "Tidak ditemukan sparepart sesuai pencarian"
+                    : "Belum ada sparepart. Klik \"Tambah Sparepart\" untuk menambahkan."}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -308,11 +326,11 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                         <div className="mt-2 text-lg font-bold tracking-tight text-foreground truncate transition-transform duration-300 group-hover:scale-[1.02]">{sparepart.name}</div>
                         <div className="mt-3 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Price</span>
+                            <span className="text-xs text-muted-foreground">Harga</span>
                             <span className="font-semibold text-sm tabular-nums">{formatCurrency(sparepart.defaultPrice)}</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Stock</span>
+                            <span className="text-xs text-muted-foreground">Stok</span>
                             <Badge
                               variant="outline"
                               className={
@@ -327,7 +345,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                             </Badge>
                           </div>
                           <div className="pt-2">
-                            <span className="text-xs text-muted-foreground">Compatibility</span>
+                            <span className="text-xs text-muted-foreground">Kompatibilitas</span>
                             <div className="flex flex-wrap gap-1 mt-1">
                               {sparepart.isUniversal ? (
                                 <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-xs">
@@ -390,11 +408,11 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Name</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Price</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stock</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Compatibility</TableHead>
-                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Actions</TableHead>}
+                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
+                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga</TableHead>
+                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok</TableHead>
+                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kompatibilitas</TableHead>
+                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -439,7 +457,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                                 ))}
                                 {sparepart.compatibilities.length > 3 && (
                                   <Badge variant="outline" className="text-xs">
-                                    +{sparepart.compatibilities.length - 3} more
+                                    +{sparepart.compatibilities.length - 3} lainnya
                                   </Badge>
                                 )}
                               </div>
@@ -502,11 +520,20 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
           />
         )}
 
+        {!readOnly && (
+          <SparepartRestockDialog
+            open={restockDialogOpen}
+            onOpenChange={setRestockDialogOpen}
+            tokoId={tokoId}
+            onSuccess={handleRestockSuccess}
+          />
+        )}
+
         <DeleteDialog
           open={deleteSparepartDialogOpen}
           onOpenChange={setDeleteSparepartDialogOpen}
-          title="Delete Sparepart"
-          description={`Are you sure you want to delete "${deletingSparepart?.name}"? This action cannot be undone.`}
+          title="Hapus Sparepart"
+          description={`Apakah Anda yakin ingin menghapus "${deletingSparepart?.name}"? Tindakan ini tidak dapat dibatalkan.`}
           onConfirm={handleDeleteSparepartConfirm}
           isLoading={isDeletingSparepart}
         />
@@ -518,7 +545,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
             <div className="flex items-center gap-3">
               <div className="h-5 w-1 bg-chart-1 rounded-full" />
               <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-                Jasa Service {readOnly && <span className="text-muted-foreground/60">(Read-only)</span>}
+                Jasa Service {readOnly && <span className="text-muted-foreground/60">(Hanya Baca)</span>}
               </h2>
             </div>
             <div className="flex items-center gap-2">
@@ -546,7 +573,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                   className="bg-gradient-to-r from-chart-1 to-chart-1/90 hover:from-chart-1/90 hover:to-chart-1/80 shadow-lg shadow-chart-1/20 transition-all duration-200 hover:shadow-xl hover:shadow-chart-1/30"
                 >
                   <RiAddLine className="h-4 w-4 mr-1.5" />
-                  Add Jasa
+                  Tambah Jasa
                 </Button>
               )}
             </div>
@@ -557,7 +584,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
             <Input
               value={pricelistSearch}
               onChange={(e) => setPricelistSearch(e.target.value)}
-              placeholder="Search jasa..."
+              placeholder="Cari jasa..."
               className="pl-9"
             />
           </div>
@@ -569,9 +596,9 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
           ) : viewMode === "card" ? (
             filteredPricelists.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
-                {pricelistSearch
-                  ? "No jasa found matching your search"
-                  : "No jasa yet. Click \"Add Jasa\" to add one."}
+                  {pricelistSearch
+                    ? "Tidak ditemukan jasa sesuai pencarian"
+                    : "Belum ada jasa. Klik \"Tambah Jasa\" untuk menambahkan."}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -622,9 +649,9 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Title</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Default Price</TableHead>
-                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[80px]">Actions</TableHead>}
+                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Judul</TableHead>
+                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga Default</TableHead>
+                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[80px]">Aksi</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -684,8 +711,8 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
         <DeleteDialog
           open={deletePricelistDialogOpen}
           onOpenChange={setDeletePricelistDialogOpen}
-          title="Delete Jasa"
-          description={`Are you sure you want to delete "${deletingPricelist?.title}"? This action cannot be undone.`}
+          title="Hapus Jasa"
+          description={`Apakah Anda yakin ingin menghapus "${deletingPricelist?.title}"? Tindakan ini tidak dapat dibatalkan.`}
           onConfirm={handleDeletePricelistConfirm}
           isLoading={isDeletingPricelist}
         />

@@ -16,7 +16,7 @@ import {
   updateServicePricelist,
   type ServicePricelist,
 } from "@/actions/inventory";
-import { RiLoader4Line } from "@remixicon/react";
+import { RiLoader4Line, RiPriceTag3Line, RiEditLine } from "@remixicon/react";
 
 interface ServicePricelistFormDialogProps {
   open: boolean;
@@ -44,12 +44,12 @@ function ServicePricelistFormContent({
 
     const price = parseInt(defaultPrice, 10);
     if (isNaN(price) || price < 0) {
-      setError("Price must be a valid number");
+      setError("Harga harus berupa angka yang valid");
       return;
     }
 
     if (!title.trim()) {
-      setError("Title is required");
+      setError("Judul wajib diisi");
       return;
     }
 
@@ -70,7 +70,7 @@ function ServicePricelistFormContent({
     setIsLoading(false);
 
     if (!result.success) {
-      setError(result.error || "Failed to save service pricelist");
+      setError(result.error || "Gagal menyimpan daftar harga jasa");
       return;
     }
 
@@ -83,23 +83,34 @@ function ServicePricelistFormContent({
   return (
     <DialogContent className="max-w-md">
       <DialogHeader>
-        <DialogTitle>{pricelist ? "Edit Jasa" : "Add Jasa"}</DialogTitle>
+        <DialogTitle className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-chart-1/10 text-chart-1">
+            <RiPriceTag3Line className="h-4 w-4" />
+          </span>
+          {pricelist ? "Edit Jasa" : "Tambah Jasa"}
+        </DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit}>
         <div className="space-y-4 py-4">
           {error && <div className="rounded p-3 text-sm text-destructive bg-destructive/10">{error}</div>}
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
+            <Label htmlFor="title" className="flex items-center gap-1.5">
+              <RiEditLine className="h-3.5 w-3.5 text-muted-foreground" />
+              Judul
+            </Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Ganti LCD"
+              placeholder="Contoh: Ganti LCD"
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="price">Default Price</Label>
+            <Label htmlFor="price" className="flex items-center gap-1.5">
+              <RiPriceTag3Line className="h-3.5 w-3.5 text-muted-foreground" />
+              Harga Default
+            </Label>
             <Input
               id="price"
               type="number"
@@ -113,18 +124,18 @@ function ServicePricelistFormContent({
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            Batal
           </Button>
           <Button type="submit" disabled={isLoading}>
             {isLoading ? (
               <>
                 <RiLoader4Line className="size-4 animate-spin" />
-                Saving...
+                Menyimpan...
               </>
             ) : pricelist ? (
-              "Update"
+              "Perbarui"
             ) : (
-              "Create"
+              "Buat"
             )}
           </Button>
         </DialogFooter>

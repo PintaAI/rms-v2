@@ -44,9 +44,9 @@ export type SparepartListItem = {
 }
 
 const createSparepartSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  defaultPrice: z.number().int().min(0, "Price must be 0 or greater"),
-  stock: z.number().int().min(0, "Stock must be 0 or greater").optional(),
+  name: z.string().min(1, "Nama wajib diisi"),
+  defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih"),
+  stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
   tokoId: z.string(),
   hpCatalogIds: z.array(z.string()).optional(),
@@ -54,16 +54,16 @@ const createSparepartSchema = z.object({
 
 const updateSparepartSchema = z.object({
   id: z.string(),
-  name: z.string().min(1, "Name is required").optional(),
-  defaultPrice: z.number().int().min(0, "Price must be 0 or greater").optional(),
-  stock: z.number().int().min(0, "Stock must be 0 or greater").optional(),
+  name: z.string().min(1, "Nama wajib diisi").optional(),
+  defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih").optional(),
+  stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
   hpCatalogIds: z.array(z.string()).optional(),
 })
 
 const createServicePricelistSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  defaultPrice: z.number().int().min(0, "Price must be 0 or greater"),
+  title: z.string().min(1, "Judul wajib diisi"),
+  defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih"),
   tokoId: z.string(),
 })
 
@@ -81,15 +81,15 @@ async function getInventoryUser(
   const user = await getAuthUser()
 
   if (!user) {
-    return { success: false as const, error: "Unauthorized" }
+    return { success: false as const, error: "Tidak terotorisasi" }
   }
 
   if (!canAccessToko(user, tokoId)) {
-    return { success: false as const, error: "Access denied" }
+    return { success: false as const, error: "Akses ditolak" }
   }
 
   if (requireWriteAccess && !isAdmin(user)) {
-    return { success: false as const, error: "Only admins can manage inventory" }
+    return { success: false as const, error: "Hanya admin yang dapat mengelola inventory" }
   }
 
   const plan = await getEffectivePlanForToko(user, tokoId)
@@ -126,7 +126,7 @@ export async function getSpareparts(tokoId: string): Promise<ActionResultWithDat
     return { success: true, data: spareparts }
   } catch (error) {
     console.error("Error fetching spareparts:", error)
-    return { success: false, error: "Failed to fetch spareparts" }
+    return { success: false, error: "Gagal mengambil sparepart" }
   }
 }
 
@@ -161,7 +161,7 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
     return { success: true, data: spareparts }
   } catch (error) {
     console.error("Error fetching compatible spareparts:", error)
-    return { success: false, error: "Failed to fetch compatible spareparts" }
+    return { success: false, error: "Gagal mengambil sparepart yang kompatibel" }
   }
 }
 
@@ -176,7 +176,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
     })
 
     if (existing) {
-      return { success: false, error: "Sparepart with this name already exists" }
+      return { success: false, error: "Sparepart dengan nama ini sudah ada" }
     }
 
     const sparepart = await prisma.sparepart.create({
@@ -221,7 +221,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
       return { success: false, error: error.issues[0].message }
     }
     console.error("Error creating sparepart:", error)
-    return { success: false, error: "Failed to create sparepart" }
+    return { success: false, error: "Gagal membuat sparepart" }
   }
 }
 
@@ -235,7 +235,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
     })
 
     if (!sparepart) {
-      return { success: false, error: "Sparepart not found" }
+      return { success: false, error: "Sparepart tidak ditemukan" }
     }
 
     const access = await getInventoryUser(sparepart.tokoId, true)
@@ -250,7 +250,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         },
       })
       if (existing) {
-        return { success: false, error: "Sparepart with this name already exists" }
+        return { success: false, error: "Sparepart dengan nama ini sudah ada" }
       }
     }
 
@@ -299,7 +299,156 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
       return { success: false, error: error.issues[0].message }
     }
     console.error("Error updating sparepart:", error)
-    return { success: false, error: "Failed to update sparepart" }
+    return { success: false, error: "Gagal memperbarui sparepart" }
+  }
+}
+
+const restockSparepartSchema = z.object({
+  id: z.string(),
+  qty: z.number().int().min(1, "Jumlah harus 1 atau lebih"),
+})
+
+export async function restockSparepart(data: z.infer<typeof restockSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
+  try {
+    const validated = restockSparepartSchema.parse(data)
+
+    const sparepart = await prisma.sparepart.findUnique({
+      where: { id: validated.id },
+      select: { tokoId: true, name: true, stock: true },
+    })
+
+    if (!sparepart) {
+      return { success: false, error: "Sparepart tidak ditemukan" }
+    }
+
+    const access = await getInventoryUser(sparepart.tokoId, true)
+    if (!access.success) return access
+
+    const updated = await prisma.sparepart.update({
+      where: { id: validated.id },
+      data: { stock: { increment: validated.qty } },
+      include: {
+        compatibilities: {
+          include: {
+            hpCatalog: { include: { brand: { select: { name: true } } } },
+          },
+        },
+      },
+    })
+
+    revalidateInventoryPaths()
+
+    await createActivityLogIfUser({
+      tokoId: sparepart.tokoId,
+      userId: access.user.id,
+      type: "sparepart_stock_in",
+      title: "Sparepart restocked",
+      payload: {
+        sparepartId: validated.id,
+        sparepartName: sparepart.name,
+        previousStock: sparepart.stock,
+        addedQty: validated.qty,
+        newStock: updated.stock,
+      },
+    })
+
+    return { success: true, data: updated }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: error.issues[0].message }
+    }
+    console.error("Error restocking sparepart:", error)
+    return { success: false, error: "Gagal menambah stok sparepart" }
+  }
+}
+
+export async function searchSpareparts(tokoId: string, query: string): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
+  try {
+    const access = await getInventoryUser(tokoId)
+    if (!access.success) return access
+
+    const spareparts = await prisma.sparepart.findMany({
+      where: {
+        tokoId,
+        OR: [
+          { id: { startsWith: query } },
+          { name: { contains: query, mode: "insensitive" } },
+        ],
+      },
+      include: {
+        compatibilities: {
+          include: {
+            hpCatalog: { include: { brand: { select: { name: true } } } },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+      take: 10,
+    })
+
+    return { success: true, data: spareparts }
+  } catch (error) {
+    console.error("Error searching spareparts:", error)
+    return { success: false, error: "Gagal mencari sparepart" }
+  }
+}
+
+export async function getStockInHistory(tokoId: string, limit: number = 20): Promise<ActionResultWithData<Array<{
+  id: string
+  createdAt: Date
+  sparepartId: string
+  sparepartName: string
+  previousStock: number
+  addedQty: number
+  newStock: number
+  userName: string
+}>>> {
+  try {
+    const access = await getInventoryUser(tokoId)
+    if (!access.success) return access
+
+    const activities = await prisma.activityLog.findMany({
+      where: {
+        tokoId,
+        type: "sparepart_stock_in",
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        createdAt: true,
+        payload: true,
+        user: {
+          select: { name: true },
+        },
+      },
+    })
+
+    const history = activities.map((log) => {
+      const payload = log.payload as {
+        sparepartId: string
+        sparepartName: string
+        previousStock: number
+        addedQty: number
+        newStock: number
+      } | null
+
+      return {
+        id: log.id,
+        createdAt: log.createdAt,
+        sparepartId: payload?.sparepartId ?? "",
+        sparepartName: payload?.sparepartName ?? "",
+        previousStock: payload?.previousStock ?? 0,
+        addedQty: payload?.addedQty ?? 0,
+        newStock: payload?.newStock ?? 0,
+        userName: log.user.name,
+      }
+    })
+
+    return { success: true, data: history }
+  } catch (error) {
+    console.error("Error fetching stock history:", error)
+    return { success: false, error: "Gagal mengambil history stok" }
   }
 }
 
@@ -311,7 +460,7 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
     })
 
     if (!sparepart) {
-      return { success: false, error: "Sparepart not found" }
+      return { success: false, error: "Sparepart tidak ditemukan" }
     }
 
     const access = await getInventoryUser(sparepart.tokoId, true)
@@ -322,7 +471,7 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
     })
 
     if (usedInServices) {
-      return { success: false, error: "Cannot delete sparepart that is used in services" }
+      return { success: false, error: "Tidak dapat menghapus sparepart yang digunakan dalam service" }
     }
 
     await prisma.$transaction([
@@ -346,7 +495,7 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
     return { success: true }
   } catch (error) {
     console.error("Error deleting sparepart:", error)
-    return { success: false, error: "Failed to delete sparepart" }
+    return { success: false, error: "Gagal menghapus sparepart" }
   }
 }
 
@@ -370,7 +519,7 @@ export async function getServicePricelists(tokoId: string): Promise<ActionResult
     return { success: true, data: pricelists }
   } catch (error) {
     console.error("Error fetching service pricelists:", error)
-    return { success: false, error: "Failed to fetch service pricelists" }
+    return { success: false, error: "Gagal mengambil daftar harga jasa" }
   }
 }
 
@@ -385,7 +534,7 @@ export async function createServicePricelist(data: z.infer<typeof createServiceP
     })
 
     if (existing) {
-      return { success: false, error: "Service pricelist with this title already exists" }
+      return { success: false, error: "Daftar harga jasa dengan judul ini sudah ada" }
     }
 
     const pricelist = await prisma.servicePricelist.create({
@@ -410,7 +559,7 @@ export async function createServicePricelist(data: z.infer<typeof createServiceP
       return { success: false, error: error.issues[0].message }
     }
     console.error("Error creating service pricelist:", error)
-    return { success: false, error: "Failed to create service pricelist" }
+    return { success: false, error: "Gagal membuat daftar harga jasa" }
   }
 }
 
@@ -424,7 +573,7 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
     })
 
     if (!pricelist) {
-      return { success: false, error: "Service pricelist not found" }
+      return { success: false, error: "Daftar harga jasa tidak ditemukan" }
     }
 
     const access = await getInventoryUser(pricelist.tokoId, true)
@@ -439,7 +588,7 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
         },
       })
       if (existing) {
-        return { success: false, error: "Service pricelist with this title already exists" }
+        return { success: false, error: "Daftar harga jasa dengan judul ini sudah ada" }
       }
     }
 
@@ -465,7 +614,7 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
       return { success: false, error: error.issues[0].message }
     }
     console.error("Error updating service pricelist:", error)
-    return { success: false, error: "Failed to update service pricelist" }
+    return { success: false, error: "Gagal memperbarui daftar harga jasa" }
   }
 }
 
@@ -477,7 +626,7 @@ export async function deleteServicePricelist(id: string): Promise<ActionResult> 
     })
 
     if (!pricelist) {
-      return { success: false, error: "Service pricelist not found" }
+      return { success: false, error: "Daftar harga jasa tidak ditemukan" }
     }
 
     const access = await getInventoryUser(pricelist.tokoId, true)
@@ -490,6 +639,6 @@ export async function deleteServicePricelist(id: string): Promise<ActionResult> 
     return { success: true }
   } catch (error) {
     console.error("Error deleting service pricelist:", error)
-    return { success: false, error: "Failed to delete service pricelist" }
+    return { success: false, error: "Gagal menghapus daftar harga jasa" }
   }
 }
