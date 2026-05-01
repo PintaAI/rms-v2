@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
-  RiMenuLine,
   RiSettings3Line,
   RiPencilLine,
   RiDeleteBinLine,
@@ -41,7 +40,7 @@ import type { ServiceTableItem } from "./types";
 const PREFERENCES_VERSION = 1;
 const MIN_COLUMN_WIDTH = 80;
 const MAX_COLUMN_WIDTH = 420;
-const ACTION_COLUMN_WIDTH = 96;
+const ACTION_COLUMN_WIDTH = 120;
 const PREFERENCES_CHANGE_EVENT = "service-table-preferences-change";
 const preferencesCache = new Map<string, { raw: string | null; preferences: ServiceTablePreferences }>();
 
@@ -185,10 +184,9 @@ export function ServiceTable({
     return filteredColumns.includes("customer") ? ["customer"] : filteredColumns.slice(0, 1);
   }, [filteredColumns, preferences.hiddenColumns]);
 
-  const showPrintNotaAction = true;
-  const showDropdownActions = showPrintNotaAction || onEdit || onDelete;
+  const showRowActions = true;
   const showTakeTask = onTake;
-  const hasActions = showDropdownActions || showTakeTask;
+  const hasActions = showRowActions || showTakeTask;
 
   const getEmptyColSpan = () => effectiveColumns.length + (hasActions ? 1 : 0);
 
@@ -476,37 +474,46 @@ export function ServiceTable({
                             );
                           })()
                         )}
-                        {showDropdownActions && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted">
-                                <RiMenuLine className="h-3.5 w-3.5" />
+                        {showRowActions && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 hover:bg-muted"
+                              aria-label="Print nota"
+                              title="Print nota"
+                              onClick={(e) => { e.stopPropagation(); openInvoiceDialog(service); }}
+                            >
+                              <RiPrinterLine className="h-3.5 w-3.5" />
+                            </Button>
+                            {onEdit && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 hover:bg-muted"
+                                aria-label="Edit service"
+                                title="Edit"
+                                onClick={(e) => { e.stopPropagation(); onEdit(service); }}
+                              >
+                                <RiPencilLine className="h-3.5 w-3.5" />
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="min-w-[120px]">
-                              {showPrintNotaAction && (
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openInvoiceDialog(service); }}>
-                                  <RiPrinterLine className="h-4 w-4 mr-2" />
-                                  Print Nota
-                                </DropdownMenuItem>
-                              )}
-                              {onEdit && (
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(service); }}>
-                                  <RiPencilLine className="h-4 w-4 mr-2" />
-                                  Edit
-                                </DropdownMenuItem>
-                              )}
-                              {onDelete && service.invoice?.paymentStatus !== "paid" && service.invoice?.paymentStatus !== "dp" && (
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onClick={(e) => { e.stopPropagation(); onDelete(service); }}
-                                >
-                                  <RiDeleteBinLine className="h-4 w-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            )}
+                            {onDelete && service.invoice?.paymentStatus !== "paid" && service.invoice?.paymentStatus !== "dp" && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                aria-label="Delete service"
+                                title="Delete"
+                                onClick={(e) => { e.stopPropagation(); onDelete(service); }}
+                              >
+                                <RiDeleteBinLine className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </>
                         )}
                       </div>
                     </TableCell>
