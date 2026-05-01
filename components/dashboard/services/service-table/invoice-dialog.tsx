@@ -27,8 +27,58 @@ type PaidInvoiceService = ServiceTableItem & {
 
 export type InvoicePreviewService = ServiceTableItem;
 
+type InvoiceNoteMode = "service-note" | "pickup-note" | "dp-invoice" | "paid-invoice";
+
 export function isPaidInvoiceService(service: ServiceTableItem): service is PaidInvoiceService {
   return Boolean(service.invoice && (service.invoice.paymentStatus === "paid" || service.invoice.paymentStatus === "dp"));
+}
+
+function getInvoiceNoteMode(service: InvoicePreviewService): InvoiceNoteMode {
+  if (!service.invoice) return "service-note";
+  if (service.invoice.paymentStatus === "paid") return "paid-invoice";
+  if (service.invoice.paymentStatus === "dp") return "dp-invoice";
+  return "pickup-note";
+}
+
+function getInvoiceTitle(mode: InvoiceNoteMode): string {
+  switch (mode) {
+    case "paid-invoice":
+      return "Repair Invoice";
+    case "dp-invoice":
+      return "Invoice DP Service";
+    case "pickup-note":
+      return "Nota Pengambilan HP Service";
+    case "service-note":
+      return "Nota Service";
+  }
+}
+
+function getInvoiceDescription(mode: InvoiceNoteMode): string {
+  switch (mode) {
+    case "paid-invoice":
+      return "Bukti pembayaran servis perangkat. Invoice ini dapat diunduh sebagai arsip pelanggan.";
+    case "dp-invoice":
+      return "Bukti pembayaran DP servis perangkat. Sisa tagihan masih perlu dilunasi.";
+    case "pickup-note":
+      return "Bukti pengambilan perangkat service. Nota ini bukan bukti pembayaran lunas.";
+    case "service-note":
+      return "Bukti pencatatan perangkat service. Invoice pembayaran belum dibuat.";
+  }
+}
+
+function getDialogDescription(service: InvoicePreviewService, mode: InvoiceNoteMode): string {
+  switch (mode) {
+    case "paid-invoice":
+      return "Invoice berstatus paid. Anda bisa mengunduh atau mencetaknya.";
+    case "dp-invoice":
+      return "Invoice berstatus DP. Anda bisa mengunduh atau mencetaknya.";
+    case "pickup-note":
+      return "Invoice belum lunas. Cetakan ini digunakan sebagai nota pengambilan HP service.";
+    case "service-note":
+      return service.invoice
+        ? "Nota service bisa dicetak dari data service."
+        : "Invoice belum tersedia. Nota tetap bisa dicetak dari data service.";
+  }
 }
 
 function formatInvoiceDate(value: Date | string | null | undefined): string {
@@ -72,6 +122,7 @@ function InvoicePreviewCard({
   invoiceRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const items = getInvoiceItems(service);
+  const mode = getInvoiceNoteMode(service);
   const hasInvoice = Boolean(service.invoice);
   const hasDetailedItems = Boolean(service.invoice?.items?.length);
   const brandIcon = getBrandIcon(service.hpCatalog.brand.name);
@@ -90,10 +141,10 @@ function InvoicePreviewCard({
             {brandIcon}
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Repair Invoice</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{getInvoiceTitle(mode)}</p>
             <h3 className="mt-1 text-2xl font-black tracking-tight">RMS Service Center</h3>
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Bukti pembayaran servis perangkat. Invoice ini dapat diunduh sebagai arsip pelanggan.
+              {getInvoiceDescription(mode)}
             </p>
           </div>
         </div>
@@ -129,10 +180,10 @@ function InvoicePreviewCard({
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm">
             <div className="flex items-center gap-2 font-semibold text-slate-700">
-              Belum Lunas
+              Nota Pengambilan
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              Invoice belum dibayar
+              Tagihan belum lunas
             </p>
           </div>
         )}
@@ -140,7 +191,7 @@ function InvoicePreviewCard({
 
       <div className="grid gap-6 py-6 sm:grid-cols-2">
         <div className="space-y-3 rounded-2xl bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Invoice</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{mode === "pickup-note" ? "Nota Pengambilan" : "Invoice"}</p>
           <div className="space-y-2 text-sm text-slate-600">
             <div className="flex items-center justify-between gap-4">
               <span>Nomor</span>
@@ -205,10 +256,18 @@ function InvoicePreviewCard({
 
       {!hasDetailedItems && (
         <p className="mt-3 text-xs text-slate-500">
-          {hasInvoice
-            ? "Detail item belum tersedia. Invoice menampilkan total pembayaran final."
-            : "Invoice belum tersedia. Nota menampilkan data service yang sudah tercatat."}
+          {mode === "pickup-note"
+            ? "Detail item belum tersedia. Nota pengambilan menampilkan total tagihan service."
+            : hasInvoice
+              ? "Detail item belum tersedia. Invoice menampilkan total pembayaran final."
+              : "Invoice belum tersedia. Nota menampilkan data service yang sudah tercatat."}
         </p>
+      )}
+
+      {mode === "pickup-note" && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Nota ini adalah bukti pengambilan HP service, bukan bukti pembayaran lunas. Tagihan masih perlu diselesaikan.
+        </div>
       )}
 
       <div className="mt-6 flex flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row sm:items-end sm:justify-between">
@@ -219,13 +278,13 @@ function InvoicePreviewCard({
         <div className="min-w-full rounded-2xl bg-slate-950 px-5 py-4 text-white shadow-sm sm:min-w-22">
           <div className=" flex items-end justify-between gap-6">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">{isDp ? "Sisa Tagihan" : "Grand Total"}</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-white/50">{isDp ? "Sisa Tagihan" : mode === "pickup-note" ? "Total Tagihan" : "Grand Total"}</p>
               <p className="mt-1 text-2xl font-black tracking-tight">{formatCurrency(isDp ? remainingTotal : grandTotal)}</p>
               {isDp && (
                 <p className="mt-0.5 text-[0.65rem] text-white/40">DP: {formatCurrency(dpAmount)}</p>
               )}
             </div>
-            <Badge className="border-0 bg-white/12 px-3 py-1 text-white hover:bg-white/12">{!hasInvoice ? "Nota" : isPaid ? "Lunas" : isDp ? "DP" : "Belum Lunas"}</Badge>
+            <Badge className="border-0 bg-white/12 px-3 py-1 text-white hover:bg-white/12">{!hasInvoice ? "Nota" : isPaid ? "Lunas" : isDp ? "DP" : "Pengambilan"}</Badge>
           </div>
         </div>
       </div>
@@ -254,6 +313,7 @@ export function InvoiceDialog({
   const [activeExport, setActiveExport] = React.useState<boolean>(false);
   const [activePrint, setActivePrint] = React.useState<boolean>(false);
   const invoiceCardRef = React.useRef<HTMLDivElement>(null);
+  const mode = service ? getInvoiceNoteMode(service) : null;
 
   const handleDownloadInvoice = React.useCallback(async () => {
     if (!service || !invoiceCardRef.current) return;
@@ -317,12 +377,10 @@ export function InvoiceDialog({
           <>
             <DialogHeader >
               <DialogTitle className="text-base font-semibold">
-                Invoice {getInvoiceNumber(service)}
+                {mode ? getInvoiceTitle(mode) : "Nota"} {getInvoiceNumber(service)}
               </DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                {service.invoice
-                  ? `Invoice berstatus ${service.invoice.paymentStatus === "dp" ? "DP" : service.invoice.paymentStatus === "paid" ? "paid" : "belum lunas"}. Anda bisa mengunduh atau mencetaknya.`
-                  : "Invoice belum tersedia. Nota tetap bisa dicetak dari data service."}
+                {mode ? getDialogDescription(service, mode) : "Nota bisa diunduh atau dicetak."}
               </DialogDescription>
             </DialogHeader>
 
