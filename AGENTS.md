@@ -6,7 +6,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Commands
 
-- Use `bun` for package management and scripts. Root scripts are `bun run dev`, `bun run build`, `bun run start`, `bun run lint`, and the seed variants in `package.json`.
+- Use `bun` for package management and scripts. Root scripts are `bun run dev`, `bun run start`, and the seed variants in `package.json`.
 - There is no dedicated typecheck or test script. The meaningful verification path is `bun run lint` then `bun run build`.
 - `postinstall` already runs `prisma generate`; Vercel also forces `bun run prisma generate && bun run next build` in `vercel.json`.
 

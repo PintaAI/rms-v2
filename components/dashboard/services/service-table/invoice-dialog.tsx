@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { getTokoInvoiceSettings } from "@/actions/toko";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,16 @@ type PaidInvoiceService = ServiceTableItem & {
 export type InvoicePreviewService = ServiceTableItem;
 
 type InvoiceNoteMode = "service-note" | "pickup-note" | "dp-invoice" | "paid-invoice";
+
+type InvoiceSettings = {
+  invoiceTerms: string;
+  invoiceWarranty: string;
+};
+
+const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
+  invoiceTerms: "Barang yang tidak diambil lebih dari 30 hari di luar tanggung jawab toko.",
+  invoiceWarranty: "Garansi berlaku sesuai jenis kerusakan dan tidak berlaku untuk kerusakan fisik/cairan.",
+};
 
 export function isPaidInvoiceService(service: ServiceTableItem): service is PaidInvoiceService {
   return Boolean(service.invoice && (service.invoice.paymentStatus === "paid" || service.invoice.paymentStatus === "dp"));
@@ -116,9 +127,11 @@ async function renderInvoiceToPng(invoiceCard: HTMLDivElement) {
 
 function InvoicePreviewCard({
   service,
+  invoiceSettings,
   invoiceRef,
 }: {
   service: InvoicePreviewService;
+  invoiceSettings: InvoiceSettings;
   invoiceRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const items = getInvoiceItems(service);
@@ -289,6 +302,17 @@ function InvoicePreviewCard({
         </div>
       </div>
 
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Syarat & Ketentuan</p>
+          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">{invoiceSettings.invoiceTerms}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Garansi Service</p>
+          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">{invoiceSettings.invoiceWarranty}</p>
+        </div>
+      </div>
+
       <div className="mt-8 flex justify-end">
         <div className="w-full rounded-2xl border border-slate-200 p-4 text-center sm:w-64">
           <p className="text-sm font-semibold text-slate-900">Customer</p>
@@ -303,17 +327,48 @@ function InvoicePreviewCard({
 
 export function InvoiceDialog({
   service,
+  tokoId,
   open,
   onOpenChange,
 }: {
   service: InvoicePreviewService | null;
+  tokoId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const [activeExport, setActiveExport] = React.useState<boolean>(false);
   const [activePrint, setActivePrint] = React.useState<boolean>(false);
+  const [invoiceSettings, setInvoiceSettings] = React.useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
   const invoiceCardRef = React.useRef<HTMLDivElement>(null);
   const mode = service ? getInvoiceNoteMode(service) : null;
+  const effectiveInvoiceSettings = tokoId ? invoiceSettings : DEFAULT_INVOICE_SETTINGS;
+
+  React.useEffect(() => {
+    if (!open || !service || !tokoId) {
+      return;
+    }
+
+    let cancelled = false;
+    const currentTokoId = tokoId;
+
+    async function loadInvoiceSettings() {
+      const result = await getTokoInvoiceSettings(currentTokoId);
+
+      if (cancelled) return;
+
+      if (result.success && result.data) {
+        setInvoiceSettings(result.data);
+      } else {
+        setInvoiceSettings(DEFAULT_INVOICE_SETTINGS);
+      }
+    }
+
+    loadInvoiceSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, service, tokoId]);
 
   const handleDownloadInvoice = React.useCallback(async () => {
     if (!service || !invoiceCardRef.current) return;
@@ -407,7 +462,7 @@ export function InvoiceDialog({
             </div>
 
            
-              <InvoicePreviewCard service={service} invoiceRef={invoiceCardRef} />
+              <InvoicePreviewCard service={service} invoiceSettings={effectiveInvoiceSettings} invoiceRef={invoiceCardRef} />
             
           </>
         )}

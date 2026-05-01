@@ -527,6 +527,7 @@ export function ServiceTable({
 
       <InvoiceDialog
         service={selectedInvoiceService}
+        tokoId={tokoId}
         open={Boolean(selectedInvoiceService)}
         onOpenChange={(open) => {
           if (!open) setSelectedInvoiceService(null);

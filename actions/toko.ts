@@ -37,6 +37,8 @@ interface TokoDetail {
   address: string | null;
   phone: string | null;
   logoUrl: string | null;
+  invoiceTerms: string | null;
+  invoiceWarranty: string | null;
   status: string;
   createdAt: Date;
   updatedAt: Date;
@@ -47,8 +49,13 @@ interface UpdateTokoInput {
   address?: string;
   phone?: string;
   logoUrl?: string;
+  invoiceTerms?: string;
+  invoiceWarranty?: string;
   status?: "active" | "inactive";
 }
+
+const DEFAULT_INVOICE_TERMS = "Barang yang tidak diambil lebih dari 30 hari di luar tanggung jawab toko.";
+const DEFAULT_INVOICE_WARRANTY = "Garansi berlaku sesuai jenis kerusakan dan tidak berlaku untuk kerusakan fisik/cairan.";
 
 export async function createTokoWithUsers(input: CreateTokoInput): Promise<CreateTokoResult> {
   const user = await getAuthUser();
@@ -244,6 +251,8 @@ export async function getTokoById(tokoId: string): Promise<{ success: boolean; d
       address: true,
       phone: true,
       logoUrl: true,
+      invoiceTerms: true,
+      invoiceWarranty: true,
       status: true,
       createdAt: true,
       updatedAt: true,
@@ -287,6 +296,8 @@ export async function updateToko(
         address: input.address?.trim(),
         phone: input.phone?.trim(),
         logoUrl: input.logoUrl?.trim(),
+        invoiceTerms: input.invoiceTerms?.trim(),
+        invoiceWarranty: input.invoiceWarranty?.trim(),
         status: input.status,
       },
       select: {
@@ -295,6 +306,8 @@ export async function updateToko(
         address: true,
         phone: true,
         logoUrl: true,
+        invoiceTerms: true,
+        invoiceWarranty: true,
         status: true,
         createdAt: true,
         updatedAt: true,
@@ -308,6 +321,42 @@ export async function updateToko(
     console.error("Failed to update toko:", error);
     return { success: false, error: "Failed to update toko" };
   }
+}
+
+export async function getTokoInvoiceSettings(tokoId: string): Promise<{
+  success: boolean;
+  data?: { invoiceTerms: string; invoiceWarranty: string };
+  error?: string;
+}> {
+  const user = await getAuthUser();
+
+  if (!user) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  if (!canAccessToko(user, tokoId)) {
+    return { success: false, error: "Access denied" };
+  }
+
+  const toko = await prisma.toko.findUnique({
+    where: { id: tokoId },
+    select: {
+      invoiceTerms: true,
+      invoiceWarranty: true,
+    },
+  });
+
+  if (!toko) {
+    return { success: false, error: "Toko not found" };
+  }
+
+  return {
+    success: true,
+    data: {
+      invoiceTerms: toko.invoiceTerms?.trim() || DEFAULT_INVOICE_TERMS,
+      invoiceWarranty: toko.invoiceWarranty?.trim() || DEFAULT_INVOICE_WARRANTY,
+    },
+  };
 }
 
 export async function deleteToko(tokoId: string): Promise<{ success: boolean; error?: string }> {

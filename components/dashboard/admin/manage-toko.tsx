@@ -8,6 +8,7 @@ import { getTokoById, updateToko, deleteToko, createToko } from "@/actions/toko"
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -26,6 +27,8 @@ interface TokoDetail {
   address: string | null;
   phone: string | null;
   logoUrl: string | null;
+  invoiceTerms: string | null;
+  invoiceWarranty: string | null;
   status: string;
 }
 
@@ -48,6 +51,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
     address: "",
     phone: "",
     logoUrl: "",
+    invoiceTerms: "",
+    invoiceWarranty: "",
     status: "active" as "active" | "inactive",
   });
   const [createFormData, setCreateFormData] = useState({
@@ -73,6 +78,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
         address: result.data.address || "",
         phone: result.data.phone || "",
         logoUrl: result.data.logoUrl || "",
+        invoiceTerms: result.data.invoiceTerms || "",
+        invoiceWarranty: result.data.invoiceWarranty || "",
         status: result.data.status as "active" | "inactive",
       });
       setEditLogoPreview(result.data.logoUrl);
@@ -149,6 +156,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
       address: editFormData.address.trim() || undefined,
       phone: editFormData.phone.trim() || undefined,
       logoUrl,
+      invoiceTerms: editFormData.invoiceTerms.trim(),
+      invoiceWarranty: editFormData.invoiceWarranty.trim(),
       status: editFormData.status,
     });
 
@@ -228,6 +237,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
         address: null,
         phone: null,
         logoUrl: toko.logoUrl,
+        invoiceTerms: null,
+        invoiceWarranty: null,
         status: toko.status,
       });
       setDeleteDialogOpen(true);
@@ -272,6 +283,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
       address: "",
       phone: "",
       logoUrl: "",
+      invoiceTerms: "",
+      invoiceWarranty: "",
       status: "active",
     });
     setEditLogoFile(null);
@@ -386,7 +399,7 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
         </section>
 
         <Dialog open={createDialogOpen} onOpenChange={(open) => { if (!open) resetCreateForm(); setCreateDialogOpen(open); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add New Toko</DialogTitle>
             <DialogDescription>
@@ -605,6 +618,29 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
                     disabled={isLoadingEdit}
                   />
                   <RiPhoneLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Syarat & Ketentuan Nota</label>
+                  <Textarea
+                    value={editFormData.invoiceTerms}
+                    onChange={(e) => setEditFormData((prev) => ({ ...prev, invoiceTerms: e.target.value }))}
+                    placeholder="Barang yang tidak diambil lebih dari 30 hari di luar tanggung jawab toko."
+                    rows={5}
+                    disabled={isLoadingEdit}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Garansi Service</label>
+                  <Textarea
+                    value={editFormData.invoiceWarranty}
+                    onChange={(e) => setEditFormData((prev) => ({ ...prev, invoiceWarranty: e.target.value }))}
+                    placeholder="Garansi berlaku sesuai jenis kerusakan dan tidak berlaku untuk kerusakan fisik/cairan."
+                    rows={5}
+                    disabled={isLoadingEdit}
+                  />
                 </div>
               </div>
 
