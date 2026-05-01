@@ -55,6 +55,8 @@ export function DeviceInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const isSelected = !!value;
+
   useEffect(() => {
     if (highlightedIndex >= 0 && dropdownRef.current) {
       const items = dropdownRef.current.querySelectorAll('button[type="button"]');
@@ -246,7 +248,7 @@ export function DeviceInput({
             <Input
               ref={inputRef}
               id="device"
-              value={displayQuery}
+              value={query}
               onChange={handleChange}
               onFocus={handleFocus}
               onKeyDown={handleKeyDown}
