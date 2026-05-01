@@ -229,6 +229,15 @@ function InvoicePreviewCard({
           </div>
         </div>
       </div>
+
+      <div className="mt-8 flex justify-end">
+        <div className="w-full rounded-2xl border border-slate-200 p-4 text-center sm:w-64">
+          <p className="text-sm font-semibold text-slate-900">Customer</p>
+          <div className="mt-16 border-t border-slate-300 pt-2 text-xs text-slate-500">
+            {service.customerName || "Pelanggan"}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
