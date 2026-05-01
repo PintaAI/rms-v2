@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import {
   connectWhatsappInstance,
   createWhatsappInstance,
+  deleteWhatsappInstance,
   getWhatsappConnectionState,
 } from "@/lib/evolution";
 import { canAccessToko, getAuthUser, isAdmin, type ActionResultWithData } from "@/lib/rbac";
@@ -43,18 +44,6 @@ function getInstanceName(tokoId: string) {
 function isExistingInstanceError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return message.includes("already") || message.includes("exist") || message.includes("409");
-}
-
-function getResponseShape(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map((item) => getResponseShape(item)).slice(0, 3);
-  if (!value || typeof value !== "object") return typeof value;
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => [
-      key,
-      typeof nestedValue === "string" ? `string(${nestedValue.length})` : getResponseShape(nestedValue),
-    ])
-  );
 }
 
 function getConnectionState(response: unknown) {
@@ -177,21 +166,61 @@ export async function createOrConnectTokoWhatsapp(
     }
 
     const connectResponse = await connectWhatsappInstance(instanceName);
-    console.info("Evolution WhatsApp connect response shape", {
-      instanceName,
-      createResponse: getResponseShape(createResponse),
-      connectResponse: getResponseShape(connectResponse),
-    });
     const setting = await getSettingByTokoId(tokoId);
 
     if (!setting) return { success: false, error: "WhatsApp setting not found" };
 
     revalidatePath(`/${tokoId}/admin`);
 
-    return { success: true, data: { setting: serializeSetting(setting), qr: connectResponse ?? createResponse } };
+    return { success: true, data: { setting: serializeSetting(setting), qr: { connectResponse, createResponse } } };
   } catch (error) {
     console.error("Failed to connect WhatsApp:", error);
     return { success: false, error: error instanceof Error ? error.message : "Failed to connect WhatsApp" };
+  }
+}
+
+export async function resetTokoWhatsappConnection(
+  tokoId: string
+): Promise<ActionResultWithData<{ setting: TokoWhatsappSettingData; qr: unknown }>> {
+  const auth = await authorizeWhatsappAdmin(tokoId);
+  if (!auth.success) return auth;
+
+  try {
+    const setting = await getSettingByTokoId(tokoId);
+    const instanceName = setting?.instanceName ?? getInstanceName(tokoId);
+
+    try {
+      await deleteWhatsappInstance(instanceName);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      if (!message.includes("404") && !message.includes("not found")) throw error;
+    }
+
+    const createResponse = await createWhatsappInstance(instanceName);
+    const connectResponse = await connectWhatsappInstance(instanceName);
+
+    const updated = await prisma.tokoWhatsappSetting.upsert({
+      where: { tokoId },
+      create: {
+        tokoId,
+        instanceName,
+        connectionState: "connecting",
+      },
+      update: {
+        instanceName,
+        connectionState: "connecting",
+        connectedNumber: null,
+        lastConnectedAt: null,
+      },
+      include: { toko: { select: { name: true } } },
+    });
+
+    revalidatePath(`/${tokoId}/admin`);
+
+    return { success: true, data: { setting: serializeSetting(updated), qr: { connectResponse, createResponse } } };
+  } catch (error) {
+    console.error("Failed to reset WhatsApp connection:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Failed to reset WhatsApp connection" };
   }
 }
 

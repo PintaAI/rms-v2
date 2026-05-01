@@ -1,15 +1,12 @@
 import prisma from "@/lib/prisma";
 import { sendWhatsappText } from "@/lib/evolution";
+import { normalizeWhatsappNumber } from "@/lib/whatsapp-number";
 
 const DEFAULT_DONE_MESSAGE =
   "Halo {customerName}, service perangkat {brand} {model} di {tokoName} sudah selesai. Silakan datang ke toko untuk pengambilan. Terima kasih.";
 
 const DEFAULT_FAILED_MESSAGE =
   "Halo {customerName}, mohon maaf service perangkat {brand} {model} di {tokoName} belum berhasil diperbaiki. Silakan hubungi toko untuk info lebih lanjut.";
-
-function normalizeWhatsappNumber(value: string) {
-  return value.replace(/\D/g, "").replace(/^0/, "62");
-}
 
 function renderTemplate(
   template: string,
@@ -53,16 +50,10 @@ export async function sendServiceStatusWhatsappNotification(input: {
 
     const setting = service.toko.whatsappSetting;
     if (!setting) {
-      console.info("WhatsApp notification skipped: missing toko setting", { serviceId: service.id, tokoId: service.tokoId });
       return;
     }
     if (!setting.enabled) return;
     if (setting.connectionState !== "open") {
-      console.info("WhatsApp notification skipped: instance is not connected", {
-        serviceId: service.id,
-        tokoId: service.tokoId,
-        connectionState: setting.connectionState,
-      });
       return;
     }
     if (input.status === "done" && !setting.notifyDone) return;
@@ -70,7 +61,6 @@ export async function sendServiceStatusWhatsappNotification(input: {
 
     const number = normalizeWhatsappNumber(service.noWa);
     if (!number) {
-      console.info("WhatsApp notification skipped: invalid customer number", { serviceId: service.id });
       return;
     }
 

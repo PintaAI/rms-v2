@@ -5,6 +5,7 @@ import { createService, updateService } from "@/actions";
 import type { ServiceListItem as ServiceListItemType } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
+import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
 import {
   Dialog,
   DialogContent,
@@ -220,8 +221,9 @@ function ServicesFormContent({
       return;
     }
 
-    if (!noWa.trim()) {
-      setError("Nomor WhatsApp wajib diisi");
+    const whatsappValidation = validateIndonesianWhatsappNumber(noWa);
+    if (!whatsappValidation.valid) {
+      setError(whatsappValidation.error);
       return;
     }
 
@@ -235,7 +237,7 @@ function ServicesFormContent({
     const payload = {
       hpCatalogId: selectedDevice.id,
       customerName: customerName || undefined,
-      noWa,
+      noWa: noWa.trim(),
       complaint,
       includedItems: includedItems.length > 0 ? includedItems : undefined,
       passwordPattern: passwordPatternValue || undefined,
@@ -251,7 +253,7 @@ function ServicesFormContent({
         id: tempId,
         hpCatalogId: selectedDevice.id,
         customerName: customerName || null,
-        noWa,
+        noWa: noWa.trim(),
         complaint,
         includedItems: includedItems.length > 0 ? includedItems : null,
         note: null,
@@ -279,7 +281,7 @@ function ServicesFormContent({
         id: editData.id,
         hpCatalogId: selectedDevice.id,
         customerName: customerName || null,
-        noWa,
+        noWa: noWa.trim(),
         complaint,
         includedItems: includedItems.length > 0 ? includedItems : null,
         note: existingData.note || null,
@@ -367,7 +369,8 @@ function ServicesFormContent({
                 </Label>
                 <span className="text-sm leading-none text-destructive">*</span>
               </div>
-              <Input id="noWa" placeholder="08123456789" disabled={isLoading} value={noWa} onChange={(e) => setNoWa(e.target.value)} />
+              <Input id="noWa" placeholder="08123456789 atau 6281234567890" disabled={isLoading} value={noWa} onChange={(e) => setNoWa(e.target.value)} inputMode="tel" />
+              <p className="text-xs text-muted-foreground">Format didukung: 08..., 628..., atau +628....</p>
             </div>
           </div>
         </div>

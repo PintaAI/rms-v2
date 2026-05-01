@@ -7,6 +7,7 @@ import { ensureFeatureAccess, ensureMonthlyActivityLimit } from "@/lib/feature-e
 import { canUseFeature } from "@/lib/features";
 import { revalidateServicePaths } from "@/lib/revalidation";
 import { sendServiceStatusWhatsappNotification } from "@/lib/service-whatsapp-notifications";
+import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
 import { getEffectivePlanForToko, type AuthUser } from "@/lib/rbac";
 import { getDisabledFeaturesForToko } from "./feature-settings";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
@@ -26,7 +27,9 @@ import type { ActionResult, ActionResultWithData } from "./service-types";
 const createServiceSchema = z.object({
   hpCatalogId: z.string().min(1),
   customerName: z.string().optional(),
-  noWa: z.string().min(1),
+  noWa: z.string().min(1).refine((value) => validateIndonesianWhatsappNumber(value).valid, {
+    message: "Format WhatsApp harus nomor Indonesia aktif, contoh 08123456789 atau 6281234567890",
+  }),
   complaint: z.string().min(1),
   includedItems: z.array(z.string()).optional(),
   passwordPattern: z.string().optional(),

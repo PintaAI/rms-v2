@@ -7,6 +7,7 @@ import {
   createOrConnectTokoWhatsapp,
   getTokoWhatsappSetting,
   refreshTokoWhatsappConnection,
+  resetTokoWhatsappConnection,
   updateTokoWhatsappSetting,
   type TokoWhatsappSettingData,
 } from "@/actions/whatsapp";
@@ -39,7 +40,7 @@ function findQrValue(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
 
   const record = value as Record<string, unknown>;
-  for (const key of ["base64", "qrcode", "qr", "code", "pairingCode"] as const) {
+  for (const key of ["base64", "qrcode", "qr", "code"] as const) {
     const candidate = record[key];
     if (typeof candidate === "string" && candidate.length > 0) return candidate;
   }
@@ -85,6 +86,7 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isConnecting, setIsConnecting] = React.useState(false);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isResetting, setIsResetting] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
   const [qrData, setQrData] = React.useState<string | null>(null);
   const [hasQrResponse, setHasQrResponse] = React.useState(false);
@@ -140,7 +142,7 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
       if (nextQrData) {
         toast.success("QR WhatsApp siap dipindai");
       } else {
-        toast.warning("Evolution merespons, tapi QR tidak ditemukan. Coba Refresh Status atau Connect lagi.");
+        toast.warning("QR belum tersedia. Coba muat ulang status atau sambungkan kembali.");
       }
     } else {
       toast.error(result.error || "Gagal menghubungkan WhatsApp");
@@ -158,6 +160,27 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
       toast.error(result.error || "Gagal memperbarui status WhatsApp");
     }
     setIsRefreshing(false);
+  };
+
+  const handleResetConnection = async () => {
+    setIsResetting(true);
+    setQrData(null);
+    setHasQrResponse(false);
+    const result = await resetTokoWhatsappConnection(tokoId);
+    if (result.success && result.data) {
+      applySetting(result.data.setting);
+      const nextQrData = findQrValue(result.data.qr);
+      setQrData(nextQrData);
+      setHasQrResponse(true);
+      if (nextQrData) {
+        toast.success("QR WhatsApp baru siap dipindai");
+      } else {
+        toast.warning("QR belum tersedia. Tunggu sebentar, lalu coba sambungkan kembali.");
+      }
+    } else {
+      toast.error(result.error || "Gagal reset koneksi WhatsApp");
+    }
+    setIsResetting(false);
   };
 
   const handleSave = async () => {
@@ -223,9 +246,13 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
               {isRefreshing ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiRefreshLine data-icon="inline-start" />}
               Refresh Status
             </Button>
+            <Button variant="outline" onClick={handleResetConnection} disabled={isResetting || isConnecting}>
+              {isResetting ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiRefreshLine data-icon="inline-start" />}
+              QR Baru
+            </Button>
           </div>
           <div className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
-            Open WhatsApp on your phone &gt; Linked devices &gt; Link a device &gt; Scan this QR code.
+            Buka WhatsApp di HP &gt; Perangkat tertaut &gt; Tautkan perangkat &gt; pindai QR ini.
           </div>
           {(qrData || hasQrResponse) && (
             <div className="flex flex-col items-center gap-3 rounded-lg border p-4 text-center">
@@ -237,61 +264,65 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
                 <div className="rounded-md border bg-white p-3">
                   <QRCodeSVG value={qrData} size={180} marginSize={1} title="WhatsApp connection QR" />
                 </div>
+              ) : setting?.connectionState === "connecting" ? (
+                <div className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
+                  WhatsApp sedang menyiapkan koneksi. Jika QR belum muncul, tunggu sebentar lalu klik QR Baru.
+                </div>
               ) : (
                 <div className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
-                  QR belum tersedia dari Evolution. Coba klik Connect WhatsApp lagi dalam beberapa detik.
+                  QR belum tersedia. Klik Refresh Status atau Connect WhatsApp untuk mencoba lagi.
                 </div>
               )}
               <p className="text-xs text-muted-foreground">QR ini untuk WhatsApp milik toko/admin, bukan WhatsApp pelanggan.</p>
             </div>
           )}
           {setting?.connectedNumber && (
-            <p className="text-xs text-muted-foreground">Connected account: {setting.connectedNumber}</p>
+            <p className="text-xs text-muted-foreground">Akun terhubung: {setting.connectedNumber}</p>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Notification Rules</CardTitle>
+          <CardTitle>Aturan Notifikasi</CardTitle>
           <CardDescription>Pesan dikirim saat status service menjadi selesai atau gagal.</CardDescription>
         </CardHeader>
         <CardContent>
           <FieldGroup>
             <Field orientation="horizontal">
               <FieldContent>
-                <FieldTitle>Enable WhatsApp notifications</FieldTitle>
+                <FieldTitle>Aktifkan notifikasi WhatsApp</FieldTitle>
                 <FieldDescription>Matikan untuk menahan semua notifikasi otomatis dari toko ini.</FieldDescription>
               </FieldContent>
               <Switch checked={enabled} onCheckedChange={setEnabled} />
             </Field>
             <Field orientation="horizontal">
               <FieldContent>
-                <FieldTitle>Notify when service is done</FieldTitle>
-                <FieldDescription>Kirim pesan saat status service menjadi done.</FieldDescription>
+                <FieldTitle>Kirim saat service selesai</FieldTitle>
+                <FieldDescription>Kirim pesan saat status service menjadi selesai.</FieldDescription>
               </FieldContent>
               <Switch checked={notifyDone} onCheckedChange={setNotifyDone} />
             </Field>
             <Field orientation="horizontal">
               <FieldContent>
-                <FieldTitle>Notify when service failed</FieldTitle>
-                <FieldDescription>Kirim pesan saat status service menjadi failed.</FieldDescription>
+                <FieldTitle>Kirim saat service gagal</FieldTitle>
+                <FieldDescription>Kirim pesan saat status service menjadi gagal.</FieldDescription>
               </FieldContent>
               <Switch checked={notifyFailed} onCheckedChange={setNotifyFailed} />
             </Field>
             <Field>
-              <FieldLabel htmlFor="done-message-template">Done message template</FieldLabel>
+              <FieldLabel htmlFor="done-message-template">Template pesan selesai</FieldLabel>
               <Textarea id="done-message-template" rows={4} value={doneTemplate} onChange={(event) => setDoneTemplate(event.target.value)} />
-              <FieldDescription>Placeholders: {"{customerName}"}, {"{brand}"}, {"{model}"}, {"{tokoName}"}, {"{status}"}</FieldDescription>
+              <FieldDescription>Placeholder: {"{customerName}"}, {"{brand}"}, {"{model}"}, {"{tokoName}"}, {"{status}"}</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor="failed-message-template">Failed message template</FieldLabel>
+              <FieldLabel htmlFor="failed-message-template">Template pesan gagal</FieldLabel>
               <Textarea id="failed-message-template" rows={4} value={failedTemplate} onChange={(event) => setFailedTemplate(event.target.value)} />
               <FieldDescription>Gunakan pesan singkat dan jelas untuk pelanggan.</FieldDescription>
             </Field>
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : null}
-              Save WhatsApp Settings
+              Simpan Pengaturan WhatsApp
             </Button>
           </FieldGroup>
         </CardContent>
