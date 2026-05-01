@@ -406,12 +406,32 @@ model Invoice {
   grandTotal    Int
   paymentStatus PaymentStatus @default(unpaid)
   dpAmount      Int      @default(0)
+  discountAmount Int     @default(0)
   paidAt        DateTime?
   createdAt     DateTime      @default(now())
 
   service Service @relation(fields: [serviceId], references: [id])
+  items   InvoiceItem[]
 
   @@map("invoice")
+}
+
+model InvoiceItem {
+  id            String   @id @default(uuid())
+  invoiceId     String
+  serviceItemId String?
+  type          ItemType
+  referenceId   String?
+  name          String
+  qty           Int
+  price         Int
+  createdAt     DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([serviceItemId])
+  @@map("invoice_item")
 }
 
 model InventoryAuditSession {

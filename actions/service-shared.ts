@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { getAuthUser } from "@/lib/rbac";
+import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus, ServiceStatus } from "@/prisma/generated/prisma/enums";
 import type { JsonValue } from "@/prisma/generated/prisma/internal/prismaNamespace";
 import type { ServiceItem, ServiceListItem, TimeFilter } from "./service-types";
@@ -40,9 +41,22 @@ export const serviceSelectBase = {
       grandTotal: true,
       paymentStatus: true,
       dpAmount: true,
+      discountAmount: true,
+      paidAt: true,
+      createdAt: true,
+      items: {
+        select: {
+          id: true,
+          type: true,
+          name: true,
+          qty: true,
+          price: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   },
-};
+} satisfies Prisma.ServiceSelect;
 
 export const serviceItemSelect = {
   id: true,
@@ -51,7 +65,7 @@ export const serviceItemSelect = {
   qty: true,
   price: true,
   referenceId: true,
-};
+} satisfies Prisma.ServiceItemSelect;
 
 export type ServiceWithSelectBase = {
   id: string;
@@ -79,6 +93,16 @@ export type ServiceWithSelectBase = {
     grandTotal: number;
     paymentStatus: PaymentStatus;
     dpAmount: number;
+    discountAmount: number;
+    paidAt: Date | null;
+    createdAt: Date;
+    items: Array<{
+      id: string;
+      type: ServiceItem["type"];
+      name: string;
+      qty: number;
+      price: number;
+    }>;
   } | null;
 };
 
@@ -193,20 +217,44 @@ export function buildTimeFilter(filter?: TimeFilter): Record<string, unknown> {
 export async function updateInvoiceTotal(serviceId: string) {
   const existingInvoice = await prisma.invoice.findUnique({
     where: { serviceId },
-    select: { id: true },
+    select: { id: true, paymentStatus: true },
   });
+
+  if (existingInvoice?.paymentStatus === "paid") {
+    throw new Error("Cannot update items on a paid invoice");
+  }
 
   const items = await prisma.serviceItem.findMany({
     where: { serviceId },
-    select: { qty: true, price: true },
+    select: { id: true, type: true, referenceId: true, name: true, qty: true, price: true },
+    orderBy: { id: "asc" },
   });
 
   const grandTotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
-  await prisma.invoice.upsert({
-    where: { serviceId },
-    create: { serviceId, grandTotal, paymentStatus: "unpaid" },
-    update: { grandTotal },
+  await prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.upsert({
+      where: { serviceId },
+      create: { serviceId, grandTotal, paymentStatus: "unpaid" },
+      update: { grandTotal },
+      select: { id: true },
+    });
+
+    await tx.invoiceItem.deleteMany({ where: { invoiceId: invoice.id } });
+
+    if (items.length > 0) {
+      await tx.invoiceItem.createMany({
+        data: items.map((item) => ({
+          invoiceId: invoice.id,
+          serviceItemId: item.id,
+          type: item.type,
+          referenceId: item.referenceId,
+          name: item.name,
+          qty: item.qty,
+          price: item.price,
+        })),
+      });
+    }
   });
 
   return { created: !existingInvoice };

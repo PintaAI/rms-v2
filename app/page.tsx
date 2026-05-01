@@ -24,49 +24,71 @@ import prisma from "@/lib/prisma";
 const features = [
   {
     icon: RiSmartphoneLine,
-    title: "Ticket cepat",
-    description: "Catat unit, keluhan, kontak pelanggan, dan estimasi tanpa form yang berat.",
+    title: "Ticket masuk rapi",
+    description: "Catat unit, keluhan, WhatsApp, IMEI, password, dan device dari katalog global sejak customer datang.",
   },
   {
     icon: RiFoldersLine,
-    title: "Stok per toko",
-    description: "Sparepart dan jasa tetap terpisah, sehingga operasional multi-toko lebih aman.",
+    title: "Stok tidak lagi tebak-tebakan",
+    description: "Sparepart berkurang saat dipakai, kembali saat item dihapus, dan bisa diaudit dengan stok fisik.",
   },
   {
     icon: RiTeamLine,
-    title: "Peran tim jelas",
-    description: "Admin, staff, dan teknisi masuk ke alur yang sesuai dengan pekerjaannya.",
+    title: "Teknisi punya tanggung jawab jelas",
+    description: "Task tersedia, assigned, takeover, selesai, dan gagal tercatat tanpa bergantung pada chat internal.",
   },
   {
     icon: RiPulseLine,
-    title: "Status terlihat",
-    description: "Pantau proses dari unit masuk, pengerjaan, pembayaran, sampai pickup.",
+    title: "Pembayaran dan pickup terpisah",
+    description: "DP, paid, dan unit sudah diambil dibedakan agar kasir dan front desk tidak salah membaca status.",
   },
 ];
 
 const highlights = [
-  "Admin, staff, dan teknisi punya dashboard sendiri",
-  "Data servis dan stok tetap terpisah per toko",
-  "Invoice mengikuti item servis dan pembayaran",
-  "Tampilan nyaman untuk meja servis dan mobile",
+  "Tidak ada lagi status unit yang hanya diketahui satu orang",
+  "Pemakaian sparepart langsung tersambung ke invoice",
+  "Customer bisa diberi update WhatsApp saat servis selesai/gagal",
+  "Bisa mulai sederhana, lalu aktifkan fitur saat toko tumbuh",
+];
+
+const painPoints = [
+  {
+    title: "Unit sudah selesai, tapi customer belum dihubungi",
+    description: "RMS membantu mengirim notifikasi WhatsApp dari akun toko saat status berubah menjadi selesai atau gagal.",
+  },
+  {
+    title: "Stok di sistem beda dengan stok fisik",
+    description: "Setiap sparepart yang dipakai di servis memengaruhi stok, dan audit gudang mencatat alasan selisih.",
+  },
+  {
+    title: "Total invoice tidak mengikuti pekerjaan teknisi",
+    description: "Item jasa, sparepart, dan manual item masuk ke invoice yang sama sehingga biaya tidak tercecer.",
+  },
+];
+
+const differentiators = [
+  "Global phone catalog untuk input device lebih cepat",
+  "HP bisa dipakai sebagai scanner barcode saat restock",
+  "Audit gudang untuk investigasi selisih stok",
+  "Pengaturan fitur agar toko kecil tidak dipaksa memakai alur kompleks",
 ];
 
 const steps = [
   {
     title: "Terima unit",
-    description: "Buat ticket, pilih device, catat keluhan, lalu simpan detail pelanggan.",
+    description: "Front desk membuat ticket, memilih device dari katalog, dan mencatat keluhan dengan nomor WhatsApp customer.",
   },
   {
-    title: "Assign task",
-    description: "Teknisi mengambil pekerjaan atau staff mengatur assignment sesuai antrean.",
+    title: "Kerjakan task",
+    description: "Admin assign teknisi atau teknisi mengambil pekerjaan dari daftar task yang tersedia.",
   },
   {
     title: "Tambah item",
-    description: "Sparepart, jasa, catatan pengerjaan, dan total biaya ikut tersusun rapi.",
+    description: "Sparepart, jasa, DP, dan total invoice mengikuti pekerjaan yang benar-benar dilakukan.",
   },
   {
-    title: "Pickup jelas",
-    description: "Tutup transaksi, tandai pembayaran, lalu serahkan unit dengan status final.",
+    title: "Pickup final",
+    description: "Saat unit keluar, service dikunci dengan status pickup agar data tidak berubah setelah customer mengambil unit.",
   },
 ];
 
@@ -74,21 +96,21 @@ const faqs = [
   {
     question: "RMS cocok untuk bisnis apa?",
     answer:
-      "Untuk toko servis HP yang butuh ticket, teknisi, stok, pembayaran, dan aktivitas toko dalam satu sistem.",
+      "Untuk toko servis HP yang ingin mengganti catatan manual, chat internal, dan file terpisah menjadi satu alur operasional.",
   },
   {
-    question: "Apakah bisa dipakai untuk lebih dari satu toko?",
-    answer: "Bisa. Data servis, stok, karyawan, dan aktivitas dipisah per toko.",
+    question: "Apakah bisa mulai tanpa setup yang berat?",
+    answer: "Bisa. Mode Free cocok untuk toko yang dikelola pemilik sendiri: satu toko, ticket dasar, item manual, dan invoice.",
   },
   {
-    question: "Bagaimana pembagian akses tim?",
-    answer: "Admin memantau operasional, staff mengelola meja servis, teknisi fokus ke pengerjaan.",
+    question: "Apa pembeda RMS dari aplikasi kasir biasa?",
+    answer: "RMS mengikuti alur servis: check-in unit, assignment teknisi, pemakaian sparepart, invoice, DP/paid, sampai pickup.",
   },
 ];
 
 const metrics = [
-  { label: "Ticket aktif", value: "128", note: "+18% minggu ini" },
-  { label: "SLA teknisi", value: "94%", note: "Task tepat waktu" },
+  { label: "Unit aktif", value: "128", note: "Masuk sampai pickup" },
+  { label: "Task teknisi", value: "94%", note: "Terlihat statusnya" },
   { label: "Invoice", value: "Rp18,4jt", note: "Dari item servis" },
 ];
 
@@ -168,9 +190,9 @@ async function getLandingPhoneCatalog() {
 }
 
 export const metadata: Metadata = {
-  title: "RMS | Software Manajemen Servis HP Multi-Toko",
+  title: "RMS | Software Operasional Toko Servis HP",
   description:
-    "RMS menyatukan ticket, teknisi, stok, dan pembayaran untuk toko servis HP multi-toko.",
+    "RMS membantu toko servis HP mengelola ticket, teknisi, sparepart, invoice, WhatsApp, pickup, dan multi-toko dalam satu alur kerja.",
   keywords: [
     "software servis hp",
     "aplikasi service handphone",
@@ -183,8 +205,8 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   openGraph: {
-    title: "RMS | Software Manajemen Servis HP Multi-Toko",
-    description: "Satu dashboard rapi untuk ticket, teknisi, stok, dan pembayaran toko servis HP.",
+    title: "RMS | Software Operasional Toko Servis HP",
+    description: "Satu sistem untuk mengurangi pekerjaan tercecer, stok meleset, invoice salah, dan status unit yang tidak jelas.",
     url: "/",
     siteName: "RMS",
     locale: "id_ID",
@@ -192,8 +214,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "RMS | Software Manajemen Servis HP Multi-Toko",
-    description: "Dashboard ringkas untuk ticket, teknisi, stok, dan invoice.",
+    title: "RMS | Software Operasional Toko Servis HP",
+    description: "Ticket, teknisi, sparepart, invoice, WhatsApp, dan pickup dalam satu alur.",
   },
 };
 
@@ -211,7 +233,7 @@ export default async function Home() {
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
     description:
-      "Software manajemen servis handphone untuk ticket, teknisi, stok, invoice, dan multi-toko.",
+      "Software operasional toko servis handphone untuk ticket, teknisi, stok, invoice, WhatsApp, pickup, dan multi-toko.",
     offers: {
       "@type": "Offer",
       price: "0",
@@ -256,16 +278,16 @@ export default async function Home() {
           <section className="flex flex-col gap-7 text-center sm:gap-8 lg:text-left">
             <div className="mx-auto inline-flex w-fit items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary lg:mx-0">
               <RiFlashlightLine className="size-4" />
-              Operasional servis HP, dibuat lebih cepat
+              Software operasional untuk toko servis HP
             </div>
 
             <div className="flex flex-col gap-5">
               <h1 className="mx-auto max-w-4xl text-4xl font-semibold tracking-tight text-balance sm:text-6xl lg:mx-0 lg:text-7xl">
-                Kelola servis, stok, dan tim tanpa layar yang berantakan.
+                Berhenti mengelola servis dari chat, ingatan, dan catatan terpisah.
               </h1>
               <p className="mx-auto max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8 lg:mx-0">
-                RMS menyatukan ticket, teknisi, sparepart, invoice, dan operasional multi-toko
-                dalam alur yang cepat dibaca dari desktop maupun mobile.
+                RMS membantu toko servis HP menjaga setiap unit tetap terlacak: dari customer datang,
+                teknisi bekerja, sparepart dipakai, invoice dibuat, sampai unit diambil.
               </p>
             </div>
 
@@ -281,7 +303,7 @@ export default async function Home() {
                 asChild
                 className="h-12 rounded-full border-border/70 bg-background/60 px-6 text-sm font-semibold"
               >
-                <Link href="/user-manual">Lihat Fitur Lengkap</Link>
+                <Link href="/user-manual">Pelajari Alur RMS</Link>
               </Button>
             </div>
 
@@ -308,9 +330,9 @@ export default async function Home() {
               <div className="rounded-[1.65rem] border border-border/60 bg-background/72 p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
                   <div className="flex flex-col gap-1">
-                    <Badge variant="secondary" className="w-fit">Operational Pulse</Badge>
+                    <Badge variant="secondary" className="w-fit">Pusat kendali operasional</Badge>
                     <h2 className="max-w-sm text-xl font-semibold tracking-tight sm:text-2xl">
-                      Semua inti operasional dalam satu layar.
+                      Status unit, teknisi, stok, dan invoice terbaca dalam satu konteks.
                     </h2>
                   </div>
                   <div className="rounded-2xl bg-primary/12 p-3 text-primary">
@@ -343,7 +365,7 @@ export default async function Home() {
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-sm text-muted-foreground">Antrian servis hari ini</p>
-                        <p className="mt-1 text-lg font-semibold">Masuk, proses, selesai</p>
+                        <p className="mt-1 text-lg font-semibold">Dari check-in sampai pickup</p>
                       </div>
                       <RiCompass3Line className="size-5 shrink-0 text-primary" />
                     </div>
@@ -368,17 +390,17 @@ export default async function Home() {
                         <RiQrCodeLine className="size-5" />
                       </div>
                       <div>
-                        <p className="font-semibold">Pickup lebih tenang</p>
-                        <p className="text-sm text-muted-foreground">Status dan bayar jelas.</p>
+                        <p className="font-semibold">Pickup tanpa salah baca</p>
+                        <p className="text-sm text-muted-foreground">DP, paid, dan pickup dipisahkan.</p>
                       </div>
                     </div>
                     <div className="mt-5 rounded-3xl border border-dashed border-border/70 bg-background/45 p-4">
                       <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                        invoice insight
+                        kontrol pembayaran
                       </p>
-                      <p className="mt-3 text-2xl font-semibold tracking-tight">Siap cetak</p>
+                      <p className="mt-3 text-2xl font-semibold tracking-tight">Invoice mengikuti item</p>
                       <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        Item servis dan sparepart langsung tersusun untuk invoice.
+                        Biaya jasa dan sparepart tidak tercecer di luar pekerjaan.
                       </p>
                     </div>
                   </article>
@@ -393,9 +415,9 @@ export default async function Home() {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 sm:px-6 lg:px-10">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-primary">Global phone catalog</p>
+              <p className="text-sm font-medium text-primary">Katalog HP global</p>
               <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
-                Device populer siap dipakai di semua toko.
+                Device populer siap dipakai tanpa input ulang per toko.
               </h2>
             </div>
             <Badge variant="outline" className="w-fit">
@@ -425,27 +447,52 @@ export default async function Home() {
       <section className="border-y border-border/60 bg-muted/25">
         <div className="mx-auto grid max-w-7xl gap-5 px-4 py-12 sm:px-6 lg:grid-cols-[0.82fr_1.18fr] lg:px-10 lg:py-16">
           <div>
-            <p className="text-sm font-medium text-primary">Why RMS</p>
+            <p className="text-sm font-medium text-primary">Masalah yang diselesaikan</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Dibuat untuk kerja lapangan, bukan template generik.
+              Masalah toko servis jarang karena kurang kerja keras. Biasanya karena data operasional tercecer.
             </h2>
           </div>
           <p className="max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base sm:leading-8">
-            Dari meja penerimaan sampai kasir, tiap peran punya konteks yang pas. Proses lebih
-            cepat, stok lebih aman, dan pengalaman pelanggan terasa lebih rapi di semua ukuran layar.
+            Unit masuk dicatat di satu tempat, progress teknisi dibahas di chat, stok sparepart diingat manual,
+            dan pembayaran baru dicek saat customer datang mengambil. RMS menyatukan titik-titik itu agar toko
+            punya satu sumber kebenaran operasional.
           </p>
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-10 lg:py-20">
+        <div className="mb-8 max-w-3xl sm:mb-10">
+          <p className="text-sm font-medium text-primary">Pain point toko servis</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+            Dibangun dari masalah yang benar-benar terjadi di meja servis.
+          </h2>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          {painPoints.map((item, index) => (
+            <article
+              key={item.title}
+              className="rounded-[1.75rem] border border-border/60 bg-card p-5 shadow-sm sm:p-6"
+            >
+              <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-sm font-semibold text-destructive">
+                0{index + 1}
+              </div>
+              <h3 className="mt-5 text-xl font-semibold tracking-tight">{item.title}</h3>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">{item.description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-10 lg:pb-20">
         <div className="mb-8 flex flex-col gap-3 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-medium text-primary">Fitur utama</p>
             <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Ringkas di layar kecil, lengkap saat dibutuhkan.
+              Fitur inti yang menjaga operasional tetap terkendali.
             </h2>
           </div>
-          <Badge variant="outline" className="w-fit">Multi-role dashboard</Badge>
+          <Badge variant="outline" className="w-fit">Dashboard per peran</Badge>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -468,12 +515,13 @@ export default async function Home() {
         <div className="overflow-hidden rounded-[2rem] border border-border/60 bg-card shadow-sm">
           <div className="grid gap-0 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="bg-linear-to-br from-primary/14 via-card to-card p-6 sm:p-8 lg:p-10">
-              <p className="text-sm font-medium text-primary">Workflow</p>
+              <p className="text-sm font-medium text-primary">Workflow servis</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-                Satu alur kerja untuk front desk, teknisi, dan admin.
+                Alur kerja yang mengikuti cara toko servis berjalan.
               </h2>
               <p className="mt-4 text-sm leading-7 text-muted-foreground">
-                Urutan kerja dibuat jelas agar tim tidak perlu menebak status unit atau total biaya.
+                Front desk fokus menerima unit, teknisi fokus memperbaiki, admin melihat kontrol stok,
+                pembayaran, dan performa toko.
               </p>
             </div>
 
@@ -498,14 +546,22 @@ export default async function Home() {
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-10 lg:pb-20">
         <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="rounded-[2rem] border border-border/60 bg-linear-to-br from-primary/12 via-card to-card p-6 sm:p-8">
-            <p className="text-sm font-medium text-primary">Built for clarity</p>
+            <p className="text-sm font-medium text-primary">Nilai tambah</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Software servis HP yang padat, jelas, dan relevan.
+              Bukan hanya ticketing. RMS punya fitur praktis yang langsung terasa di toko.
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
-              Copy, visual, dan struktur halaman dibuat langsung menjelaskan nilai RMS tanpa
-              mengorbankan keterbacaan di ponsel.
+              Dari update WhatsApp untuk customer sampai HP sebagai scanner restock, fitur tambahan RMS dibuat
+              untuk mengurangi pekerjaan manual tanpa membuat sistem terasa berat.
             </p>
+            <div className="mt-6 grid gap-3">
+              {differentiators.map((item) => (
+                <div key={item} className="flex items-start gap-3 rounded-2xl border border-border/60 bg-background/70 p-4">
+                  <RiCheckDoubleLine className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <p className="text-sm leading-6 text-foreground/90">{item}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid gap-3">
@@ -522,12 +578,13 @@ export default async function Home() {
       <section className="px-4 pb-14 sm:px-6 lg:px-10 lg:pb-16">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 overflow-hidden rounded-[2rem] border border-border/60 bg-foreground px-5 py-7 text-background sm:px-8 sm:py-9 lg:flex-row lg:items-center">
           <div className="max-w-2xl">
-            <p className="text-sm font-medium text-primary">Ready to launch</p>
+            <p className="text-sm font-medium text-primary">Mulai dari alur paling sederhana</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Tampilkan bisnis servis Anda dengan lebih rapi sejak awal.
+              Rapikan operasional toko servis sebelum masalah kecil menjadi kebocoran besar.
             </h2>
             <p className="mt-3 text-sm leading-7 text-background/75">
-              Masuk ke dashboard untuk mulai kerja, atau buka dokumentasi untuk melihat alurnya.
+              Gunakan mode sederhana untuk mulai, lalu aktifkan tim, inventory, scanner, WhatsApp,
+              analytics, dan audit saat toko Anda siap.
             </p>
           </div>
 

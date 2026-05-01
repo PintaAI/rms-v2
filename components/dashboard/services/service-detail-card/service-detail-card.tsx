@@ -130,12 +130,13 @@ export interface ServiceDetailCardItem {
     qty: number;
     price: number;
   }>;
-  invoice: {
-    id: string;
-    grandTotal: number;
-    paymentStatus: string;
-    dpAmount?: number | null;
-  } | null;
+    invoice: {
+      id: string;
+      grandTotal: number;
+      paymentStatus: string;
+      dpAmount?: number | null;
+      discountAmount?: number | null;
+    } | null;
 }
 
 export interface ServiceDetailCardProps {
@@ -437,7 +438,7 @@ export function ServiceDetailCard({
     window.open(`https://wa.me/${normalized}`, "_blank", "noopener,noreferrer");
   }
 
-  async function handlePayInvoice() {
+  async function handlePayInvoice(payment: { discountAmount: number }) {
     if (!localService.invoice || !canPayInvoice) return false;
     setIsPayingInvoice(true);
 
@@ -445,11 +446,11 @@ export function ServiceDetailCard({
     pendingMutationsRef.current += 1;
     setLocalService((prev) => prev.invoice ? {
       ...prev,
-      invoice: { ...prev.invoice, paymentStatus: "paid" },
+      invoice: { ...prev.invoice, paymentStatus: "paid", discountAmount: payment.discountAmount },
     } : prev);
 
     try {
-      const result = await payInvoice(localService.invoice.id);
+      const result = await payInvoice(localService.invoice.id, payment);
       if (result.success) {
         toast.success("Invoice ditandai lunas");
         pendingMutationsRef.current -= 1;

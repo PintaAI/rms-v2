@@ -9,7 +9,7 @@ Dokumen ini menjelaskan pembuatan dan pengelolaan ticket servis yang ada di apli
 | Field | Wajib | Keterangan |
 |---|---|---|
 | Device | Ya | Brand dan model dari katalog global |
-| WhatsApp | Ya | Nomor kontak customer |
+| WhatsApp | Ya | Nomor kontak customer, divalidasi sebagai nomor Indonesia |
 | Nama customer | Tidak | Boleh kosong |
 | Complaint | Ya | Keluhan unit |
 | Password / pattern | Tidak | Bisa teks atau pattern lock |
@@ -47,6 +47,7 @@ Hasilnya:
 - ticket dibuat dengan status `Masuk`
 - teknisi belum ditugaskan
 - invoice belum ada sampai item pertama ditambahkan
+- nomor WhatsApp tersimpan untuk kontak customer dan notifikasi otomatis jika WhatsApp toko aktif
 
 ---
 
@@ -59,6 +60,8 @@ Perilaku saat ini:
 - pencarian menampilkan device yang sudah ada
 - jika tidak ditemukan, tombol `Create` akan membuat brand/model baru
 - device baru langsung bisa dipakai untuk ticket yang sedang dibuat
+- daftar device disimpan sebagai katalog global, bukan per toko
+- browser menyimpan cache katalog lokal dan mengambil versi baru saat katalog berubah
 
 ---
 
@@ -82,6 +85,8 @@ Setelah `Picked Up`:
 ---
 
 ## Assignment Teknisi
+
+Assignment teknisi membutuhkan fitur `Workflow Teknisi`. Jika plan belum mendukung atau fitur dimatikan dari pengaturan toko, workflow teknisi bisa terkunci.
 
 ### Dari halaman Admin Service
 
@@ -117,7 +122,7 @@ Sheet detail servis saat ini tersedia untuk:
 Di detail servis, pengguna yang punya akses bisa:
 
 - melihat complaint, pattern, IMEI, dan item
-- menambah item sparepart atau jasa
+- menambah item sparepart, jasa, atau manual item sesuai fitur yang aktif
 - menghapus item
 - mark `Selesai`
 - mark `Gagal`
@@ -133,14 +138,16 @@ Jenis item yang didukung saat ini:
 
 1. `Sparepart`
 2. `Service`
+3. item manual, jika fitur `Tambah Invoice Manual` aktif
 
 Perilaku saat ini:
 
 - sparepart dipilih dari daftar sparepart kompatibel / universal milik toko
 - jasa dipilih dari daftar pricelist jasa milik toko
-- dialog item saat ini **tidak** mendukung input jasa manual di luar pricelist
+- item manual bisa dipakai untuk toko sederhana yang tidak memakai inventory/pricelist lengkap
 - saat sparepart ditambahkan, stock langsung berkurang
 - saat item sparepart dihapus, stock kembali ke inventory
+- penambahan sparepart membutuhkan fitur inventory aktif
 
 ---
 
@@ -149,7 +156,7 @@ Perilaku saat ini:
 Admin dan Staff bisa menghapus ticket, tetapi ada batasan backend:
 
 - tidak bisa hapus jika servis sudah pickup
-- tidak bisa hapus jika invoice sudah `Paid`
+- tidak bisa hapus jika invoice sudah `Paid` atau `DP`
 
 Jika ticket dihapus:
 
@@ -165,4 +172,4 @@ Jika ticket dihapus:
 2. Admin assign teknisi atau teknisi ambil task sendiri
 3. Admin / teknisi yang berwenang mengelola item dari detail servis
 4. Teknisi atau Admin menutup pekerjaan dengan `Selesai` atau `Gagal`
-5. Staff / Admin menangani pembayaran dan pickup
+5. Staff / Admin menangani DP, pembayaran lunas, dan pickup

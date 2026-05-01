@@ -37,6 +37,7 @@ export interface ServiceTableItem {
     grandTotal: number;
     paymentStatus: PaymentStatusKey | string;
     dpAmount?: number;
+    discountAmount?: number;
     invoiceNumber?: string | null;
     createdAt?: Date | string | null;
     paidAt?: Date | string | null;

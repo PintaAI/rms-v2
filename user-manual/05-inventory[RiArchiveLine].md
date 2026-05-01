@@ -1,6 +1,6 @@
 # Inventory
 
-Inventory saat ini terdiri dari `Sparepart`, `Jasa`, dan `Audit Gudang`.
+Inventory saat ini terdiri dari `Sparepart`, `Jasa`, restock, label barcode, scanner HP untuk restock, dan `Audit Gudang`.
 
 ---
 
@@ -8,11 +8,11 @@ Inventory saat ini terdiri dari `Sparepart`, `Jasa`, dan `Audit Gudang`.
 
 | Role | Akses utama |
 |---|---|
-| Admin | Kelola sparepart, kelola jasa, dan audit gudang |
+| Admin | Kelola sparepart, kelola jasa, restock, label barcode, dan audit gudang |
 | Staff | Lihat inventory |
 | Teknisi | Lihat inventory |
 
-**Catatan:** backend membatasi perubahan inventory hanya untuk Admin.
+**Catatan:** backend membatasi perubahan inventory hanya untuk Admin. Fitur inventory membutuhkan akses plan yang sesuai dan bisa dimatikan dari pengaturan toko.
 
 ---
 
@@ -24,6 +24,8 @@ Halaman `Inventory` Admin saat ini punya:
 - tab `Jasa`
 - pencarian terpisah untuk tiap tab
 - mode tampilan `table` dan `card` untuk daftar inventory
+- restock sparepart
+- cetak label barcode sparepart
 
 Menu tambahan Admin:
 
@@ -38,6 +40,7 @@ Menu tambahan Admin:
 | Field | Keterangan |
 |---|---|
 | Nama | Nama sparepart |
+| Barcode | Kode unik sparepart per toko untuk scanner dan label |
 | Default price | Harga default saat dipakai di servis |
 | Stock | Jumlah stock saat ini |
 | Universal | Bisa dipakai di semua device |
@@ -60,14 +63,48 @@ Menu tambahan Admin:
 Yang tersedia saat ini:
 
 - pencarian berdasarkan nama sparepart
+- pencarian restock berdasarkan barcode, ID, atau nama sparepart
 - badge stock berwarna sesuai kondisi
 - badge kompatibilitas untuk maksimal 3 device pertama, lalu `+N more`
 
-Yang **tidak** ada saat ini:
+Yang tidak ada saat ini:
 
 - filter stok menipis
 - filter universal / compatible
 - pencarian berdasarkan nama device di UI inventory
+
+---
+
+## Restock Dan Scanner
+
+Restock sparepart dipakai untuk menambah stok sparepart yang sudah ada.
+
+Input restock yang didukung:
+
+1. ketik barcode / ID / nama sparepart
+2. scanner hardware yang mengisi input lalu menekan `Enter`
+3. HP sebagai scanner melalui tombol `Scan via HP`
+
+Alur scanner HP:
+
+1. Admin membuka dialog `Restock Sparepart`
+2. klik `Scan via HP`
+3. sistem menampilkan QR pairing desktop
+4. buka scanner dari HP dengan memindai QR tersebut
+5. HP mengirim hasil barcode ke dialog restock melalui koneksi WebRTC
+
+Catatan penting:
+
+- scanner HP saat ini dipakai untuk restock sparepart
+- format yang didukung di scanner HP adalah QR dan Code128
+- QR pairing memiliki waktu kedaluwarsa dan bisa dibuat ulang
+- scanner HP tidak menggantikan seluruh input barcode di aplikasi
+
+---
+
+## Label Barcode
+
+Admin bisa mencetak label barcode untuk sparepart. Label ini membantu proses restock dan bisa dipakai oleh scanner hardware maupun scanner HP.
 
 ---
 
@@ -108,6 +145,8 @@ Jika stock sparepart tidak cukup:
 
 `Audit Gudang` digunakan untuk mencocokkan stock sistem dengan hitungan fisik sparepart di toko.
 
+Audit Gudang adalah fitur Enterprise dan hanya bisa dijalankan Admin jika fitur `Audit Gudang` aktif untuk toko tersebut.
+
 ### Alur utama
 
 - Admin klik `Mulai Audit`.
@@ -136,6 +175,7 @@ Alasan yang tersedia:
 - satu toko hanya bisa punya satu audit aktif
 - audit hanya untuk sparepart, bukan jasa
 - audit yang sudah selesai menyimpan riwayat dan activity log
+- audit selesai akan menyesuaikan stock sistem ke stock fisik
 
 ---
 
@@ -145,6 +185,7 @@ Alasan yang tersedia:
 
 - bisa tambah, edit, dan hapus sparepart
 - bisa tambah, edit, dan hapus jasa
+- bisa restock sparepart dan mencetak label barcode
 - bisa menjalankan audit gudang dan menyelesaikannya untuk menyesuaikan stock
 
 ### Staff
