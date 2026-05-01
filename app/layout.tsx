@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Merriweather, Manrope } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
@@ -9,6 +9,7 @@ import { TourProvider } from "@/lib/tour-context";
 import { DevTools } from "@/components/debug/dev-tools";
 import { Toaster } from "@/components/ui/sonner";
 import { RiLoader2Fill } from "@remixicon/react";
+import { PwaProvider } from "@/components/providers/pwa-provider";
 
 const fontSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -32,6 +33,7 @@ const appUrl =
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
+  manifest: "/site.webmanifest",
   title: {
     default: "RMS | Repair Management System",
     template: "%s | RMS",
@@ -42,6 +44,18 @@ export const metadata: Metadata = {
   authors: [{ name: "RMS" }],
   creator: "RMS",
   publisher: "RMS",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "RMS",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   formatDetection: {
     email: false,
     address: false,
@@ -63,6 +77,12 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#ffffff",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -81,6 +101,7 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-full flex flex-col">
+        <PwaProvider />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

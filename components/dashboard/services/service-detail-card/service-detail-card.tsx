@@ -603,10 +603,10 @@ export function ServiceDetailCard({
                 {localService.passwordPattern && (
                   <div>
                     <Label className="text-muted-foreground">Password / Pattern</Label>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
                       {localService.passwordPattern.includes("-") ? (
                         <>
-                          <Badge variant="outline" className="font-mono">
+                          <Badge variant="outline" className="max-w-full whitespace-normal break-words font-mono">
                             Pattern: {parsePatternString(localService.passwordPattern).join(" → ")}
                           </Badge>
                           <Button
@@ -619,7 +619,7 @@ export function ServiceDetailCard({
                           </Button>
                         </>
                       ) : (
-                        <Badge variant="outline" className="font-mono">
+                        <Badge variant="outline" className="max-w-full whitespace-normal break-words font-mono">
                           {localService.passwordPattern}
                         </Badge>
                       )}
@@ -638,50 +638,52 @@ export function ServiceDetailCard({
             {localService.items.length > 0 && (
               <div>
                 <Label className="text-muted-foreground">Repair Items</Label>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      {isActive && <TableHead></TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {localService.items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <Badge variant="outline">{item.type}</Badge>
-                        </TableCell>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell>{item.qty}</TableCell>
-                        <TableCell>{formatCurrency(item.price)}</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(item.price * item.qty)}
-                        </TableCell>
-                        {isActive && (
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                if (onRemoveItem) {
-                                  onRemoveItem(item.id);
-                                } else {
-                                  handleRemoveItem(item.id);
-                                }
-                              }}
-                            >
-                              <RiDeleteBinLine className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        )}
+                <div className="mt-1 overflow-x-auto rounded-md border">
+                  <Table className="min-w-[640px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Qty</TableHead>
+                        <TableHead>Price</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        {isActive && <TableHead></TableHead>}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {localService.items.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <Badge variant="outline">{item.type}</Badge>
+                          </TableCell>
+                          <TableCell>{item.name}</TableCell>
+                          <TableCell>{item.qty}</TableCell>
+                          <TableCell>{formatCurrency(item.price)}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(item.price * item.qty)}
+                          </TableCell>
+                          {isActive && (
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (onRemoveItem) {
+                                    onRemoveItem(item.id);
+                                  } else {
+                                    handleRemoveItem(item.id);
+                                  }
+                                }}
+                              >
+                                <RiDeleteBinLine className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
 
@@ -779,7 +781,7 @@ export function ServiceDetailCard({
       </Card>
 
       <Dialog open={patternDialogOpen} onOpenChange={setPatternDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto pr-12 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Pattern Lock</DialogTitle>
             <DialogDescription>
@@ -788,7 +790,7 @@ export function ServiceDetailCard({
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="flex justify-center p-4 bg-muted/30 rounded-lg border">
+            <div className="flex justify-center overflow-hidden rounded-lg border bg-muted/30 p-3 sm:p-4">
               <PatternLock
                 width={200}
                 height={200}
@@ -800,7 +802,7 @@ export function ServiceDetailCard({
               />
             </div>
             {localService.passwordPattern ? (
-              <p className="text-center text-sm text-muted-foreground">
+              <p className="break-words text-center text-sm text-muted-foreground">
                 Pattern: {parsePatternString(localService.passwordPattern).join(" → ")}
               </p>
             ) : (
@@ -810,18 +812,19 @@ export function ServiceDetailCard({
             )}
           </div>
 
-          <DialogFooter className="flex gap-2">
+          <DialogFooter className="gap-2">
             {localService.passwordPattern && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setAnimationKey((prev) => prev + 1)}
+                className="w-full sm:w-auto"
               >
                 <RiRefreshLine className="h-4 w-4 mr-1" />
                 Replay
               </Button>
             )}
-            <Button variant="outline" onClick={() => setPatternDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setPatternDialogOpen(false)} className="w-full sm:w-auto">
               Close
             </Button>
           </DialogFooter>
@@ -829,7 +832,7 @@ export function ServiceDetailCard({
       </Dialog>
 
       <Dialog open={undoDialogOpen} onOpenChange={setUndoDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto pr-12 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Undo Completed Status</DialogTitle>
             <DialogDescription>
@@ -859,10 +862,10 @@ export function ServiceDetailCard({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUndoDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setUndoDialogOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button onClick={handleUndoStatus} disabled={isUndoingStatus}>
+            <Button onClick={handleUndoStatus} disabled={isUndoingStatus} className="w-full sm:w-auto">
               {isUndoingStatus ? "Updating..." : "Confirm Undo"}
             </Button>
           </DialogFooter>
@@ -870,7 +873,7 @@ export function ServiceDetailCard({
       </Dialog>
 
       <Dialog open={doneDialogOpen} onOpenChange={setDoneDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto pr-12 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Mark Service as Done</DialogTitle>
             <DialogDescription>
@@ -893,13 +896,13 @@ export function ServiceDetailCard({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDoneDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDoneDialogOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
               onClick={handleMarkDone}
               disabled={isMarkingDone}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="w-full bg-green-600 text-white hover:bg-green-700 sm:w-auto"
             >
               {isMarkingDone ? "Marking Done..." : "Confirm Done"}
             </Button>
@@ -908,7 +911,7 @@ export function ServiceDetailCard({
       </Dialog>
 
       <Dialog open={failedDialogOpen} onOpenChange={setFailedDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto pr-12 sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Mark Service as Failed</DialogTitle>
             <DialogDescription>
@@ -931,13 +934,14 @@ export function ServiceDetailCard({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFailedDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setFailedDialogOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleMarkFailed}
               disabled={isMarkingFailed || !failedNote.trim()}
+              className="w-full sm:w-auto"
             >
               {isMarkingFailed ? "Marking Failed..." : "Confirm Failed"}
             </Button>

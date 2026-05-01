@@ -147,7 +147,7 @@ function InvoicePreviewCard({
   const remainingTotal = Math.max(0, grandTotal - dpAmount);
 
   return (
-    <div ref={invoiceRef} className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
+    <div ref={invoiceRef} className="w-full min-w-[720px] rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
       <div className="flex flex-col gap-6 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-3">
           <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm [&>*]:h-5 [&>*]:w-5">
@@ -427,43 +427,47 @@ export function InvoiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] min-w-5xl  overflow-hidden" showCloseButton={false}>
+      <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-5xl" showCloseButton={false}>
         {service && (
           <>
-            <DialogHeader >
-              <DialogTitle className="text-base font-semibold">
-                {mode ? getInvoiceTitle(mode) : "Nota"} {getInvoiceNumber(service)}
-              </DialogTitle>
-              <DialogDescription className="mt-1 text-sm">
-                {mode ? getDialogDescription(service, mode) : "Nota bisa diunduh atau dicetak."}
-              </DialogDescription>
-            </DialogHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <DialogHeader>
+                <DialogTitle className="text-base font-semibold">
+                  {mode ? getInvoiceTitle(mode) : "Nota"} {getInvoiceNumber(service)}
+                </DialogTitle>
+                <DialogDescription className="mt-1 text-sm">
+                  {mode ? getDialogDescription(service, mode) : "Nota bisa diunduh atau dicetak."}
+                </DialogDescription>
+              </DialogHeader>
 
-            <div className="absolute top-4 right-4 flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handlePrintInvoice}
-                disabled={activePrint || activeExport}
-              >
-                <RiPrinterLine className="mr-1.5 h-3.5 w-3.5" />
-                {activePrint ? "Menyiapkan..." : "Print"}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleDownloadInvoice}
-                disabled={activeExport || activePrint}
-              >
-                <RiDownload2Line className="mr-1.5 h-3.5 w-3.5" />
-                {activeExport ? "Mengunduh..." : "Download PNG"}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePrintInvoice}
+                  disabled={activePrint || activeExport}
+                  className="w-full justify-center sm:w-auto"
+                >
+                  <RiPrinterLine className="mr-1.5 h-3.5 w-3.5" />
+                  {activePrint ? "Menyiapkan..." : "Print"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleDownloadInvoice}
+                  disabled={activeExport || activePrint}
+                  className="w-full justify-center sm:w-auto"
+                >
+                  <RiDownload2Line className="mr-1.5 h-3.5 w-3.5" />
+                  {activeExport ? "Mengunduh..." : "Download PNG"}
+                </Button>
+              </div>
             </div>
 
-           
+            <div className="overflow-x-auto pb-2">
               <InvoicePreviewCard service={service} invoiceSettings={effectiveInvoiceSettings} invoiceRef={invoiceCardRef} />
-            
+            </div>
           </>
         )}
       </DialogContent>
