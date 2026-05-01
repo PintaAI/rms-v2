@@ -1,14 +1,9 @@
 "use client";
 
-/**
-  * SparepartFormDialog - Dialog form untuk membuat/memperbarui sparepart
-  */
-
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -22,7 +17,8 @@ import {
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
 import { MultiDeviceInput, type HpCatalogOption } from "@/components/shared/multi-device-input";
-import { RiEditLine, RiPencilLine, RiPriceTag3Line, RiStackLine, RiDeviceLine } from "@remixicon/react";
+import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
+import { RiEditLine, RiPriceTag3Line, RiStackLine, RiDeviceLine, RiBox3Line } from "@remixicon/react";
 
 interface SparepartFormProps {
   open: boolean;
@@ -64,13 +60,56 @@ function SparepartFormContent({
   const [isUniversal, setIsUniversal] = useState(sparepart?.isUniversal ?? false);
   const [selectedDevices, setSelectedDevices] = useState<HpCatalogOption[]>(() => toDeviceOptions(sparepart));
   const sparepartRef = useRef(sparepart);
-  const lastSubmitRef = useRef<{
-    name: string;
-    defaultPrice: number;
-    stock: number;
-    isUniversal: boolean;
-    hpCatalogIds: string[];
-  } | null>(null);
+  const [devices, setDevices] = useState<HpCatalogOption[]>([]);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    loadDeviceCatalog()
+      .then((catalog) => {
+        if (!active) return;
+        setDevices(catalog.devices);
+      })
+      .catch(() => {
+        if (!active) return;
+        setDevices([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsLoadingDevices(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshDeviceCatalogIfStale()
+        .then((catalog) => {
+          if (catalog) setDevices(catalog.devices);
+        })
+        .catch(() => undefined);
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
+  const handleDeviceCreated = useCallback((device: HpCatalogOption) => {
+    setDevices((prev) => {
+      const next = prev.some((item) => item.id === device.id)
+        ? prev.map((item) => (item.id === device.id ? device : item))
+        : [...prev, device];
+
+      return next.sort((a, b) => {
+        const brandCompare = a.brandName.localeCompare(b.brandName);
+        return brandCompare === 0 ? a.modelName.localeCompare(b.modelName) : brandCompare;
+      });
+    });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -90,14 +129,6 @@ function SparepartFormContent({
 
     const hpCatalogIds = selectedDevices.map((d) => d.id);
     const finalIsUniversal = hpCatalogIds.length === 0 ? true : isUniversal;
-
-    lastSubmitRef.current = {
-      name,
-      defaultPrice: price,
-      stock: stockValue,
-      isUniversal: finalIsUniversal,
-      hpCatalogIds,
-    };
 
     const tempId = sparepart?.id || `temp-${Date.now()}`;
     const optimisticSparepart: SparepartWithCompatibilities = {
@@ -164,77 +195,153 @@ function SparepartFormContent({
   }
 
   return (
-    <DialogContent className="max-w-md">
+    <DialogContent className="min-w-2xl">
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <RiEditLine className="h-4 w-4" />
+        <DialogTitle className="flex items-center gap-2 text-xl">
+          <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <RiBox3Line className="size-4" />
           </span>
           {sparepart ? "Edit Sparepart" : "Tambah Sparepart"}
         </DialogTitle>
       </DialogHeader>
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-4 py-4">
-          {error && <div className="rounded p-3 text-sm text-destructive bg-destructive/10">{error}</div>}
-          <div className="space-y-2">
-            <Label htmlFor="name" className="flex items-center gap-1.5">
-              <RiEditLine className="h-3.5 w-3.5 text-muted-foreground" />
-              Nama
-            </Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: LCD iPhone 13" required />
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-1">
+            <div className="h-5 w-1 rounded-full bg-primary" />
+            <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              <RiEditLine className="size-4" />
+              Informasi Dasar
+            </span>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="price" className="flex items-center gap-1.5">
-                <RiPriceTag3Line className="h-3.5 w-3.5 text-muted-foreground" />
-                Harga Default
-              </Label>
-              <Input id="price" type="number" value={defaultPrice} onChange={(e) => setDefaultPrice(e.target.value)} placeholder="0" min="0" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="stock" className="flex items-center gap-1.5">
-                <RiStackLine className="h-3.5 w-3.5 text-muted-foreground" />
-                Stok
-              </Label>
-              <Input id="stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} placeholder="0" min="0" required />
-            </div>
-          </div>
-          {selectedDevices.length === 0 && (
-            <div className="flex items-center space-x-2">
-              <Checkbox id="isUniversal" checked={isUniversal} onCheckedChange={(checked) => setIsUniversal(checked === true)} />
-              <Label htmlFor="isUniversal">Universal (dapat digunakan di perangkat apapun)</Label>
-            </div>
-          )}
-          {!isUniversal && (
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                <RiDeviceLine className="h-3.5 w-3.5 text-muted-foreground" />
-                Perangkat Kompatibel
-              </Label>
-              <MultiDeviceInput
-                value={selectedDevices}
-                onChange={(devices) => {
-                  setSelectedDevices(devices);
-                  if (devices.length > 0) {
-                    setIsUniversal(false);
-                  }
-                }}
+
+          <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="name" className="text-sm">Nama Sparepart</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Contoh: LCD iPhone 13"
                 disabled={isLoading}
+                required
               />
-              <p className="text-xs text-muted-foreground">
-                Cari dan pilih model perangkat yang kompatibel dengan sparepart ini.
-              </p>
             </div>
-          )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="price" className="flex items-center gap-1.5 text-sm">
+                    <RiPriceTag3Line className="size-3.5" />
+                    Harga Default
+                  </Label>
+                  <span className="text-sm leading-none text-destructive">*</span>
+                </div>
+                <Input
+                  id="price"
+                  type="number"
+                  value={defaultPrice}
+                  onChange={(e) => setDefaultPrice(e.target.value)}
+                  placeholder="0"
+                  min="0"
+                  disabled={isLoading}
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="stock" className="flex items-center gap-1.5 text-sm">
+                    <RiStackLine className="size-3.5" />
+                    Stok
+                  </Label>
+                  <span className="text-sm leading-none text-destructive">*</span>
+                </div>
+                <Input
+                  id="stock"
+                  type="number"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  placeholder="0"
+                  min="0"
+                  disabled={isLoading}
+                  required
+                />
+              </div>
+            </div>
+          </div>
         </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+
+        <div className="border-t pt-2" />
+
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-1">
+            <div className="h-5 w-1 rounded-full bg-primary" />
+            <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              <RiDeviceLine className="size-4" />
+              Kompatibilitas
+            </span>
+          </div>
+
+          <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
+            {selectedDevices.length === 0 && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isUniversal"
+                  checked={isUniversal}
+                  onCheckedChange={(checked) => setIsUniversal(checked === true)}
+                  disabled={isLoading}
+                />
+                <Label htmlFor="isUniversal" className="text-sm">Universal (dapat digunakan di perangkat apapun)</Label>
+              </div>
+            )}
+
+            {!isUniversal && (
+              <div className="flex flex-col gap-2">
+                <Label className="text-sm">Perangkat Kompatibel</Label>
+                <MultiDeviceInput
+                  value={selectedDevices}
+                  onChange={(devices) => {
+                    setSelectedDevices(devices);
+                    if (devices.length > 0) {
+                      setIsUniversal(false);
+                    }
+                  }}
+                  disabled={isLoading}
+                  devices={devices}
+                  isLoadingDevices={isLoadingDevices}
+                  onDeviceCreated={handleDeviceCreated}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          <span className="text-destructive">*</span> Menandakan kolom yang wajib diisi
+        </p>
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+            <svg className="mt-0.5 size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 border-t pt-2">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Batal
           </Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Menyimpan..." : sparepart ? "Perbarui" : "Buat"}
+            {isLoading
+              ? "Menyimpan..."
+              : sparepart
+                ? "Perbarui"
+                : "Buat"}
           </Button>
-        </DialogFooter>
+        </div>
       </form>
     </DialogContent>
   );

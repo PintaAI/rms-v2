@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { createService, updateService } from "@/actions";
 import type { ServiceListItem as ServiceListItemType } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
+import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { PatternLock } from "@/components/shared/pattern-lock";
 import { DeviceInput, type HpCatalogOption } from "@/components/shared/device-input";
-import { RiUserLine, RiToolsLine, RiPhoneLine, RiWhatsappLine, RiBox3Line, RiAddLine, RiDeleteBinLine, RiCloseLine, RiMessage3Line } from "@remixicon/react";
+import { RiUserLine, RiToolsLine, RiTicketLine, RiWhatsappLine, RiBox3Line, RiAddLine, RiDeleteBinLine, RiCloseLine, RiMessage3Line } from "@remixicon/react";
 
 interface ServiceFormData {
   id: string;
@@ -70,7 +71,7 @@ function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | 
       customerName: "",
       noWa: "",
       complaint: "",
-      includedItems: ["1 unit device"],
+      includedItems: ["1 HP"],
       imei: "",
       passwordPatternText: "",
       pattern: [],
@@ -82,23 +83,27 @@ function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | 
   const passwordPattern = editData.passwordPattern || "";
   const isPattern = passwordPattern !== "" && /^[\d-]+$/.test(passwordPattern);
 
-    return {
-      isEditMode: true,
-      selectedDevice: {
-        id: editData.hpCatalogId || "",
-        modelName: editData.hpCatalog.modelName,
-        brandName: editData.hpCatalog.brand.name,
-      },
-      customerName: editData.customerName || "",
-      noWa: editData.noWa || "",
-      complaint: editData.complaint || "",
-      includedItems: (editData as ServiceFormData).includedItems || [],
-      imei: editData.imei || "",
-      passwordPatternText: isPattern ? "" : passwordPattern,
-      pattern: isPattern ? passwordPattern.split("-").map(Number) : [],
-      showPatternLock: isPattern,
-      dpAmount: (editData as ServiceTableItem).invoice?.dpAmount?.toString() || "",
-    };
+  return {
+    isEditMode: true,
+    selectedDevice: {
+      id: editData.hpCatalogId || "",
+      modelName: editData.hpCatalog.modelName,
+      brandName: editData.hpCatalog.brand.name,
+    },
+    customerName: editData.customerName || "",
+    noWa: editData.noWa || "",
+    complaint: editData.complaint || "",
+    includedItems: (editData as ServiceFormData).includedItems || [],
+    imei: editData.imei || "",
+    passwordPatternText: isPattern ? "" : passwordPattern,
+    pattern: isPattern ? passwordPattern.split("-").map(Number) : [],
+    showPatternLock: isPattern,
+    dpAmount: (editData as ServiceTableItem).invoice?.dpAmount?.toString() || "",
+  };
+}
+
+function formatRupiahAmount(value: string) {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 function ServicesFormContent({
@@ -129,6 +134,57 @@ function ServicesFormContent({
   const [dpAmount, setDpAmount] = useState(initialState.dpAmount);
   const [patternError, setPatternError] = useState(false);
   const [patternResetKey, setPatternResetKey] = useState(0);
+  const [devices, setDevices] = useState<HpCatalogOption[]>([]);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(true);
+  const formattedDpAmount = formatRupiahAmount(dpAmount);
+
+  useEffect(() => {
+    let active = true;
+
+    loadDeviceCatalog()
+      .then((catalog) => {
+        if (!active) return;
+        setDevices(catalog.devices);
+      })
+      .catch(() => {
+        if (!active) return;
+        setDevices([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsLoadingDevices(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshDeviceCatalogIfStale()
+        .then((catalog) => {
+          if (catalog) setDevices(catalog.devices);
+        })
+        .catch(() => undefined);
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
+  const handleDeviceCreated = useCallback((device: HpCatalogOption) => {
+    setDevices((prev) => {
+      const next = prev.some((item) => item.id === device.id)
+        ? prev.map((item) => (item.id === device.id ? device : item))
+        : [...prev, device];
+
+      return next.sort((a, b) => {
+        const brandCompare = a.brandName.localeCompare(b.brandName);
+        return brandCompare === 0 ? a.modelName.localeCompare(b.modelName) : brandCompare;
+      });
+    });
+  }, []);
 
   const clearPattern = useCallback(() => {
     setPattern([]);
@@ -154,7 +210,7 @@ function ServicesFormContent({
 
   const patternToString = useCallback((p: number[]) => (p.length > 0 ? p.join("-") : ""), []);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setDeviceError(null);
@@ -265,9 +321,11 @@ function ServicesFormContent({
 
   return (
     <DialogContent className="min-w-2xl">
-      <DialogHeader>
-        <DialogTitle className="text-xl flex items-center gap-2">
-          <RiPhoneLine className="h-5 w-5" />
+      <DialogHeader >
+        <DialogTitle className="flex items-center gap-2 text-xl">
+          <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <RiTicketLine className="size-4" />
+          </span>
           {initialState.isEditMode ? "Edit Tiket Service" : "Tiket Service Baru"}
         </DialogTitle>
         <DialogDescription>
@@ -275,30 +333,39 @@ function ServicesFormContent({
         </DialogDescription>
       </DialogHeader>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <DeviceInput value={selectedDevice} onChange={setSelectedDevice} disabled={isLoading} error={deviceError} />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <DeviceInput
+          value={selectedDevice}
+          onChange={setSelectedDevice}
+          disabled={isLoading}
+          error={deviceError}
+          devices={devices}
+          isLoadingDevices={isLoadingDevices}
+          onDeviceCreated={handleDeviceCreated}
+        />
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-base font-medium flex items-center gap-1.5">
-              <RiUserLine className="h-4 w-4" />
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-1">
+            <div className="h-5 w-1 rounded-full bg-primary" />
+            <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              <RiUserLine className="size-4" />
               Info Pelanggan
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+          <div className="ml-4 grid grid-cols-1 gap-4 border-l border-border pl-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="customerName" className="text-sm">Nama Pelanggan</Label>
               <Input id="customerName" placeholder="Nama (opsional)" disabled={isLoading} value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
             </div>
 
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <div className="flex items-center gap-1.5">
-                <Label htmlFor="noWa" className="text-sm flex items-center gap-1.5">
-                  <RiWhatsappLine className="h-3.5 w-3.5" />
+                <Label htmlFor="noWa" className="flex items-center gap-1.5 text-sm">
+                  <RiWhatsappLine className="size-3.5" />
                   WhatsApp
                 </Label>
-                <span className="text-destructive text-sm leading-none">*</span>
+                <span className="text-sm leading-none text-destructive">*</span>
               </div>
               <Input id="noWa" placeholder="08123456789" disabled={isLoading} value={noWa} onChange={(e) => setNoWa(e.target.value)} />
             </div>
@@ -307,22 +374,23 @@ function ServicesFormContent({
 
         <div className="border-t pt-2" />
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-base font-medium flex items-center gap-1.5">
-              <RiToolsLine className="h-4 w-4" />
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-1">
+            <div className="h-5 w-1 rounded-full bg-primary" />
+            <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              <RiToolsLine className="size-4" />
               Detail Service
             </span>
           </div>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
+            <div className="flex flex-col gap-2">
               <div className="flex items-center gap-1.5">
-                <Label htmlFor="complaint" className="text-sm flex items-center gap-1.5">
-                  <RiMessage3Line className="h-3.5 w-3.5" />
+                <Label htmlFor="complaint" className="flex items-center gap-1.5 text-sm">
+                  <RiMessage3Line className="size-3.5" />
                   Keluhan
                 </Label>
-                <span className="text-destructive text-sm leading-none">*</span>
+                <span className="text-sm leading-none text-destructive">*</span>
               </div>
               <textarea
                 id="complaint"
@@ -335,11 +403,11 @@ function ServicesFormContent({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm flex items-center gap-1.5">
-        <RiBox3Line className="h-3.5 w-3.5" />
-        Kelengkapan
-      </Label>
+            <div className="flex flex-col gap-2">
+              <Label className="flex items-center gap-1.5 text-sm">
+                <RiBox3Line className="size-3.5" />
+                Kelengkapan
+              </Label>
               <div className="flex gap-2">
                 <Input
                   placeholder="Tambah barang (cth., charger, case)..."
@@ -350,12 +418,12 @@ function ServicesFormContent({
                   className="flex-1"
                 />
                 <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={isLoading || !newItem.trim()}>
-                  <RiAddLine className="h-4 w-4 mr-1" />
+                  <RiAddLine className="mr-1 size-4" />
                   Tambah
                 </Button>
               </div>
               {includedItems.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {includedItems.map((item, index) => (
                     <Badge key={index} variant="secondary" className="flex items-center gap-1 pr-1">
                       {item}
@@ -373,7 +441,7 @@ function ServicesFormContent({
               )}
             </div>
 
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label className="text-sm">Kata Sandi / Pattern Lock</Label>
 
               <div className="flex gap-2">
@@ -386,8 +454,8 @@ function ServicesFormContent({
               )}
 
               {showPatternLock && (
-                <div className="space-y-3">
-                  <div className="rounded-lg border bg-muted/30 p-3 flex items-center justify-center">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-center rounded-lg border bg-muted/30 p-3">
                     <PatternLock
                       key={patternResetKey}
                       pattern={pattern.length > 0 ? pattern : undefined}
@@ -407,14 +475,14 @@ function ServicesFormContent({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       {pattern.length > 0 ? (
-                        <Badge variant="secondary" className="font-mono">{pattern.join(" → ")}</Badge>
+                        <Badge variant="secondary" className="font-mono">{pattern.join(" -> ")}</Badge>
                       ) : (
                         <span className="text-xs text-muted-foreground">Gambar pola di atas</span>
                       )}
                     </div>
                     {pattern.length > 0 && (
                       <Button type="button" variant="ghost" size="sm" onClick={clearPattern} disabled={isLoading}>
-                        <RiDeleteBinLine className="h-4 w-4 mr-1" />
+                        <RiDeleteBinLine className="mr-1 size-4" />
                         Hapus
                       </Button>
                     )}
@@ -423,14 +491,28 @@ function ServicesFormContent({
               )}
             </div>
 
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="imei" className="text-sm">IMEI</Label>
               <Input id="imei" placeholder="Nomor IMEI perangkat" disabled={isLoading} value={imei} onChange={(e) => setImei(e.target.value)} />
             </div>
 
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="dpAmount" className="text-sm">DP / Uang Muka (opsional)</Label>
-              <Input id="dpAmount" type="number" placeholder="0" min="0" disabled={isLoading} value={dpAmount} onChange={(e) => setDpAmount(e.target.value)} />
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 mb-1 left-3 flex items-center text-sm text-muted-foreground">
+                  Rp,
+                </span>
+                <Input
+                  id="dpAmount"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  disabled={isLoading}
+                  value={formattedDpAmount}
+                  onChange={(e) => setDpAmount(e.target.value.replace(/\D/g, ""))}
+                  className="pl-9"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -441,7 +523,7 @@ function ServicesFormContent({
 
         {error && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
-            <svg className="mt-0.5 h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="mt-0.5 size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span>{error}</span>
@@ -450,13 +532,13 @@ function ServicesFormContent({
 
         <div className="flex justify-end gap-3 border-t pt-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            <RiCloseLine className="h-4 w-4 mr-1" />
+            <RiCloseLine className="mr-1 size-4" />
             Batal
           </Button>
           <Button type="submit" disabled={isLoading}>
             {isLoading ? (
               <>
-                <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <svg className="mr-2 size-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>

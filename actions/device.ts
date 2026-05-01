@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma"
 import { getAuthUser, isAdmin } from "@/lib/rbac"
-import { revalidatePath, cacheTag, updateTag } from "next/cache"
+import { revalidatePath, cacheLife, cacheTag, updateTag } from "next/cache"
 import { z } from "zod"
 
 export interface Brand {
@@ -21,6 +21,11 @@ export interface DeviceListItem {
   id: string
   modelName: string
   brandName: string
+}
+
+export interface DeviceCatalogPayload {
+  version: string
+  devices: DeviceListItem[]
 }
 
 async function getDeviceWriteUser() {
@@ -97,6 +102,7 @@ export async function createBrand(name: string): Promise<Brand> {
 
 export async function getDeviceList(): Promise<DeviceListItem[]> {
   'use cache'
+  cacheLife('hours')
   cacheTag('devices')
 
   const devices = await prisma.hpCatalog.findMany({
@@ -114,6 +120,37 @@ export async function getDeviceList(): Promise<DeviceListItem[]> {
     modelName: d.modelName,
     brandName: d.brand.name,
   }))
+}
+
+export async function getDeviceCatalogVersion(): Promise<string> {
+  'use cache'
+  cacheLife('hours')
+  cacheTag('devices', 'brands')
+
+  const [deviceCount, deviceMeta, brandMeta] = await Promise.all([
+    prisma.hpCatalog.count(),
+    prisma.hpCatalog.aggregate({ _max: { updatedAt: true } }),
+    prisma.brand.aggregate({ _max: { updatedAt: true } }),
+  ])
+
+  return [
+    deviceCount,
+    deviceMeta._max.updatedAt?.getTime() ?? 0,
+    brandMeta._max.updatedAt?.getTime() ?? 0,
+  ].join(':')
+}
+
+export async function getDeviceCatalog(): Promise<DeviceCatalogPayload> {
+  'use cache'
+  cacheLife('hours')
+  cacheTag('devices', 'brands')
+
+  const [version, devices] = await Promise.all([
+    getDeviceCatalogVersion(),
+    getDeviceList(),
+  ])
+
+  return { version, devices }
 }
 
 export async function searchDevices(query: string): Promise<DeviceListItem[]> {

@@ -1,13 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { searchDevices, createDevice } from "@/actions";
+import { createDevice } from "@/actions";
 import { getBrandIcon } from "@/lib/brand-icons";
+import { upsertStoredDevice } from "@/lib/device-catalog-cache";
+import { fuzzyScore } from "@/lib/fuzzy-search";
 import { HpCatalogOption } from "@/components/shared/device-input";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RiLoader4Line, RiSearchLine, RiAddLine, RiCloseLine, RiCheckLine } from "@remixicon/react";
+import {
+  RiLoader4Line,
+  RiSearchLine,
+  RiAddLine,
+  RiCloseLine,
+  RiCheckLine,
+  RiAlertLine,
+} from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
 export type { HpCatalogOption };
@@ -16,12 +25,20 @@ interface MultiDeviceInputProps {
   value: HpCatalogOption[];
   onChange: (devices: HpCatalogOption[]) => void;
   disabled?: boolean;
+  error?: string | null;
+  devices?: HpCatalogOption[];
+  isLoadingDevices?: boolean;
+  onDeviceCreated?: (device: HpCatalogOption) => void;
 }
 
 export function MultiDeviceInput({
   value,
   onChange,
   disabled = false,
+  error,
+  devices = [],
+  isLoadingDevices = false,
+  onDeviceCreated,
 }: MultiDeviceInputProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<HpCatalogOption[]>([]);
@@ -32,6 +49,13 @@ export function MultiDeviceInput({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (highlightedIndex >= 0 && dropdownRef.current) {
+      const items = dropdownRef.current.querySelectorAll('button[type="button"]');
+      items[highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlightedIndex]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -61,17 +85,26 @@ export function MultiDeviceInput({
       setShowDropdown(true);
     });
 
-    searchTimeoutRef.current = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const results = await searchDevices(query);
-        if (!active) return;
-        const filtered = results.filter((d) => !value.some((v) => v.id === d.id));
-        setResults(filtered);
-      } catch {
-        if (!active) return;
-        setResults([]);
-      }
+    searchTimeoutRef.current = setTimeout(() => {
+      if (!active) return;
+
+      const filtered = devices
+        .map((device) => ({
+          device,
+          score: fuzzyScore(query, `${device.brandName} ${device.modelName}`),
+        }))
+        .filter((item): item is { device: HpCatalogOption; score: number } => item.score !== null)
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          const brandCompare = a.device.brandName.localeCompare(b.device.brandName);
+          return brandCompare === 0
+            ? a.device.modelName.localeCompare(b.device.modelName)
+            : brandCompare;
+        })
+        .map((item) => item.device)
+        .filter((d) => !value.some((v) => v.id === d.id));
+
+      setResults(filtered.slice(0, 20));
       setIsSearching(false);
       setHighlightedIndex(-1);
     }, 150);
@@ -82,7 +115,7 @@ export function MultiDeviceInput({
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [query, value]);
+  }, [query, value, devices]);
 
   const handleSelect = useCallback((device: HpCatalogOption) => {
     if (value.some((v) => v.id === device.id)) {
@@ -109,17 +142,15 @@ export function MultiDeviceInput({
 
     try {
       const device = await createDevice({ brandName, modelName });
-      if (value.some((v) => v.id === device.id)) {
-        setQuery("");
-        setShowDropdown(false);
-        return;
-      }
+      upsertStoredDevice(device);
+      onDeviceCreated?.(device);
       handleSelect(device);
     } catch {
       // Silently fail - user can retry
+    } finally {
+      setIsCreating(false);
     }
-    setIsCreating(false);
-  }, [query, value, handleSelect]);
+  }, [query, handleSelect, onDeviceCreated]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDropdown) return;
@@ -165,14 +196,14 @@ export function MultiDeviceInput({
   }, [query, parseDeviceName]);
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       {value.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {value.map((device) => (
             <Badge
               key={device.id}
               variant="secondary"
-              className="gap-1.5 pr-1 py-1.5"
+              className="flex items-center gap-1.5 pr-1 py-1.5"
             >
               <div className="flex items-center gap-1.5">
                 {getBrandIcon(device.brandName)}
@@ -183,7 +214,8 @@ export function MultiDeviceInput({
               <button
                 type="button"
                 onClick={() => handleRemove(device.id)}
-                className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                className="ml-1 hover:text-destructive focus:outline-none"
+                disabled={disabled}
               >
                 <RiCloseLine className="h-3 w-3" />
               </button>
@@ -210,15 +242,15 @@ export function MultiDeviceInput({
         />
 
         {showDropdown && (
-          <div className="absolute z-50 w-full mt-1 bg-background border border-input rounded-lg shadow-lg max-h-60 overflow-auto">
-            {isSearching ? (
-              <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-                <RiLoader4Line className="w-4 h-4 animate-spin" />
+          <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-input bg-background shadow-lg">
+            {isSearching || isLoadingDevices ? (
+              <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+                <RiLoader4Line className="size-4 animate-spin" />
                 Mencari perangkat...
               </div>
             ) : results.length > 0 ? (
               <div className="py-1">
-                <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Perangkat yang Sudah Ada
                 </div>
                 {results.map((device, index) => (
@@ -226,21 +258,21 @@ export function MultiDeviceInput({
                     key={device.id}
                     type="button"
                     className={cn(
-                      "w-full px-3 py-2.5 text-sm text-left transition-colors flex items-center gap-3",
+                      "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors",
                       highlightedIndex === index ? "bg-accent" : "hover:bg-accent"
                     )}
                     onClick={() => handleSelect(device)}
                     onMouseEnter={() => setHighlightedIndex(index)}
                   >
-                    <div className="flex items-center justify-center w-8 h-8 bg-muted/50 rounded-md">
+                    <div className="flex size-8 items-center justify-center rounded-md bg-muted/50">
                       {getBrandIcon(device.brandName)}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span className="font-medium">{device.brandName}</span>
-                      <span className="text-muted-foreground ml-1">{device.modelName}</span>
+                      <span className="ml-1 text-muted-foreground">{device.modelName}</span>
                     </div>
                     <RiCheckLine className={cn(
-                      "w-4 h-4 text-muted-foreground transition-opacity",
+                      "size-4 text-muted-foreground transition-opacity",
                       highlightedIndex === index ? "opacity-100" : "opacity-0"
                     )} />
                   </button>
@@ -248,9 +280,9 @@ export function MultiDeviceInput({
               </div>
             ) : query.trim() ? (
               <div className="p-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                  <RiSearchLine className="w-4 h-4" />
-                  Tidak ditemukan perangkat yang sesuai
+                <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+                  <RiSearchLine className="size-4" />
+                  Tidak ada perangkat yang ditemukan
                 </div>
                 <Button
                   type="button"
@@ -261,14 +293,14 @@ export function MultiDeviceInput({
                   className="w-full"
                 >
                   {isCreating ? (
-                      <>
-                        <RiLoader4Line className="w-4 h-4 mr-2 animate-spin" />
-                        Membuat...
-                      </>
-                    ) : (
-                      <>
-                        <RiAddLine className="w-4 h-4 mr-2" />
-                        Buat &quot;{displayQuery}&quot;
+                    <>
+                      <RiLoader4Line className="mr-2 size-4 animate-spin" />
+                      Membuat...
+                    </>
+                  ) : (
+                    <>
+                      <RiAddLine className="mr-2 size-4" />
+                      Buat &quot;{displayQuery}&quot;
                     </>
                   )}
                 </Button>
@@ -277,6 +309,13 @@ export function MultiDeviceInput({
           </div>
         )}
       </div>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+          <RiAlertLine className="mt-0.5 size-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
     </div>
   );
 }

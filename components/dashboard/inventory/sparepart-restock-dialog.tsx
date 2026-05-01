@@ -1,11 +1,10 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -13,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   restockSparepart,
   searchSpareparts,
@@ -26,13 +26,19 @@ import {
   RiArchiveLine,
   RiCloseLine,
   RiHistoryLine,
-  RiArrowDownSLine,
-  RiArrowUpSLine,
   RiUserLine,
+  RiQrScan2Line,
+  RiRefreshLine,
+  RiStopLine,
+  RiBarcodeLine,
+  RiNumbersLine,
+  
 } from "@remixicon/react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useMobileScannerHost } from "@/hooks/use-mobile-scanner-host";
+import type { MobileScannerConnectionState } from "@/lib/webrtc";
 
 interface SparepartRestockDialogProps {
   open: boolean;
@@ -54,6 +60,12 @@ interface StockHistoryItem {
 
 const SCANNER_INPUT_THRESHOLD_MS = 30;
 
+function getMobileScannerStatusVariant(state: MobileScannerConnectionState) {
+  if (state === "connected") return "default";
+  if (state === "failed" || state === "disconnected") return "destructive";
+  return "secondary";
+}
+
 function SparepartRestockDialogContent({
   tokoId,
   onOpenChange,
@@ -67,12 +79,13 @@ function SparepartRestockDialogContent({
   const [foundSparepart, setFoundSparepart] = useState<SparepartWithCompatibilities | null>(null);
   const [searchResults, setSearchResults] = useState<SparepartWithCompatibilities[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<StockHistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastKeyTimeRef = useRef<number[]>([]);
   const isScannerInputRef = useRef(false);
+  const isProcessingScannerRef = useRef(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDev = process.env.NODE_ENV === "development";
 
@@ -174,15 +187,51 @@ function SparepartRestockDialogContent({
     }
   };
 
-  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
+  const performRestock = useCallback(async (sparepartId: string, qtyValue: number) => {
+    setIsLoading(true);
+    setError(null);
 
+    const result = await restockSparepart({ id: sparepartId, qty: qtyValue });
+
+    setIsLoading(false);
+
+    if (!result.success) {
+      toast.error(result.error || "Gagal menambah stok");
+      return;
+    }
+
+    if (result.data) {
+      onSuccess(result.data);
+      void loadHistory();
+      toast.success(`Stok ${result.data.name} berhasil ditambah +${qtyValue}`, {
+        description: `Total stok: ${result.data.stock}`,
+      });
+      
+      if (isScannerInputRef.current) {
+        setTimeout(() => {
+          resetState();
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
+        }, 500);
+      } else {
+        onOpenChange(false);
+      }
+    }
+  }, [loadHistory, onOpenChange, onSuccess, resetState]);
+
+  const processScannerValue = useCallback(async (rawValue: string) => {
+    if (isProcessingScannerRef.current) return;
+
+    isProcessingScannerRef.current = true;
+
+    try {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
 
-      const trimmedValue = inputValue.trim();
+      const trimmedValue = rawValue.trim();
+      setInputValue(trimmedValue);
       if (trimmedValue.length === 0) {
         setError("Masukkan barcode atau nama sparepart");
         return;
@@ -194,7 +243,7 @@ function SparepartRestockDialogContent({
         return;
       }
 
-      if (foundSparepart) {
+      if (foundSparepart && !isScannerInputRef.current) {
         await performRestock(foundSparepart.id, qtyValue);
         return;
       }
@@ -224,48 +273,47 @@ function SparepartRestockDialogContent({
         setSearchResults([]);
         setShowResults(false);
       }
+    } finally {
+      isProcessingScannerRef.current = false;
+    }
+  }, [foundSparepart, performRestock, qty, tokoId]);
+
+  const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      await processScannerValue(inputValue);
     }
   };
+
+  const handleMobileScan = useCallback(async (value: string) => {
+    isScannerInputRef.current = true;
+    await processScannerValue(value);
+  }, [processScannerValue]);
+
+  const {
+    state: mobileScannerState,
+    code: mobileScannerCode,
+    inviteUrl: mobileScannerInviteUrl,
+    secondsRemaining: mobileScannerSecondsRemaining,
+    error: mobileScannerError,
+    startPairing: startMobileScannerPairing,
+    disconnect: disconnectMobileScanner,
+    clearError: clearMobileScannerError,
+  } = useMobileScannerHost({ tokoId, onScan: handleMobileScan });
+
+  useEffect(() => {
+    if (mobileScannerOpen && mobileScannerState === "idle") {
+      void startMobileScannerPairing();
+    }
+  }, [mobileScannerOpen, mobileScannerState, startMobileScannerPairing]);
+
+  const isMobileScannerTimedOut = mobileScannerState === "failed" && mobileScannerSecondsRemaining === 0;
 
   const handleSelectSparepart = (sparepart: SparepartWithCompatibilities) => {
     setFoundSparepart(sparepart);
     setSearchResults([]);
     setShowResults(false);
     setInputValue(sparepart.id);
-  };
-
-  const performRestock = async (sparepartId: string, qtyValue: number) => {
-    setIsLoading(true);
-    setError(null);
-
-    const result = await restockSparepart({ id: sparepartId, qty: qtyValue });
-
-    setIsLoading(false);
-
-    if (!result.success) {
-      toast.error(result.error || "Gagal menambah stok");
-      return;
-    }
-
-    if (result.data) {
-      onSuccess(result.data);
-      void loadHistory();
-      setShowHistory(true);
-      toast.success(`Stok ${result.data.name} berhasil ditambah +${qtyValue}`, {
-        description: `Total stok: ${result.data.stock}`,
-      });
-      
-      if (isScannerInputRef.current) {
-        setTimeout(() => {
-          resetState();
-          if (inputRef.current) {
-            inputRef.current.focus();
-          }
-        }, 500);
-      } else {
-        onOpenChange(false);
-      }
-    }
   };
 
   const handleRestockClick = async () => {
@@ -286,169 +334,279 @@ function SparepartRestockDialogContent({
   const simulateScannerInput = async () => {
     const testId = "007f16eb-d55e-417f-9ced-ca49d8654889";
     isScannerInputRef.current = true;
-    setInputValue(testId);
     setFoundSparepart(null);
     setSearchResults([]);
     setShowResults(false);
-
-    setIsSearching(true);
-    const result = await searchSpareparts(tokoId, testId);
-    setIsSearching(false);
-
-    if (result.success && result.data && result.data.length > 0) {
-      const exactIdMatch = result.data.find((sp) => sp.id === testId);
-      if (exactIdMatch) {
-        const qtyValue = parseInt(qty, 10) || 1;
-        await performRestock(exactIdMatch.id, qtyValue);
-      } else {
-        setSearchResults(result.data);
-        setShowResults(true);
-      }
-    } else {
-      setError("Sparepart tidak ditemukan (dev test)");
-    }
+    await processScannerValue(testId);
   };
 
   return (
-    <DialogContent className="max-w-md">
+    <DialogContent className="min-w-2xl">
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <RiStackLine className="h-4 w-4" />
+        <DialogTitle className="flex items-center gap-2 text-xl">
+          <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <RiStackLine className="size-4" />
           </span>
           Restock Sparepart
         </DialogTitle>
-        <DialogDescription>
-          Scan barcode atau cari sparepart untuk menambah stok. Scanner akan auto-submit.
-        </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-4 py-4">
+      <div className="flex flex-col gap-4">
         {error && (
-          <div className="rounded p-3 text-sm text-destructive bg-destructive/10">{error}</div>
+          <div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+            <svg className="mt-0.5 size-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
         )}
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="barcode-input" className="flex items-center gap-1.5">
-              <RiSearchLine className="h-3.5 w-3.5 text-muted-foreground" />
-              Barcode / ID / Nama
-            </Label>
-            <span className="text-muted-foreground text-xs">|</span>
-            <Label htmlFor="qty" className="text-xs text-muted-foreground">Qty</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Input
-                ref={inputRef}
-                id="barcode-input"
-                value={inputValue}
-                onChange={(e) => handleInputChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Scan barcode atau ketik nama sparepart..."
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1">
+              <div className="h-5 w-1 rounded-full bg-primary" />
+              <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                <RiSearchLine className="size-4" />
+                Cari Sparepart
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setMobileScannerOpen((open) => !open)}
                 disabled={isLoading}
-              />
-              {isSearching && (
-                <RiLoader4Line className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              >
+                <RiQrScan2Line className="mr-1.5 size-4" />
+                {mobileScannerOpen ? "Sembunyikan" : "Scan via HP"}
+              </Button>
+              {(mobileScannerOpen || mobileScannerState !== "idle") && (
+                <Badge variant={getMobileScannerStatusVariant(mobileScannerState)}>
+                  {mobileScannerState}
+                </Badge>
               )}
             </div>
-            <Input
-              id="qty"
-              type="number"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              placeholder="1"
-              min="1"
-              disabled={isLoading}
-              className="w-20 shrink-0"
-            />
+          </div>
+
+          <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="barcode-input" className="flex items-center gap-1.5 text-sm">
+                    <RiBarcodeLine className="size-3.5" />
+                    Barcode / ID / Nama
+                  </Label>
+                  <span className="text-sm leading-none text-destructive">*</span>
+                </div>
+                <div className="relative">
+                  <Input
+                    ref={inputRef}
+                    id="barcode-input"
+                    value={inputValue}
+                    onChange={(e) => handleInputChange(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Scan barcode atau ketik nama sparepart..."
+                    disabled={isLoading}
+                  />
+                  {isSearching && (
+                    <RiLoader4Line className="absolute right-3 top-1/2 -translate-y-1/2 size-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="qty" className="flex items-center gap-1.5 text-sm">
+                    <RiNumbersLine className="size-3.5" />
+                    Jumlah
+                  </Label>
+                  <span className="text-sm leading-none text-destructive">*</span>
+                </div>
+                <Input
+                  id="qty"
+                  type="number"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  placeholder="1"
+                  min="1"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            {mobileScannerOpen && (
+              <div className="mt-1 flex flex-col gap-3 rounded-md border bg-muted/20 p-3">
+                <div>
+                  <div className="text-sm font-medium">Phone Scanner</div>
+                  <div className="text-xs text-muted-foreground">
+                    Scan QR ini dari HP untuk mengirim barcode ke restock.
+                  </div>
+                </div>
+
+                {mobileScannerError && !isMobileScannerTimedOut && (
+                  <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                    <div>{mobileScannerError}</div>
+                    <Button type="button" variant="ghost" size="sm" className="mt-1" onClick={clearMobileScannerError}>
+                      Tutup pesan
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex flex-col items-center gap-2">
+                  {mobileScannerInviteUrl ? (
+                    <div className="relative rounded-md bg-white p-2">
+                      <QRCodeSVG value={mobileScannerInviteUrl} size={112} marginSize={1} title="Mobile scanner pairing QR" />
+                      {isMobileScannerTimedOut && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md bg-background/90 p-3 text-center">
+                          <div className="text-xs font-medium text-foreground">Waktu pairing habis</div>
+                          <div className="text-[0.625rem] leading-tight text-muted-foreground">Buat QR baru untuk mencoba lagi.</div>
+                          <Button type="button" size="sm" onClick={() => void startMobileScannerPairing()}>
+                            <RiRefreshLine className="mr-1.5 size-4" />
+                            Retry
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex size-28 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+                      <RiLoader4Line className="animate-spin" />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>Kode: {mobileScannerCode ?? "membuat..."}</span>
+                    <span>Timeout: {mobileScannerSecondsRemaining !== null ? `${mobileScannerSecondsRemaining}s` : "-"}</span>
+                  </div>
+                </div>
+
+                {!isMobileScannerTimedOut && (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        disconnectMobileScanner();
+                        setMobileScannerOpen(false);
+                      }}
+                      disabled={mobileScannerState === "idle"}
+                    >
+                      <RiStopLine className="mr-1.5 size-4" />
+                      Stop
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {showResults && searchResults.length > 0 && (
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Hasil pencarian</Label>
-            <div className="max-h-48 overflow-auto rounded-lg border bg-muted/30 divide-y">
-              {searchResults.map((sp) => (
-                <button
-                  key={sp.id}
-                  type="button"
-                  onClick={() => handleSelectSparepart(sp)}
-                  className="w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors"
-                >
-                  <div className="font-medium text-sm">{sp.name}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Stok: {sp.stock} | {formatCurrency(sp.defaultPrice)}
+          <>
+            <div className="border-t pt-2" />
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-1">
+                <div className="h-5 w-1 rounded-full bg-primary" />
+                <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                  <RiArchiveLine className="size-4" />
+                  Hasil Pencarian
+                </span>
+              </div>
+              <div className="ml-4 border-l border-border pl-4">
+                <ScrollArea className="h-48">
+                  <div className="space-y-0 rounded-lg border bg-muted/30 divide-y">
+                    {searchResults.map((sp) => (
+                      <button
+                        key={sp.id}
+                        type="button"
+                        onClick={() => handleSelectSparepart(sp)}
+                        className="w-full px-3 py-2.5 text-left hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="font-medium text-sm">{sp.name}</div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          Stok: {sp.stock} | {formatCurrency(sp.defaultPrice)}
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                </button>
-              ))}
+                </ScrollArea>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {showResults && inputValue.length >= 3 && searchResults.length === 0 && !isSearching && (
-          <div className="text-sm text-muted-foreground text-center py-2">
-            Tidak ditemukan sparepart dengan &quot;{inputValue}&quot;
+          <div className="text-center text-sm text-muted-foreground py-2">
+            Tidak ada perangkat yang ditemukan dengan &quot;{inputValue}&quot;
           </div>
         )}
 
         {foundSparepart && !showResults && (
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <RiArchiveLine className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{foundSparepart.name}</span>
+          <>
+            <div className="border-t pt-2" />
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-1">
+                <div className="h-5 w-1 rounded-full bg-primary" />
+                <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                  <RiArchiveLine className="size-4" />
+                  Sparepart Dipilih
+                </span>
               </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => {
-                  setFoundSparepart(null);
-                  setInputValue("");
-                }}
-              >
-                <RiCloseLine className="h-4 w-4" />
-              </Button>
+              <div className="ml-4 border-l border-border pl-4">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <RiArchiveLine className="size-4 text-muted-foreground" />
+                      <span className="font-medium">{foundSparepart.name}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
+                        setFoundSparepart(null);
+                        setInputValue("");
+                      }}
+                      disabled={isLoading}
+                    >
+                      <RiCloseLine className="size-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3 text-sm">
+                    <span className="text-muted-foreground">Stok saat ini:</span>
+                    <Badge variant="outline" className={cn(
+                      foundSparepart.stock <= 0
+                        ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
+                        : foundSparepart.stock <= 5
+                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
+                          : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
+                    )}>
+                      {foundSparepart.stock}
+                    </Badge>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="text-muted-foreground">{formatCurrency(foundSparepart.defaultPrice)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="mt-2 flex items-center gap-3 text-sm">
-              <span className="text-muted-foreground">Stok saat ini:</span>
-              <Badge variant="outline" className={cn(
-                foundSparepart.stock <= 0
-                  ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                  : foundSparepart.stock <= 5
-                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
-                  : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
-              )}>
-                {foundSparepart.stock}
-              </Badge>
-              <span className="text-muted-foreground">|</span>
-              <span className="text-muted-foreground">{formatCurrency(foundSparepart.defaultPrice)}</span>
-            </div>
-          </div>
+          </>
         )}
 
-        <div className="rounded-lg border bg-muted/20">
-          <button
-            type="button"
-            onClick={() => setShowHistory((open) => !open)}
-            className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium hover:bg-muted/40"
-          >
-            <span className="flex items-center gap-2">
-              <RiHistoryLine className="h-4 w-4 text-muted-foreground" />
+        <div className="border-t pt-2" />
+
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-1">
+            <div className="h-5 w-1 rounded-full bg-primary" />
+            <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              <RiHistoryLine className="size-4" />
               History Stok Masuk
             </span>
-            {showHistory ? (
-              <RiArrowUpSLine className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <RiArrowDownSLine className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
+          </div>
 
-          {showHistory && (
-            <div className="max-h-56 overflow-auto border-t">
+          <div className="ml-4 border-l border-border pl-4">
+            <ScrollArea className="h-50 rounded-md border bg-muted/20">
               {isLoadingHistory ? (
                 <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-                  <RiLoader4Line className="mr-2 h-4 w-4 animate-spin" />
+                  <RiLoader4Line className="mr-2 size-4 animate-spin" />
                   Memuat history...
                 </div>
               ) : history.length === 0 ? (
@@ -458,63 +616,67 @@ function SparepartRestockDialogContent({
               ) : (
                 <div className="divide-y">
                   {history.map((item) => (
-                    <div key={item.id} className="px-3 py-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{item.sparepartName || "Sparepart"}</div>
-                          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <RiUserLine className="h-3 w-3" />
-                            <span>{item.userName}</span>
-                            <span>|</span>
-                            <span>{formatDate(new Date(item.createdAt))}</span>
-                          </div>
+                    <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{item.sparepartName || "Sparepart"}</div>
+                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <RiUserLine className="size-3" />
+                          <span>{item.userName}</span>
+                          <span>|</span>
+                          <span>{formatDate(new Date(item.createdAt))}</span>
                         </div>
-                        <Badge variant="outline" className="shrink-0 bg-primary/10 text-primary border-primary/20">
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                           +{item.addedQty}
                         </Badge>
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {item.previousStock} -&gt; {item.newStock}
+                        <div className="mt-0.5 text-[10px] text-muted-foreground">
+                          {item.previousStock} → {item.newStock}
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          )}
+            </ScrollArea>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          <span className="text-destructive">*</span> Menandakan kolom yang wajib diisi
+        </p>
+
+        {isDev && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={simulateScannerInput}
+              className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            >
+              [DEV] Simulate scanner
+            </button>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 border-t pt-2">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+            Tutup
+          </Button>
+          <Button
+            type="button"
+            onClick={handleRestockClick}
+            disabled={isLoading || !foundSparepart}
+            className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+          >
+            {isLoading ? (
+              <RiLoader4Line className="mr-1.5 size-4 animate-spin" />
+            ) : (
+              <RiStackLine className="mr-1.5 size-4" />
+            )}
+            Tambah Stok
+          </Button>
         </div>
       </div>
-
-      {isDev && (
-        <div className="flex justify-end pb-2">
-          <button
-            type="button"
-            onClick={simulateScannerInput}
-            className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-          >
-            [DEV] Simulate scanner
-          </button>
-        </div>
-      )}
-
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-          Tutup
-        </Button>
-        <Button
-          type="button"
-          onClick={handleRestockClick}
-          disabled={isLoading || !foundSparepart}
-          className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
-        >
-          {isLoading ? (
-            <RiLoader4Line className="h-4 w-4 animate-spin mr-1.5" />
-          ) : (
-            <RiStackLine className="h-4 w-4 mr-1.5" />
-          )}
-          Tambah Stok
-        </Button>
-      </DialogFooter>
     </DialogContent>
   );
 }
