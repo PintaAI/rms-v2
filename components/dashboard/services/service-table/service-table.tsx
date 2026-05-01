@@ -28,9 +28,10 @@ import {
   RiTaskLine,
   RiUserStarLine,
   RiUserLine,
+  RiPrinterLine,
 } from "@remixicon/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { InvoiceDialog, isPaidInvoiceService, type InvoicePreviewService } from "./invoice-dialog";
+import { InvoiceDialog, type InvoicePreviewService } from "./invoice-dialog";
 import { TechnicianDropdown } from "./technician-dropdown";
 import { columnRegistry, type ColumnKey } from "./column-registry";
 import { resolveColumns, type RoleKey } from "./presets";
@@ -184,7 +185,8 @@ export function ServiceTable({
     return filteredColumns.includes("customer") ? ["customer"] : filteredColumns.slice(0, 1);
   }, [filteredColumns, preferences.hiddenColumns]);
 
-  const showDropdownActions = onEdit || onDelete;
+  const showPrintNotaAction = true;
+  const showDropdownActions = showPrintNotaAction || onEdit || onDelete;
   const showTakeTask = onTake;
   const hasActions = showDropdownActions || showTakeTask;
 
@@ -243,7 +245,6 @@ export function ServiceTable({
   }, [getColumnWidth, setPreferences]);
 
   const openInvoiceDialog = React.useCallback((service: ServiceTableItem) => {
-    if (!isPaidInvoiceService(service)) return;
     setSelectedInvoiceService(service);
   }, [setSelectedInvoiceService]);
 
@@ -483,6 +484,12 @@ export function ServiceTable({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-[120px]">
+                              {showPrintNotaAction && (
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openInvoiceDialog(service); }}>
+                                  <RiPrinterLine className="h-4 w-4 mr-2" />
+                                  Print Nota
+                                </DropdownMenuItem>
+                              )}
                               {onEdit && (
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(service); }}>
                                   <RiPencilLine className="h-4 w-4 mr-2" />

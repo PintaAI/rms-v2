@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   RiCheckboxCircleLine,
   RiDownload2Line,
+  RiPrinterLine,
 } from "@remixicon/react";
 import { getBrandIcon } from "@/lib/brand-icons";
 import type { ServiceTableItem } from "./types";
@@ -20,11 +21,13 @@ import { formatCurrency, formatDate } from "./utils";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
 
-export type InvoicePreviewService = ServiceTableItem & {
+type PaidInvoiceService = ServiceTableItem & {
   invoice: NonNullable<ServiceTableItem["invoice"]>;
 };
 
-export function isPaidInvoiceService(service: ServiceTableItem): service is InvoicePreviewService {
+export type InvoicePreviewService = ServiceTableItem;
+
+export function isPaidInvoiceService(service: ServiceTableItem): service is PaidInvoiceService {
   return Boolean(service.invoice && (service.invoice.paymentStatus === "paid" || service.invoice.paymentStatus === "dp"));
 }
 
@@ -34,22 +37,31 @@ function formatInvoiceDate(value: Date | string | null | undefined): string {
 }
 
 export function getInvoiceNumber(service: InvoicePreviewService): string {
+  if (!service.invoice) return `SRV-${service.id.slice(0, 8).toUpperCase()}`;
   return service.invoice.invoiceNumber || `INV-${service.invoice.id.slice(0, 8).toUpperCase()}`;
 }
 
 function getInvoiceItems(service: InvoicePreviewService) {
-  if (service.invoice.items?.length) {
+  if (service.invoice?.items?.length) {
     return service.invoice.items;
   }
   return [
     {
-      id: `${service.invoice.id}-summary`,
+      id: `${service.invoice?.id || service.id}-summary`,
       type: "Service",
       name: `Servis ${service.hpCatalog.brand.name} ${service.hpCatalog.modelName}`,
       qty: 1,
-      price: service.invoice.grandTotal,
+      price: service.invoice?.grandTotal || 0,
     },
   ];
+}
+
+async function renderInvoiceToPng(invoiceCard: HTMLDivElement) {
+  return toPng(invoiceCard, {
+    cacheBust: true,
+    backgroundColor: "#ffffff",
+    pixelRatio: 2,
+  });
 }
 
 function InvoicePreviewCard({
@@ -60,9 +72,15 @@ function InvoicePreviewCard({
   invoiceRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const items = getInvoiceItems(service);
-  const hasDetailedItems = Boolean(service.invoice.items?.length);
+  const hasInvoice = Boolean(service.invoice);
+  const hasDetailedItems = Boolean(service.invoice?.items?.length);
   const brandIcon = getBrandIcon(service.hpCatalog.brand.name);
-  const isDp = service.invoice.paymentStatus === "dp";
+  const paymentStatus = service.invoice?.paymentStatus;
+  const isDp = paymentStatus === "dp";
+  const isPaid = paymentStatus === "paid";
+  const grandTotal = service.invoice?.grandTotal || 0;
+  const dpAmount = service.invoice?.dpAmount || 0;
+  const remainingTotal = Math.max(0, grandTotal - dpAmount);
 
   return (
     <div ref={invoiceRef} className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
@@ -80,23 +98,41 @@ function InvoicePreviewCard({
           </div>
         </div>
 
-        {isDp ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm shadow-sm">
-            <div className="flex items-center gap-2 font-semibold text-amber-700">
-              DP {service.invoice.dpAmount ? formatCurrency(service.invoice.dpAmount) : ""}
+        {!hasInvoice ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-slate-700">
+              Nota Service
             </div>
-            <p className="mt-1 text-xs text-amber-700/80">
-              Sisa: {formatCurrency(service.invoice.grandTotal - (service.invoice.dpAmount || 0))}
+            <p className="mt-1 text-xs text-slate-500">
+              Invoice belum dibuat
             </p>
           </div>
-        ) : (
+        ) : isDp ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-amber-700">
+              DP {dpAmount ? formatCurrency(dpAmount) : ""}
+            </div>
+            <p className="mt-1 text-xs text-amber-700/80">
+              Sisa: {formatCurrency(remainingTotal)}
+            </p>
+          </div>
+        ) : isPaid ? (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm shadow-sm">
             <div className="flex items-center gap-2 font-semibold text-emerald-700">
               <RiCheckboxCircleLine className="h-4 w-4" />
               Lunas
             </div>
             <p className="mt-1 text-xs text-emerald-700/80">
-              Dibayar pada {formatInvoiceDate(service.invoice.paidAt ?? service.checkoutAt)}
+              Dibayar pada {formatInvoiceDate(service.invoice?.paidAt ?? service.checkoutAt)}
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-slate-700">
+              Belum Lunas
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Invoice belum dibayar
             </p>
           </div>
         )}
@@ -112,7 +148,7 @@ function InvoicePreviewCard({
             </div>
             <div className="flex items-center justify-between gap-4">
               <span>Dibuat</span>
-              <span className="font-semibold text-slate-900">{formatInvoiceDate(service.invoice.createdAt ?? service.checkinAt)}</span>
+              <span className="font-semibold text-slate-900">{formatInvoiceDate(service.invoice?.createdAt ?? service.checkinAt)}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
               <span>Ticket</span>
@@ -169,7 +205,9 @@ function InvoicePreviewCard({
 
       {!hasDetailedItems && (
         <p className="mt-3 text-xs text-slate-500">
-          Detail item belum tersedia. Invoice menampilkan total pembayaran final.
+          {hasInvoice
+            ? "Detail item belum tersedia. Invoice menampilkan total pembayaran final."
+            : "Invoice belum tersedia. Nota menampilkan data service yang sudah tercatat."}
         </p>
       )}
 
@@ -182,12 +220,12 @@ function InvoicePreviewCard({
           <div className=" flex items-end justify-between gap-6">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-white/50">{isDp ? "Sisa Tagihan" : "Grand Total"}</p>
-              <p className="mt-1 text-2xl font-black tracking-tight">{formatCurrency(isDp ? service.invoice.grandTotal - (service.invoice.dpAmount || 0) : service.invoice.grandTotal)}</p>
+              <p className="mt-1 text-2xl font-black tracking-tight">{formatCurrency(isDp ? remainingTotal : grandTotal)}</p>
               {isDp && (
-                <p className="mt-0.5 text-[0.65rem] text-white/40">DP: {formatCurrency(service.invoice.dpAmount || 0)}</p>
+                <p className="mt-0.5 text-[0.65rem] text-white/40">DP: {formatCurrency(dpAmount)}</p>
               )}
             </div>
-            <Badge className="border-0 bg-white/12 px-3 py-1 text-white hover:bg-white/12">{isDp ? "DP" : "Lunas"}</Badge>
+            <Badge className="border-0 bg-white/12 px-3 py-1 text-white hover:bg-white/12">{!hasInvoice ? "Nota" : isPaid ? "Lunas" : isDp ? "DP" : "Belum Lunas"}</Badge>
           </div>
         </div>
       </div>
@@ -205,6 +243,7 @@ export function InvoiceDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const [activeExport, setActiveExport] = React.useState<boolean>(false);
+  const [activePrint, setActivePrint] = React.useState<boolean>(false);
   const invoiceCardRef = React.useRef<HTMLDivElement>(null);
 
   const handleDownloadInvoice = React.useCallback(async () => {
@@ -212,11 +251,7 @@ export function InvoiceDialog({
 
     try {
       setActiveExport(true);
-      const dataUrl = await toPng(invoiceCardRef.current, {
-        cacheBust: true,
-        backgroundColor: "#ffffff",
-        pixelRatio: 2,
-      });
+      const dataUrl = await renderInvoiceToPng(invoiceCardRef.current);
       const link = document.createElement("a");
       link.href = dataUrl;
       link.download = `${getInvoiceNumber(service).toLowerCase()}.png`;
@@ -226,6 +261,43 @@ export function InvoiceDialog({
       toast.error("Gagal mengunduh invoice sebagai PNG");
     } finally {
       setActiveExport(false);
+    }
+  }, [service]);
+
+  const handlePrintInvoice = React.useCallback(async () => {
+    if (!service || !invoiceCardRef.current) return;
+
+    try {
+      setActivePrint(true);
+      const printWindow = window.open("", "_blank", "width=900,height=700");
+
+      if (!printWindow) {
+        toast.error("Popup print diblokir browser");
+        return;
+      }
+
+      const dataUrl = await renderInvoiceToPng(invoiceCardRef.current);
+
+      printWindow.document.write(`<!doctype html>
+        <html>
+          <head>
+            <title>${getInvoiceNumber(service)}</title>
+            <style>
+              body { margin: 0; background: #f8fafc; }
+              img { display: block; width: 100%; max-width: 900px; margin: 0 auto; }
+              @media print { body { background: #fff; } img { max-width: 100%; } }
+            </style>
+          </head>
+          <body>
+            <img src="${dataUrl}" alt="Nota service" onload="window.focus(); window.print();" />
+          </body>
+        </html>`);
+      printWindow.document.close();
+    } catch (error) {
+      console.error("Print invoice error:", error);
+      toast.error("Gagal menyiapkan nota untuk print");
+    } finally {
+      setActivePrint(false);
     }
   }, [service]);
 
@@ -239,16 +311,28 @@ export function InvoiceDialog({
                 Invoice {getInvoiceNumber(service)}
               </DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                Invoice berstatus {service.invoice.paymentStatus === "dp" ? "DP" : "paid"}. Anda bisa mengunduhnya sebagai PNG.
+                {service.invoice
+                  ? `Invoice berstatus ${service.invoice.paymentStatus === "dp" ? "DP" : service.invoice.paymentStatus === "paid" ? "paid" : "belum lunas"}. Anda bisa mengunduh atau mencetaknya.`
+                  : "Invoice belum tersedia. Nota tetap bisa dicetak dari data service."}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handlePrintInvoice}
+                disabled={activePrint || activeExport}
+              >
+                <RiPrinterLine className="mr-1.5 h-3.5 w-3.5" />
+                {activePrint ? "Menyiapkan..." : "Print"}
+              </Button>
               <Button
                 type="button"
                 size="sm"
                 onClick={handleDownloadInvoice}
-                disabled={activeExport}
+                disabled={activeExport || activePrint}
               >
                 <RiDownload2Line className="mr-1.5 h-3.5 w-3.5" />
                 {activeExport ? "Mengunduh..." : "Download PNG"}
