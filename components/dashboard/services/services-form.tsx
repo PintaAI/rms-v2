@@ -322,7 +322,7 @@ function ServicesFormContent({
   }
 
   return (
-    <DialogContent className="min-w-2xl">
+    <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-2xl">
       <DialogHeader >
         <DialogTitle className="flex items-center gap-2 text-xl">
           <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -411,7 +411,7 @@ function ServicesFormContent({
                 <RiBox3Line className="size-3.5" />
                 Kelengkapan
               </Label>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   placeholder="Tambah barang (cth., charger, case)..."
                   value={newItem}
@@ -420,7 +420,7 @@ function ServicesFormContent({
                   disabled={isLoading}
                   className="flex-1"
                 />
-                <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={isLoading || !newItem.trim()}>
+                <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={isLoading || !newItem.trim()} className="justify-center">
                   <RiAddLine className="mr-1 size-4" />
                   Tambah
                 </Button>
@@ -464,8 +464,8 @@ function ServicesFormContent({
                       pattern={pattern.length > 0 ? pattern : undefined}
                       animatePattern={initialState.isEditMode && pattern.length > 0}
                       animationKey={patternResetKey}
-                      width={300}
-                      height={300}
+                      width={240}
+                      height={240}
                       error={patternError}
                       autoReset={false}
                       onPatternComplete={handlePatternComplete}
@@ -475,16 +475,16 @@ function ServicesFormContent({
                     />
                   </div>
 
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-2">
                       {pattern.length > 0 ? (
-                        <Badge variant="secondary" className="font-mono">{pattern.join(" -> ")}</Badge>
+                        <Badge variant="secondary" className="max-w-full truncate font-mono">{pattern.join(" -> ")}</Badge>
                       ) : (
                         <span className="text-xs text-muted-foreground">Gambar pola di atas</span>
                       )}
                     </div>
                     {pattern.length > 0 && (
-                      <Button type="button" variant="ghost" size="sm" onClick={clearPattern} disabled={isLoading}>
+                      <Button type="button" variant="ghost" size="sm" onClick={clearPattern} disabled={isLoading} className="justify-center sm:w-auto">
                         <RiDeleteBinLine className="mr-1 size-4" />
                         Hapus
                       </Button>
@@ -533,12 +533,12 @@ function ServicesFormContent({
           </div>
         )}
 
-        <div className="flex justify-end gap-3 border-t pt-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+        <div className="flex flex-col-reverse gap-2 border-t pt-2 sm:flex-row sm:justify-end sm:gap-3">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading} className="w-full sm:w-auto">
             <RiCloseLine className="mr-1 size-4" />
             Batal
           </Button>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
             {isLoading ? (
               <>
                 <svg className="mr-2 size-4 animate-spin" fill="none" viewBox="0 0 24 24">
