@@ -38,6 +38,10 @@ export interface ServiceListItem {
     grandTotal: number;
     paymentStatus: PaymentStatus;
     dpAmount: number;
+    discountAmount: number;
+    paidAt: Date | null;
+    createdAt: Date;
+    items: InvoiceItem[];
   } | null;
 }
 
@@ -53,6 +57,14 @@ export interface ServiceItem {
   qty: number;
   price: number;
   referenceId: string | null;
+}
+
+export interface InvoiceItem {
+  id: string;
+  type: ItemType;
+  name: string;
+  qty: number;
+  price: number;
 }
 
 export interface ServiceStats {

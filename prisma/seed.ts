@@ -223,7 +223,20 @@ type InvoiceSeedRow = {
   grandTotal: number;
   paymentStatus: PaymentStatus;
   dpAmount: number;
+  discountAmount: number;
   paidAt: Date | null;
+  createdAt: Date;
+};
+
+type InvoiceItemSeedRow = {
+  id: string;
+  invoiceId: string;
+  serviceItemId: string;
+  type: ItemType;
+  referenceId: string | null;
+  name: string;
+  qty: number;
+  price: number;
   createdAt: Date;
 };
 
@@ -513,6 +526,7 @@ async function seedServices(
   const services: ServiceSeedRow[] = [];
   const serviceItems: ServiceItemSeedRow[] = [];
   const invoices: InvoiceSeedRow[] = [];
+  const invoiceItems: InvoiceItemSeedRow[] = [];
   const activities: ActivitySeedRow[] = [];
 
   for (const toko of tokos) {
@@ -622,8 +636,9 @@ async function seedServices(
       }
 
       if (rows.length > 0 && lifecycle.status !== "received") {
+        const invoiceId = faker.string.uuid();
         const invoiceCreatedAt = shiftMinutes(assignedAt ?? checkinAt, 15, 180);
-        const grandTotal = rows.reduce((sum, item) => sum + item.price, 0);
+        const grandTotal = rows.reduce((sum, item) => sum + item.price * item.qty, 0);
         const paymentStatus: PaymentStatus = lifecycle.isPickedUp || lifecycle.status === "done"
           ? faker.helpers.arrayElement(["paid", "unpaid", "paid", "dp"])
           : faker.helpers.arrayElement(["unpaid", "unpaid", "paid", "dp"]);
@@ -635,14 +650,27 @@ async function seedServices(
           : 0;
 
         invoices.push({
-          id: faker.string.uuid(),
+          id: invoiceId,
           serviceId,
           grandTotal,
           paymentStatus,
           dpAmount: dpAmountVal,
+          discountAmount: 0,
           paidAt,
           createdAt: invoiceCreatedAt,
         });
+
+        invoiceItems.push(...rows.map((item) => ({
+          id: faker.string.uuid(),
+          invoiceId,
+          serviceItemId: item.id,
+          type: item.type,
+          referenceId: item.referenceId,
+          name: item.name,
+          qty: item.qty,
+          price: item.price,
+          createdAt: invoiceCreatedAt,
+        })));
 
         activities.push({
           id: faker.string.uuid(),
@@ -696,12 +724,14 @@ async function seedServices(
   await insertManyInChunks(services, (batch) => prisma.service.createMany({ data: batch }), 250);
   await insertManyInChunks(serviceItems, (batch) => prisma.serviceItem.createMany({ data: batch }), 400);
   await insertManyInChunks(invoices, (batch) => prisma.invoice.createMany({ data: batch }), 250);
+  await insertManyInChunks(invoiceItems, (batch) => prisma.invoiceItem.createMany({ data: batch }), 400);
   await insertManyInChunks(activities, (batch) => prisma.activityLog.createMany({ data: batch as Prisma.ActivityLogCreateManyInput[] }), 500);
 
   return {
     services,
     serviceItems,
     invoices,
+    invoiceItems,
     activities,
   };
 }

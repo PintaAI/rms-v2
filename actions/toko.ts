@@ -325,7 +325,14 @@ export async function updateToko(
 
 export async function getTokoInvoiceSettings(tokoId: string): Promise<{
   success: boolean;
-  data?: { invoiceTerms: string; invoiceWarranty: string };
+  data?: {
+    name: string;
+    address: string | null;
+    phone: string | null;
+    logoUrl: string | null;
+    invoiceTerms: string;
+    invoiceWarranty: string;
+  };
   error?: string;
 }> {
   const user = await getAuthUser();
@@ -341,6 +348,10 @@ export async function getTokoInvoiceSettings(tokoId: string): Promise<{
   const toko = await prisma.toko.findUnique({
     where: { id: tokoId },
     select: {
+      name: true,
+      address: true,
+      phone: true,
+      logoUrl: true,
       invoiceTerms: true,
       invoiceWarranty: true,
     },
@@ -353,6 +364,10 @@ export async function getTokoInvoiceSettings(tokoId: string): Promise<{
   return {
     success: true,
     data: {
+      name: toko.name,
+      address: toko.address,
+      phone: toko.phone,
+      logoUrl: toko.logoUrl,
       invoiceTerms: toko.invoiceTerms?.trim() || DEFAULT_INVOICE_TERMS,
       invoiceWarranty: toko.invoiceWarranty?.trim() || DEFAULT_INVOICE_WARRANTY,
     },

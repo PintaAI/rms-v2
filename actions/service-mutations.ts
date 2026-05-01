@@ -49,6 +49,10 @@ const addItemSchema = z.object({
   price: z.number().int().min(0),
 });
 
+const payInvoiceSchema = z.object({
+  discountAmount: z.number().int().min(0).optional(),
+});
+
 async function getTokoScopedUser(user: AuthUser, tokoId: string): Promise<AuthUser> {
   return { ...user, plan: await getEffectivePlanForToko(user, tokoId) };
 }
@@ -633,7 +637,14 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
 
     const service = await prisma.service.findUnique({
       where: { id: data.serviceId },
-      select: { tokoId: true, status: true, isPickedUp: true, technicianId: true, hpCatalogId: true },
+      select: {
+        tokoId: true,
+        status: true,
+        isPickedUp: true,
+        technicianId: true,
+        hpCatalogId: true,
+        invoice: { select: { paymentStatus: true } },
+      },
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!hasTokoAccess(tokoIds, service.tokoId)) return { success: false, error: "Access denied" };
@@ -643,6 +654,10 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
 
     if (service.isPickedUp) {
       return { success: false, error: "Cannot update a service that has been picked up" };
+    }
+
+    if (service.invoice?.paymentStatus === "paid") {
+      return { success: false, error: "Cannot update items on a paid invoice" };
     }
 
     const validated = addItemSchema.parse(data);
@@ -829,7 +844,14 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
         qty: true,
         referenceId: true,
         serviceId: true,
-        service: { select: { tokoId: true, isPickedUp: true, technicianId: true } },
+        service: {
+          select: {
+            tokoId: true,
+            isPickedUp: true,
+            technicianId: true,
+            invoice: { select: { paymentStatus: true } },
+          },
+        },
       },
     });
     if (!item) return { success: false, error: "Item not found" };
@@ -839,6 +861,10 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
     }
     if (item.service.isPickedUp) {
       return { success: false, error: "Cannot update a service that has been picked up" };
+    }
+
+    if (item.service.invoice?.paymentStatus === "paid") {
+      return { success: false, error: "Cannot update items on a paid invoice" };
     }
 
     if (item.type === "sparepart" && item.referenceId) {
@@ -876,7 +902,7 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
   }
 }
 
-export async function payInvoice(invoiceId: string): Promise<ActionResult> {
+export async function payInvoice(invoiceId: string, data: z.infer<typeof payInvoiceSchema> = {}): Promise<ActionResult> {
   try {
     const { user, tokoIds } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
@@ -885,7 +911,9 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
     const invoice = await prisma.invoice.findUnique({
       where: { id: invoiceId },
       select: {
+        grandTotal: true,
         paymentStatus: true,
+        dpAmount: true,
         service: { select: { id: true, tokoId: true, status: true, isPickedUp: true } },
       },
     });
@@ -901,12 +929,19 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
     }
     if (invoice.service.isPickedUp) return { success: false, error: "Service has already been picked up" };
 
+    const validated = payInvoiceSchema.parse(data);
+    const discountAmount = validated.discountAmount ?? 0;
+    const maxDiscount = Math.max(invoice.grandTotal - invoice.dpAmount, 0);
+    if (discountAmount > maxDiscount) {
+      return { success: false, error: "Discount cannot exceed remaining invoice total" };
+    }
+
     const paidAt = new Date();
 
     await prisma.$transaction(async (tx) => {
       await tx.invoice.update({
         where: { id: invoiceId },
-        data: { paymentStatus: "paid", paidAt },
+        data: { paymentStatus: "paid", paidAt, discountAmount },
       });
 
       await createActivityLog(tx, {
@@ -917,6 +952,7 @@ export async function payInvoice(invoiceId: string): Promise<ActionResult> {
         title: "Invoice marked as paid",
         payload: {
           invoiceId,
+          discountAmount,
           paidAt: paidAt.toISOString(),
         },
       });

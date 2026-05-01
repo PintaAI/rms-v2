@@ -1,6 +1,6 @@
 # Multi-Toko
 
-Fitur multi-toko di RMS saat ini dipakai untuk memisahkan data operasional per toko dan memungkinkan Admin berpindah konteks toko.
+Fitur multi-toko di RMS dipakai untuk memisahkan data operasional per toko dan memungkinkan Admin berpindah konteks toko. Jumlah toko yang bisa dibuat mengikuti plan aktif.
 
 ---
 
@@ -14,6 +14,8 @@ Fitur multi-toko di RMS saat ini dipakai untuk memisahkan data operasional per t
 | Karyawan staff | Ya |
 | Karyawan teknisi | Ya |
 | Overview stats | Ya |
+| Pengaturan fitur toko | Ya |
+| WhatsApp setting | Ya |
 
 Data global yang dipakai semua toko:
 
@@ -36,6 +38,8 @@ Yang tersedia saat ini:
 - edit toko yang ada
 - hapus toko
 
+Jika plan aktif memiliki limit toko, tombol tambah toko bisa gagal saat limit tercapai.
+
 ---
 
 ## Membuat Toko Baru
@@ -51,6 +55,8 @@ Setelah toko dibuat:
 
 - daftar toko di sidebar/header ikut berubah setelah refresh data user
 - admin diarahkan ke dashboard toko baru
+- onboarding bisa merekomendasikan plan dan fitur berdasarkan kebutuhan toko
+- fitur opsional yang tidak dibutuhkan bisa dimatikan agar toko tetap sederhana
 
 ---
 
@@ -64,13 +70,15 @@ Form edit toko saat ini mendukung:
 - telepon
 - status `active` / `inactive`
 
+Pengaturan lanjutan toko tersedia dari settings Admin, termasuk fitur, WhatsApp, billing/premium, dan tampilan.
+
 ---
 
 ## Hapus Toko
 
 Admin bisa menghapus toko yang dimiliki, tetapi ada batasan penting:
 
-- toko terakhir **tidak bisa** dihapus
+- toko terakhir tidak bisa dihapus
 - jika toko yang sedang aktif dihapus, aplikasi akan pindah ke toko admin lain yang masih tersisa
 - jika tidak ada toko lain, aplikasi kembali ke `/dashboard`
 
@@ -92,6 +100,7 @@ Setelah pindah toko, halaman berikut memakai data toko aktif:
 - service
 - inventory
 - karyawan
+- settings
 
 ---
 
@@ -105,7 +114,7 @@ Yang tersedia saat ini:
 - hapus karyawan dari toko aktif
 - lihat performa 30 hari terakhir
 
-Yang **belum** ada di UI saat ini:
+Yang belum ada di UI saat ini:
 
 - edit data karyawan
 - pindahkan karyawan ke toko lain
@@ -122,6 +131,26 @@ Artinya:
 - service di toko A tidak muncul di toko B
 - stock sparepart di toko A tidak memengaruhi toko B
 - jasa di toko A hanya muncul di service toko A
+- WhatsApp toko A tidak otomatis dipakai toko B
+- fitur yang dimatikan di toko A tidak otomatis dimatikan di toko B
+
+---
+
+## Plan Dan Limit Multi-Toko
+
+Limit default saat ini:
+
+| Plan | Toko | Staff | Teknisi | Service / bulan | Invoice / bulan |
+|---|---:|---:|---:|---:|---:|
+| Free | 1 | 0 | 0 | 50 | 50 |
+| Premium | 3 | 5 | 5 | Unlimited | Unlimited |
+| Enterprise | Unlimited | Unlimited | Unlimited | Unlimited | Unlimited |
+
+Catatan:
+
+- limit diterapkan saat membuat toko atau menambah karyawan
+- fitur tertentu tetap bisa terkunci walaupun toko sudah ada
+- Admin bisa melihat fitur aktif/terkunci dari settings toko
 
 ---
 

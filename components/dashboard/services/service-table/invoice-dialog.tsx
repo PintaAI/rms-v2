@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { getTokoInvoiceSettings } from "@/actions/toko";
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   RiCheckboxCircleLine,
   RiDownload2Line,
@@ -31,11 +33,19 @@ export type InvoicePreviewService = ServiceTableItem;
 type InvoiceNoteMode = "service-note" | "pickup-note" | "dp-invoice" | "paid-invoice";
 
 type InvoiceSettings = {
+  name: string;
+  address: string | null;
+  phone: string | null;
+  logoUrl: string | null;
   invoiceTerms: string;
   invoiceWarranty: string;
 };
 
 const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
+  name: "RMS Service Center",
+  address: null,
+  phone: null,
+  logoUrl: null,
   invoiceTerms: "Barang yang tidak diambil lebih dari 30 hari di luar tanggung jawab toko.",
   invoiceWarranty: "Garansi berlaku sesuai jenis kerusakan dan tidak berlaku untuk kerusakan fisik/cairan.",
 };
@@ -138,24 +148,42 @@ function InvoicePreviewCard({
   const mode = getInvoiceNoteMode(service);
   const hasInvoice = Boolean(service.invoice);
   const hasDetailedItems = Boolean(service.invoice?.items?.length);
-  const brandIcon = getBrandIcon(service.hpCatalog.brand.name);
   const paymentStatus = service.invoice?.paymentStatus;
   const isDp = paymentStatus === "dp";
   const isPaid = paymentStatus === "paid";
   const grandTotal = service.invoice?.grandTotal || 0;
   const dpAmount = service.invoice?.dpAmount || 0;
-  const remainingTotal = Math.max(0, grandTotal - dpAmount);
+  const discountAmount = service.invoice?.discountAmount || 0;
+  const finalTotal = Math.max(0, grandTotal - dpAmount - discountAmount);
 
   return (
     <div ref={invoiceRef} className="w-full min-w-[720px] rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
       <div className="flex flex-col gap-6 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-3">
-          <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm [&>*]:h-5 [&>*]:w-5">
-            {brandIcon}
-          </div>
+          {invoiceSettings.logoUrl ? (
+            <Image
+              src={invoiceSettings.logoUrl}
+              alt={invoiceSettings.name}
+              width={56}
+              height={56}
+              unoptimized
+              className="h-14 w-14 rounded-2xl border border-slate-200 object-cover shadow-sm"
+              crossOrigin="anonymous"
+            />
+          ) : (
+            <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm [&>*]:h-5 [&>*]:w-5">
+              {getBrandIcon(service.hpCatalog.brand.name)}
+            </div>
+          )}
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{getInvoiceTitle(mode)}</p>
-            <h3 className="mt-1 text-2xl font-black tracking-tight">RMS Service Center</h3>
+            <h3 className="mt-1 text-2xl font-black tracking-tight">{invoiceSettings.name}</h3>
+            {(invoiceSettings.address || invoiceSettings.phone) && (
+              <div className="mt-1 space-y-0.5 text-xs leading-5 text-slate-500">
+                {invoiceSettings.address && <p>{invoiceSettings.address}</p>}
+                {invoiceSettings.phone && <p>{invoiceSettings.phone}</p>}
+              </div>
+            )}
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
               {getInvoiceDescription(mode)}
             </p>
@@ -177,7 +205,7 @@ function InvoicePreviewCard({
               DP {dpAmount ? formatCurrency(dpAmount) : ""}
             </div>
             <p className="mt-1 text-xs text-amber-700/80">
-              Sisa: {formatCurrency(remainingTotal)}
+              Sisa: {formatCurrency(finalTotal)}
             </p>
           </div>
         ) : isPaid ? (
@@ -288,14 +316,32 @@ function InvoicePreviewCard({
           <p className="font-semibold text-slate-900">Catatan Servis</p>
           <p>{service.complaint}</p>
         </div>
-        <div className="min-w-full rounded-2xl bg-slate-950 px-5 py-4 text-white shadow-sm sm:min-w-22">
-          <div className=" flex items-end justify-between gap-6">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">{isDp ? "Sisa Tagihan" : mode === "pickup-note" ? "Total Tagihan" : "Grand Total"}</p>
-              <p className="mt-1 text-2xl font-black tracking-tight">{formatCurrency(isDp ? remainingTotal : grandTotal)}</p>
-              {isDp && (
-                <p className="mt-0.5 text-[0.65rem] text-white/40">DP: {formatCurrency(dpAmount)}</p>
-              )}
+        <div className="min-w-full rounded-2xl bg-slate-950 px-5 py-4 text-white shadow-sm sm:min-w-80">
+          <div className="flex items-end justify-between gap-6">
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Ringkasan Pembayaran</p>
+              <div className="space-y-1 text-sm text-white/60">
+                <div className="flex items-center justify-between gap-4">
+                  <span>Total sebelum diskon</span>
+                  <span className="font-semibold tabular-nums text-white">{formatCurrency(grandTotal)}</span>
+                </div>
+                {dpAmount > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <span>DP dibayar</span>
+                    <span className="font-semibold tabular-nums text-white">- {formatCurrency(dpAmount)}</span>
+                  </div>
+                )}
+                {discountAmount > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Diskon</span>
+                    <span className="font-semibold tabular-nums text-white">- {formatCurrency(discountAmount)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-end justify-between gap-4 border-t border-white/10 pt-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/50">{mode === "pickup-note" ? "Total Tagihan" : "Total Bayar"}</p>
+                <p className="text-2xl font-black tracking-tight">{formatCurrency(finalTotal)}</p>
+              </div>
             </div>
             <Badge className="border-0 bg-white/12 px-3 py-1 text-white hover:bg-white/12">{!hasInvoice ? "Nota" : isPaid ? "Lunas" : isDp ? "DP" : "Pengambilan"}</Badge>
           </div>
@@ -427,7 +473,7 @@ export function InvoiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-5xl" showCloseButton={false}>
+      <DialogContent className="flex max-h-[90vh] w-[calc(100%-1rem)] flex-col overflow-hidden sm:max-w-5xl" showCloseButton={false}>
         {service && (
           <>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -465,9 +511,13 @@ export function InvoiceDialog({
               </div>
             </div>
 
-            <div className="overflow-x-auto pb-2">
-              <InvoicePreviewCard service={service} invoiceSettings={effectiveInvoiceSettings} invoiceRef={invoiceCardRef} />
-            </div>
+
+            <ScrollArea className="h-full min-h-0 flex-1 pr-3">
+              <div className="pb-4">
+                <InvoicePreviewCard service={service} invoiceSettings={effectiveInvoiceSettings} invoiceRef={invoiceCardRef} />
+              </div>
+            </ScrollArea>
+
           </>
         )}
       </DialogContent>

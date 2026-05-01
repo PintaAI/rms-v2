@@ -70,8 +70,9 @@ Perilaku saat ini:
 - sistem menyimpan `doneAt`
 - note keberhasilan disimpan dengan prefix `{BERHASIL}`
 - item dan total invoice tetap bisa dilihat
-- Staff atau Admin bisa menandai invoice `Paid`
+- Staff atau Admin bisa menandai invoice `DP` atau `Paid`
 - Staff atau Admin bisa melakukan `Picked up`
+- jika WhatsApp toko aktif dan notifikasi selesai menyala, sistem bisa mengirim pesan otomatis ke customer
 
 ### 4. Gagal
 
@@ -81,8 +82,9 @@ Perilaku saat ini:
 
 - alasan gagal wajib diisi
 - note disimpan dengan prefix `{GAGAL}`
-- Staff atau Admin tetap bisa menandai invoice `Paid`
+- Staff atau Admin tetap bisa menandai invoice `DP` atau `Paid`
 - Staff atau Admin tetap bisa melakukan `Picked up`
+- jika WhatsApp toko aktif dan notifikasi gagal menyala, sistem bisa mengirim pesan otomatis ke customer
 
 ### 5. Picked Up
 
@@ -131,7 +133,8 @@ Batasannya:
 
 ## Hubungan Dengan Pembayaran
 
-- `Bayar` hanya tersedia jika invoice ada, status servis `Selesai` atau `Gagal`, dan servis belum pickup.
+- `DP` tersedia untuk mencatat uang muka pada invoice yang belum `DP` atau `Paid`.
+- `Bayar` tersedia jika invoice ada, status servis `Selesai` atau `Gagal`, servis belum pickup, dan invoice belum `Paid`.
 - `Bayar` mengubah status invoice menjadi `Paid`, tetapi tidak mengubah status servis.
 - `Picked up` hanya menandai unit sudah diambil, bukan pembayaran.
 
@@ -143,5 +146,6 @@ Batasannya:
 2. Assign atau ambil task -> status `Proses`
 3. Tambah item sparepart/jasa saat pengerjaan
 4. Mark `Selesai` atau `Gagal`
-5. Jika perlu, tandai invoice `Paid`
-6. Saat unit keluar, lakukan `Picked up`
+5. Jika perlu, tandai invoice `DP`
+6. Jika lunas, tandai invoice `Paid`
+7. Saat unit keluar, lakukan `Picked up`

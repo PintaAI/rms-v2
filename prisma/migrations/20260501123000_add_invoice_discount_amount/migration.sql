@@ -1,0 +1,2 @@
+ALTER TABLE "invoice"
+ADD COLUMN "discountAmount" INTEGER NOT NULL DEFAULT 0;

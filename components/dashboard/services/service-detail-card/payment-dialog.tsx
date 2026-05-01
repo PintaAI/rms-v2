@@ -55,7 +55,7 @@ interface PaymentDialogProps {
   invoiceTotal: number;
   dpAmount?: number;
   isSubmitting?: boolean;
-  onConfirm: () => Promise<boolean>;
+  onConfirm: (payment: { discountAmount: number }) => Promise<boolean>;
 }
 
 function parseAmount(value: string) {
@@ -101,7 +101,7 @@ export function PaymentDialog({
 
   async function handleConfirm() {
     if (confirmationDisabled) return;
-    const success = await onConfirm();
+    const success = await onConfirm({ discountAmount: discount });
     if (success) {
       onOpenChange(false);
       setPaymentMethod("cash");

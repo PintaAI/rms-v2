@@ -1,6 +1,6 @@
 # Role & Akses
 
-Dokumen ini mengikuti permission dan UI yang ada di codebase saat ini.
+Dokumen ini mengikuti permission, UI, plan, dan feature gate yang ada di aplikasi saat ini.
 
 ---
 
@@ -23,6 +23,7 @@ Dokumen ini mengikuti permission dan UI yang ada di codebase saat ini.
 | Tambah / hapus item servis | ✓ | ✗ | ✓* |
 | Mark done / failed | ✓ | ✗ | ✓* |
 | Undo servis selesai / gagal | ✓ | ✗ | ✓* |
+| Mark invoice DP | ✓ | ✓ | ✗ |
 | Mark invoice paid | ✓ | ✓ | ✗ |
 | Picked up | ✓ | ✓ | ✗ |
 | Kelola toko | ✓ | ✗ | ✗ |
@@ -30,8 +31,12 @@ Dokumen ini mengikuti permission dan UI yang ada di codebase saat ini.
 | Kelola inventory | ✓ | ✗ | ✗ |
 | Audit gudang | ✓ | ✗ | ✗ |
 | Lihat inventory | ✓ | ✓ | ✓ |
+| Pengaturan fitur toko | ✓ | ✗ | ✗ |
+| Pengaturan WhatsApp toko | ✓ | ✗ | ✗ |
 
 `*` Teknisi hanya untuk task yang ditugaskan ke dirinya.
+
+**Catatan plan:** akses di tabel adalah akses berdasarkan role. Beberapa fitur tetap bisa terkunci oleh plan atau dimatikan dari pengaturan toko, misalnya inventory, karyawan, workflow teknisi/staff, analytics, dan audit gudang.
 
 ---
 
@@ -45,18 +50,21 @@ Dokumen ini mengikuti permission dan UI yang ada di codebase saat ini.
 - `Karyawan`
 - `Inventory > Sparepart & Jasa`
 - `Inventory > Audit Gudang`
+- `Settings`
 
 ### Yang bisa dilakukan
 
 - membuat, mengedit, dan menghapus ticket servis
 - assign dan unassign teknisi dari kolom `Technician`
 - membuka detail servis dari tabel untuk tambah item, hapus item, mark `Selesai`, mark `Gagal`, atau `Undo`
-- menandai invoice `Paid`
+- menandai invoice `DP` atau `Paid`
 - melakukan `Picked up`
 - membuat, edit, hapus, dan pindah antar toko
 - menambah dan menghapus karyawan
-- membuat, edit, dan hapus sparepart serta jasa
+- membuat, edit, hapus, restock, dan cetak label sparepart
+- membuat, edit, dan hapus jasa
 - memulai, mengisi, membatalkan, dan menyelesaikan audit gudang
+- mengatur fitur toko, plan, tampilan toko, dan koneksi WhatsApp
 
 ### Dashboard Admin
 
@@ -73,6 +81,8 @@ Admin Overview saat ini menampilkan:
 - service terbaru
 - activity log terbaru
 
+Beberapa metrik seperti revenue analytics dan activity log mengikuti akses plan.
+
 ---
 
 ## Staff
@@ -87,15 +97,16 @@ Admin Overview saat ini menampilkan:
 
 - membuat ticket servis baru
 - mengedit ticket selama belum pickup
-- menghapus ticket selama belum pickup dan invoice belum paid
-- menandai invoice `Paid`
+- menghapus ticket selama belum pickup dan invoice belum paid/DP
+- menandai invoice `DP` atau `Paid`
 - melakukan `Picked up`
 
 ### Batasan penting
 
-- Staff **tidak** punya assignment teknisi dari UI saat ini.
-- Staff **tidak** punya sheet detail task untuk menambah item atau mengubah status servis.
+- Staff tidak punya assignment teknisi dari UI saat ini.
+- Staff tidak punya sheet detail task untuk menambah item atau mengubah status servis.
 - Perubahan inventory diblokir di backend untuk non-admin.
+- Jika fitur staff workflow dikunci oleh plan atau dimatikan toko, akses staff bisa tidak tersedia.
 
 ### Dashboard Staff
 
@@ -124,7 +135,7 @@ Staff Overview saat ini menampilkan:
 - mengambil task baru
 - takeover task yang sedang dipegang teknisi lain
 - membuka detail task
-- menambah sparepart dan jasa dari daftar yang tersedia
+- menambah sparepart, jasa, atau item manual sesuai fitur yang aktif
 - menghapus item dari task yang dikerjakan
 - menandai `Selesai` atau `Gagal`
 - melakukan `Undo` untuk task selesai / gagal miliknya selama belum pickup
@@ -132,8 +143,9 @@ Staff Overview saat ini menampilkan:
 ### Batasan penting
 
 - Teknisi tidak bisa membuat ticket baru.
-- Teknisi tidak bisa mark paid atau pickup.
+- Teknisi tidak bisa mark DP, mark paid, atau pickup.
 - Inventory teknisi bersifat read-only.
+- Jika fitur technician workflow dikunci oleh plan atau dimatikan toko, akses task teknisi bisa tidak tersedia.
 
 ### Dashboard Teknisi
 
@@ -152,3 +164,4 @@ Teknisi Overview saat ini menampilkan:
 
 - Admin bisa punya lebih dari satu toko dan berpindah toko dari halaman `Toko`.
 - Staff dan teknisi hanya bisa membuka toko yang memang masuk assignment mereka.
+- Jumlah toko, staff, dan teknisi mengikuti limit plan aktif.
