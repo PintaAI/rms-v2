@@ -106,8 +106,11 @@ const [restockDialogOpen, setRestockDialogOpen] = useState(false);
     };
   }, [tokoId]);
 
-  const filteredSpareparts = spareparts.filter((sp) =>
-    sp.name.toLowerCase().includes(sparepartSearch.toLowerCase())
+  const normalizedSparepartSearch = sparepartSearch.toLowerCase();
+  const filteredSpareparts = spareparts.filter(
+    (sp) =>
+      sp.name.toLowerCase().includes(normalizedSparepartSearch) ||
+      sp.barcode.toLowerCase().includes(normalizedSparepartSearch)
   );
 
   const filteredPricelists = pricelists.filter((pl) =>

@@ -261,6 +261,7 @@ model HpCatalog {
 
 model Sparepart {
   id           String  @id @default(uuid())
+  barcode      String
   name         String
   defaultPrice Int
   stock        Int     @default(0)
@@ -273,6 +274,7 @@ model Sparepart {
   inventoryAuditItems InventoryAuditItem[]
 
   @@unique([tokoId, name])
+  @@unique([tokoId, barcode])
   @@index([tokoId])
   @@map("sparepart")
 }

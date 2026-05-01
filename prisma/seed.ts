@@ -172,6 +172,7 @@ type CatalogRef = {
 
 type SparepartRef = {
   id: string;
+  barcode: string;
   name: string;
   defaultPrice: number;
   tokoId: string;
@@ -402,6 +403,7 @@ async function seedCatalogs() {
 async function seedInventory(tokos: Array<{ id: string; name: string }>, catalogs: CatalogRef[]) {
   const sparepartRows: Array<{
     id: string;
+    barcode: string;
     name: string;
     defaultPrice: number;
     stock: number;
@@ -422,6 +424,7 @@ async function seedInventory(tokos: Array<{ id: string; name: string }>, catalog
       const sparepartId = faker.string.uuid();
       sparepartRows.push({
         id: sparepartId,
+        barcode: `SP${(index + 1).toString().padStart(6, "0")}`,
         name,
         defaultPrice: faker.number.int({ min: 35_000, max: 550_000 }),
         stock: faker.number.int({ min: 2, max: 40 }),

@@ -133,6 +133,7 @@ function SparepartFormContent({
     const tempId = sparepart?.id || `temp-${Date.now()}`;
     const optimisticSparepart: SparepartWithCompatibilities = {
       id: tempId,
+      barcode: sparepart?.barcode ?? "membuat...",
       name,
       defaultPrice: price,
       stock: stockValue,

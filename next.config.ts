@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
-  allowedDevOrigins: ["100.127.81.7"],
+  allowedDevOrigins: ["100.127.81.7", "jennie-linux.tail2268a1.ts.net"],
   images: {
     remotePatterns: [
       {

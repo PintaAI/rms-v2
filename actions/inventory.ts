@@ -11,6 +11,7 @@ import { getDisabledFeaturesForToko } from "./feature-settings"
 
 export type Sparepart = {
   id: string
+  barcode: string
   name: string
   defaultPrice: number
   stock: number
@@ -72,6 +73,30 @@ const updateServicePricelistSchema = z.object({
   title: z.string().min(1, "Title is required").optional(),
   defaultPrice: z.number().int().min(0, "Price must be 0 or greater").optional(),
 })
+
+const SPAREPART_BARCODE_PREFIX = "SP"
+
+function formatSparepartBarcode(sequence: number) {
+  return `${SPAREPART_BARCODE_PREFIX}${sequence.toString().padStart(6, "0")}`
+}
+
+async function generateSparepartBarcode(tokoId: string) {
+  const existingBarcodes = await prisma.sparepart.findMany({
+    where: { tokoId },
+    select: { barcode: true },
+  })
+
+  const usedBarcodes = new Set(existingBarcodes.map((sparepart) => sparepart.barcode))
+  let sequence = usedBarcodes.size + 1
+  let barcode = formatSparepartBarcode(sequence)
+
+  while (usedBarcodes.has(barcode)) {
+    sequence += 1
+    barcode = formatSparepartBarcode(sequence)
+  }
+
+  return barcode
+}
 
 async function getInventoryUser(
   tokoId: string,
@@ -181,6 +206,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
 
     const sparepart = await prisma.sparepart.create({
       data: {
+        barcode: await generateSparepartBarcode(validated.tokoId),
         name: validated.name,
         defaultPrice: validated.defaultPrice,
         stock: validated.stock ?? 0,
@@ -208,6 +234,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
       title: "Sparepart created",
       payload: {
         sparepartId: sparepart.id,
+        barcode: sparepart.barcode,
         name: sparepart.name,
         defaultPrice: sparepart.defaultPrice,
         stock: sparepart.stock,
@@ -371,6 +398,7 @@ export async function searchSpareparts(tokoId: string, query: string): Promise<A
       where: {
         tokoId,
         OR: [
+          { barcode: { equals: query, mode: "insensitive" } },
           { id: { startsWith: query } },
           { name: { contains: query, mode: "insensitive" } },
         ],

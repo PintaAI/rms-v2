@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import bwipjs from "bwip-js/browser";
 import { useReactToPrint } from "react-to-print";
-import { RiPrinterLine, RiArticleLine } from "@remixicon/react";
+import { RiPrinterLine } from "@remixicon/react";
 
 import type { SparepartWithCompatibilities } from "@/actions/inventory";
 import { Button } from "@/components/ui/button";
@@ -67,18 +67,26 @@ export function SparepartLabelPrintDialog({
   const labelRef = useRef<HTMLDivElement>(null);
   const [labelCount, setLabelCount] = useState(1);
   let barcodeSvg = "";
+  let qrSvg = "";
 
   if (sparepart) {
     try {
       barcodeSvg = bwipjs.toSVG({
         bcid: "code128",
-        text: sparepart.id,
-        height: 12,
+        text: sparepart.barcode,
+        height: 10,
         includetext: false,
         backgroundcolor: "FFFFFF",
       });
+
+      qrSvg = bwipjs.toSVG({
+        bcid: "qrcode",
+        text: sparepart.barcode,
+        scale: 3,
+        backgroundcolor: "FFFFFF",
+      });
     } catch (error) {
-      console.error("Failed to render sparepart barcode", error);
+      console.error("Failed to render sparepart label barcode", error);
     }
   }
 
@@ -106,7 +114,7 @@ export function SparepartLabelPrintDialog({
             Cetak Label Sparepart
           </DialogTitle>
           <DialogDescription>
-            Mencetak label Code128 menggunakan ID sparepart untuk input pemindai.
+            Mencetak label Code128 pendek untuk scanner hardware dan HP.
           </DialogDescription>
         </DialogHeader>
 
@@ -117,16 +125,24 @@ export function SparepartLabelPrintDialog({
                 <div key={index} className="sparepart-label-print-root flex h-[30mm] w-[60mm] flex-col rounded-sm border bg-white px-[3mm] py-[2mm] text-black shadow-sm">
                   <div className="min-w-0">
                     <div className="truncate text-[9px] font-bold uppercase leading-tight">{sparepart.name}</div>
-                    <div className="mt-0.5 text-[6px] leading-none text-black/70">ID: {sparepart.id}</div>
+                    <div className="mt-0.5 text-[7px] font-semibold leading-none tracking-wide text-black/80">
+                      {sparepart.barcode}
+                    </div>
                   </div>
-                  <div className="mt-[2mm] flex flex-1 items-center justify-center overflow-hidden">
+                  <div className="mt-[2mm] flex flex-1 items-center gap-[2mm] overflow-hidden">
                     {barcodeSvg ? (
                       <div
-                        className="h-[15mm] w-full [&_svg]:h-full [&_svg]:w-full"
+                        className="h-[13mm] min-w-0 flex-1 [&_svg]:h-full [&_svg]:w-full"
                         dangerouslySetInnerHTML={{ __html: barcodeSvg }}
                       />
                     ) : (
                       <div className="text-[7px] font-medium text-black/70">Barcode tidak tersedia</div>
+                    )}
+                    {qrSvg && (
+                      <div
+                        className="size-[12mm] shrink-0 [&_svg]:size-full"
+                        dangerouslySetInnerHTML={{ __html: qrSvg }}
+                      />
                     )}
                   </div>
                   <div className="mt-[1mm] text-right text-[6px] font-medium uppercase tracking-wide text-black/70">

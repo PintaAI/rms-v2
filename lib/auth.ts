@@ -8,19 +8,16 @@ import prisma from "./prisma";
 const devOrigins = [
   "http://localhost:3000",
   "http://100.127.81.7:3000",
+  "https://jennie-linux.tail2268a1.ts.net",
   "http://100.108.102.102:3000",
   "http://192.168.0.102:3000",
   "http://127.0.0.1:3000",
 ];
 
-const trustedOrigins =
-  process.env.DEV_MODE === "true"
-    ? devOrigins
-    : [
-        process.env.BETTER_AUTH_URL ||
-          process.env.NEXT_PUBLIC_APP_URL ||
-          "http://localhost:3000",
-      ];
+const configuredOrigin = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const tailscaleOrigin = "https://jennie-linux.tail2268a1.ts.net";
+
+const trustedOrigins = process.env.DEV_MODE === "true" ? devOrigins : [configuredOrigin, tailscaleOrigin];
 
 export const auth = betterAuth({
   trustedOrigins,

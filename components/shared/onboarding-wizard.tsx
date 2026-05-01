@@ -207,7 +207,12 @@ export function OnboardingWizard() {
       }
     }
 
-    if (currentStepKey === "team" && data.hasEmployees && canCreateTeam) {
+    if (currentStepKey === "team" && canCreateTeam) {
+      const hasMembers = data.staff.length > 0 || data.technician.length > 0;
+      if (!hasMembers) {
+        setError("Tambahkan minimal satu anggota tim");
+        return false;
+      }
       const staffToValidate = shouldUseStaff(data.teamAccess) ? data.staff : [];
       const technicianToValidate = shouldUseTechnician(data.teamAccess) ? data.technician : [];
 
@@ -276,7 +281,8 @@ export function OnboardingWizard() {
 
     try {
       const logoUrl = await uploadLogo();
-      const shouldCreateTeam = data.hasEmployees && canCreateTeam;
+      const hasMembers = data.staff.length > 0 || data.technician.length > 0;
+      const shouldCreateTeam = hasMembers && canCreateTeam;
       const staff = shouldCreateTeam && shouldUseStaff(data.teamAccess) ? cleanUsers(data.staff) : [];
       const technician = shouldCreateTeam && shouldUseTechnician(data.teamAccess) ? cleanUsers(data.technician) : [];
       const result = await createTokoWithUsers({
@@ -656,25 +662,11 @@ function TeamStep({ data, setData, canCreateTeam, recommendedPlan }: WizardStepP
         </div>
       )}
 
-      <Field>
-        <FieldLabel>Apakah ingin membuat akun karyawan sekarang?</FieldLabel>
-        <FieldContent>
-          <div className="flex gap-3">
-            <TeamModeButton active={!data.hasEmployees} title="Tidak" description="Pemilik saja" onClick={() => setData((prev) => ({ ...prev, hasEmployees: false, staff: [], technician: [] }))} />
-            <TeamModeButton active={data.hasEmployees} title="Ya" description={teamDescription} onClick={() => setData((prev) => ({ ...prev, hasEmployees: true }))} disabled={!canCreateTeam} />
-          </div>
-        </FieldContent>
-      </Field>
-
-      {data.hasEmployees && canCreateTeam && (
-        <>
-          {canAddStaff && (
-            <UserListSection title="Staff" users={data.staff} onAdd={() => setData((prev) => ({ ...prev, staff: [...prev.staff, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, staff: prev.staff.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, staff: prev.staff.map((staff, i) => (i === index ? { ...staff, [field]: value } : staff)) }))} />
-          )}
-          {canAddTechnician && (
-            <UserListSection title="Technician" users={data.technician} onAdd={() => setData((prev) => ({ ...prev, technician: [...prev.technician, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, technician: prev.technician.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, technician: prev.technician.map((tech, i) => (i === index ? { ...tech, [field]: value } : tech)) }))} />
-          )}
-        </>
+      {canAddStaff && (
+        <UserListSection title="Staff" users={data.staff} onAdd={() => setData((prev) => ({ ...prev, staff: [...prev.staff, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, staff: prev.staff.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, staff: prev.staff.map((staff, i) => (i === index ? { ...staff, [field]: value } : staff)) }))} />
+      )}
+      {canAddTechnician && (
+        <UserListSection title="Technician" users={data.technician} onAdd={() => setData((prev) => ({ ...prev, technician: [...prev.technician, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, technician: prev.technician.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, technician: prev.technician.map((tech, i) => (i === index ? { ...tech, [field]: value } : tech)) }))} />
       )}
     </div>
   );
@@ -717,7 +709,8 @@ function SummaryStep({
   currentPlan: SubscriptionPlan;
   canCreateTeam: boolean;
 }) {
-  const createdTeamCount = canCreateTeam && data.hasEmployees ? data.staff.length + data.technician.length : 0;
+  const hasMembers = data.staff.length > 0 || data.technician.length > 0;
+  const createdTeamCount = canCreateTeam && hasMembers ? data.staff.length + data.technician.length : 0;
   const planDecisionLabel = isPlanAtLeast(currentPlan, recommendation.recommendedPlan)
     ? "Plan aktif sudah sesuai"
     : data.planDecision === "free"

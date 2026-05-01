@@ -253,12 +253,14 @@ function SparepartRestockDialogContent({
       setIsSearching(false);
 
       if (result.success && result.data && result.data.length > 0) {
-        const exactIdMatch = result.data.find((sp) => sp.id === trimmedValue);
+        const exactIdentifierMatch = result.data.find(
+          (sp) => sp.id === trimmedValue || sp.barcode.toLowerCase() === trimmedValue.toLowerCase()
+        );
 
-        if (exactIdMatch && (isScannerInputRef.current || trimmedValue.match(/^[\w-]{20,}$/))) {
+        if (exactIdentifierMatch && (isScannerInputRef.current || trimmedValue.match(/^[\w-]{6,}$/))) {
           setSearchResults([]);
           setShowResults(false);
-          await performRestock(exactIdMatch.id, qtyValue);
+          await performRestock(exactIdentifierMatch.id, qtyValue);
         } else if (result.data.length === 1) {
           setFoundSparepart(result.data[0]);
           setSearchResults([]);
@@ -308,6 +310,7 @@ function SparepartRestockDialogContent({
   }, [mobileScannerOpen, mobileScannerState, startMobileScannerPairing]);
 
   const isMobileScannerTimedOut = mobileScannerState === "failed" && mobileScannerSecondsRemaining === 0;
+  const showMobileScannerPairing = mobileScannerOpen && mobileScannerState !== "connected";
 
   const handleSelectSparepart = (sparepart: SparepartWithCompatibilities) => {
     setFoundSparepart(sparepart);
@@ -435,7 +438,7 @@ function SparepartRestockDialogContent({
               </div>
             </div>
 
-            {mobileScannerOpen && (
+            {showMobileScannerPairing && (
               <div className="mt-1 flex flex-col gap-3 rounded-md border bg-muted/20 p-3">
                 <div>
                   <div className="text-sm font-medium">Phone Scanner</div>
@@ -524,7 +527,7 @@ function SparepartRestockDialogContent({
                       >
                         <div className="font-medium text-sm">{sp.name}</div>
                         <div className="mt-0.5 text-xs text-muted-foreground">
-                          Stok: {sp.stock} | {formatCurrency(sp.defaultPrice)}
+                          {sp.barcode} | Stok: {sp.stock} | {formatCurrency(sp.defaultPrice)}
                         </div>
                       </button>
                     ))}
@@ -558,6 +561,7 @@ function SparepartRestockDialogContent({
                     <div className="flex items-center gap-2">
                       <RiArchiveLine className="size-4 text-muted-foreground" />
                       <span className="font-medium">{foundSparepart.name}</span>
+                      <Badge variant="outline">{foundSparepart.barcode}</Badge>
                     </div>
                     <Button
                       variant="ghost"
