@@ -6,6 +6,7 @@ import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/act
 import { ensureFeatureAccess, ensureMonthlyActivityLimit } from "@/lib/feature-enforcement";
 import { canUseFeature } from "@/lib/features";
 import { revalidateServicePaths } from "@/lib/revalidation";
+import { sendServiceStatusWhatsappNotification } from "@/lib/service-whatsapp-notifications";
 import { getEffectivePlanForToko, type AuthUser } from "@/lib/rbac";
 import { getDisabledFeaturesForToko } from "./feature-settings";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
@@ -477,6 +478,10 @@ export async function updateStatus(
         },
       });
     });
+
+    if (isCompletingStatus(status)) {
+      await sendServiceStatusWhatsappNotification({ serviceId, status });
+    }
 
     revalidateServicePaths(service.tokoId, true);
 

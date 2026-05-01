@@ -115,6 +115,7 @@ model Toko {
   activities       ActivityLog[]
   inventoryAuditSessions InventoryAuditSession[]
   featureSetting   TokoFeatureSetting?
+  whatsappSetting  TokoWhatsappSetting?
 
   @@index([status])
   @@map("toko")
@@ -129,6 +130,29 @@ model TokoFeatureSetting {
   toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
 
   @@map("toko_feature_setting")
+}
+
+model TokoWhatsappSetting {
+  tokoId String @id
+
+  instanceName    String  @unique
+  enabled         Boolean @default(true)
+  connectionState String?
+  connectedNumber String?
+
+  notifyDone   Boolean @default(true)
+  notifyFailed Boolean @default(true)
+
+  doneMessageTemplate   String?
+  failedMessageTemplate String?
+
+  lastConnectedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+
+  @@map("toko_whatsapp_setting")
 }
 
 model User {

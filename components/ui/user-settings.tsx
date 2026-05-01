@@ -30,6 +30,7 @@ import { toast } from "sonner"
 import { changePassword, getBillingPlanSummary, updateProfile, uploadAvatar, setDevUserPlan, type BillingPlanSummary } from "@/actions"
 import { useAuth } from "@/components/auth/auth-provider"
 import { FeatureSettingsTab } from "@/components/dashboard/admin/feature-settings-tab"
+import { WhatsappSettingsTab } from "@/components/dashboard/admin/whatsapp-settings-tab"
 import type { SubscriptionPlan } from "@/lib/features"
 import { getThemeMode, setThemeMode, type ThemeMode } from "@/lib/theme-preference"
 import {
@@ -43,9 +44,10 @@ import {
   RiCheckboxCircleLine,
   RiLock2Line,
   RiSettings4Line,
+  RiWhatsappLine,
 } from "@remixicon/react"
 
-export type SettingsTab = "profile" | "features" | "password" | "billing" | "premium" | "appearance"
+export type SettingsTab = "profile" | "features" | "whatsapp" | "password" | "billing" | "premium" | "appearance"
 
 interface UserSettingsProps {
   open: boolean
@@ -62,6 +64,7 @@ interface UserSettingsProps {
 const menuItems: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: "profile", label: "Profile", icon: <RiUserLine /> },
   { id: "features", label: "Pengaturan Fitur", icon: <RiSettings4Line /> },
+  { id: "whatsapp", label: "WhatsApp", icon: <RiWhatsappLine /> },
   { id: "password", label: "Password", icon: <RiLockPasswordLine /> },
   { id: "appearance", label: "Tampilan", icon: <RiPaletteLine /> },
   { id: "billing", label: "Billing", icon: <RiBankCard2Line /> },
@@ -584,6 +587,8 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
         return <ProfileSettings key={`${user?.name ?? "user"}-${user?.image ?? "no-image"}`} user={user} onSuccess={() => onOpenChange(false)} />
       case "features":
         return currentTokoId ? <FeatureSettingsTab tokoId={currentTokoId} /> : <div className="text-center text-muted-foreground py-8">Pilih toko untuk mengatur fitur.</div>
+      case "whatsapp":
+        return currentTokoId ? <WhatsappSettingsTab tokoId={currentTokoId} /> : <div className="text-center text-muted-foreground py-8">Pilih toko untuk mengatur WhatsApp.</div>
       case "password":
         return <PasswordSettings onSuccess={() => onOpenChange(false)} />
       case "appearance":
