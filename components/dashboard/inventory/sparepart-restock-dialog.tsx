@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
   DialogContent,
@@ -27,18 +26,13 @@ import {
   RiCloseLine,
   RiHistoryLine,
   RiUserLine,
-  RiQrScan2Line,
-  RiRefreshLine,
-  RiStopLine,
   RiBarcodeLine,
   RiNumbersLine,
-  
 } from "@remixicon/react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useMobileScannerHost } from "@/hooks/use-mobile-scanner-host";
-import type { MobileScannerConnectionState } from "@/lib/webrtc";
+import { useScannerPairing, ScannerPairingPanel, ScannerToggleButton } from "@/components/shared/scanner-pairing";
 
 interface SparepartRestockDialogProps {
   open: boolean;
@@ -60,12 +54,6 @@ interface StockHistoryItem {
 
 const SCANNER_INPUT_THRESHOLD_MS = 30;
 
-function getMobileScannerStatusVariant(state: MobileScannerConnectionState) {
-  if (state === "connected") return "default";
-  if (state === "failed" || state === "disconnected") return "destructive";
-  return "secondary";
-}
-
 function SparepartRestockDialogContent({
   tokoId,
   onOpenChange,
@@ -81,7 +69,6 @@ function SparepartRestockDialogContent({
   const [showResults, setShowResults] = useState(false);
   const [history, setHistory] = useState<StockHistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [mobileScannerOpen, setMobileScannerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastKeyTimeRef = useRef<number[]>([]);
   const isScannerInputRef = useRef(false);
@@ -292,25 +279,7 @@ function SparepartRestockDialogContent({
     await processScannerValue(value);
   }, [processScannerValue]);
 
-  const {
-    state: mobileScannerState,
-    code: mobileScannerCode,
-    inviteUrl: mobileScannerInviteUrl,
-    secondsRemaining: mobileScannerSecondsRemaining,
-    error: mobileScannerError,
-    startPairing: startMobileScannerPairing,
-    disconnect: disconnectMobileScanner,
-    clearError: clearMobileScannerError,
-  } = useMobileScannerHost({ tokoId, onScan: handleMobileScan });
-
-  useEffect(() => {
-    if (mobileScannerOpen && mobileScannerState === "idle") {
-      void startMobileScannerPairing();
-    }
-  }, [mobileScannerOpen, mobileScannerState, startMobileScannerPairing]);
-
-  const isMobileScannerTimedOut = mobileScannerState === "failed" && mobileScannerSecondsRemaining === 0;
-  const showMobileScannerPairing = mobileScannerOpen && mobileScannerState !== "connected";
+  const scanner = useScannerPairing({ tokoId, onScan: handleMobileScan });
 
   const handleSelectSparepart = (sparepart: SparepartWithCompatibilities) => {
     setFoundSparepart(sparepart);
@@ -374,21 +343,12 @@ function SparepartRestockDialogContent({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setMobileScannerOpen((open) => !open)}
+              <ScannerToggleButton
+                isOpen={scanner.isOpen}
+                onToggle={() => scanner.setIsOpen((open) => !open)}
+                state={scanner.state}
                 disabled={isLoading}
-              >
-                <RiQrScan2Line className="mr-1.5 size-4" />
-                {mobileScannerOpen ? "Sembunyikan" : "Scan via HP"}
-              </Button>
-              {(mobileScannerOpen || mobileScannerState !== "idle") && (
-                <Badge variant={getMobileScannerStatusVariant(mobileScannerState)}>
-                  {mobileScannerState}
-                </Badge>
-              )}
+              />
             </div>
           </div>
 
@@ -438,68 +398,8 @@ function SparepartRestockDialogContent({
               </div>
             </div>
 
-            {showMobileScannerPairing && (
-              <div className="mt-1 flex flex-col gap-3 rounded-md border bg-muted/20 p-3">
-                <div>
-                  <div className="text-sm font-medium">Phone Scanner</div>
-                  <div className="text-xs text-muted-foreground">
-                    Scan QR ini dari HP untuk mengirim barcode ke restock.
-                  </div>
-                </div>
-
-                {mobileScannerError && !isMobileScannerTimedOut && (
-                  <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
-                    <div>{mobileScannerError}</div>
-                    <Button type="button" variant="ghost" size="sm" className="mt-1" onClick={clearMobileScannerError}>
-                      Tutup pesan
-                    </Button>
-                  </div>
-                )}
-
-                <div className="flex flex-col items-center gap-2">
-                  {mobileScannerInviteUrl ? (
-                    <div className="relative rounded-md bg-white p-2">
-                      <QRCodeSVG value={mobileScannerInviteUrl} size={112} marginSize={1} title="Mobile scanner pairing QR" />
-                      {isMobileScannerTimedOut && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md bg-background/90 p-3 text-center">
-                          <div className="text-xs font-medium text-foreground">Waktu pairing habis</div>
-                          <div className="text-[0.625rem] leading-tight text-muted-foreground">Buat QR baru untuk mencoba lagi.</div>
-                          <Button type="button" size="sm" onClick={() => void startMobileScannerPairing()}>
-                            <RiRefreshLine className="mr-1.5 size-4" />
-                            Retry
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex size-28 items-center justify-center rounded-md border bg-muted text-muted-foreground">
-                      <RiLoader4Line className="animate-spin" />
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>Kode: {mobileScannerCode ?? "membuat..."}</span>
-                    <span>Timeout: {mobileScannerSecondsRemaining !== null ? `${mobileScannerSecondsRemaining}s` : "-"}</span>
-                  </div>
-                </div>
-
-                {!isMobileScannerTimedOut && (
-                  <div className="flex justify-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        disconnectMobileScanner();
-                        setMobileScannerOpen(false);
-                      }}
-                      disabled={mobileScannerState === "idle"}
-                    >
-                      <RiStopLine className="mr-1.5 size-4" />
-                      Stop
-                    </Button>
-                  </div>
-                )}
-              </div>
+            {scanner.isOpen && scanner.state !== "connected" && (
+              <ScannerPairingPanel host={scanner} onClose={() => scanner.setIsOpen(false)} className="mt-1" />
             )}
           </div>
         </div>

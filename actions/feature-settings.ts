@@ -1,7 +1,6 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { canAccessToko, getAuthUser, isAdmin, type ActionResultWithData } from "@/lib/rbac";
 import {
   FEATURE_REGISTRY,
   FEATURE_KEYS,
@@ -10,8 +9,10 @@ import {
   type SubscriptionPlan,
   type FeatureKey,
 } from "@/lib/features";
-import { getEffectivePlanForToko } from "@/lib/rbac";
+import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { revalidatePath } from "next/cache";
+import { getRequestScope, assertRole } from "@/lib/auth/request-scope";
+import { actionError } from "@/lib/auth/authorization";
 
 export interface TokoFeatureSettingsData {
   tokoId: string;
@@ -39,168 +40,115 @@ export interface FeatureSettingsStatusData {
 export async function getTokoFeatureSettings(
   tokoId: string
 ): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  const user = await getAuthUser();
+  try {
+    await getRequestScope(tokoId);
 
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
+    const setting = await prisma.tokoFeatureSetting.findUnique({
+      where: { tokoId },
+      select: { tokoId: true, disabledFeatures: true },
+    });
 
-  if (!canAccessToko(user, tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
+    if (!setting) {
+      return {
+        success: true,
+        data: { tokoId, disabledFeatures: [] },
+      };
+    }
 
-  const setting = await prisma.tokoFeatureSetting.findUnique({
-    where: { tokoId },
-    select: { tokoId: true, disabledFeatures: true },
-  });
+    const disabledFeatures = parseDisabledFeatures(setting.disabledFeatures);
 
-  if (!setting) {
     return {
       success: true,
-      data: { tokoId, disabledFeatures: [] },
+      data: { tokoId, disabledFeatures },
     };
+  } catch (error) {
+    return actionError(error);
   }
-
-  const disabledFeatures = parseDisabledFeatures(setting.disabledFeatures);
-
-  return {
-    success: true,
-    data: { tokoId, disabledFeatures },
-  };
 }
 
 export async function getTokoFeatureSettingsWithStatus(
   tokoId: string
 ): Promise<ActionResultWithData<FeatureSettingsStatusData>> {
-  const user = await getAuthUser();
+  try {
+    const scope = await getRequestScope(tokoId);
 
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
+    const toko = await prisma.toko.findUnique({
+      where: { id: tokoId },
+      select: { name: true },
+    });
 
-  if (!canAccessToko(user, tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  const toko = await prisma.toko.findUnique({
-    where: { id: tokoId },
-    select: { name: true },
-  });
-
-  if (!toko) {
-    return { success: false, error: "Toko not found" };
-  }
-
-  const plan = await getEffectivePlanForToko(user, tokoId);
-
-  const setting = await prisma.tokoFeatureSetting.findUnique({
-    where: { tokoId },
-    select: { disabledFeatures: true },
-  });
-
-  const disabledFeatures = setting ? parseDisabledFeatures(setting.disabledFeatures) : [];
-
-  const rows: FeatureSettingRow[] = FEATURE_KEYS.map((key) => {
-    const metadata = FEATURE_REGISTRY[key];
-    const isPlanAllowed = isPlanAtLeast(plan, metadata.minimumPlan);
-    const isDisabledByToko = disabledFeatures.includes(key);
-
-    let status: FeatureSettingRow["status"];
-    let enabled: boolean;
-
-    if (!isPlanAllowed) {
-      status = "plan_required";
-      enabled = false;
-    } else if (!metadata.configurable) {
-      status = "required";
-      enabled = true;
-    } else if (isDisabledByToko) {
-      status = "disabled_by_toko";
-      enabled = false;
-    } else {
-      status = "enabled";
-      enabled = true;
+    if (!toko) {
+      return { success: false, error: "Toko not found" };
     }
 
-    return {
-      key,
-      label: metadata.label,
-      description: metadata.description,
-      category: metadata.category,
-      minimumPlan: metadata.minimumPlan,
-      configurable: metadata.configurable,
-      enabled,
-      status,
-    };
-  });
+    const disabledFeatures = scope.disabledFeatures;
 
-  console.group(`[feature-settings] resolved features for toko ${toko.name} (${tokoId})`);
-  console.log("Current plan:", plan);
-  console.log("Disabled features from database:", disabledFeatures);
-  console.table(
-    rows.map((feature) => ({
-      key: feature.key,
-      label: feature.label,
-      category: feature.category,
-      minimumPlan: feature.minimumPlan,
-      configurable: feature.configurable,
-      enabled: feature.enabled,
-      status: feature.status,
-      shownIn: feature.configurable ? "Fitur yang Bisa Diatur" : "Required",
-      decision:
-        !feature.configurable
-          ? "shown as required because configurable=false"
-          : feature.status === "plan_required"
-            ? "shown as configurable but switch disabled because plan is below minimum"
-            : feature.status === "disabled_by_toko"
-              ? "shown as configurable and off because disabledFeatures contains key"
-              : "shown as configurable and on",
-    }))
-  );
-  console.groupEnd();
+    const rows: FeatureSettingRow[] = FEATURE_KEYS.map((key) => {
+      const metadata = FEATURE_REGISTRY[key];
+      const isPlanAllowed = isPlanAtLeast(scope.plan, metadata.minimumPlan);
+      const isDisabledByToko = disabledFeatures.includes(key);
 
-  return { success: true, data: { tokoId, tokoName: toko.name, plan, features: rows } };
+      let status: FeatureSettingRow["status"];
+      let enabled: boolean;
+
+      if (!isPlanAllowed) {
+        status = "plan_required";
+        enabled = false;
+      } else if (!metadata.configurable) {
+        status = "required";
+        enabled = true;
+      } else if (isDisabledByToko) {
+        status = "disabled_by_toko";
+        enabled = false;
+      } else {
+        status = "enabled";
+        enabled = true;
+      }
+
+      return {
+        key,
+        label: metadata.label,
+        description: metadata.description,
+        category: metadata.category,
+        minimumPlan: metadata.minimumPlan,
+        configurable: metadata.configurable,
+        enabled,
+        status,
+      };
+    });
+
+    return { success: true, data: { tokoId, tokoName: toko.name, plan: scope.plan, features: rows } };
+  } catch (error) {
+    return actionError(error);
+  }
 }
 
 export async function updateTokoFeatureSettings(
   tokoId: string,
   disabledFeatures: FeatureKey[]
 ): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  const user = await getAuthUser();
-
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (!isAdmin(user)) {
-    return { success: false, error: "Only admins can update feature settings" };
-  }
-
-  if (!canAccessToko(user, tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  const plan = await getEffectivePlanForToko(user, tokoId);
-
-  for (const feature of disabledFeatures) {
-    const metadata = FEATURE_REGISTRY[feature];
-
-    if (!metadata) {
-      return { success: false, error: `Invalid feature: ${feature}` };
-    }
-
-    if (!metadata.configurable) {
-      return { success: false, error: `${metadata.label} cannot be disabled` };
-    }
-
-    if (!isPlanAtLeast(plan, metadata.minimumPlan)) {
-      return { success: false, error: `${metadata.label} requires ${metadata.minimumPlan} plan` };
-    }
-  }
-
-  const validFeatures = disabledFeatures.filter(isFeatureKey);
-
   try {
+    const scope = await getRequestScope(tokoId);
+    assertRole(scope, ["admin"]);
+
+    for (const feature of disabledFeatures) {
+      const metadata = FEATURE_REGISTRY[feature];
+
+      if (!metadata) {
+        return { success: false, error: `Invalid feature: ${feature}` };
+      }
+
+      if (!metadata.configurable) {
+        return { success: false, error: `${metadata.label} cannot be disabled` };
+      }
+
+      if (!isPlanAtLeast(scope.plan, metadata.minimumPlan)) {
+        return { success: false, error: `${metadata.label} requires ${metadata.minimumPlan} plan` };
+      }
+    }
+
+    const validFeatures = disabledFeatures.filter(isFeatureKey);
+
     const setting = await prisma.tokoFeatureSetting.upsert({
       where: { tokoId },
       create: {
@@ -223,8 +171,7 @@ export async function updateTokoFeatureSettings(
       data: { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) },
     };
   } catch (error) {
-    console.error("Failed to update feature settings:", error);
-    return { success: false, error: "Failed to update feature settings" };
+    return actionError(error);
   }
 }
 
@@ -233,36 +180,24 @@ export async function setTokoFeatureEnabled(
   feature: FeatureKey,
   enabled: boolean
 ): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  const user = await getAuthUser();
-
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (!isAdmin(user)) {
-    return { success: false, error: "Only admins can update feature settings" };
-  }
-
-  if (!canAccessToko(user, tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  if (!isFeatureKey(feature)) {
-    return { success: false, error: "Invalid feature" };
-  }
-
-  const metadata = FEATURE_REGISTRY[feature];
-  const plan = await getEffectivePlanForToko(user, tokoId);
-
-  if (!metadata.configurable) {
-    return { success: false, error: `${metadata.label} cannot be disabled` };
-  }
-
-  if (!isPlanAtLeast(plan, metadata.minimumPlan)) {
-    return { success: false, error: `${metadata.label} requires ${metadata.minimumPlan} plan` };
-  }
-
   try {
+    const scope = await getRequestScope(tokoId);
+    assertRole(scope, ["admin"]);
+
+    if (!isFeatureKey(feature)) {
+      return { success: false, error: "Invalid feature" };
+    }
+
+    const metadata = FEATURE_REGISTRY[feature];
+
+    if (!metadata.configurable) {
+      return { success: false, error: `${metadata.label} cannot be disabled` };
+    }
+
+    if (!isPlanAtLeast(scope.plan, metadata.minimumPlan)) {
+      return { success: false, error: `${metadata.label} requires ${metadata.minimumPlan} plan` };
+    }
+
     const existing = await prisma.tokoFeatureSetting.findUnique({
       where: { tokoId },
       select: { disabledFeatures: true },
@@ -303,8 +238,7 @@ export async function setTokoFeatureEnabled(
       data: { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) },
     };
   } catch (error) {
-    console.error("Failed to update feature setting:", error);
-    return { success: false, error: "Failed to update feature setting" };
+    return actionError(error);
   }
 }
 

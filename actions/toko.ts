@@ -1,9 +1,9 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { ensurePlanLimit } from "@/lib/feature-enforcement";
+import { ensurePlanLimit } from "@/lib/auth/enforcement";
 import { FEATURE_REGISTRY, isFeatureKey, isPlanAtLeast, type FeatureKey } from "@/lib/features";
-import { canAccessToko, getAuthUser, isAdmin } from "@/lib/rbac";
+import { getRequestUser } from "@/lib/auth/request-user";
 import { createCredentialUserWithToko } from "@/lib/auth-helpers";
 import { revalidateTokoPaths } from "@/lib/revalidation";
 import { Prisma } from "@/prisma/generated/prisma/client";
@@ -58,13 +58,13 @@ const DEFAULT_INVOICE_TERMS = "Barang yang tidak diambil lebih dari 30 hari di l
 const DEFAULT_INVOICE_WARRANTY = "Garansi berlaku sesuai jenis kerusakan dan tidak berlaku untuk kerusakan fisik/cairan.";
 
 export async function createTokoWithUsers(input: CreateTokoInput): Promise<CreateTokoResult> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!isAdmin(user)) {
+  if (user.role !== "admin") {
     return { success: false, error: "Only admins can create toko" };
   }
 
@@ -176,13 +176,13 @@ export async function createToko(input: {
   address?: string;
   phone?: string;
 }): Promise<CreateTokoResult> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!isAdmin(user)) {
+  if (user.role !== "admin") {
     return { success: false, error: "Only admins can create toko" };
   }
 
@@ -233,13 +233,13 @@ export async function createToko(input: {
 }
 
 export async function getTokoById(tokoId: string): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!canAccessToko(user, tokoId)) {
+  if (!user.tokoIds.includes(tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -270,17 +270,17 @@ export async function updateToko(
   tokoId: string,
   input: UpdateTokoInput
 ): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!isAdmin(user)) {
+  if (user.role !== "admin") {
     return { success: false, error: "Only admins can update toko" };
   }
 
-  if (!canAccessToko(user, tokoId)) {
+  if (!user.tokoIds.includes(tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -335,13 +335,13 @@ export async function getTokoInvoiceSettings(tokoId: string): Promise<{
   };
   error?: string;
 }> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!canAccessToko(user, tokoId)) {
+  if (!user.tokoIds.includes(tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -375,13 +375,13 @@ export async function getTokoInvoiceSettings(tokoId: string): Promise<{
 }
 
 export async function deleteToko(tokoId: string): Promise<{ success: boolean; error?: string }> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!isAdmin(user)) {
+  if (user.role !== "admin") {
     return { success: false, error: "Only admins can delete toko" };
   }
 

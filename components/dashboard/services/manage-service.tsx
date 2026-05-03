@@ -381,6 +381,11 @@ export function ManageService({
               viewerRole="admin"
               onRefresh={handleRefreshDetail}
               onStatusChange={() => {
+                setDetailDialogOpen(false);
+                router.refresh();
+              }}
+              onPickupSuccess={() => {
+                setDetailDialogOpen(false);
                 router.refresh();
               }}
             />

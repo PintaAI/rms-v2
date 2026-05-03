@@ -1,8 +1,8 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { ensureFeatureAccess } from "@/lib/feature-enforcement";
-import { getEffectivePlanForToko } from "@/lib/rbac";
+import { ensureFeatureAccess } from "@/lib/auth/enforcement";
+import { getEffectivePlanForToko } from "@/lib/auth/plan";
 import { getDisabledFeaturesForToko } from "./feature-settings";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 import {

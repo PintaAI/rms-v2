@@ -3,12 +3,12 @@
 // DEV-ONLY: This file will be removed before production deployment.
 // Bypasses payment flow for testing subscription plan changes.
 
-import { getAuthUser } from "@/lib/rbac";
+import { getRequestUser } from "@/lib/auth/request-user";
 import prisma from "@/lib/prisma";
 import type { SubscriptionPlan } from "@/lib/features";
 
 export async function setDevUserPlan(plan: SubscriptionPlan) {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }

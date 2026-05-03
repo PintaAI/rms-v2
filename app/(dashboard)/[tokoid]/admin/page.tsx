@@ -1,5 +1,5 @@
 import { getAdminOverview } from "@/actions/overview";
-import { getUserTokoList } from "@/actions/user";
+import { getAuthProviderData } from "@/actions/user";
 import { AdminOverview } from "@/components/dashboard/admin/admin-overview";
 
 export default async function AdminOverviewPage({
@@ -8,9 +8,9 @@ export default async function AdminOverviewPage({
   params: Promise<{ tokoid: string }>;
 }) {
   const { tokoid } = await params;
-  const [result, tokoList] = await Promise.all([
+  const [result, { tokoList }] = await Promise.all([
     getAdminOverview(tokoid),
-    getUserTokoList(),
+    getAuthProviderData(),
   ]);
 
   if (!result.success || !result.data) {

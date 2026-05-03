@@ -1,6 +1,6 @@
 import { InventoryTabs } from "@/components/dashboard/inventory/inventory-tabs";
 import { FeaturePreview } from "@/components/dashboard/feature-preview";
-import { getPageFeatureAccess } from "@/lib/page-feature-gates";
+import { getRequestScope, getPageFeatureCheck } from "@/lib/auth/request-scope";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
 import { RiStore2Line } from "@remixicon/react";
@@ -12,10 +12,9 @@ interface AdminInventoryPageProps {
 
 export default async function AdminInventoryPage({ params }: AdminInventoryPageProps) {
   const { tokoid } = await params;
-  const access = await getPageFeatureAccess(tokoid, "inventory.management");
+  const scope = await getRequestScope(tokoid);
+  const access = getPageFeatureCheck(scope, "inventory.management");
 
-  if (access.reason === "unauthorized") redirect("/auth");
-  if (access.reason === "toko_denied") redirect("/dashboard");
   if (access.reason === "role_denied") redirect("/dashboard");
   if (access.reason === "disabled_by_toko") redirect(`/${tokoid}/admin`);
 

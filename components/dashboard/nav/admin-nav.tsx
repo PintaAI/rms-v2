@@ -9,16 +9,18 @@ import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInbo
 import { NavItem, NavFilterGroup, NavGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
 import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
+import type { CapabilityAccessMap } from "@/lib/auth/request-scope";
 import type { ReactNode } from "react";
 
 interface AdminNavProps {
   tokoid: string;
   featureAccess: FeatureAccessMap;
+  capabilities: CapabilityAccessMap;
   disabledFeatures: FeatureKey[];
   serviceStats?: ServiceStats | null;
 }
 
-export function AdminNav({ tokoid, featureAccess, disabledFeatures, serviceStats }: AdminNavProps) {
+export function AdminNav({ tokoid, featureAccess, capabilities, disabledFeatures, serviceStats }: AdminNavProps) {
   const inventoryItems: { href: string; icon: ReactNode; label: string; isLocked?: boolean }[] = [];
   const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
 
@@ -44,9 +46,9 @@ export function AdminNav({ tokoid, featureAccess, disabledFeatures, serviceStats
   }
 
   const karyawanEnabled = featureAccess["karyawan.management"] ?? false;
-  const dashboardEnabled = featureAccess["dashboard.overview"] ?? false;
-  const tokoEnabled = featureAccess["toko.manage"] ?? false;
-  const serviceEnabled = featureAccess["service.management"] ?? false;
+  const dashboardEnabled = capabilities["dashboard.overview"] ?? false;
+  const tokoEnabled = capabilities["toko.manage"] ?? false;
+  const serviceEnabled = capabilities["service.management"] ?? false;
 
   return (
     <SidebarGroup>

@@ -1,10 +1,9 @@
 import { getServiceList, getServiceStats } from "@/actions/service";
-import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
+import { getRequestScope } from "@/lib/auth/request-scope";
 import { ManageService } from "@/components/dashboard/services/manage-service";
 import { OverviewStatsCard } from "@/components/dashboard/shared/overview-cards";
 import prisma from "@/lib/prisma";
-import { canUseFeature, type FeatureKey } from "@/lib/features";
-import { getAuthUser, getEffectivePlanForToko } from "@/lib/rbac";
+import { canUseFeature } from "@/lib/features";
 import Image from "next/image";
 import { RiStore2Line, RiInboxLine, RiToolsLine, RiCheckDoubleLine, RiLogoutBoxLine } from "@remixicon/react";
 
@@ -21,14 +20,10 @@ export default async function AdminServicePage({ params }: AdminServicePageProps
     select: { id: true, name: true, logoUrl: true },
   });
 
-  const user = await getAuthUser();
-  const [plan, disabledFeatures] = user
-    ? await Promise.all([getEffectivePlanForToko(user, tokoid), getDisabledFeaturesForToko(tokoid)])
-    : [null, [] as FeatureKey[]];
+  const scope = await getRequestScope(tokoid);
+  const { user, plan, disabledFeatures } = scope;
 
-  const technicianWorkflowEnabled = user && plan
-    ? canUseFeature({ plan, role: user.role, feature: "technician.workflow", disabledFeatures })
-    : false;
+  const technicianWorkflowEnabled = canUseFeature({ plan, role: user.role, feature: "technician.workflow", disabledFeatures });
 
   const [servicesResult, statsResult] = await Promise.all([
     getServiceList(tokoid, undefined, 1, 1000),

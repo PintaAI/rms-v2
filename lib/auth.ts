@@ -17,6 +17,7 @@ const devOrigins = [
 const configuredOrigin = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const tailscaleOrigin = "https://jennie-linux.tail2268a1.ts.net";
 const isProduction = process.env.NODE_ENV === "production";
+const isHttpsOrigin = configuredOrigin.startsWith("https://");
 
 const trustedOrigins = process.env.DEV_MODE === "true" || !isProduction
   ? Array.from(new Set([...devOrigins, configuredOrigin, tailscaleOrigin]))
@@ -26,7 +27,7 @@ export const auth = betterAuth({
   trustedOrigins,
 
   advanced: {
-    useSecureCookies: isProduction,
+    useSecureCookies: isProduction || isHttpsOrigin,
   },
 
   secondaryStorage: {

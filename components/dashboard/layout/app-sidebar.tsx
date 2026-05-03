@@ -12,16 +12,18 @@ import { TeknisiNav } from "../nav/teknisi-nav";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
 import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
+import type { CapabilityAccessMap } from "@/lib/auth/request-scope";
 
 interface AppSidebarProps {
   tokoid: string;
   featureAccess: FeatureAccessMap;
+  capabilities: CapabilityAccessMap;
   disabledFeatures: FeatureKey[];
   serviceStats?: ServiceStats | null;
   technicianTaskStats?: TechnicianTaskStats | null;
 }
 
-export function AppSidebar({ tokoid, featureAccess, disabledFeatures, serviceStats, technicianTaskStats }: AppSidebarProps) {
+export function AppSidebar({ tokoid, featureAccess, capabilities, disabledFeatures, serviceStats, technicianTaskStats }: AppSidebarProps) {
   const { user, tokoList } = useAuth();
 
   return (
@@ -33,8 +35,8 @@ export function AppSidebar({ tokoid, featureAccess, disabledFeatures, serviceSta
         tokoList={tokoList}
       />
       <SidebarContent data-tour="sidebar-nav" className="bg-gradient-to-b from-sidebar  to-background border-none border-border/70">
-        {user?.role === "admin" && <AdminNav tokoid={tokoid} featureAccess={featureAccess} disabledFeatures={disabledFeatures} serviceStats={serviceStats} />}
-        {user?.role === "staff" && <StaffNav tokoid={tokoid} featureAccess={featureAccess} disabledFeatures={disabledFeatures} serviceStats={serviceStats} />}
+        {user?.role === "admin" && <AdminNav tokoid={tokoid} featureAccess={featureAccess} capabilities={capabilities} disabledFeatures={disabledFeatures} serviceStats={serviceStats} />}
+        {user?.role === "staff" && <StaffNav tokoid={tokoid} featureAccess={featureAccess} capabilities={capabilities} disabledFeatures={disabledFeatures} serviceStats={serviceStats} />}
         {user?.role === "technician" && <TeknisiNav tokoid={tokoid} featureAccess={featureAccess} disabledFeatures={disabledFeatures} taskStats={technicianTaskStats} />}
       </SidebarContent>
     </Sidebar>

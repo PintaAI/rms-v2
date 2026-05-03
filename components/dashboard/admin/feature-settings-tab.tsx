@@ -154,7 +154,7 @@ export function FeatureSettingsTab({ tokoId }: FeatureSettingsTabProps) {
   const hasAnyFeatures = Object.keys(featuresByCategory).length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">

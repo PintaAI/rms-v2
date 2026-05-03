@@ -364,7 +364,10 @@ export function TeknisiTaskManager({
                 }
                 viewerRole="technician"
                 onRefresh={handleRefreshDetail}
-                onStatusChange={() => router.refresh()}
+                onStatusChange={() => {
+                  setDetailDialogOpen(false);
+                  router.refresh();
+                }}
               />
             </div>
           )}

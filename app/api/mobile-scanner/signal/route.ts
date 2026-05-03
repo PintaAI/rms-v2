@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { canAccessToko, getAuthUser } from "@/lib/rbac";
+import { getRequestUser } from "@/lib/auth/request-user";
 import {
   createMobileScannerSession,
   deleteMobileScannerSession,
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const payload = body as Record<string, unknown>;
 
   if (payload.type === "offer") {
-    const user = await getAuthUser();
+    const user = await getRequestUser();
 
     if (!user) {
       return unauthorized();
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       return badRequest("tokoId is required");
     }
 
-    if (!canAccessToko(user, payload.tokoId)) {
+    if (!user.tokoIds.includes(payload.tokoId)) {
       return forbidden();
     }
 
@@ -101,7 +101,7 @@ export async function GET(request: Request) {
   }
 
   if (searchParams.get("role") === "host") {
-    const user = await getAuthUser();
+    const user = await getRequestUser();
 
     if (!user) {
       return unauthorized();
@@ -134,7 +134,7 @@ export async function GET(request: Request) {
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return unauthorized();

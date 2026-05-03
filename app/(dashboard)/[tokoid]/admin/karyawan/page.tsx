@@ -2,7 +2,7 @@ import { getKaryawanList, getKaryawanStats } from "@/actions/karyawan";
 import { ManageKaryawan } from "@/components/dashboard/admin/manage-karyawan";
 import { FeatureLocked } from "@/components/dashboard/feature-locked";
 import { FeaturePreview } from "@/components/dashboard/feature-preview";
-import { getPageFeatureAccess } from "@/lib/page-feature-gates";
+import { getRequestScope, getPageFeatureCheck } from "@/lib/auth/request-scope";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
 import { RiStore2Line } from "@remixicon/react";
@@ -14,10 +14,9 @@ interface AdminKaryawanPageProps {
 
 export default async function AdminKaryawanPage({ params }: AdminKaryawanPageProps) {
   const { tokoid } = await params;
-  const access = await getPageFeatureAccess(tokoid, "karyawan.management");
+  const scope = await getRequestScope(tokoid);
+  const access = getPageFeatureCheck(scope, "karyawan.management");
 
-  if (access.reason === "unauthorized") redirect("/auth");
-  if (access.reason === "toko_denied") redirect("/dashboard");
   if (access.reason === "role_denied") redirect("/dashboard");
   if (access.reason === "disabled_by_toko") redirect(`/${tokoid}/admin`);
 

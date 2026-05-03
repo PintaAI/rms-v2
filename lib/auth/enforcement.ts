@@ -1,11 +1,7 @@
-import type { ActionResult, AuthUser } from "@/lib/rbac";
-import {
-  FEATURE_REGISTRY,
-  getFeatureLockReason,
-  getPlanLimit,
-  type FeatureKey,
-  type PlanLimitKey,
-} from "@/lib/features";
+import { getFeatureLockReason, FEATURE_REGISTRY, type FeatureKey, type PlanLimitKey } from "@/lib/features";
+import { getPlanLimit, type SubscriptionPlan } from "@/lib/plans";
+import type { AuthUser } from "./request-user";
+import type { ActionResult } from "./authorization";
 import prisma from "@/lib/prisma";
 import type { ActivityType } from "@/prisma/generated/prisma/enums";
 

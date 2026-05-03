@@ -1,7 +1,7 @@
 "use server"
 
 import prisma from "@/lib/prisma"
-import { getAuthUser, isAdmin } from "@/lib/rbac"
+import { getRequestUser } from "@/lib/auth/request-user"
 import { revalidatePath, cacheLife, cacheTag, updateTag } from "next/cache"
 import { z } from "zod"
 
@@ -29,9 +29,9 @@ export interface DeviceCatalogPayload {
 }
 
 async function getDeviceWriteUser() {
-  const user = await getAuthUser()
+  const user = await getRequestUser()
   if (!user) throw new Error("Unauthorized")
-  if (!isAdmin(user)) throw new Error("Only admins can manage device data")
+  if (user.role !== "admin") throw new Error("Only admins can manage device data")
   return user
 }
 

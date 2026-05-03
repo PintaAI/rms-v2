@@ -1,9 +1,8 @@
-import { getAuthUser, getEffectivePlanForToko } from "@/lib/rbac";
+import { redirect } from "next/navigation";
 import { FeatureLocked } from "@/components/dashboard/feature-locked";
-import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import { FEATURE_REGISTRY, getFeatureLockReason } from "@/lib/features";
 import { getRoleRedirectPath } from "@/lib/redirect-by-role";
-import { redirect } from "next/navigation";
+import { getRequestScope } from "@/lib/auth/request-scope";
 
 interface StaffLayoutProps {
   children: React.ReactNode;
@@ -12,23 +11,24 @@ interface StaffLayoutProps {
 
 export default async function StaffLayout({ children, params }: StaffLayoutProps) {
   const { tokoid } = await params;
-  const user = await getAuthUser();
 
-  if (!user) {
+  let scope: Awaited<ReturnType<typeof getRequestScope>>;
+  try {
+    scope = await getRequestScope(tokoid);
+  } catch {
     redirect("/auth");
   }
 
-  if (!user.tokoIds.includes(tokoid)) {
-    redirect("/dashboard");
+  if (scope.user.role !== "staff") {
+    redirect(getRoleRedirectPath(tokoid, scope.user.role));
   }
 
-  if (user.role !== "staff") {
-    redirect(getRoleRedirectPath(tokoid, user.role));
-  }
-
-  const plan = await getEffectivePlanForToko(user, tokoid);
-  const disabledFeatures = await getDisabledFeaturesForToko(tokoid);
-  const lockReason = getFeatureLockReason({ plan, role: user.role, feature: "staff.workflow", disabledFeatures });
+  const lockReason = getFeatureLockReason({
+    plan: scope.plan,
+    role: scope.user.role,
+    feature: "staff.workflow",
+    disabledFeatures: scope.disabledFeatures,
+  });
 
   if (lockReason) {
     const feature = FEATURE_REGISTRY["staff.workflow"];

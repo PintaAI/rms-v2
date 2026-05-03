@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useSession } from "@/lib/auth-client";
-import { getCurrentAuthUser, getUserTokoList } from "@/actions/user";
+import { getAuthProviderData } from "@/actions/user";
 import { normalizePlan, type SubscriptionPlan } from "@/lib/features";
 
 interface TokoItem {
@@ -58,24 +58,21 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const { data: session, isPending, refetch } = useSession();
   const [tokoList, setTokoList] = useState<TokoItem[]>([]);
-  const [effectivePlan, setEffectivePlan] = useState<SubscriptionPlan | null>(null);
   const [isTokoLoading, setIsTokoLoading] = useState(true);
 
-  const fetchTokoList = useCallback(async () => {
+  const refetchTokoList = useCallback(async () => {
     if (!session?.user) {
       setTokoList([]);
-      setEffectivePlan(null);
       setIsTokoLoading(false);
       return;
     }
-    
+
     setIsTokoLoading(true);
     try {
-      const [list, authUser] = await Promise.all([getUserTokoList(), getCurrentAuthUser()]);
-      setTokoList(list);
-      setEffectivePlan(authUser?.plan ?? null);
+      const data = await getAuthProviderData();
+      setTokoList(data.tokoList);
     } catch (error) {
-      console.error("Failed to fetch toko list:", error);
+      console.error("Failed to fetch auth provider data:", error);
     } finally {
       setIsTokoLoading(false);
     }
@@ -92,7 +89,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!session?.user) {
         if (active) {
           setTokoList([]);
-          setEffectivePlan(null);
           setIsTokoLoading(false);
         }
         return;
@@ -100,13 +96,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setIsTokoLoading(true);
       try {
-        const [list, authUser] = await Promise.all([getUserTokoList(), getCurrentAuthUser()]);
+        const data = await getAuthProviderData();
         if (active) {
-          setTokoList(list);
-          setEffectivePlan(authUser?.plan ?? null);
+          setTokoList(data.tokoList);
         }
       } catch (error) {
-        console.error("Failed to fetch toko list:", error);
+        console.error("Failed to fetch auth provider data:", error);
       } finally {
         if (active) {
           setIsTokoLoading(false);
@@ -139,13 +134,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     plan: session.user.subscription.plan,
                   }
                 : null,
-              plan: effectivePlan ?? normalizePlan(session.user.subscription?.plan),
+              plan: normalizePlan(session.user.subscription?.plan),
             }
           : null,
         tokoList,
         isLoading,
         isTokoLoading,
-        refetchTokoList: fetchTokoList,
+        refetchTokoList,
         refetchSession,
       }}
     >

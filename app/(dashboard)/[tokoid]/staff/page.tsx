@@ -1,6 +1,9 @@
 import { getStaffOverview } from "@/actions/overview";
-import { getUserTokoList } from "@/actions/user";
+import { getAuthProviderData } from "@/actions/user";
 import { StaffOverview } from "@/components/dashboard/staff/staff-overview";
+import { getRequestScope, getPageFeatureCheck } from "@/lib/auth/request-scope";
+import { FeaturePreview } from "@/components/dashboard/feature-preview";
+import { redirect } from "next/navigation";
 
 export default async function StaffOverviewPage({
   params,
@@ -8,9 +11,30 @@ export default async function StaffOverviewPage({
   params: Promise<{ tokoid: string }>;
 }) {
   const { tokoid } = await params;
-  const [result, tokoList] = await Promise.all([
+
+  const scope = await getRequestScope(tokoid);
+  const access = getPageFeatureCheck(scope, "staff.workflow");
+
+  if (access.reason === "role_denied") redirect("/dashboard");
+  if (access.reason === "disabled_by_toko") redirect("/dashboard");
+
+  if (access.reason === "plan_required") {
+    return (
+      <FeaturePreview
+        featureKey="staff.workflow"
+        requiredPlan={access.metadata.minimumPlan}
+        tokoId={tokoid}
+      />
+    );
+  }
+
+  if (!access.allowed) {
+    redirect("/dashboard");
+  }
+
+  const [result, { tokoList }] = await Promise.all([
     getStaffOverview(tokoid),
-    getUserTokoList(),
+    getAuthProviderData(),
   ]);
 
   if (!result.success || !result.data) {

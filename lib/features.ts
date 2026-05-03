@@ -1,28 +1,23 @@
 export type UserRole = "admin" | "staff" | "technician" | "superuser";
 
-export type SubscriptionPlan = "free" | "premium" | "enterprise";
+import type { SubscriptionPlan, PlanLimitKey } from "@/lib/plans";
+export type { SubscriptionPlan, PlanLimitKey };
 
 export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "team" | "analytics";
 
 export type FeatureKey =
-  | "dashboard.overview"
-  | "toko.manage"
-  | "service.management"
   | "service.manualItems"
   | "inventory.management"
   | "karyawan.management"
   | "staff.workflow"
   | "technician.workflow"
-  | "service.invoice"
   | "activityLog.view"
   | "analytics.revenue"
   | "inventory.audit";
 
-export type PlanLimitKey = "maxTokos" | "maxStaff" | "maxTechnicians" | "maxServicesMonthly" | "maxInvoicesMonthly";
-
 export type FeatureLockReason = "role_denied" | "plan_required" | "disabled_by_toko";
 
-export type FeatureAccessMap = Partial<Record<FeatureKey, boolean>>;
+export type FeatureAccessMap = Record<string, boolean | undefined>;
 
 export interface FeatureMetadata {
   key: FeatureKey;
@@ -41,64 +36,7 @@ export interface FeatureAccessInput {
   disabledFeatures?: readonly FeatureKey[];
 }
 
-const PLAN_ORDER: Record<SubscriptionPlan, number> = {
-  free: 0,
-  premium: 1,
-  enterprise: 2,
-};
-
-const PLAN_LIMITS: Record<SubscriptionPlan, Record<PlanLimitKey, number | null>> = {
-  free: {
-    maxTokos: 1,
-    maxStaff: 0,
-    maxTechnicians: 0,
-    maxServicesMonthly: 50,
-    maxInvoicesMonthly: 50,
-  },
-  premium: {
-    maxTokos: 3,
-    maxStaff: 5,
-    maxTechnicians: 5,
-    maxServicesMonthly: null,
-    maxInvoicesMonthly: null,
-  },
-  enterprise: {
-    maxTokos: null,
-    maxStaff: null,
-    maxTechnicians: null,
-    maxServicesMonthly: null,
-    maxInvoicesMonthly: null,
-  },
-};
-
 export const FEATURE_REGISTRY = {
-  "dashboard.overview": {
-    key: "dashboard.overview",
-    label: "Dashboard Overview",
-    description: "Ringkasan operasional toko dan aktivitas utama.",
-    category: "dashboard",
-    allowedRoles: ["admin", "staff", "technician"],
-    minimumPlan: "free",
-    configurable: false,
-  },
-  "toko.manage": {
-    key: "toko.manage",
-    label: "Manajemen Toko",
-    description: "Kelola profil, data, dan pengaturan dasar toko.",
-    category: "toko",
-    allowedRoles: ["admin"],
-    minimumPlan: "free",
-    configurable: false,
-  },
-  "service.management": {
-    key: "service.management",
-    label: "Manajemen Service",
-    description: "Buat dan kelola data service pelanggan.",
-    category: "service",
-    allowedRoles: ["admin", "staff"],
-    minimumPlan: "free",
-    configurable: false,
-  },
   "service.manualItems": {
     key: "service.manualItems",
     label: "Tambah Invoice Manual",
@@ -144,15 +82,6 @@ export const FEATURE_REGISTRY = {
     minimumPlan: "premium",
     configurable: true,
   },
-  "service.invoice": {
-    key: "service.invoice",
-    label: "Invoice Service",
-    description: "Buat dan kelola invoice untuk pekerjaan service.",
-    category: "service",
-    allowedRoles: ["admin", "staff"],
-    minimumPlan: "free",
-    configurable: true,
-  },
   "activityLog.view": {
     key: "activityLog.view",
     label: "Activity Log",
@@ -184,24 +113,24 @@ export const FEATURE_REGISTRY = {
 
 export const FEATURE_KEYS = Object.keys(FEATURE_REGISTRY) as FeatureKey[];
 
-export const SUBSCRIPTION_PLANS = ["free", "premium", "enterprise"] as const satisfies readonly SubscriptionPlan[];
+import {
+  normalizePlan as _normalizePlan,
+  isPlanAtLeast as _isPlanAtLeast,
+  isSubscriptionPlan as _isSubscriptionPlan,
+  getPlanLimit as _getPlanLimit,
+  SUBSCRIPTION_PLANS as _SUBSCRIPTION_PLANS,
+  PLAN_LIMIT_KEYS as _PLAN_LIMIT_KEYS,
+} from "@/lib/plans";
 
-export const PLAN_LIMIT_KEYS = ["maxTokos", "maxStaff", "maxTechnicians"] as const satisfies readonly PlanLimitKey[];
-
-export function normalizePlan(plan: string | null | undefined): SubscriptionPlan {
-  return isSubscriptionPlan(plan) ? plan : "free";
-}
-
-export function isSubscriptionPlan(plan: string | null | undefined): plan is SubscriptionPlan {
-  return plan === "free" || plan === "premium" || plan === "enterprise";
-}
+export const SUBSCRIPTION_PLANS = _SUBSCRIPTION_PLANS;
+export const PLAN_LIMIT_KEYS = _PLAN_LIMIT_KEYS;
+export const normalizePlan = _normalizePlan;
+export const isSubscriptionPlan = _isSubscriptionPlan;
+export const isPlanAtLeast = _isPlanAtLeast;
+export const getPlanLimit = _getPlanLimit;
 
 export function isFeatureKey(feature: string): feature is FeatureKey {
   return Object.prototype.hasOwnProperty.call(FEATURE_REGISTRY, feature);
-}
-
-export function isPlanAtLeast(plan: string | null | undefined, minimumPlan: SubscriptionPlan): boolean {
-  return PLAN_ORDER[normalizePlan(plan)] >= PLAN_ORDER[minimumPlan];
 }
 
 export function canUseFeature(input: FeatureAccessInput): boolean {
@@ -210,6 +139,7 @@ export function canUseFeature(input: FeatureAccessInput): boolean {
 
 export function getFeatureLockReason(input: FeatureAccessInput): FeatureLockReason | null {
   const feature = FEATURE_REGISTRY[input.feature];
+  if (!feature) return null;
 
   if (!(feature.allowedRoles as readonly UserRole[]).includes(input.role)) {
     return "role_denied";
@@ -224,10 +154,6 @@ export function getFeatureLockReason(input: FeatureAccessInput): FeatureLockReas
   }
 
   return null;
-}
-
-export function getPlanLimit(plan: string | null | undefined, limitKey: PlanLimitKey): number | null {
-  return PLAN_LIMITS[normalizePlan(plan)][limitKey];
 }
 
 export function getConfigurableFeatures(plan: string | null | undefined): FeatureMetadata[] {

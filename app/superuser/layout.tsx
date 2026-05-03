@@ -1,4 +1,4 @@
-import { getAuthUser, isSuperuser } from "@/lib/rbac";
+import { getRequestUser } from "@/lib/auth/request-user";
 import { redirect } from "next/navigation";
 
 interface SuperuserLayoutProps {
@@ -6,13 +6,13 @@ interface SuperuserLayoutProps {
 }
 
 export default async function SuperuserLayout({ children }: SuperuserLayoutProps) {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     redirect("/auth");
   }
 
-  if (!isSuperuser(user)) {
+  if (user.role !== "superuser") {
     redirect("/dashboard");
   }
 

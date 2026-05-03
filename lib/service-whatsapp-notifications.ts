@@ -53,9 +53,6 @@ export async function sendServiceStatusWhatsappNotification(input: {
       return;
     }
     if (!setting.enabled) return;
-    if (setting.connectionState !== "open") {
-      return;
-    }
     if (input.status === "done" && !setting.notifyDone) return;
     if (input.status === "failed" && !setting.notifyFailed) return;
 

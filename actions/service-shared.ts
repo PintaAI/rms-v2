@@ -1,5 +1,5 @@
 import prisma from "@/lib/prisma";
-import { getAuthUser } from "@/lib/rbac";
+import { getRequestUser } from "@/lib/auth/request-user";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus, ServiceStatus } from "@/prisma/generated/prisma/enums";
 import type { JsonValue } from "@/prisma/generated/prisma/internal/prismaNamespace";
@@ -224,15 +224,15 @@ export async function updateInvoiceTotal(serviceId: string) {
     throw new Error("Cannot update items on a paid invoice");
   }
 
-  const items = await prisma.serviceItem.findMany({
-    where: { serviceId },
-    select: { id: true, type: true, referenceId: true, name: true, qty: true, price: true },
-    orderBy: { id: "asc" },
-  });
-
-  const grandTotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
-
   await prisma.$transaction(async (tx) => {
+    const items = await tx.serviceItem.findMany({
+      where: { serviceId },
+      select: { id: true, type: true, referenceId: true, name: true, qty: true, price: true },
+      orderBy: { id: "asc" },
+    });
+
+    const grandTotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+
     const invoice = await tx.invoice.upsert({
       where: { serviceId },
       create: { serviceId, grandTotal, paymentStatus: "unpaid" },
@@ -282,7 +282,7 @@ export function getStatusActivityTitle(status: ServiceStatus | "picked_up") {
 }
 
 export async function getSessionAndTokos() {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { user: null, tokoIds: [] };

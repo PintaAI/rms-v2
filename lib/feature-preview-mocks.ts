@@ -124,6 +124,17 @@ export const MOCK_AUDIT_ITEMS: MockAuditItem[] = [
 export const FEATURE_PREVIEW_INFO: Partial<
   Record<FeatureKey, { title: string; description: string; benefits: string[]; previewType: "staff" | "sparepart" | "revenue" | "audit" }>
 > = {
+  "staff.workflow": {
+    title: "Staff Workflow",
+    description: "Dashboard operasional staff untuk monitoring service, inventory, dan aktivitas toko.",
+    benefits: [
+      "Lihat ringkasan service harian dan mingguan",
+      "Pantau stok inventory dengan low stock alert",
+      "Akses cepat ke service management",
+      "Tracking aktivitas operasional toko",
+    ],
+    previewType: "revenue",
+  },
   "karyawan.management": {
     title: "Karyawan Management",
     description: "Kelola tim toko Anda - tambah staff dan teknisi untuk membantu operasional repair shop.",

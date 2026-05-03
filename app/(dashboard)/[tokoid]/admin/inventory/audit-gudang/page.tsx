@@ -3,7 +3,7 @@ import { FeatureLocked } from "@/components/dashboard/feature-locked"
 import { FeaturePreview } from "@/components/dashboard/feature-preview"
 import { AuditDashboard } from "@/components/dashboard/inventory/audit-gudang/audit-dashboard"
 import type { InventoryAuditOverview } from "@/components/dashboard/inventory/audit-gudang/types"
-import { getPageFeatureAccess } from "@/lib/page-feature-gates"
+import { getRequestScope, getPageFeatureCheck } from "@/lib/auth/request-scope"
 import prisma from "@/lib/prisma"
 import { RiStore2Line } from "@remixicon/react"
 import Image from "next/image"
@@ -21,10 +21,9 @@ type ActionResult<T> = {
 
 export default async function AdminAuditGudangPage({ params }: AdminAuditGudangPageProps) {
   const { tokoid } = await params
-  const access = await getPageFeatureAccess(tokoid, "inventory.audit")
+  const scope = await getRequestScope(tokoid)
+  const access = getPageFeatureCheck(scope, "inventory.audit")
 
-  if (access.reason === "unauthorized") redirect("/auth")
-  if (access.reason === "toko_denied") redirect("/dashboard")
   if (access.reason === "role_denied") redirect("/dashboard")
   if (access.reason === "disabled_by_toko") redirect(`/${tokoid}/admin/inventory`)
 

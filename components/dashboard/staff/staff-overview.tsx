@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
@@ -6,7 +8,7 @@ import {
   OverviewSectionHeader,
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
-import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
+import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import type { StaffOverviewData } from "@/actions/overview";
 import {
   RiArchiveLine,
@@ -31,7 +33,7 @@ interface StaffOverviewProps {
 
 export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps) {
   const { stats, recentServices } = data;
-  const { featureAccess } = useFeatureAccess();
+  const { featureAccess } = useDashboardScope();
   const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
 
   const tableServices = recentServices.map((service) => ({

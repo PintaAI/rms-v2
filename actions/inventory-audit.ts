@@ -2,10 +2,11 @@
 
 import { z } from "zod";
 import { createActivityLog } from "@/lib/activity-log";
-import { ensureFeatureAccess } from "@/lib/feature-enforcement";
+import { ensureFeatureAccess } from "@/lib/auth/enforcement";
 import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import prisma from "@/lib/prisma";
-import { canAccessToko, getAuthUser, isAdmin, type ActionResult, type ActionResultWithData } from "@/lib/rbac";
+import { getRequestUser } from "@/lib/auth/request-user";
+import type { ActionResult, ActionResultWithData } from "@/lib/auth/authorization";
 import { revalidateInventoryPaths } from "@/lib/revalidation";
 import { Prisma } from "@/prisma/generated/prisma/client";
 
@@ -85,17 +86,17 @@ export type InventoryAuditOverview = {
 };
 
 async function getInventoryAuditUser(tokoId: string, requireWriteAccess = false) {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false as const, error: "Unauthorized" };
   }
 
-  if (!canAccessToko(user, tokoId)) {
+  if (!user.tokoIds.includes(tokoId)) {
     return { success: false as const, error: "Access denied" };
   }
 
-  if (requireWriteAccess && !isAdmin(user)) {
+  if (requireWriteAccess && user.role !== "admin") {
     return { success: false as const, error: "Only admins can manage inventory audits" };
   }
 

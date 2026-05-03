@@ -1,0 +1,133 @@
+import type { AuthUser } from "./request-user";
+import type { UserRole } from "./request-user";
+import { getRequestUser } from "./request-user";
+import { getRequestScope, type RequestScope } from "./request-scope";
+import { actionError } from "./authorization";
+import type { ActionResult, ActionResultWithData } from "./authorization";
+
+export type { AuthUser, UserRole, RequestScope, ActionResult, ActionResultWithData };
+
+export interface ActionContext {
+  user: AuthUser;
+}
+
+export interface ScopedActionContext extends ActionContext {
+  tokoId: string;
+  scope: RequestScope;
+}
+
+export interface ActionConfig {
+  role?: UserRole[];
+}
+
+function checkRole(user: AuthUser, allowedRoles?: UserRole[]): ActionResult | null {
+  if (!allowedRoles || allowedRoles.length === 0) return null;
+  if (!allowedRoles.includes(user.role)) {
+    return { success: false, error: "Akses ditolak" };
+  }
+  return null;
+}
+
+export function defineAction<TOutput>(
+  config: ActionConfig,
+  handler: (ctx: ActionContext) => Promise<TOutput>
+): () => Promise<ActionResultWithData<TOutput>> {
+  return async function (): Promise<ActionResultWithData<TOutput>> {
+    try {
+      const user = await getRequestUser();
+      if (!user) return { success: false, error: "Silakan login terlebih dahulu" };
+
+      const roleError = checkRole(user, config.role);
+      if (roleError) return roleError;
+
+      const result = await handler({ user });
+
+      if (result && typeof result === "object" && "success" in result) {
+        return result as ActionResultWithData<TOutput>;
+      }
+
+      return { success: true, data: result as TOutput };
+    } catch (error) {
+      return actionError(error) as ActionResultWithData<TOutput>;
+    }
+  };
+}
+
+export function defineActionWithInput<TInput, TOutput>(
+  config: ActionConfig,
+  handler: (ctx: ActionContext, input: TInput) => Promise<TOutput>
+): (input: TInput) => Promise<ActionResultWithData<TOutput>> {
+  return async function (input: TInput): Promise<ActionResultWithData<TOutput>> {
+    try {
+      const user = await getRequestUser();
+      if (!user) return { success: false, error: "Silakan login terlebih dahulu" };
+
+      const roleError = checkRole(user, config.role);
+      if (roleError) return roleError;
+
+      const result = await handler({ user }, input);
+
+      if (result && typeof result === "object" && "success" in result) {
+        return result as ActionResultWithData<TOutput>;
+      }
+
+      return { success: true, data: result as TOutput };
+    } catch (error) {
+      return actionError(error) as ActionResultWithData<TOutput>;
+    }
+  };
+}
+
+export function defineScopedAction<TOutput>(
+  config: ActionConfig,
+  handler: (ctx: ScopedActionContext) => Promise<TOutput>
+): (tokoId: string) => Promise<ActionResultWithData<TOutput>> {
+  return async function (tokoId: string): Promise<ActionResultWithData<TOutput>> {
+    try {
+      const user = await getRequestUser();
+      if (!user) return { success: false, error: "Silakan login terlebih dahulu" };
+
+      const roleError = checkRole(user, config.role);
+      if (roleError) return roleError;
+
+      const scope = await getRequestScope(tokoId);
+
+      const result = await handler({ user, tokoId, scope });
+
+      if (result && typeof result === "object" && "success" in result) {
+        return result as ActionResultWithData<TOutput>;
+      }
+
+      return { success: true, data: result as TOutput };
+    } catch (error) {
+      return actionError(error) as ActionResultWithData<TOutput>;
+    }
+  };
+}
+
+export function defineScopedActionWithInput<TInput, TOutput>(
+  config: ActionConfig,
+  handler: (ctx: ScopedActionContext, input: TInput) => Promise<TOutput>
+): (input: TInput & { tokoId: string }) => Promise<ActionResultWithData<TOutput>> {
+  return async function (input: TInput & { tokoId: string }): Promise<ActionResultWithData<TOutput>> {
+    try {
+      const user = await getRequestUser();
+      if (!user) return { success: false, error: "Silakan login terlebih dahulu" };
+
+      const roleError = checkRole(user, config.role);
+      if (roleError) return roleError;
+
+      const scope = await getRequestScope(input.tokoId);
+
+      const result = await handler({ user, tokoId: input.tokoId, scope }, input);
+
+      if (result && typeof result === "object" && "success" in result) {
+        return result as ActionResultWithData<TOutput>;
+      }
+
+      return { success: true, data: result as TOutput };
+    } catch (error) {
+      return actionError(error) as ActionResultWithData<TOutput>;
+    }
+  };
+}

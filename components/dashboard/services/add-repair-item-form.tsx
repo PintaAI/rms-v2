@@ -1,34 +1,43 @@
 "use client";
 
-/**
- * AddRepairItemForm - Dialog for adding spareparts or services to a repair task
- */
-
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { addItem } from "@/actions";
 import { cn, formatCurrency } from "@/lib/utils";
-import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
+import { useScannerPairing, ScannerPairingPanel, ScannerToggleButton } from "@/components/shared/scanner-pairing";
+import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
+import { toast } from "sonner";
 import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
 import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
+import {
+  RiAddLine,
+  RiBox3Line,
+  RiCheckLine,
+  RiCloseLine,
+  RiInboxLine,
+  RiSearchLine,
+  RiSubtractLine,
+  RiToolsLine,
+} from "@remixicon/react";
 
 interface AddRepairItemFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   serviceId: string;
   tokoId: string;
-  spareparts: Array<{ id: string; name: string; defaultPrice: number; stock: number }>;
+  deviceName: string;
+  spareparts: Array<{ id: string; name: string; barcode: string; defaultPrice: number; stock: number }>;
   servicePricelists: Array<{ id: string; title: string; defaultPrice: number }>;
   onSuccess: () => void;
   onError: (error: string) => void;
@@ -43,6 +52,7 @@ export function AddRepairItemForm({
   onOpenChange,
   serviceId,
   tokoId,
+  deviceName,
   spareparts,
   servicePricelists,
   onSuccess,
@@ -52,57 +62,67 @@ export function AddRepairItemForm({
   onSparepartCreated,
   onPricelistCreated,
 }: AddRepairItemFormProps) {
-  const { inventoryEnabled, manualItemsEnabled } = useFeatureAccess();
-  
-  // Determine default item type based on enabled features
-  const defaultItemType = !manualItemsEnabled && inventoryEnabled ? "sparepart" : "manual-sparepart";
-  const [itemType, setItemType] = useState<"manual-sparepart" | "manual-service" | "sparepart" | "service">(defaultItemType);
-  const [selectedSparepartIds, setSelectedSparepartIds] = useState<string[]>([]);
-  const [selectedPricelistIds, setSelectedPricelistIds] = useState<string[]>([]);
+  const [itemType, setItemType] = useState<"sparepart" | "service">("sparepart");
+  const [sparepartQtys, setSparepartQtys] = useState<Record<string, number>>({});
+  const [serviceQtys, setServiceQtys] = useState<Record<string, number>>({});
   const [manualName, setManualName] = useState("");
   const [manualPrice, setManualPrice] = useState("");
-  const [itemQty, setItemQty] = useState("1");
+  const [manualQty, setManualQty] = useState("1");
   const [searchQuery, setSearchQuery] = useState("");
   const [sparepartFormOpen, setSparepartFormOpen] = useState(false);
   const [pricelistFormOpen, setPricelistFormOpen] = useState(false);
 
-  // Get selected item details
-  const isManualItem = itemType === "manual-sparepart" || itemType === "manual-service";
-  const submittedItemType = itemType === "manual-sparepart" || itemType === "sparepart" ? "sparepart" : "service";
-  
-  // Filter items based on search query
+  const isManualFilled = manualName.trim().length > 0 && !!manualPrice && parseInt(manualPrice, 10) >= 0;
+  const hasItemsSelected = itemType === "sparepart"
+    ? Object.values(sparepartQtys).some((q) => q > 0)
+    : Object.values(serviceQtys).some((q) => q > 0);
+
   const filteredSpareparts = spareparts.filter((sp) =>
     sp.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const filteredServicePricelists = servicePricelists.filter((sp) =>
     sp.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  
-  const selectedSpareparts = spareparts.filter((s) => selectedSparepartIds.includes(s.id));
-  const selectedPricelists = servicePricelists.filter((p) => selectedPricelistIds.includes(p.id));
-  const hasSelectedItems = itemType === "sparepart" ? selectedSparepartIds.length > 0 : selectedPricelistIds.length > 0;
-  
-  // Calculate total price for selected items
-  const selectedItemsTotal = itemType === "sparepart"
-    ? selectedSpareparts.reduce((sum, sp) => sum + sp.defaultPrice, 0)
-    : selectedPricelists.reduce((sum, sp) => sum + sp.defaultPrice, 0);
-  const totalWithQuantity = selectedItemsTotal * (parseInt(itemQty, 10) || 1);
-  const itemName = isManualItem ? manualName.trim() : itemType === "sparepart" ? selectedSpareparts[0]?.name ?? "" : selectedPricelists[0]?.title ?? "";
-  const itemPrice = isManualItem ? manualPrice : "";
-  const canSubmit = isManualItem
-    ? itemName.length > 0 && !!itemPrice && parseInt(itemPrice, 10) >= 0
-    : itemType === "sparepart"
-      ? selectedSparepartIds.length > 0
-      : selectedPricelistIds.length > 0;
+
+  const sparepartsTotal = spareparts
+    .filter((sp) => (sparepartQtys[sp.id] ?? 0) > 0)
+    .reduce((sum, sp) => sum + sp.defaultPrice * (sparepartQtys[sp.id] ?? 0), 0);
+  const servicesTotal = servicePricelists
+    .filter((sp) => (serviceQtys[sp.id] ?? 0) > 0)
+    .reduce((sum, sp) => sum + sp.defaultPrice * (serviceQtys[sp.id] ?? 0), 0);
+  const manualTotal = isManualFilled
+    ? parseInt(manualPrice, 10) * (parseInt(manualQty, 10) || 1)
+    : 0;
+  const totalWithQuantity = (itemType === "sparepart" ? sparepartsTotal : servicesTotal) + manualTotal;
+  const canSubmit = isManualFilled || hasItemsSelected;
+
+  const handleMobileScan = useCallback((value: string) => {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return;
+
+    const match = spareparts.find(
+      (sp) => sp.barcode.toLowerCase() === trimmedValue.toLowerCase() || sp.id === trimmedValue
+    );
+    if (match) {
+      setSparepartQtys({ [match.id]: 1 });
+      toast.success(`Sparepart "${match.name}" terpilih`);
+    } else {
+      toast.error(`Sparepart dengan kode "${trimmedValue}" tidak ditemukan di daftar kompatibel`);
+    }
+  }, [spareparts]);
+
+  const { manualItemsEnabled } = useDashboardScope();
+  const scanner = useScannerPairing({ tokoId, onScan: handleMobileScan });
 
   function resetForm() {
-    setItemType(defaultItemType);
-    setSelectedSparepartIds([]);
-    setSelectedPricelistIds([]);
+    setItemType("sparepart");
+    setSparepartQtys({});
+    setServiceQtys({});
     setManualName("");
     setManualPrice("");
-    setItemQty("1");
+    setManualQty("1");
     setSearchQuery("");
+    scanner.setIsOpen(false);
   }
 
   function handleOpenChange(value: boolean) {
@@ -110,88 +130,77 @@ export function AddRepairItemForm({
     onOpenChange(value);
   }
 
-  function handleSparepartSelect(sparepartId: string) {
-    setSelectedSparepartIds((prev) => {
-      if (prev.includes(sparepartId)) {
-        return prev.filter((id) => id !== sparepartId);
-      } else {
-        return [...prev, sparepartId];
+  function incrementQty(
+    id: string,
+    setter: typeof setSparepartQtys
+  ) {
+    setter((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  }
+
+  function decrementQty(
+    id: string,
+    setter: typeof setSparepartQtys
+  ) {
+    setter((prev) => {
+      const current = prev[id] ?? 0;
+      if (current <= 1) {
+        const rest = { ...prev };
+        delete rest[id];
+        return rest;
       }
+      return { ...prev, [id]: current - 1 };
     });
   }
 
-  function handlePricelistSelect(pricelistId: string) {
-    setSelectedPricelistIds((prev) => {
-      if (prev.includes(pricelistId)) {
-        return prev.filter((id) => id !== pricelistId);
-      } else {
-        return [...prev, pricelistId];
-      }
-    });
-  }
-
-  function handleRemoveSparepart(sparepartId: string) {
-    setSelectedSparepartIds((prev) => prev.filter((id) => id !== sparepartId));
-  }
-
-  function handleRemovePricelist(pricelistId: string) {
-    setSelectedPricelistIds((prev) => prev.filter((id) => id !== pricelistId));
-  }
-
-  async function handleAddItem() {
-    // Validate that an item is selected
-    if (isManualItem && !itemName) {
-      onError("Silakan masukkan nama item");
-      return;
-    }
-    if (isManualItem && (!itemPrice || parseInt(itemPrice, 10) < 0)) {
-      onError("Silakan masukkan harga yang valid");
-      return;
-    }
-    if (itemType === "sparepart" && selectedSparepartIds.length === 0) {
-      onError("Silakan pilih minimal satu sparepart dari daftar");
-      return;
-    }
-    if (itemType === "service" && selectedPricelistIds.length === 0) {
-      onError("Silakan pilih minimal satu jasa dari daftar");
-      return;
-    }
-    if (!itemQty || parseInt(itemQty, 10) < 1) {
-      onError("Silakan masukkan kuantitas yang valid");
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canSubmit) {
+      onError("Isi nama dan harga manual atau pilih dari daftar");
       return;
     }
 
     handleOpenChange(false);
 
-    // Add multiple items
-    const itemsToAdd = itemType === "sparepart" 
-      ? selectedSpareparts 
-      : itemType === "service"
-        ? selectedPricelists
-        : [{ id: "", name: itemName, defaultPrice: parseInt(itemPrice, 10) }];
+    const manualItems = isManualFilled
+      ? [{ id: "", name: manualName.trim(), defaultPrice: parseInt(manualPrice, 10), qty: parseInt(manualQty, 10) || 1 }]
+      : [];
+
+    const selectedItems = itemType === "sparepart"
+      ? spareparts
+          .filter((sp) => (sparepartQtys[sp.id] ?? 0) > 0)
+          .map((sp) => ({ ...sp, qty: sparepartQtys[sp.id] }))
+      : servicePricelists
+          .filter((sp) => (serviceQtys[sp.id] ?? 0) > 0)
+          .map((sp) => ({ ...sp, qty: serviceQtys[sp.id] }));
+
+    const itemsToAdd = [...manualItems, ...selectedItems];
 
     try {
       for (const item of itemsToAdd) {
-        const itemNameToUse = isManualItem ? itemName : "name" in item ? item.name : (item as { title: string }).title;
-        const itemPriceToUse = isManualItem ? parseInt(itemPrice, 10) : item.defaultPrice;
+        const isManual = "id" in item && item.id === "";
+        const itemNameToUse = isManual
+          ? manualName.trim()
+          : "name" in item
+            ? item.name
+            : (item as typeof item & { title: string }).title;
+        const itemPriceToUse = isManual ? parseInt(manualPrice, 10) : item.defaultPrice;
 
-        // Build the optimistic item and notify the parent immediately
         const newItem = {
           id: `temp-${crypto.randomUUID()}`,
-          type: submittedItemType,
+          type: itemType,
           name: itemNameToUse || "",
-          qty: parseInt(itemQty, 10),
+          qty: item.qty,
           price: itemPriceToUse,
         };
         onAddItem?.(newItem);
 
         const result = await addItem({
           serviceId,
-          type: submittedItemType,
-          sparepartId: itemType === "sparepart" ? item.id : undefined,
-          servicePricelistId: itemType === "service" ? item.id : undefined,
+          type: itemType,
+          sparepartId: itemType === "sparepart" && !isManual ? item.id : undefined,
+          servicePricelistId: itemType === "service" && !isManual ? item.id : undefined,
           name: itemNameToUse || "",
-          qty: parseInt(itemQty, 10),
+          qty: item.qty,
           price: itemPriceToUse,
         });
 
@@ -210,488 +219,405 @@ export function AddRepairItemForm({
     }
   }
 
+  function QtyStepper({ qty, onIncrement, onDecrement }: { qty: number; onIncrement: () => void; onDecrement: () => void }) {
+    return (
+      <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+        <Button type="button" variant="outline" size="icon" className="size-6" onClick={onDecrement}>
+          <RiSubtractLine className="size-3" />
+        </Button>
+        <span className="flex w-6 items-center justify-center text-xs font-medium tabular-nums">
+          {qty}
+        </span>
+        <Button type="button" variant="outline" size="icon" className="size-6" onClick={onIncrement}>
+          <RiAddLine className="size-3" />
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Tambah Item Perbaikan</DialogTitle>
-          <DialogDescription className="text-base">
-            Tambahkan sparepart atau jasa ke tugas perbaikan ini
-          </DialogDescription>
-        </DialogHeader>
+        <DialogContent className="min-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <RiBox3Line className="size-4" />
+              </span>
+              Tambah Item Perbaikan
+            </DialogTitle>
+            <DialogDescription>
+              Tambahkan sparepart atau jasa ke tugas perbaikan ini
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Item Type Toggle */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Jenis Item</Label>
-            <div className="grid grid-cols-4 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (manualItemsEnabled) {
-                    setItemType("manual-sparepart");
-                    setSelectedSparepartIds([]);
-                    setSelectedPricelistIds([]);
-                    setSearchQuery("");
-                  }
-                }}
-                disabled={!manualItemsEnabled}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 px-3 py-2 rounded-md border text-sm font-medium transition-all",
-                  !manualItemsEnabled
-                    ? "border-muted bg-muted/30 text-muted-foreground cursor-not-allowed opacity-50"
-                    : itemType === "manual-sparepart"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
-                )}
-              >
-                Sparepart Manual
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (manualItemsEnabled) {
-                    setItemType("manual-service");
-                    setSelectedSparepartIds([]);
-                    setSelectedPricelistIds([]);
-                    setSearchQuery("");
-                  }
-                }}
-                disabled={!manualItemsEnabled}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 px-3 py-2 rounded-md border text-sm font-medium transition-all",
-                  !manualItemsEnabled
-                    ? "border-muted bg-muted/30 text-muted-foreground cursor-not-allowed opacity-50"
-                    : itemType === "manual-service"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
-                )}
-              >
-                Jasa Manual
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (inventoryEnabled) {
-                    setItemType("sparepart");
-                    setSelectedSparepartIds([]);
-                    setSelectedPricelistIds([]);
-                    setSearchQuery("");
-                  }
-                }}
-                disabled={!inventoryEnabled}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 px-3 py-2 rounded-md border text-sm font-medium transition-all",
-                  !inventoryEnabled
-                    ? "border-muted bg-muted/30 text-muted-foreground cursor-not-allowed opacity-50"
-                    : itemType === "sparepart"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
-                )}
-              >
-                Sparepart Inventaris
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (inventoryEnabled) {
-                    setItemType("service");
-                    setSelectedSparepartIds([]);
-                    setSelectedPricelistIds([]);
-                    setSearchQuery("");
-                  }
-                }}
-                disabled={!inventoryEnabled}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 px-3 py-2 rounded-md border text-sm font-medium transition-all",
-                  !inventoryEnabled
-                    ? "border-muted bg-muted/30 text-muted-foreground cursor-not-allowed opacity-50"
-                    : itemType === "service"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-muted bg-transparent text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
-                )}
-              >
-                Jasa Daftar Harga
-              </button>
-            </div>
-          </div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-1">
+                <div className="h-5 w-1 rounded-full bg-primary" />
+                <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                  <RiToolsLine className="size-4" />
+                  Pilih Item
+                </span>
+              </div>
 
-          {isManualItem && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="manual-item-name" className="text-sm font-medium">Nama Item</Label>
-                <Input
-                  id="manual-item-name"
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  placeholder={itemType === "manual-sparepart" ? "Contoh: LCD iPhone 11" : "Contoh: Jasa bongkar pasang"}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="manual-item-price" className="text-sm font-medium">Harga</Label>
-                <Input
-                  id="manual-item-price"
-                  type="number"
-                  value={manualPrice}
-                  onChange={(e) => setManualPrice(e.target.value)}
-                  min="0"
-                  placeholder="0"
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Item Selection - Card Grid */}
-          {!isManualItem && <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Label className="text-sm font-medium">
-                  {itemType === "sparepart" ? "Pilih Sparepart" : "Pilih Jasa"}
-                </Label>
-                <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                  Wajib
-                </Badge>
-              </div>
-              {itemType === "sparepart" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSparepartFormOpen(true)}
-                  className="h-7 text-xs"
+              <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
+                <Tabs
+                  value={itemType}
+                  onValueChange={(value) => {
+                    setItemType(value as typeof itemType);
+                    setSearchQuery("");
+                  }}
                 >
-                  <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Sparepart Baru
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPricelistFormOpen(true)}
-                  className="h-7 text-xs"
-                >
-                  <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Jasa Baru
-                </Button>
-              )}
-            </div>
-            
-            {/* Search Input */}
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <Input
-                type="text"
-                placeholder={itemType === "sparepart" ? "Cari sparepart..." : "Cari jasa..."}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-sm"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
+                  <TabsList variant="line" className="w-full">
+                    <TabsTrigger value="sparepart" className="flex-1">Sparepart</TabsTrigger>
+                    <TabsTrigger value="service" className="flex-1">Jasa</TabsTrigger>
+                  </TabsList>
 
-            {/* Selected Items Display */}
-            {itemType === "sparepart" && selectedSpareparts.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium text-muted-foreground">
-                    Dipilih ({selectedSpareparts.length})
-                  </Label>
-                  <span className="text-xs font-semibold text-foreground">
-                    Subtotal: {formatCurrency(selectedItemsTotal)}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedSpareparts.map((sp) => (
-                    <div
-                      key={sp.id}
-                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 border border-primary/20 text-xs"
-                    >
-                      <span className="font-medium text-primary">{sp.name}</span>
-                      <span className="text-xs text-primary/70">{formatCurrency(sp.defaultPrice)}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSparepart(sp.id)}
-                        className="ml-0.5 text-primary/70 hover:text-primary"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {itemType === "service" && selectedPricelists.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium text-muted-foreground">
-                    Dipilih ({selectedPricelists.length})
-                  </Label>
-                  <span className="text-xs font-semibold text-foreground">
-                    Subtotal: {formatCurrency(selectedItemsTotal)}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedPricelists.map((sp) => (
-                    <div
-                      key={sp.id}
-                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 border border-primary/20 text-xs"
-                    >
-                      <span className="font-medium text-primary">{sp.title}</span>
-                      <span className="text-xs text-primary/70">{formatCurrency(sp.defaultPrice)}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePricelist(sp.id)}
-                        className="ml-0.5 text-primary/70 hover:text-primary"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {itemType === "sparepart" && (
-              filteredSpareparts.length === 0 ? (
-                <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                    {searchQuery ? "Tidak ditemukan sparepart sesuai pencarian" : "Tidak ada sparepart tersedia di inventaris"}
-                </div>
-              ) : (
-                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                  {filteredSpareparts.map((sp) => (
-                    <button
-                      key={sp.id}
-                      type="button"
-                      onClick={() => sp.stock > 0 && handleSparepartSelect(sp.id)}
-                      disabled={sp.stock <= 0}
-                      className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-md border text-left transition-all",
-                        sp.stock <= 0
-                          ? "border-muted bg-muted/30 opacity-50 cursor-not-allowed"
-                          : selectedSparepartIds.includes(sp.id)
-                            ? "border-primary bg-primary/10"
-                            : "border-muted bg-background hover:border-muted-foreground/50 hover:bg-muted/30"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {/* Selection indicator */}
-                        <div className={cn(
-                          "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                          selectedSparepartIds.includes(sp.id)
-                            ? "border-primary bg-primary"
-                            : "border-muted-foreground/30"
-                        )}>
-                          {selectedSparepartIds.includes(sp.id) && (
-                            <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
+                  <TabsContent value="sparepart" className="mt-4 flex flex-col gap-3">
+                    {manualItemsEnabled && (
+                      <>
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1 min-w-0 flex flex-col gap-2">
+                            <Label htmlFor="manual-item-name" className="text-sm">Nama Item</Label>
+                            <Input
+                              id="manual-item-name"
+                              value={manualName}
+                              onChange={(e) => setManualName(e.target.value)}
+                              placeholder="Contoh: LCD iPhone 11"
+                            />
+                          </div>
+                          <div className="w-28 flex flex-col gap-2">
+                            <Label htmlFor="manual-item-price" className="text-sm">Harga</Label>
+                            <Input
+                              id="manual-item-price"
+                              type="number"
+                              value={manualPrice}
+                              onChange={(e) => setManualPrice(e.target.value)}
+                              min="0"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="w-20 flex flex-col gap-2">
+                            <Label htmlFor="manual-item-qty" className="text-sm">Qty</Label>
+                            <Input
+                              id="manual-item-qty"
+                              type="number"
+                              value={manualQty}
+                              onChange={(e) => setManualQty(e.target.value)}
+                              min="1"
+                              className="text-center"
+                            />
+                          </div>
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <span className={cn(
-                            "text-sm font-medium block truncate",
-                            sp.stock <= 0
-                              ? "text-muted-foreground"
-                              : selectedSparepartIds.includes(sp.id)
-                                ? "text-primary"
-                                : "text-foreground"
-                          )}>
-                            {sp.name}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">atau pilih dari inventaris</span>
+                          <div className="h-px flex-1 bg-border" />
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={cn(
-                          "text-xs font-semibold",
-                          selectedSparepartIds.includes(sp.id) ? "text-primary" : "text-muted-foreground"
-                        )}>
-                          {formatCurrency(sp.defaultPrice)}
-                        </span>
-                        <span className={cn(
-                          "text-xs px-1.5 py-0.5 rounded font-medium",
-                          sp.stock > 0
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                        )}>
-                          {sp.stock <= 0 ? "Habis" : `Stok: ${sp.stock}`}
+                      </>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm">Pilih Sparepart</Label>
+                        <span className="text-xs text-muted-foreground">
+                          Kompatibel dengan {deviceName}
                         </span>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              )
-            )}
-
-            {itemType === "service" && (
-              filteredServicePricelists.length === 0 ? (
-                <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 text-sm text-muted-foreground">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                    {searchQuery ? "Tidak ditemukan jasa sesuai pencarian" : "Tidak ada jasa tersedia"}
-                </div>
-              ) : (
-                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                  {filteredServicePricelists.map((sp) => (
-                    <button
-                      key={sp.id}
-                      type="button"
-                      onClick={() => handlePricelistSelect(sp.id)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-md border text-left transition-all",
-                        selectedPricelistIds.includes(sp.id)
-                          ? "border-primary bg-primary/10"
-                          : "border-muted bg-background hover:border-muted-foreground/50 hover:bg-muted/30"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {/* Selection indicator */}
-                        <div className={cn(
-                          "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                          selectedPricelistIds.includes(sp.id)
-                            ? "border-primary bg-primary"
-                            : "border-muted-foreground/30"
-                        )}>
-                          {selectedPricelistIds.includes(sp.id) && (
-                            <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <span className={cn(
-                            "text-sm font-medium block truncate",
-                            selectedPricelistIds.includes(sp.id) ? "text-primary" : "text-foreground"
-                          )}>
-                            {sp.title}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <ScannerToggleButton
+                          isOpen={scanner.isOpen}
+                          onToggle={() => scanner.setIsOpen((open) => !open)}
+                          state={scanner.state}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSparepartFormOpen(true)}
+                        >
+                          <RiAddLine className="size-3.5" />
+                          Sparepart Baru
+                        </Button>
                       </div>
-                      
-                      <span className={cn(
-                        "text-xs font-semibold flex-shrink-0",
-                        selectedPricelistIds.includes(sp.id) ? "text-primary" : "text-muted-foreground"
-                      )}>
-                        {formatCurrency(sp.defaultPrice)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )
-            )}
-          </div>}
+                    </div>
 
-          {/* Quantity */}
-          <div className="space-y-2">
-            <Label htmlFor="quantity" className="text-sm font-medium">Kuantitas per Item</Label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const current = parseInt(itemQty, 10) || 1;
-                  if (current > 1) {
-                    setItemQty(String(current - 1));
-                  }
-                }}
-                className="w-9 h-9 flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                </svg>
-              </button>
-              <Input
-                id="quantity"
-                type="number"
-                value={itemQty}
-                onChange={(e) => setItemQty(e.target.value)}
-                min="1"
-                className="w-20 text-center h-9 text-sm font-medium"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const current = parseInt(itemQty, 10) || 0;
-                  setItemQty(String(current + 1));
-                }}
-                className="w-9 h-9 flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-              {((isManualItem && itemPrice) || (!isManualItem && hasSelectedItems)) && (
-                <div className="ml-auto text-sm text-muted-foreground">
-                  Total: <span className="font-semibold text-foreground">
-                    {formatCurrency(isManualItem ? (parseInt(itemPrice, 10) || 0) * (parseInt(itemQty, 10) || 1) : totalWithQuantity)}
+                    <div className="relative">
+                      <RiSearchLine className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Cari sparepart..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <RiCloseLine className="size-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {scanner.isOpen && scanner.state !== "connected" && (
+                      <ScannerPairingPanel host={scanner} onClose={() => scanner.setIsOpen(false)} />
+                    )}
+
+                    {filteredSpareparts.length === 0 ? (
+                      <div className="flex items-center gap-2 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                        <RiInboxLine className="size-4 shrink-0" />
+                        {searchQuery ? "Tidak ditemukan sparepart sesuai pencarian" : "Tidak ada sparepart tersedia di inventaris"}
+                      </div>
+                    ) : (
+                      <ScrollArea className="h-[300px]">
+                        <div className="space-y-1.5 pr-1">
+                          {filteredSpareparts.map((sp) => {
+                            const qty = sparepartQtys[sp.id] ?? 0;
+                            return (
+                              <div
+                                key={sp.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => sp.stock > 0 && incrementQty(sp.id, setSparepartQtys)}
+                                onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && sp.stock > 0) incrementQty(sp.id, setSparepartQtys); }}
+                                className={cn(
+                                  "flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 transition-all",
+                                  qty > 0
+                                    ? "border-primary bg-primary/10"
+                                    : "border-muted bg-background hover:border-muted-foreground/50 hover:bg-muted/30"
+                                )}
+                              >
+                                <div className="flex min-w-0 flex-1 items-center gap-2 pr-2">
+                                  <div className={cn(
+                                    "flex size-4 shrink-0 items-center justify-center rounded-full border-2",
+                                    qty > 0
+                                      ? "border-primary bg-primary"
+                                      : "border-muted-foreground/30"
+                                  )}>
+                                    {qty > 0 && (
+                                      <RiCheckLine className="size-2.5 text-primary-foreground" />
+                                    )}
+                                  </div>
+                                  <span className={cn(
+                                    "block truncate text-sm font-medium",
+                                    qty > 0 ? "text-primary" : "text-foreground"
+                                  )}>
+                                    {sp.name}
+                                  </span>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-3">
+                                  <span className={cn(
+                                    "text-xs font-semibold",
+                                    qty > 0 ? "text-primary" : "text-muted-foreground"
+                                  )}>
+                                    {formatCurrency(sp.defaultPrice)}
+                                  </span>
+                                  <span className={cn(
+                                    "rounded px-1.5 py-0.5 text-xs font-medium",
+                                    sp.stock > 0
+                                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                      : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                  )}>
+                                    {sp.stock <= 0 ? "Habis" : `Stok: ${sp.stock}`}
+                                  </span>
+                                  <QtyStepper
+                                    qty={qty}
+                                    onIncrement={() => incrementQty(sp.id, setSparepartQtys)}
+                                    onDecrement={() => decrementQty(sp.id, setSparepartQtys)}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="service" className="mt-4 flex flex-col gap-3">
+                    {manualItemsEnabled && (
+                      <>
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1 min-w-0 flex flex-col gap-2">
+                            <Label htmlFor="manual-item-name" className="text-sm">Nama Item</Label>
+                            <Input
+                              id="manual-item-name"
+                              value={manualName}
+                              onChange={(e) => setManualName(e.target.value)}
+                              placeholder="Contoh: Jasa bongkar pasang"
+                            />
+                          </div>
+                          <div className="w-28 flex flex-col gap-2">
+                            <Label htmlFor="manual-item-price" className="text-sm">Harga</Label>
+                            <Input
+                              id="manual-item-price"
+                              type="number"
+                              value={manualPrice}
+                              onChange={(e) => setManualPrice(e.target.value)}
+                              min="0"
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="w-20 flex flex-col gap-2">
+                            <Label htmlFor="manual-item-qty" className="text-sm">Qty</Label>
+                            <Input
+                              id="manual-item-qty"
+                              type="number"
+                              value={manualQty}
+                              onChange={(e) => setManualQty(e.target.value)}
+                              min="1"
+                              className="text-center"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">atau pilih dari daftar</span>
+                          <div className="h-px flex-1 bg-border" />
+                        </div>
+                      </>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-sm">Pilih Jasa</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPricelistFormOpen(true)}
+                      >
+                        <RiAddLine className="size-3.5" />
+                        Jasa Baru
+                      </Button>
+                    </div>
+
+                    <div className="relative">
+                      <RiSearchLine className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Cari jasa..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <RiCloseLine className="size-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {filteredServicePricelists.length === 0 ? (
+                      <div className="flex items-center gap-2 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                        <RiInboxLine className="size-4 shrink-0" />
+                        {searchQuery ? "Tidak ditemukan jasa sesuai pencarian" : "Tidak ada jasa tersedia"}
+                      </div>
+                    ) : (
+                      <ScrollArea className="h-[300px]">
+                        <div className="space-y-1.5 pr-1">
+                          {filteredServicePricelists.map((sp) => {
+                            const qty = serviceQtys[sp.id] ?? 0;
+                            return (
+                              <div
+                                key={sp.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => incrementQty(sp.id, setServiceQtys)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") incrementQty(sp.id, setServiceQtys); }}
+                                className={cn(
+                                  "flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 transition-all",
+                                  qty > 0
+                                    ? "border-primary bg-primary/10"
+                                    : "border-muted bg-background hover:border-muted-foreground/50 hover:bg-muted/30"
+                                )}
+                              >
+                                <div className="flex min-w-0 flex-1 items-center gap-2 pr-2">
+                                  <div className={cn(
+                                    "flex size-4 shrink-0 items-center justify-center rounded-full border-2",
+                                    qty > 0
+                                      ? "border-primary bg-primary"
+                                      : "border-muted-foreground/30"
+                                  )}>
+                                    {qty > 0 && (
+                                      <RiCheckLine className="size-2.5 text-primary-foreground" />
+                                    )}
+                                  </div>
+                                  <span className={cn(
+                                    "block truncate text-sm font-medium",
+                                    qty > 0 ? "text-primary" : "text-foreground"
+                                  )}>
+                                    {sp.title}
+                                  </span>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-3">
+                                  <span className={cn(
+                                    "text-xs font-semibold",
+                                    qty > 0 ? "text-primary" : "text-muted-foreground"
+                                  )}>
+                                    {formatCurrency(sp.defaultPrice)}
+                                  </span>
+                                  <QtyStepper
+                                    qty={qty}
+                                    onIncrement={() => incrementQty(sp.id, setServiceQtys)}
+                                    onDecrement={() => decrementQty(sp.id, setServiceQtys)}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t pt-2">
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                Batal
+              </Button>
+              {(isManualFilled || hasItemsSelected) && (
+                <div className="mr-auto flex items-center text-sm text-muted-foreground">
+                  Total: <span className="ml-1 font-semibold text-foreground">
+                    {formatCurrency(totalWithQuantity)}
                   </span>
                 </div>
               )}
+              <Button type="submit" disabled={!canSubmit}>
+                <RiAddLine className="size-4" />
+                Tambah Item
+              </Button>
             </div>
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2 sm:gap-0 pt-1">
-          <Button variant="outline" onClick={() => handleOpenChange(false)} className="h-9 px-4 text-sm">
-            Batal
-          </Button>
-          <Button onClick={handleAddItem} disabled={!canSubmit} className="h-9 px-4 text-sm">
-            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Tambah {!isManualItem && hasSelectedItems ? `${itemType === "sparepart" ? selectedSparepartIds.length : selectedPricelistIds.length} Item` : "Item"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    <SparepartFormDialog
-      open={sparepartFormOpen}
-      onOpenChange={setSparepartFormOpen}
-      tokoId={tokoId}
-      onSuccess={() => {
-        setSparepartFormOpen(false);
-        onSparepartCreated?.();
-      }}
-    />
-    <ServicePricelistFormDialog
-      open={pricelistFormOpen}
-      onOpenChange={setPricelistFormOpen}
-      tokoId={tokoId}
-      onSuccess={() => {
-        setPricelistFormOpen(false);
-        onPricelistCreated?.();
-      }}
-    />
+          </form>
+        </DialogContent>
+      </Dialog>
+      <SparepartFormDialog
+        open={sparepartFormOpen}
+        onOpenChange={setSparepartFormOpen}
+        tokoId={tokoId}
+        onSuccess={() => {
+          setSparepartFormOpen(false);
+          onSparepartCreated?.();
+        }}
+      />
+      <ServicePricelistFormDialog
+        open={pricelistFormOpen}
+        onOpenChange={setPricelistFormOpen}
+        tokoId={tokoId}
+        onSuccess={() => {
+          setPricelistFormOpen(false);
+          onPricelistCreated?.();
+        }}
+      />
     </>
   );
 }

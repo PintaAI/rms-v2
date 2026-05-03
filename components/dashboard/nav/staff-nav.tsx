@@ -9,18 +9,20 @@ import { RiArchiveLine, RiDashboardLine, RiToolsLine, RiInboxLine, RiProgress1Li
 import { NavItem, NavFilterGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
 import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
+import type { CapabilityAccessMap } from "@/lib/auth/request-scope";
 
 interface StaffNavProps {
   tokoid: string;
   featureAccess: FeatureAccessMap;
+  capabilities: CapabilityAccessMap;
   disabledFeatures: FeatureKey[];
   serviceStats?: ServiceStats | null;
 }
 
-export function StaffNav({ tokoid, featureAccess, disabledFeatures, serviceStats }: StaffNavProps) {
+export function StaffNav({ tokoid, featureAccess, capabilities, disabledFeatures, serviceStats }: StaffNavProps) {
   const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
   const workflowEnabled = featureAccess["staff.workflow"] ?? false;
-  const serviceEnabled = featureAccess["service.management"] ?? false;
+  const serviceEnabled = capabilities["service.management"] ?? false;
   const inventoryEnabled = featureAccess["inventory.management"] ?? false;
 
   const serviceItems = [
@@ -60,19 +62,21 @@ export function StaffNav({ tokoid, featureAccess, disabledFeatures, serviceStats
     },
   ];
 
+  if (isFeatureDisabled("staff.workflow")) {
+    return null;
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupContent>
         <SidebarMenu>
-          {!isFeatureDisabled("staff.workflow") && (
-            <NavItem
-              href={`/${tokoid}/staff`}
-              icon={<RiDashboardLine />}
-              label="Staff Overview"
-              isLocked={!workflowEnabled}
-            />
-          )}
-          {serviceEnabled && (
+          <NavItem
+            href={`/${tokoid}/staff`}
+            icon={<RiDashboardLine />}
+            label="Staff Overview"
+            isLocked={!workflowEnabled}
+          />
+          {workflowEnabled && serviceEnabled && (
             <NavFilterGroup
               title="Service"
               icon={<RiToolsLine />}
@@ -80,7 +84,7 @@ export function StaffNav({ tokoid, featureAccess, disabledFeatures, serviceStats
               items={serviceItems}
             />
           )}
-          {!isFeatureDisabled("inventory.management") && (
+          {workflowEnabled && !isFeatureDisabled("inventory.management") && (
             <NavItem
               href={`/${tokoid}/staff/inventory`}
               icon={<RiArchiveLine />}

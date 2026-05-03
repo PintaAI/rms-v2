@@ -137,10 +137,10 @@ model TokoFeatureSetting {
 model TokoWhatsappSetting {
   tokoId String @id
 
-  instanceName    String  @unique
-  enabled         Boolean @default(true)
-  connectionState String?
-  connectedNumber String?
+  instanceName         String  @unique
+  enabled              Boolean @default(true)
+  connectedNumber      String?
+  connectedProfileName String?
 
   notifyDone   Boolean @default(true)
   notifyFailed Boolean @default(true)
@@ -148,9 +148,8 @@ model TokoWhatsappSetting {
   doneMessageTemplate   String?
   failedMessageTemplate String?
 
-  lastConnectedAt DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
 

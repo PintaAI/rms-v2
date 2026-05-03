@@ -38,7 +38,6 @@ const optionalFeatureKeys: FeatureKey[] = [
   "karyawan.management",
   "staff.workflow",
   "technician.workflow",
-  "service.invoice",
   "activityLog.view",
   "analytics.revenue",
   "inventory.audit",
@@ -103,10 +102,6 @@ export function getOnboardingPlanRecommendation(
     neededFeatures.add("activityLog.view");
     neededFeatures.add("analytics.revenue");
     requirePlan("premium", "Statistik dan pantauan proses membutuhkan fitur analytics dan activity log Premium.");
-  }
-
-  if (answers.needsInvoices) {
-    neededFeatures.add("service.invoice");
   }
 
   if (reasons.length === 0) {

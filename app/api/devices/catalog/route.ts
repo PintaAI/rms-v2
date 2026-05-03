@@ -1,9 +1,9 @@
 import { getDeviceCatalog } from "@/actions/device";
-import { getAuthUser } from "@/lib/rbac";
+import { getRequestUser } from "@/lib/auth/request-user";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

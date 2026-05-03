@@ -1,7 +1,8 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { requireSuperuser, type ActionResultWithData } from "@/lib/rbac";
+import { requireRequestUser } from "@/lib/auth/request-user";
+import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { revalidatePath } from "next/cache";
 import type { SubscriptionPlan } from "@/lib/features";
 
@@ -63,7 +64,10 @@ export interface SuperuserDashboardData {
 }
 
 export async function getSuperuserDashboard(): Promise<ActionResultWithData<SuperuserDashboardData>> {
-  await requireSuperuser();
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
 
   const now = new Date();
   const monthlyStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -249,7 +253,10 @@ export async function updateUserSubscription(
   userId: string,
   plan: SubscriptionPlan
 ): Promise<ActionResultWithData<{ userId: string; plan: SubscriptionPlan }>> {
-  await requireSuperuser();
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
 
   if (!["free", "premium", "enterprise"].includes(plan)) {
     return { success: false, error: "Invalid plan" };
@@ -275,7 +282,10 @@ export async function updateUserRole(
   userId: string,
   role: "admin" | "staff" | "technician" | "superuser"
 ): Promise<ActionResultWithData<{ userId: string; role: string }>> {
-  await requireSuperuser();
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
 
   if (!["admin", "staff", "technician", "superuser"].includes(role)) {
     return { success: false, error: "Invalid role" };

@@ -3,12 +3,12 @@
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/activity-log";
-import { ensureFeatureAccess, ensureMonthlyActivityLimit } from "@/lib/feature-enforcement";
-import { canUseFeature } from "@/lib/features";
+import { ensureFeatureAccess, ensureMonthlyActivityLimit } from "@/lib/auth/enforcement";
 import { revalidateServicePaths } from "@/lib/revalidation";
 import { sendServiceStatusWhatsappNotification } from "@/lib/service-whatsapp-notifications";
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
-import { getEffectivePlanForToko, type AuthUser } from "@/lib/rbac";
+import { getEffectivePlanForToko } from "@/lib/auth/plan";
+import type { AuthUser } from "@/lib/auth/request-user";
 import { getDisabledFeaturesForToko } from "./feature-settings";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 import {
@@ -57,14 +57,7 @@ async function getTokoScopedUser(user: AuthUser, tokoId: string): Promise<AuthUs
   return { ...user, plan: await getEffectivePlanForToko(user, tokoId) };
 }
 
-async function updateInvoiceIfAllowed(user: AuthUser, serviceId: string, tokoId: string): Promise<void> {
-  const scopedUser = await getTokoScopedUser(user, tokoId);
-  const disabledFeatures = await getDisabledFeaturesForToko(tokoId);
-
-  if (!canUseFeature({ plan: scopedUser.plan, role: scopedUser.role, feature: "service.invoice", disabledFeatures })) {
-    return;
-  }
-
+async function updateInvoiceIfAllowed(scopedUser: AuthUser, serviceId: string, tokoId: string): Promise<void> {
   const limitError = await ensureMonthlyActivityLimit(scopedUser, "maxInvoicesMonthly", "invoice_created", tokoId);
   if (limitError) {
     throw new Error(limitError.error);
@@ -97,7 +90,9 @@ export async function createService(
       return { success: false, error: "Access denied" };
     }
 
-    const limitError = await ensureMonthlyActivityLimit(user, "maxServicesMonthly", "service_created", targetTokoId);
+    const scopedUser = await getTokoScopedUser(user, targetTokoId);
+
+    const limitError = await ensureMonthlyActivityLimit(scopedUser, "maxServicesMonthly", "service_created", targetTokoId);
     if (limitError) return limitError;
 
     const validated = createServiceSchema.parse(data);
@@ -487,6 +482,7 @@ export async function updateStatus(
     });
 
     if (isCompletingStatus(status)) {
+      await updateInvoiceTotal(serviceId);
       await sendServiceStatusWhatsappNotification({ serviceId, status });
     }
 
@@ -814,7 +810,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
       });
     }
 
-    await updateInvoiceIfAllowed(user, validated.serviceId, service.tokoId);
+    await updateInvoiceIfAllowed(scopedUser, validated.serviceId, service.tokoId);
 
     revalidateServicePaths(service.tokoId);
 
@@ -867,6 +863,8 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
       return { success: false, error: "Cannot update items on a paid invoice" };
     }
 
+    const scopedUser = await getTokoScopedUser(user, item.service.tokoId);
+
     if (item.type === "sparepart" && item.referenceId) {
       await prisma.$transaction(async (tx) => {
         await tx.serviceItem.delete({ where: { id: itemId } });
@@ -891,7 +889,7 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
       await prisma.serviceItem.delete({ where: { id: itemId } });
     }
 
-    await updateInvoiceIfAllowed(user, item.serviceId, item.service.tokoId);
+    await updateInvoiceIfAllowed(scopedUser, item.serviceId, item.service.tokoId);
 
     revalidateServicePaths(item.service.tokoId);
 
@@ -920,9 +918,6 @@ export async function payInvoice(invoiceId: string, data: z.infer<typeof payInvo
     if (!invoice) return { success: false, error: "Invoice not found" };
     if (!hasTokoAccess(tokoIds, invoice.service.tokoId)) return { success: false, error: "Access denied" };
     const scopedUser = await getTokoScopedUser(user, invoice.service.tokoId);
-    const disabledFeatures = await getDisabledFeaturesForToko(invoice.service.tokoId);
-    const invoiceError = ensureFeatureAccess(scopedUser, "service.invoice", disabledFeatures);
-    if (invoiceError) return invoiceError;
     if (invoice.paymentStatus === "paid") return { success: false, error: "Invoice has already been paid" };
     if (invoice.service.status !== "done" && invoice.service.status !== "failed") {
       return { success: false, error: "Only completed services can be marked as paid" };
@@ -983,9 +978,6 @@ export async function markDpInvoice(invoiceId: string, dpAmount: number): Promis
     if (!invoice) return { success: false, error: "Invoice not found" };
     if (!hasTokoAccess(tokoIds, invoice.service.tokoId)) return { success: false, error: "Access denied" };
     const scopedUser = await getTokoScopedUser(user, invoice.service.tokoId);
-    const disabledFeatures = await getDisabledFeaturesForToko(invoice.service.tokoId);
-    const invoiceError = ensureFeatureAccess(scopedUser, "service.invoice", disabledFeatures);
-    if (invoiceError) return invoiceError;
     if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "dp") return { success: false, error: "Invoice already has DP or is paid" };
     if (dpAmount <= 0) return { success: false, error: "DP amount must be greater than zero" };
 

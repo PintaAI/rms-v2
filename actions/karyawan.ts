@@ -1,8 +1,8 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { ensureFeatureAccess, ensurePlanLimit } from "@/lib/feature-enforcement";
-import { canAccessToko, getAuthUser, isAdmin } from "@/lib/rbac";
+import { ensureFeatureAccess, ensurePlanLimit } from "@/lib/auth/enforcement";
+import { getRequestUser } from "@/lib/auth/request-user";
 import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import { createCredentialUserWithToko } from "@/lib/auth-helpers";
 import { revalidateKaryawanPaths } from "@/lib/revalidation";
@@ -128,13 +128,13 @@ export async function getKaryawanList(tokoId: string): Promise<{
   data?: KaryawanItem[];
   error?: string;
 }> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!canAccessToko(user, tokoId)) {
+  if (!user.tokoIds.includes(tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -180,9 +180,9 @@ export async function getKaryawanList(tokoId: string): Promise<{
 }
 
 export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
-  if (!user || !canAccessToko(user, tokoId)) {
+  if (!user || !user.tokoIds.includes(tokoId)) {
     return { staff: 0, technician: 0, total: 0 };
   }
 
@@ -213,17 +213,17 @@ export async function createKaryawan(
   tokoId: string,
   input: { name: string; email: string; password: string; role: "staff" | "technician" }
 ): Promise<{ success: boolean; data?: KaryawanItem; error?: string }> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!isAdmin(user)) {
+  if (user.role !== "admin") {
     return { success: false, error: "Only admins can add karyawan" };
   }
 
-  if (!canAccessToko(user, tokoId)) {
+  if (!user.tokoIds.includes(tokoId)) {
     return { success: false, error: "Access denied" };
   }
 
@@ -308,17 +308,17 @@ export async function deleteKaryawan(
   tokoId: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  if (!isAdmin(user)) {
+  if (user.role !== "admin") {
     return { success: false, error: "Only admins can delete karyawan" };
   }
 
-  if (!canAccessToko(user, tokoId)) {
+  if (!user.tokoIds.includes(tokoId)) {
     return { success: false, error: "Access denied" };
   }
 

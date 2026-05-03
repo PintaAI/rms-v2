@@ -11,56 +11,34 @@ import {
   type FeatureKey,
   type SubscriptionPlan,
 } from "@/lib/features";
-import type { ActionResult, ActionResultWithData } from "@/lib/rbac";
-import { getAuthUser } from "@/lib/rbac";
+import type { ActionResult, ActionResultWithData } from "@/lib/auth/authorization";
+import { getRequestUser } from "@/lib/auth/request-user";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
-export async function getUserTokoList() {
-  const user = await getAuthUser();
-
-  if (!user) {
-    return [];
-  }
+export async function getAuthProviderData() {
+  const user = await getRequestUser();
+  if (!user) return { user: null, tokoList: [] };
 
   const assignments = await prisma.userToko.findMany({
     where: { userId: user.id },
     include: {
       toko: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          logoUrl: true,
-          address: true,
-        },
+        select: { id: true, name: true, status: true, logoUrl: true, address: true },
       },
     },
   });
 
-  return assignments.map((a) => ({
-    id: a.toko.id,
-    name: a.toko.name,
-    status: a.toko.status,
-    role: a.role,
-    logoUrl: a.toko.logoUrl,
-    address: a.toko.address,
-  }));
-}
-
-export async function getCurrentAuthUser() {
-  const user = await getAuthUser();
-
-  if (!user) {
-    return null;
-  }
-
   return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    plan: user.plan,
+    user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan },
+    tokoList: assignments.map((a) => ({
+      id: a.toko.id,
+      name: a.toko.name,
+      status: a.toko.status,
+      role: a.role,
+      logoUrl: a.toko.logoUrl,
+      address: a.toko.address,
+    })),
   };
 }
 
@@ -90,7 +68,7 @@ export type BillingPlanSummary = {
 };
 
 export async function getBillingPlanSummary(tokoId?: string): Promise<ActionResultWithData<BillingPlanSummary>> {
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
@@ -210,7 +188,7 @@ export async function updateProfile(
 
 export async function uploadAvatar(file: File): Promise<ActionResultWithData<string>> {
   try {
-    const user = await getAuthUser();
+    const user = await getRequestUser();
     const headersList = await headers();
 
     if (!user) {

@@ -28,13 +28,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   RiAddLine,
   RiDeleteBinLine,
   RiLockLine,
@@ -45,8 +38,10 @@ import {
   RiWhatsappLine,
   RiMoneyDollarCircleLine,
   RiLogoutBoxLine,
+  RiFileListLine,
 } from "@remixicon/react";
 import { PatternLock } from "@/components/shared/pattern-lock";
+import { getBrandIcon } from "@/lib/brand-icons";
 import {
   updateStatus,
   removeItem,
@@ -57,27 +52,16 @@ import {
 } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
 import { PaymentDialog } from "./payment-dialog";
-import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
+import { InvoiceDialog } from "@/components/dashboard/services/service-table/invoice-dialog";
+import type { InvoicePreviewService } from "@/components/dashboard/services/service-table/invoice-dialog";
+import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
+import { ActionTile } from "@/components/shared/action-tile";
+import { StatusUpdateDialog } from "@/components/dashboard/services/status-update-dialog";
+import { useOptimisticMutation } from "@/hooks/use-optimistic-mutation";
+import { type Role, roleToneClasses } from "@/lib/role-tone";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-
-const roleToneClasses = {
-  admin: {
-    card: "border-primary/20 bg-gradient-to-br from-primary/[0.035] via-background to-background",
-    rail: "from-primary/40 to-primary/10",
-    label: "text-primary",
-  },
-  staff: {
-    card: "border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.04] via-background to-background",
-    rail: "from-emerald-500/40 to-emerald-500/10",
-    label: "text-emerald-700 dark:text-emerald-400",
-  },
-  technician: {
-    card: "border-sky-500/20 bg-gradient-to-br from-sky-500/[0.04] via-background to-background",
-    rail: "from-sky-500/40 to-sky-500/10",
-    label: "text-sky-700 dark:text-sky-400",
-  },
-} satisfies Record<"admin" | "staff" | "technician", { card: string; rail: string; label: string }>;
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   received: "secondary",
@@ -134,20 +118,21 @@ export interface ServiceDetailCardItem {
       id: string;
       grandTotal: number;
       paymentStatus: string;
-      dpAmount?: number | null;
-      discountAmount?: number | null;
+      dpAmount?: number;
+      discountAmount?: number;
     } | null;
 }
 
 export interface ServiceDetailCardProps {
   service: ServiceDetailCardItem;
   variant?: "active" | "completed";
-  viewerRole?: "admin" | "staff" | "technician";
+  viewerRole?: Role;
   showActions?: boolean;
   onAddItem?: (service: ServiceDetailCardItem) => void;
   onRemoveItem?: (itemId: string) => void;
   onRefresh?: () => void;
   onStatusChange?: (newStatus: string) => void;
+  onPickupSuccess?: () => void;
 }
 
 export function ServiceDetailCard({
@@ -159,9 +144,10 @@ export function ServiceDetailCard({
   onRemoveItem,
   onRefresh,
   onStatusChange,
+  onPickupSuccess,
 }: ServiceDetailCardProps) {
   const isActive = variant === "active";
-  const { inventoryEnabled, invoiceEnabled } = useFeatureAccess();
+  const { inventoryEnabled } = useDashboardScope();
   const canHandleCustomerHandoff = viewerRole === "admin" || viewerRole === "staff";
   const roleTone = roleToneClasses[viewerRole];
 
@@ -179,6 +165,7 @@ export function ServiceDetailCard({
   }, [service]);
 
   const pendingMutationsRef = useRef(0);
+  const mutate = useOptimisticMutation(localServiceRef, setLocalService, pendingMutationsRef);
 
   const serviceFingerprint = useMemo(
     () => JSON.stringify({
@@ -208,7 +195,7 @@ export function ServiceDetailCard({
 
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [spareparts, setSpareparts] = useState<
-    Array<{ id: string; name: string; defaultPrice: number; stock: number }>
+    Array<{ id: string; name: string; barcode: string; defaultPrice: number; stock: number }>
   >([]);
   const [servicePricelists, setServicePricelists] = useState<
     Array<{ id: string; title: string; defaultPrice: number }>
@@ -251,58 +238,21 @@ export function ServiceDetailCard({
   const handleUndoStatus = useCallback(async () => {
     if (!undoStatus) return;
     setIsUndoingStatus(true);
-
-    const snapshot = localServiceRef.current;
-
-    pendingMutationsRef.current += 1;
-
-    setLocalService((prev) => ({
-      ...prev,
-      status: undoStatus,
-      doneAt: null,
-    }));
-
-    try {
-      const result = await updateStatus(snapshot.id, undoStatus as "received" | "repairing");
-      if (result.success) {
-        setUndoDialogOpen(false);
-        pendingMutationsRef.current -= 1;
-        onRefresh?.();
-      } else {
-        pendingMutationsRef.current -= 1;
-        setLocalService(snapshot);
-      }
-    } catch (err) {
-      console.error("Error undoing status:", err);
-      pendingMutationsRef.current -= 1;
-      setLocalService(snapshot);
-    } finally {
-      setIsUndoingStatus(false);
-    }
-  }, [undoStatus, onRefresh]);
+    await mutate({
+      optimistic: (prev) => ({ ...prev, status: undoStatus, doneAt: null }),
+      action: () => updateStatus(localServiceRef.current.id, undoStatus as "received" | "repairing"),
+      onSuccess: () => { setUndoDialogOpen(false); onRefresh?.(); },
+    });
+    setIsUndoingStatus(false);
+  }, [undoStatus, onRefresh, mutate]);
 
   const handleRemoveItem = useCallback(async (itemId: string) => {
-    const snapshot = localServiceRef.current;
-
-    pendingMutationsRef.current += 1;
-
-    setLocalService((prev) => ({ ...prev, items: prev.items.filter((item) => item.id !== itemId) }));
-
-    try {
-      const result = await removeItem(itemId);
-      if (result.success) {
-        pendingMutationsRef.current -= 1;
-        onRefresh?.();
-      } else {
-        pendingMutationsRef.current -= 1;
-        setLocalService(snapshot);
-      }
-    } catch (err) {
-      console.error("Error removing item:", err);
-      pendingMutationsRef.current -= 1;
-      setLocalService(snapshot);
-    }
-  }, [onRefresh]);
+    await mutate({
+      optimistic: (prev) => ({ ...prev, items: prev.items.filter((item) => item.id !== itemId) }),
+      action: () => removeItem(itemId),
+      onSuccess: () => onRefresh?.(),
+    });
+  }, [mutate, onRefresh]);
 
   const handleOptimisticAddItem = useCallback(
     (newItem: { id: string; type: string; name: string; qty: number; price: number }) => {
@@ -336,18 +286,35 @@ export function ServiceDetailCard({
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [isPayingInvoice, setIsPayingInvoice] = useState(false);
   const [isPickingUp, setIsPickingUp] = useState(false);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+
+  const viewInvoiceService = useMemo(() => {
+    if (!localService.invoice) return null;
+    return {
+      id: localService.id,
+      hpCatalogId: localService.hpCatalog.id,
+      customerName: localService.customerName,
+      noWa: localService.noWa,
+      complaint: localService.complaint,
+      includedItems: localService.includedItems,
+      status: localService.status,
+      isPickedUp: localService.isPickedUp,
+      checkinAt: localService.checkinAt,
+      doneAt: localService.doneAt,
+      checkoutAt: localService.checkoutAt,
+      hpCatalog: localService.hpCatalog,
+      technician: localService.technician,
+      invoice: localService.invoice,
+      passwordPattern: localService.passwordPattern,
+      imei: localService.imei,
+    } satisfies InvoicePreviewService;
+  }, [localService]);
 
   const hasCompletedStatus = localService.status === "done" || localService.status === "failed";
-  const canPayInvoice = invoiceEnabled && canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.invoice?.paymentStatus === "unpaid" || localService.invoice?.paymentStatus === "dp");
+  const canPayInvoice = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.invoice?.paymentStatus === "unpaid" || localService.invoice?.paymentStatus === "dp");
   const canMarkPickedUp = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp;
   const canContactDuringRepair = (localService.status === "received" || localService.status === "repairing") && Boolean(localService.noWa);
-  const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp);
-  const customerHandoffActionCount = Number(canPayInvoice) + Number(Boolean(localService.noWa)) + Number(canMarkPickedUp);
-  const customerHandoffGridClass = customerHandoffActionCount >= 4
-    ? "lg:grid-cols-4"
-    : customerHandoffActionCount === 3
-      ? "lg:grid-cols-3"
-      : "lg:grid-cols-2";
+  const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp || Boolean(localService.invoice));
 
   function openDoneDialog() {
     setDoneNote("");
@@ -356,40 +323,13 @@ export function ServiceDetailCard({
 
   async function handleMarkDone() {
     setIsMarkingDone(true);
-
-    const snapshot = localServiceRef.current;
     const doneNoteValue = doneNote.trim();
-
-    pendingMutationsRef.current += 1;
-
-    setLocalService((prev) => ({
-      ...prev,
-      status: "done",
-      doneAt: new Date(),
-    }));
-
-    try {
-      const result = await updateStatus(
-        snapshot.id,
-        "done",
-        doneNoteValue || undefined
-      );
-      if (result.success) {
-        setDoneDialogOpen(false);
-        pendingMutationsRef.current -= 1;
-        onRefresh?.();
-        onStatusChange?.("done");
-      } else {
-        pendingMutationsRef.current -= 1;
-        setLocalService(snapshot);
-      }
-    } catch (err) {
-      console.error("Error marking as done:", err);
-      pendingMutationsRef.current -= 1;
-      setLocalService(snapshot);
-    } finally {
-      setIsMarkingDone(false);
-    }
+    await mutate({
+      optimistic: (prev) => ({ ...prev, status: "done", doneAt: new Date() }),
+      action: () => updateStatus(localServiceRef.current.id, "done", doneNoteValue || undefined),
+      onSuccess: () => { setDoneDialogOpen(false); onRefresh?.(); onStatusChange?.("done"); },
+    });
+    setIsMarkingDone(false);
   }
 
   function openFailedDialog() {
@@ -400,36 +340,13 @@ export function ServiceDetailCard({
   async function handleMarkFailed() {
     if (!failedNote.trim()) return;
     setIsMarkingFailed(true);
-
-    const snapshot = localServiceRef.current;
     const failedNoteValue = failedNote.trim();
-
-    pendingMutationsRef.current += 1;
-
-    setLocalService((prev) => ({
-      ...prev,
-      status: "failed",
-      doneAt: new Date(),
-    }));
-
-    try {
-      const result = await updateStatus(snapshot.id, "failed", failedNoteValue || undefined);
-      if (result.success) {
-        setFailedDialogOpen(false);
-        pendingMutationsRef.current -= 1;
-        onRefresh?.();
-        onStatusChange?.("failed");
-      } else {
-        pendingMutationsRef.current -= 1;
-        setLocalService(snapshot);
-      }
-    } catch (err) {
-      console.error("Error marking as failed:", err);
-      pendingMutationsRef.current -= 1;
-      setLocalService(snapshot);
-    } finally {
-      setIsMarkingFailed(false);
-    }
+    await mutate({
+      optimistic: (prev) => ({ ...prev, status: "failed", doneAt: new Date() }),
+      action: () => updateStatus(localServiceRef.current.id, "failed", failedNoteValue || undefined),
+      onSuccess: () => { setFailedDialogOpen(false); onRefresh?.(); onStatusChange?.("failed"); },
+    });
+    setIsMarkingFailed(false);
   }
 
   function openWhatsApp() {
@@ -441,118 +358,89 @@ export function ServiceDetailCard({
   async function handlePayInvoice(payment: { discountAmount: number }) {
     if (!localService.invoice || !canPayInvoice) return false;
     setIsPayingInvoice(true);
-
-    const snapshot = localServiceRef.current;
-    pendingMutationsRef.current += 1;
-    setLocalService((prev) => prev.invoice ? {
-      ...prev,
-      invoice: { ...prev.invoice, paymentStatus: "paid", discountAmount: payment.discountAmount },
-    } : prev);
-
-    try {
-      const result = await payInvoice(localService.invoice.id, payment);
-      if (result.success) {
-        toast.success("Invoice ditandai lunas");
-        pendingMutationsRef.current -= 1;
-        onRefresh?.();
-        return true;
-      } else {
-        toast.error(result.error || "Gagal menandai invoice lunas");
-        pendingMutationsRef.current -= 1;
-        setLocalService(snapshot);
-        return false;
-      }
-    } catch (err) {
-      console.error("Error paying invoice:", err);
-      toast.error("Gagal menandai invoice lunas");
-      pendingMutationsRef.current -= 1;
-      setLocalService(snapshot);
-      return false;
-    } finally {
-      setIsPayingInvoice(false);
-    }
+    const ok = await mutate({
+      optimistic: (prev) => prev.invoice ? {
+        ...prev,
+        invoice: { ...prev.invoice, paymentStatus: "paid", discountAmount: payment.discountAmount },
+      } : prev,
+      action: () => payInvoice(localServiceRef.current.invoice!.id, payment),
+      onSuccess: () => { toast.success("Invoice ditandai lunas"); onRefresh?.(); },
+      onError: (error) => toast.error(error || "Gagal menandai invoice lunas"),
+    });
+    setIsPayingInvoice(false);
+    return ok;
   }
 
   async function handlePickup() {
     if (!canMarkPickedUp) return;
     setIsPickingUp(true);
-
-    const snapshot = localServiceRef.current;
     const checkoutAt = new Date();
-    pendingMutationsRef.current += 1;
-    setLocalService((prev) => ({ ...prev, isPickedUp: true, checkoutAt }));
-
-    try {
-      const result = await pickupService(localService.id);
-      if (result.success) {
-        toast.success("Service ditandai sudah diambil");
-        pendingMutationsRef.current -= 1;
-        onRefresh?.();
-      } else {
-        toast.error(result.error || "Gagal menandai service diambil");
-        pendingMutationsRef.current -= 1;
-        setLocalService(snapshot);
-      }
-    } catch (err) {
-      console.error("Error picking up service:", err);
-      toast.error("Gagal menandai service diambil");
-      pendingMutationsRef.current -= 1;
-      setLocalService(snapshot);
-    } finally {
-      setIsPickingUp(false);
-    }
+    await mutate({
+      optimistic: (prev) => ({ ...prev, isPickedUp: true, checkoutAt }),
+      action: () => pickupService(localServiceRef.current.id),
+      onSuccess: () => { toast.success("Service ditandai sudah diambil"); onRefresh?.(); onPickupSuccess?.(); },
+      onError: (error) => toast.error(error || "Gagal menandai service diambil"),
+    });
+    setIsPickingUp(false);
   }
 
   return (
     <>
       <Card className={cn("relative overflow-hidden", roleTone.card)}>
         <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r", roleTone.rail)} />
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <CardTitle className="flex flex-wrap items-center gap-2">
-                <span className="break-words">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="shrink-0">{getBrandIcon(localService.hpCatalog.brand.name)}</span>
+                <CardTitle className="text-base sm:text-lg leading-tight">
                   {localService.hpCatalog.brand.name} {localService.hpCatalog.modelName}
-                </span>
-                <Badge variant={statusColors[localService.status] || "outline"}>
+                </CardTitle>
+                <Badge variant={statusColors[localService.status] || "outline"} className="shrink-0">
                   {statusLabels[localService.status] || localService.status}
                 </Badge>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
                 {localService.technician ? (
-                  <Badge variant="outline" className="border-sky-500/30 bg-sky-500/8 text-sky-700 dark:text-sky-400">
-                    Teknisi: {localService.technician.name}
+                  <Badge variant="outline" className="border-sky-500/30 bg-sky-500/8 text-sky-700 dark:text-sky-400 text-xs font-normal">
+                    {localService.technician.name}
                   </Badge>
                 ) : localService.status === "received" ? (
-                  <Badge variant="secondary" className="text-muted-foreground">
+                  <Badge variant="secondary" className="text-muted-foreground text-xs font-normal">
                     Belum ada teknisi
                   </Badge>
                 ) : null}
-                {localService.isPickedUp && <Badge variant="outline">Picked Up</Badge>}
+                {localService.isPickedUp && (
+                  <Badge variant="outline" className="text-xs font-normal">Picked Up</Badge>
+                )}
                 {localService.invoice && (
                   <Badge
                     variant={
                       localService.invoice.paymentStatus === "paid"
-                        ? "outline"
+                        ? "success"
                         : localService.invoice.paymentStatus === "dp"
                           ? "accent"
                           : "destructive"
                     }
+                    className="text-xs font-normal"
                   >
                     {isActive ? "Invoice" : formatCurrency(localService.invoice.grandTotal)} • {localService.invoice.paymentStatus === "paid" ? "Paid" : localService.invoice.paymentStatus === "dp" ? `DP ${localService.invoice.dpAmount ? formatCurrency(localService.invoice.dpAmount) : ""}` : "Unpaid"}
                   </Badge>
                 )}
-              </CardTitle>
-              <CardDescription className="break-words">
-                {localService.customerName || "No customer name"} • {localService.noWa}
-              </CardDescription>
-              <p className="text-xs text-muted-foreground">
-                Check-in: {formatDate(localService.checkinAt)}
-              </p>
+              </div>
+              <div>
+                <CardDescription className="text-sm">
+                  {localService.customerName || "No customer name"} • {localService.noWa}
+                </CardDescription>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Check-in: {formatDate(localService.checkinAt)}
+                </p>
+              </div>
             </div>
-            {isActive && showActions && (
-              <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
+            <div className="flex gap-2 shrink-0">
+              {isActive && showActions && localService.invoice?.paymentStatus !== "paid" && (
                 <Button
                   size="sm"
-                  className="w-full xs:w-auto"
                   onClick={() => {
                     if (onAddItem) {
                       onAddItem(localService);
@@ -561,24 +449,21 @@ export function ServiceDetailCard({
                     }
                   }}
                 >
-                  <RiAddLine className="h-4 w-4 xs:mr-1" />
-                  <span className="xs:inline">Tambah Sparepart & jasa</span>
+                  <RiAddLine className="h-4 w-4" />
+                  <span className="ml-1 hidden sm:inline">Tambah Sparepart & jasa</span>
                 </Button>
-              </div>
-            )}
-            {!isActive && (localService.status === "done" || localService.status === "failed") && (
-              <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
+              )}
+              {!isActive && (localService.status === "done" || localService.status === "failed") && localService.invoice?.paymentStatus !== "paid" && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full xs:w-auto"
                   onClick={openUndoDialog}
                 >
-                  <RiArrowGoBackLine className="h-4 w-4 xs:mr-1" />
-                  <span className="xs:inline">Undo</span>
+                  <RiArrowGoBackLine className="h-4 w-4" />
+                  <span className="ml-1 hidden sm:inline">Undo</span>
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -709,30 +594,13 @@ export function ServiceDetailCard({
                 </p>
                 <div className={`grid gap-3 ${canContactDuringRepair ? "sm:grid-cols-3" : "grid-cols-2"}`}>
                   {canContactDuringRepair && (
-                    <Button
-                      variant="outline"
-                      onClick={openWhatsApp}
-                      className="flex-col h-auto py-3 gap-1.5 border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
-                    >
-                      <RiWhatsappLine className="h-5 w-5" />
-                      <span className="text-xs font-medium">WhatsApp</span>
-                    </Button>
+                    <ActionTile icon={RiWhatsappLine} label="WhatsApp" onClick={openWhatsApp}
+                      variant="outline" className="border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60" />
                   )}
-                  <Button
-                    variant="outline"
-                    onClick={openFailedDialog}
-                    className="flex-col h-auto py-3 gap-1.5 border-red-300 bg-red-100 text-red-700 hover:bg-red-200 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60"
-                  >
-                    <RiCloseCircleLine className="h-5 w-5" />
-                    <span className="text-xs font-medium">Mark as Failed</span>
-                  </Button>
-                  <Button
-                    onClick={openDoneDialog}
-                    className="flex-col h-auto py-3 gap-1.5 bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800"
-                  >
-                    <RiCheckDoubleLine className="h-5 w-5" />
-                    <span className="text-xs font-medium">Mark as Done</span>
-                  </Button>
+                  <ActionTile icon={RiCloseCircleLine} label="Mark as Failed" onClick={openFailedDialog}
+                    variant="outline" className="border-red-300 bg-red-100 text-red-700 hover:bg-red-200 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60" />
+                  <ActionTile icon={RiCheckDoubleLine} label="Mark as Done" onClick={openDoneDialog}
+                    className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800" />
                 </div>
               </div>
             )}
@@ -742,37 +610,22 @@ export function ServiceDetailCard({
                 <p className={cn("text-sm font-medium text-center mb-3", roleTone.label)}>
                   Customer handoff
                 </p>
-                <div className={`grid gap-3 sm:grid-cols-2 ${customerHandoffGridClass}`}>
+                <div className="flex gap-3">
+                  {localService.invoice && (
+                    <ActionTile icon={RiFileListLine} label="Invoice" onClick={() => setInvoiceDialogOpen(true)}
+                      variant="outline" className="flex-1" />
+                  )}
                   {canPayInvoice && (
-                    <Button
-                      variant="outline"
-                      disabled={isPayingInvoice}
-                      onClick={() => setPaymentDialogOpen(true)}
-                      className="flex-col h-auto py-3 gap-1.5"
-                    >
-                      <RiMoneyDollarCircleLine className="h-5 w-5" />
-                      <span className="text-xs font-medium">Bayar</span>
-                    </Button>
+                    <ActionTile icon={RiMoneyDollarCircleLine} label="Bayar" onClick={() => setPaymentDialogOpen(true)}
+                      variant="outline" disabled={isPayingInvoice} className="flex-1" />
                   )}
                   {localService.noWa && (
-                    <Button
-                      variant="outline"
-                      onClick={openWhatsApp}
-                      className="flex-col h-auto py-3 gap-1.5 border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60"
-                    >
-                      <RiWhatsappLine className="h-5 w-5" />
-                      <span className="text-xs font-medium">WhatsApp</span>
-                    </Button>
+                    <ActionTile icon={RiWhatsappLine} label="WhatsApp" onClick={openWhatsApp}
+                      variant="outline" className="flex-1 border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60" />
                   )}
                   {canMarkPickedUp && (
-                    <Button
-                      disabled={isPickingUp}
-                      onClick={handlePickup}
-                      className="flex-col h-auto py-3 gap-1.5"
-                    >
-                      <RiLogoutBoxLine className="h-5 w-5" />
-                      <span className="text-xs font-medium">Diambil</span>
-                    </Button>
+                    <ActionTile icon={RiLogoutBoxLine} label="Diambil" onClick={handlePickup}
+                      disabled={isPickingUp} className="flex-1" />
                   )}
                 </div>
               </div>
@@ -833,7 +686,7 @@ export function ServiceDetailCard({
       </Dialog>
 
       <Dialog open={undoDialogOpen} onOpenChange={setUndoDialogOpen}>
-        <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto pr-12 sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Undo Completed Status</DialogTitle>
             <DialogDescription>
@@ -863,10 +716,10 @@ export function ServiceDetailCard({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUndoDialogOpen(false)} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={() => setUndoDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUndoStatus} disabled={isUndoingStatus} className="w-full sm:w-auto">
+            <Button onClick={handleUndoStatus} disabled={isUndoingStatus}>
               {isUndoingStatus ? "Updating..." : "Confirm Undo"}
             </Button>
           </DialogFooter>
@@ -874,7 +727,7 @@ export function ServiceDetailCard({
       </Dialog>
 
       <Dialog open={doneDialogOpen} onOpenChange={setDoneDialogOpen}>
-        <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto pr-12 sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark Service as Done</DialogTitle>
             <DialogDescription>
@@ -897,13 +750,13 @@ export function ServiceDetailCard({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDoneDialogOpen(false)} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={() => setDoneDialogOpen(false)}>
               Cancel
             </Button>
             <Button
               onClick={handleMarkDone}
               disabled={isMarkingDone}
-              className="w-full bg-green-600 text-white hover:bg-green-700 sm:w-auto"
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
               {isMarkingDone ? "Marking Done..." : "Confirm Done"}
             </Button>
@@ -912,7 +765,7 @@ export function ServiceDetailCard({
       </Dialog>
 
       <Dialog open={failedDialogOpen} onOpenChange={setFailedDialogOpen}>
-        <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto pr-12 sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark Service as Failed</DialogTitle>
             <DialogDescription>
@@ -935,14 +788,13 @@ export function ServiceDetailCard({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFailedDialogOpen(false)} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={() => setFailedDialogOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleMarkFailed}
               disabled={isMarkingFailed || !failedNote.trim()}
-              className="w-full sm:w-auto"
             >
               {isMarkingFailed ? "Marking Failed..." : "Confirm Failed"}
             </Button>
@@ -955,6 +807,7 @@ export function ServiceDetailCard({
         onOpenChange={setItemDialogOpen}
         serviceId={localService.id}
         tokoId={localService.tokoId}
+        deviceName={`${localService.hpCatalog.brand.name} ${localService.hpCatalog.modelName}`}
         spareparts={spareparts}
         servicePricelists={servicePricelists}
         onSuccess={() => {
@@ -981,6 +834,12 @@ export function ServiceDetailCard({
         dpAmount={localService.invoice?.dpAmount || 0}
         isSubmitting={isPayingInvoice}
         onConfirm={handlePayInvoice}
+      />
+      <InvoiceDialog
+        service={viewInvoiceService}
+        tokoId={localService.tokoId}
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
       />
     </>
   );

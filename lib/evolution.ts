@@ -68,6 +68,10 @@ export async function getWhatsappConnectionState(instanceName: string): Promise<
   return evolutionFetch(`/instance/connectionState/${encodeURIComponent(instanceName)}`);
 }
 
+export async function fetchWhatsappInstances(): Promise<unknown[]> {
+  return evolutionFetch("/instance/fetchInstances");
+}
+
 export async function deleteWhatsappInstance(instanceName: string): Promise<unknown> {
   return evolutionFetch(`/instance/delete/${encodeURIComponent(instanceName)}`, {
     method: "DELETE",

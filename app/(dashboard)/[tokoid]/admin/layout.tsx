@@ -1,6 +1,6 @@
-import { getAuthUser } from "@/lib/rbac";
-import { getRoleRedirectPath } from "@/lib/redirect-by-role";
 import { redirect } from "next/navigation";
+import { getRequestUser } from "@/lib/auth/request-user";
+import { getRoleRedirectPath } from "@/lib/redirect-by-role";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -9,7 +9,7 @@ interface AdminLayoutProps {
 
 export default async function AdminLayout({ children, params }: AdminLayoutProps) {
   const { tokoid } = await params;
-  const user = await getAuthUser();
+  const user = await getRequestUser();
 
   if (!user) {
     redirect("/auth");

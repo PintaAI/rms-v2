@@ -1,9 +1,11 @@
 "use server"
 
 import { createActivityLogIfUser } from "@/lib/activity-log"
-import { ensureFeatureAccess } from "@/lib/feature-enforcement"
+import { ensureFeatureAccess } from "@/lib/auth/enforcement"
 import prisma from "@/lib/prisma"
-import { canAccessToko, getAuthUser, getEffectivePlanForToko, isAdmin, type ActionResult, type ActionResultWithData } from "@/lib/rbac"
+import { getRequestUser } from "@/lib/auth/request-user"
+import { getEffectivePlanForToko } from "@/lib/auth/plan"
+import type { ActionResult, ActionResultWithData } from "@/lib/auth/authorization"
 import { revalidateInventoryPaths } from "@/lib/revalidation"
 import type { FeatureKey } from "@/lib/features"
 import { z } from "zod"
@@ -40,6 +42,7 @@ export type SparepartWithCompatibilities = Sparepart & {
 export type SparepartListItem = {
   id: string
   name: string
+  barcode: string
   defaultPrice: number
   stock: number
 }
@@ -103,17 +106,17 @@ async function getInventoryUser(
   requireWriteAccess: boolean = false,
   feature: FeatureKey = "inventory.management"
 ) {
-  const user = await getAuthUser()
+  const user = await getRequestUser()
 
   if (!user) {
     return { success: false as const, error: "Tidak terotorisasi" }
   }
 
-  if (!canAccessToko(user, tokoId)) {
+  if (!user.tokoIds.includes(tokoId)) {
     return { success: false as const, error: "Akses ditolak" }
   }
 
-  if (requireWriteAccess && !isAdmin(user)) {
+  if (requireWriteAccess && user.role !== "admin") {
     return { success: false as const, error: "Hanya admin yang dapat mengelola inventory" }
   }
 
@@ -178,6 +181,7 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
       select: {
         id: true,
         name: true,
+        barcode: true,
         defaultPrice: true,
         stock: true,
       },

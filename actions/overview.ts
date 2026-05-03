@@ -2,8 +2,10 @@
 
 import prisma from "@/lib/prisma";
 import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
-import { canAccessToko, getAuthUser, getEffectivePlanForToko, isAdmin, isStaff } from "@/lib/rbac";
+import { getRequestUser } from "@/lib/auth/request-user";
+import { getEffectivePlanForToko } from "@/lib/auth/plan";
 import { canUseFeature } from "@/lib/features";
+import { ensureFeatureAccess } from "@/lib/auth/enforcement";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus } from "@/prisma/generated/prisma/enums";
 import type { ActionResultWithData } from "./service";
@@ -222,13 +224,13 @@ export async function getAdminOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<AdminOverviewData>> {
   try {
-    const user = await getAuthUser();
+    const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
-    if (!isAdmin(user)) return { success: false, error: "Access denied" };
+    if (user.role !== "admin") return { success: false, error: "Access denied" };
 
     const targetTokoId = tokoId ?? user.tokoIds[0];
     if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!canAccessToko(user, targetTokoId)) return { success: false, error: "Access denied" };
+    if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
 
     const shared = await getSharedOverviewData(targetTokoId);
     if (!shared.success || !shared.data) {
@@ -328,13 +330,24 @@ export async function getStaffOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<StaffOverviewData>> {
   try {
-    const user = await getAuthUser();
+    const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
-    if (!isStaff(user) && !isAdmin(user)) return { success: false, error: "Access denied" };
+    if (user.role !== "staff" && user.role !== "admin") return { success: false, error: "Access denied" };
 
     const targetTokoId = tokoId ?? user.tokoIds[0];
     if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!canAccessToko(user, targetTokoId)) return { success: false, error: "Access denied" };
+    if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
+
+    const [disabledFeatures, scopedPlan] = await Promise.all([
+      getDisabledFeaturesForToko(targetTokoId),
+      getEffectivePlanForToko(user, targetTokoId),
+    ]);
+    const featureError = ensureFeatureAccess(
+      { role: user.role, plan: scopedPlan },
+      "staff.workflow",
+      disabledFeatures
+    );
+    if (featureError) return featureError;
 
     const shared = await getSharedOverviewData(targetTokoId);
     if (!shared.success || !shared.data) {

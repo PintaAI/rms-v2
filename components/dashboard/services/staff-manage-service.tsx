@@ -14,7 +14,7 @@ import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
-import { useFeatureAccess } from "@/components/dashboard/layout/feature-access-context";
+import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import { deleteService, getService } from "@/actions";
 import type { ServiceDetail, ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
@@ -36,7 +36,7 @@ export function StaffManageService({
   const statusFilter = searchParams.get("status") ?? undefined;
   const pickedUpFilter = searchParams.get("pickedup") === "true";
 
-  const { featureAccess } = useFeatureAccess();
+  const { featureAccess } = useDashboardScope();
   const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
 
   const [services, setServices] = useState<ServiceListItem[]>(allServices);
@@ -345,7 +345,14 @@ export function StaffManageService({
                 variant={["done", "failed"].includes(selectedService.status) ? "completed" : "active"}
                 viewerRole="staff"
                 onRefresh={handleRefreshDetail}
-                onStatusChange={() => router.refresh()}
+                onStatusChange={() => {
+                  setDetailDialogOpen(false);
+                  router.refresh();
+                }}
+                onPickupSuccess={() => {
+                  setDetailDialogOpen(false);
+                  router.refresh();
+                }}
               />
             </div>
           )}

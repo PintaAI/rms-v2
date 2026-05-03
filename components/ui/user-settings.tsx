@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "sonner"
 import { changePassword, getBillingPlanSummary, updateProfile, uploadAvatar, setDevUserPlan, type BillingPlanSummary } from "@/actions"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -637,12 +638,14 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
                 </SidebarGroup>
               </SidebarContent>
             </Sidebar>
-            <main className="min-h-0 flex-1 overflow-y-auto p-6">
-              <div className="mb-4">
+            <main className="flex min-h-0 flex-1 flex-col p-6">
+              <div className="shrink-0 ">
                 <h2 className="font-heading text-sm font-medium">{getTabTitle()}</h2>
                 <Separator className="mt-2" />
               </div>
-              {renderContent()}
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="pt-4">{renderContent()}</div>
+              </ScrollArea>
             </main>
           </div>
         </SidebarProvider>
