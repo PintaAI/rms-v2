@@ -27,6 +27,7 @@ import {
 import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
 import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/sparepart-label-print-dialog";
 import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepart-restock-dialog";
+import { SparepartImportDialog } from "@/components/dashboard/inventory/sparepart-import-dialog";
 import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
 import {
   RiAddLine,
@@ -40,6 +41,7 @@ import {
   RiGridFill,
   RiPrinterLine,
   RiStackLine,
+  RiUpload2Line,
 } from "@remixicon/react";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -70,9 +72,10 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
   const [deletingPricelist, setDeletingPricelist] = useState<ServicePricelist | null>(null);
   const [isDeletingSparepart, setIsDeletingSparepart] = useState(false);
   const [isDeletingPricelist, setIsDeletingPricelist] = useState(false);
-const [labelDialogOpen, setLabelDialogOpen] = useState(false);
-const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
-const [restockDialogOpen, setRestockDialogOpen] = useState(false);
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+  const [restockDialogOpen, setRestockDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -149,6 +152,15 @@ const [restockDialogOpen, setRestockDialogOpen] = useState(false);
     setSpareparts((prev) =>
       prev.map((sp) => (sp.id === updatedSparepart.id ? updatedSparepart : sp))
     );
+  };
+
+  const handleImportSuccess = async () => {
+    setIsLoadingSpareparts(true);
+    const result = await getSpareparts(tokoId);
+    if (result.success && result.data) {
+      setSpareparts(result.data);
+    }
+    setIsLoadingSpareparts(false);
   };
 
   const handleDeleteSparepartClick = (sparepart: SparepartWithCompatibilities) => {
@@ -256,6 +268,15 @@ const [restockDialogOpen, setRestockDialogOpen] = useState(false);
                 >
                   <RiStackLine className="h-4 w-4 mr-1.5" />
                   Restock
+                </Button>
+              )}
+              {!readOnly && (
+                <Button
+                  variant="outline"
+                  onClick={() => setImportDialogOpen(true)}
+                >
+                  <RiUpload2Line className="h-4 w-4 mr-1.5" />
+                  Import Excel
                 </Button>
               )}
               {!readOnly && (
@@ -529,6 +550,15 @@ const [restockDialogOpen, setRestockDialogOpen] = useState(false);
             onOpenChange={setRestockDialogOpen}
             tokoId={tokoId}
             onSuccess={handleRestockSuccess}
+          />
+        )}
+
+        {!readOnly && (
+          <SparepartImportDialog
+            open={importDialogOpen}
+            onOpenChange={setImportDialogOpen}
+            tokoId={tokoId}
+            onSuccess={handleImportSuccess}
           />
         )}
 

@@ -47,6 +47,21 @@ export type SparepartListItem = {
   stock: number
 }
 
+export type ImportSparepartInput = {
+  rowNumber: number
+  name: string
+  defaultPrice: number
+  stock: number
+  isUniversal?: boolean
+}
+
+export type ImportSparepartsResult = {
+  created: number
+  updated: number
+  failed: number
+  errors: Array<{ rowNumber: number; message: string }>
+}
+
 const createSparepartSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi"),
   defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih"),
@@ -54,6 +69,19 @@ const createSparepartSchema = z.object({
   isUniversal: z.boolean().optional(),
   tokoId: z.string(),
   hpCatalogIds: z.array(z.string()).optional(),
+})
+
+const importSparepartRowSchema = z.object({
+  rowNumber: z.number().int().min(2),
+  name: z.string().trim().min(1, "Nama wajib diisi"),
+  defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih"),
+  stock: z.number().int().min(0, "Stok harus 0 atau lebih"),
+  isUniversal: z.boolean().optional(),
+})
+
+const importSparepartsSchema = z.object({
+  tokoId: z.string(),
+  rows: z.array(importSparepartRowSchema).min(1, "Tidak ada data untuk diimport").max(100, "Maksimal 100 baris per import"),
 })
 
 const updateSparepartSchema = z.object({
@@ -99,6 +127,29 @@ async function generateSparepartBarcode(tokoId: string) {
   }
 
   return barcode
+}
+
+async function generateSparepartBarcodes(tokoId: string, count: number) {
+  const existingBarcodes = await prisma.sparepart.findMany({
+    where: { tokoId },
+    select: { barcode: true },
+  })
+
+  const usedBarcodes = new Set(existingBarcodes.map((sparepart) => sparepart.barcode))
+  const barcodes: string[] = []
+  let sequence = usedBarcodes.size + 1
+
+  while (barcodes.length < count) {
+    const barcode = formatSparepartBarcode(sequence)
+    sequence += 1
+
+    if (usedBarcodes.has(barcode)) continue
+
+    usedBarcodes.add(barcode)
+    barcodes.push(barcode)
+  }
+
+  return barcodes
 }
 
 async function getInventoryUser(
@@ -331,6 +382,112 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
     }
     console.error("Error updating sparepart:", error)
     return { success: false, error: "Gagal memperbarui sparepart" }
+  }
+}
+
+export async function importSpareparts(data: z.infer<typeof importSparepartsSchema>): Promise<ActionResultWithData<ImportSparepartsResult>> {
+  try {
+    const validated = importSparepartsSchema.parse(data)
+    const access = await getInventoryUser(validated.tokoId, true)
+    if (!access.success) return access
+
+    const errors: ImportSparepartsResult["errors"] = []
+    const seenNames = new Map<string, number>()
+    const validRows: Array<z.infer<typeof importSparepartRowSchema>> = []
+
+    for (const row of validated.rows) {
+      const normalizedName = row.name.trim().toLowerCase()
+      const duplicateRow = seenNames.get(normalizedName)
+
+      if (duplicateRow) {
+        errors.push({
+          rowNumber: row.rowNumber,
+          message: `Nama duplikat dengan baris ${duplicateRow}`,
+        })
+        continue
+      }
+
+      seenNames.set(normalizedName, row.rowNumber)
+      validRows.push({ ...row, name: row.name.trim() })
+    }
+
+    if (validRows.length === 0) {
+      return {
+        success: true,
+        data: { created: 0, updated: 0, failed: errors.length, errors },
+      }
+    }
+
+    const existingSpareparts = await prisma.sparepart.findMany({
+      where: {
+        tokoId: validated.tokoId,
+        name: { in: validRows.map((row) => row.name) },
+      },
+      select: { id: true, name: true },
+    })
+    const existingByName = new Map(existingSpareparts.map((sparepart) => [sparepart.name, sparepart]))
+    const rowsToCreate = validRows.filter((row) => !existingByName.has(row.name))
+    const barcodes = await generateSparepartBarcodes(validated.tokoId, rowsToCreate.length)
+    let barcodeIndex = 0
+    let created = 0
+    let updated = 0
+
+    await prisma.$transaction(async (tx) => {
+      for (const row of validRows) {
+        const existing = existingByName.get(row.name)
+
+        if (existing) {
+          await tx.sparepart.update({
+            where: { id: existing.id },
+            data: {
+              defaultPrice: row.defaultPrice,
+              stock: row.stock,
+              isUniversal: row.isUniversal ?? true,
+            },
+          })
+          updated += 1
+          continue
+        }
+
+        await tx.sparepart.create({
+          data: {
+            barcode: barcodes[barcodeIndex],
+            name: row.name,
+            defaultPrice: row.defaultPrice,
+            stock: row.stock,
+            isUniversal: row.isUniversal ?? true,
+            tokoId: validated.tokoId,
+          },
+        })
+        barcodeIndex += 1
+        created += 1
+      }
+    })
+
+    revalidateInventoryPaths()
+
+    await createActivityLogIfUser({
+      tokoId: validated.tokoId,
+      userId: access.user.id,
+      type: "sparepart_created",
+      title: "Spareparts imported",
+      payload: {
+        created,
+        updated,
+        failed: errors.length,
+      },
+    })
+
+    return {
+      success: true,
+      data: { created, updated, failed: errors.length, errors },
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: error.issues[0].message }
+    }
+    console.error("Error importing spareparts:", error)
+    return { success: false, error: "Gagal import sparepart" }
   }
 }
 
