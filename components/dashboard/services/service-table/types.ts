@@ -26,6 +26,7 @@ export interface ServiceTableItem {
   isPickedUp?: boolean;
   checkinAt: Date;
   doneAt?: Date | null;
+  warrantyUntil?: Date | string | null;
   checkoutAt?: Date | null;
   hpCatalog: {
     modelName: string;

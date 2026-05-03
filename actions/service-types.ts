@@ -23,6 +23,7 @@ export interface ServiceListItem {
   isPickedUp?: boolean;
   checkinAt: Date;
   doneAt: Date | null;
+  warrantyUntil: Date | null;
   checkoutAt: Date | null;
   passwordPattern: string | null;
   imei: string | null;

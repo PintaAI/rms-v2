@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableHeader,
@@ -39,6 +40,7 @@ import {
   RiMoneyDollarCircleLine,
   RiLogoutBoxLine,
   RiFileListLine,
+  RiShieldCheckLine,
 } from "@remixicon/react";
 import { PatternLock } from "@/components/shared/pattern-lock";
 import { getBrandIcon } from "@/lib/brand-icons";
@@ -56,7 +58,6 @@ import { InvoiceDialog } from "@/components/dashboard/services/service-table/inv
 import type { InvoicePreviewService } from "@/components/dashboard/services/service-table/invoice-dialog";
 import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import { ActionTile } from "@/components/shared/action-tile";
-import { StatusUpdateDialog } from "@/components/dashboard/services/status-update-dialog";
 import { useOptimisticMutation } from "@/hooks/use-optimistic-mutation";
 import { type Role, roleToneClasses } from "@/lib/role-tone";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -76,6 +77,41 @@ const statusLabels: Record<string, string> = {
   done: "Done",
   failed: "Failed",
 };
+
+const warrantyPresets = [
+  { label: "1 Minggu", days: 7 },
+  { label: "1 Bulan", months: 1 },
+  { label: "2 Bulan", months: 2 },
+  { label: "3 Bulan", months: 3 },
+] as const;
+
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getPresetWarrantyDate(preset: (typeof warrantyPresets)[number]): string {
+  const date = new Date();
+  if ("days" in preset) date.setDate(date.getDate() + preset.days);
+  if ("months" in preset) date.setMonth(date.getMonth() + preset.months);
+  return toDateInputValue(date);
+}
+
+function parseDateInputValue(value: string): Date | null {
+  if (!value) return null;
+  const date = new Date(`${value}T23:59:59`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatWarrantyDate(date: Date): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
 
 function parsePatternString(patternStr: string | null): number[] {
   if (!patternStr) return [];
@@ -98,6 +134,7 @@ export interface ServiceDetailCardItem {
   isPickedUp?: boolean;
   checkinAt: Date;
   doneAt: Date | null;
+  warrantyUntil: Date | string | null;
   checkoutAt?: Date | null;
   hpCatalog: {
     id: string;
@@ -176,8 +213,9 @@ export function ServiceDetailCard({
       checkoutAt: service.checkoutAt,
       items: service.items,
       doneAt: service.doneAt,
+      warrantyUntil: service.warrantyUntil,
     }),
-    [service.id, service.status, service.isPickedUp, service.checkoutAt, service.items, service.doneAt]
+    [service.id, service.status, service.isPickedUp, service.checkoutAt, service.items, service.doneAt, service.warrantyUntil]
   );
 
   useEffect(() => {
@@ -241,7 +279,7 @@ export function ServiceDetailCard({
     if (!undoStatus) return;
     setIsUndoingStatus(true);
     await mutate({
-      optimistic: (prev) => ({ ...prev, status: undoStatus, doneAt: null }),
+      optimistic: (prev) => ({ ...prev, status: undoStatus, doneAt: null, warrantyUntil: null }),
       action: () => updateStatus(localServiceRef.current.id, undoStatus as "received" | "repairing"),
       onSuccess: () => { setUndoDialogOpen(false); onRefresh?.(); },
     });
@@ -313,6 +351,7 @@ export function ServiceDetailCard({
 
   const [doneDialogOpen, setDoneDialogOpen] = useState(false);
   const [doneNote, setDoneNote] = useState("");
+  const [warrantyDate, setWarrantyDate] = useState("");
   const [isMarkingDone, setIsMarkingDone] = useState(false);
 
   const [failedDialogOpen, setFailedDialogOpen] = useState(false);
@@ -336,6 +375,7 @@ export function ServiceDetailCard({
       isPickedUp: localService.isPickedUp,
       checkinAt: localService.checkinAt,
       doneAt: localService.doneAt,
+      warrantyUntil: localService.warrantyUntil,
       checkoutAt: localService.checkoutAt,
       hpCatalog: localService.hpCatalog,
       technician: localService.technician,
@@ -350,18 +390,22 @@ export function ServiceDetailCard({
   const canMarkPickedUp = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp;
   const canContactDuringRepair = (localService.status === "received" || localService.status === "repairing") && Boolean(localService.noWa);
   const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp || Boolean(localService.invoice));
+  const warrantyUntilDate = localService.warrantyUntil ? new Date(localService.warrantyUntil) : null;
+  const warrantyExpired = warrantyUntilDate ? warrantyUntilDate < new Date() : false;
 
   function openDoneDialog() {
     setDoneNote("");
+    setWarrantyDate(getPresetWarrantyDate(warrantyPresets[1]));
     setDoneDialogOpen(true);
   }
 
   async function handleMarkDone() {
     setIsMarkingDone(true);
     const doneNoteValue = doneNote.trim();
+    const warrantyUntil = parseDateInputValue(warrantyDate);
     await mutate({
-      optimistic: (prev) => ({ ...prev, status: "done", doneAt: new Date() }),
-      action: () => updateStatus(localServiceRef.current.id, "done", doneNoteValue || undefined),
+      optimistic: (prev) => ({ ...prev, status: "done", doneAt: new Date(), warrantyUntil }),
+      action: () => updateStatus(localServiceRef.current.id, "done", doneNoteValue || undefined, warrantyUntil),
       onSuccess: () => { setDoneDialogOpen(false); onRefresh?.(); onStatusChange?.("done"); },
     });
     setIsMarkingDone(false);
@@ -377,7 +421,7 @@ export function ServiceDetailCard({
     setIsMarkingFailed(true);
     const failedNoteValue = failedNote.trim();
     await mutate({
-      optimistic: (prev) => ({ ...prev, status: "failed", doneAt: new Date() }),
+      optimistic: (prev) => ({ ...prev, status: "failed", doneAt: new Date(), warrantyUntil: null }),
       action: () => updateStatus(localServiceRef.current.id, "failed", failedNoteValue || undefined),
       onSuccess: () => { setFailedDialogOpen(false); onRefresh?.(); onStatusChange?.("failed"); },
     });
@@ -507,6 +551,23 @@ export function ServiceDetailCard({
               <Label className="text-muted-foreground">Complaint</Label>
               <p className="text-sm">{localService.complaint}</p>
             </div>
+
+            {warrantyUntilDate && (
+              <div className={cn(
+                "flex items-start gap-3 rounded-lg border p-3",
+                warrantyExpired
+                  ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300"
+              )}>
+                <RiShieldCheckLine className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <Label className="text-current">Garansi Service</Label>
+                  <p className="text-sm">
+                    {warrantyExpired ? "Garansi berakhir pada" : "Garansi berlaku sampai"} {formatWarrantyDate(warrantyUntilDate)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {localService.includedItems && localService.includedItems.length > 0 && (
               <div>
@@ -789,6 +850,36 @@ export function ServiceDetailCard({
                 onChange={(e) => setDoneNote(e.target.value)}
                 autoFocus
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="warranty-date">Garansi sampai (optional)</Label>
+              <Input
+                id="warranty-date"
+                type="date"
+                value={warrantyDate}
+                onChange={(event) => setWarrantyDate(event.target.value)}
+              />
+              <div className="flex flex-wrap gap-2">
+                {warrantyPresets.map((preset) => (
+                  <Button
+                    key={preset.label}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWarrantyDate(getPresetWarrantyDate(preset))}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWarrantyDate("")}
+                >
+                  Tanpa garansi
+                </Button>
+              </div>
             </div>
           </div>
 

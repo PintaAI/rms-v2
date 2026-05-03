@@ -38,6 +38,7 @@ export interface AdminOverviewRecentService {
   isPickedUp: boolean;
   checkinAt: Date;
   doneAt: Date | null;
+  warrantyUntil: Date | null;
   checkoutAt: Date | null;
   hpCatalog: {
     id: string;
@@ -106,6 +107,7 @@ const recentServiceSelect = {
   isPickedUp: true,
   checkinAt: true,
   doneAt: true,
+  warrantyUntil: true,
   checkoutAt: true,
   hpCatalog: {
     select: {

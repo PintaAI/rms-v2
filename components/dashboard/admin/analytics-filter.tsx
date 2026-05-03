@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 import { RiCalendarLine, RiFilter3Line } from "@remixicon/react";
@@ -42,7 +42,7 @@ const presetOptions: PresetOption[] = [
     key: "all-time",
     label: "All time",
     allTime: true,
-    getRange: () => ({}),
+    getRange: () => ({ from: undefined }),
   },
   {
     key: "today",
@@ -89,13 +89,6 @@ export function AnalyticsFilter({ filters }: AnalyticsFilterProps) {
   const [draft, setDraft] = useState<FilterDraft>(initialDraft);
   const [calendarMonth, setCalendarMonth] = useState(() => initialDraft.range.from ?? new Date());
 
-  useEffect(() => {
-    if (!open) return;
-
-    setDraft(initialDraft);
-    setCalendarMonth(initialDraft.range.from ?? new Date());
-  }, [initialDraft, open]);
-
   const activePreset = getActivePreset(draft);
   const canApply = draft.allTime || Boolean(draft.range.from && draft.range.to);
   const calendarKey = draft.allTime
@@ -130,6 +123,14 @@ export function AnalyticsFilter({ filters }: AnalyticsFilterProps) {
     });
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setDraft(initialDraft);
+      setCalendarMonth(initialDraft.range.from ?? new Date());
+    }
+    setOpen(nextOpen);
+  };
+
   const selectPreset = (preset: PresetOption) => {
     const range = preset.getRange();
 
@@ -143,7 +144,7 @@ export function AnalyticsFilter({ filters }: AnalyticsFilterProps) {
   };
 
   const resetDraft = () => {
-    const range = presetOptions.find((preset) => preset.key === "this-month")?.getRange() ?? {};
+    const range = presetOptions.find((preset) => preset.key === "this-month")?.getRange() ?? { from: undefined };
 
     setDraft({
       range,
@@ -173,7 +174,7 @@ export function AnalyticsFilter({ filters }: AnalyticsFilterProps) {
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1">
           <RiFilter3Line data-icon="inline-start" />

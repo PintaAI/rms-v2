@@ -239,6 +239,7 @@ export function ManageService({
     isPickedUp: s.isPickedUp,
     checkinAt: s.checkinAt,
     doneAt: s.doneAt,
+    warrantyUntil: s.warrantyUntil,
     checkoutAt: s.checkoutAt,
     hpCatalog: s.hpCatalog,
     technician: s.technician,

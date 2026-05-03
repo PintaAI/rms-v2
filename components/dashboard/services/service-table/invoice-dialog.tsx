@@ -107,6 +107,15 @@ function formatInvoiceDate(value: Date | string | null | undefined): string {
   return formatDate(new Date(value));
 }
 
+function formatWarrantyDate(value: Date | string | null | undefined): string {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 export function getInvoiceNumber(service: InvoicePreviewService): string {
   if (!service.invoice) return `SRV-${service.id.slice(0, 8).toUpperCase()}`;
   return service.invoice.invoiceNumber || `INV-${service.invoice.id.slice(0, 8).toUpperCase()}`;
@@ -155,6 +164,7 @@ function InvoicePreviewCard({
   const dpAmount = service.invoice?.dpAmount || 0;
   const discountAmount = service.invoice?.discountAmount || 0;
   const finalTotal = Math.max(0, grandTotal - dpAmount - discountAmount);
+  const warrantyUntil = service.warrantyUntil ? new Date(service.warrantyUntil) : null;
 
   return (
     <div ref={invoiceRef} className="w-full min-w-[720px] rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
@@ -355,6 +365,11 @@ function InvoicePreviewCard({
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Garansi Service</p>
+          {warrantyUntil && (
+            <p className="mt-2 text-sm font-semibold text-slate-900">
+              Berlaku sampai {formatWarrantyDate(warrantyUntil)}
+            </p>
+          )}
           <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">{invoiceSettings.invoiceWarranty}</p>
         </div>
       </div>

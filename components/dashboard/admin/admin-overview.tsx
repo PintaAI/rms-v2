@@ -49,6 +49,7 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
     status: service.status,
     checkinAt: service.checkinAt,
     doneAt: service.doneAt,
+    warrantyUntil: service.warrantyUntil,
     checkoutAt: service.checkoutAt,
     hpCatalog: service.hpCatalog,
     technician: service.technician,

@@ -46,6 +46,7 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
     status: service.status,
     checkinAt: service.checkinAt,
     doneAt: service.doneAt,
+    warrantyUntil: service.warrantyUntil,
     checkoutAt: service.checkoutAt,
     hpCatalog: service.hpCatalog,
     technician: service.technician,

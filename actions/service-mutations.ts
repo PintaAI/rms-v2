@@ -425,7 +425,8 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
 export async function updateStatus(
   serviceId: string,
   status: ServiceStatus,
-  note?: string
+  note?: string,
+  warrantyUntil?: Date | null
 ): Promise<ActionResult> {
   try {
     const { user, tokoIds } = await getSessionAndTokos();
@@ -447,6 +448,11 @@ export async function updateStatus(
     }
 
     const changedAt = new Date();
+    const warrantyDate = status === "done" && warrantyUntil ? new Date(warrantyUntil) : null;
+
+    if (warrantyDate && Number.isNaN(warrantyDate.getTime())) {
+      return { success: false, error: "Invalid warranty date" };
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.service.update({
@@ -454,6 +460,7 @@ export async function updateStatus(
         data: {
           status,
           doneAt: isCompletingStatus(status) ? changedAt : null,
+          warrantyUntil: status === "done" ? warrantyDate : null,
           ...(note !== undefined ? { note } : {}),
           ...(isCompletingStatus(status)
             ? {
@@ -475,6 +482,7 @@ export async function updateStatus(
           nextStatus: status,
           previousTechnicianId: service.technicianId,
           note: note ?? null,
+          warrantyUntil: warrantyDate?.toISOString() ?? null,
           assignedActor: isCompletingStatus(status),
           technicianId: user.id,
         },

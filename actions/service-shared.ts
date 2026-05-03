@@ -18,6 +18,7 @@ export const serviceSelectBase = {
   isPickedUp: true,
   checkinAt: true,
   doneAt: true,
+  warrantyUntil: true,
   checkoutAt: true,
   passwordPattern: true,
   imei: true,
@@ -77,6 +78,7 @@ export type ServiceWithSelectBase = {
   isPickedUp: boolean;
   checkinAt: Date;
   doneAt: Date | null;
+  warrantyUntil: Date | null;
   checkoutAt: Date | null;
   passwordPattern: string | null;
   imei: string | null;
@@ -124,6 +126,7 @@ export function mapServiceToListItem(service: ServiceWithSelectBase): ServiceLis
     isPickedUp: service.isPickedUp,
     checkinAt: service.checkinAt,
     doneAt: service.doneAt,
+    warrantyUntil: service.warrantyUntil,
     checkoutAt: service.checkoutAt,
     passwordPattern: service.passwordPattern,
     imei: service.imei,

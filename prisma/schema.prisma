@@ -352,6 +352,7 @@ model Service {
   checkinAt  DateTime  @default(now())
   assignedAt DateTime?
   doneAt     DateTime?
+  warrantyUntil DateTime?
   checkoutAt DateTime?
 
   // 👇 anti double WA
