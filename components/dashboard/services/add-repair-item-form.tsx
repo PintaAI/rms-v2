@@ -47,6 +47,8 @@ interface AddRepairItemFormProps {
   onPricelistCreated?: () => void;
 }
 
+type SparepartOption = AddRepairItemFormProps["spareparts"][number];
+
 export function AddRepairItemForm({
   open,
   onOpenChange,
@@ -104,6 +106,11 @@ export function AddRepairItemForm({
       (sp) => sp.barcode.toLowerCase() === trimmedValue.toLowerCase() || sp.id === trimmedValue
     );
     if (match) {
+      if (match.stock <= 0) {
+        toast.error(`Stok sparepart "${match.name}" habis`);
+        return;
+      }
+
       setSparepartQtys({ [match.id]: 1 });
       toast.success(`Sparepart "${match.name}" terpilih`);
     } else {
@@ -130,11 +137,24 @@ export function AddRepairItemForm({
     onOpenChange(value);
   }
 
-  function incrementQty(
-    id: string,
-    setter: typeof setSparepartQtys
-  ) {
+  function incrementQty(id: string, setter: typeof setSparepartQtys) {
     setter((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  }
+
+  function incrementSparepartQty(sparepart: SparepartOption) {
+    const current = sparepartQtys[sparepart.id] ?? 0;
+
+    if (sparepart.stock <= 0) {
+      toast.error(`Stok sparepart "${sparepart.name}" habis`);
+      return;
+    }
+
+    if (current >= sparepart.stock) {
+      toast.error(`Stok sparepart "${sparepart.name}" hanya tersedia ${sparepart.stock}`);
+      return;
+    }
+
+    incrementQty(sparepart.id, setSparepartQtys);
   }
 
   function decrementQty(
@@ -159,8 +179,6 @@ export function AddRepairItemForm({
       return;
     }
 
-    handleOpenChange(false);
-
     const manualItems = isManualFilled
       ? [{ id: "", name: manualName.trim(), defaultPrice: parseInt(manualPrice, 10), qty: parseInt(manualQty, 10) || 1 }]
       : [];
@@ -174,6 +192,17 @@ export function AddRepairItemForm({
           .map((sp) => ({ ...sp, qty: serviceQtys[sp.id] }));
 
     const itemsToAdd = [...manualItems, ...selectedItems];
+
+    const insufficientStockItem = itemType === "sparepart"
+      ? selectedItems.find((item) => "stock" in item && item.qty > item.stock)
+      : undefined;
+
+    if (insufficientStockItem && "stock" in insufficientStockItem) {
+      toast.error(`Stok sparepart "${insufficientStockItem.name}" hanya tersedia ${insufficientStockItem.stock}`);
+      return;
+    }
+
+    handleOpenChange(false);
 
     try {
       for (const item of itemsToAdd) {
@@ -219,7 +248,7 @@ export function AddRepairItemForm({
     }
   }
 
-  function QtyStepper({ qty, onIncrement, onDecrement }: { qty: number; onIncrement: () => void; onDecrement: () => void }) {
+  function QtyStepper({ qty, onIncrement, onDecrement, incrementDisabled = false }: { qty: number; onIncrement: () => void; onDecrement: () => void; incrementDisabled?: boolean }) {
     return (
       <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
         <Button type="button" variant="outline" size="icon" className="size-6" onClick={onDecrement}>
@@ -228,7 +257,14 @@ export function AddRepairItemForm({
         <span className="flex w-6 items-center justify-center text-xs font-medium tabular-nums">
           {qty}
         </span>
-        <Button type="button" variant="outline" size="icon" className="size-6" onClick={onIncrement}>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className={cn("size-6", incrementDisabled && "opacity-50")}
+          onClick={onIncrement}
+          aria-disabled={incrementDisabled}
+        >
           <RiAddLine className="size-3" />
         </Button>
       </div>
@@ -382,8 +418,8 @@ export function AddRepairItemForm({
                                 key={sp.id}
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => sp.stock > 0 && incrementQty(sp.id, setSparepartQtys)}
-                                onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && sp.stock > 0) incrementQty(sp.id, setSparepartQtys); }}
+                                onClick={() => incrementSparepartQty(sp)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") incrementSparepartQty(sp); }}
                                 className={cn(
                                    "flex cursor-pointer flex-col gap-2 rounded-md border px-3 py-2 transition-all sm:flex-row sm:items-center sm:justify-between",
                                   qty > 0
@@ -426,8 +462,9 @@ export function AddRepairItemForm({
                                   </span>
                                   <QtyStepper
                                     qty={qty}
-                                    onIncrement={() => incrementQty(sp.id, setSparepartQtys)}
+                                    onIncrement={() => incrementSparepartQty(sp)}
                                     onDecrement={() => decrementQty(sp.id, setSparepartQtys)}
+                                    incrementDisabled={qty >= sp.stock}
                                   />
                                 </div>
                               </div>

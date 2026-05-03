@@ -815,7 +815,7 @@ export function ServiceDetailCard({
           handleAddItemSuccess();
           onRefresh?.();
         }}
-        onError={(err) => console.error("Error adding item:", err)}
+        onError={(err) => toast.error(err)}
         onAddItem={handleOptimisticAddItem}
         onAddItemError={handleAddItemRevert}
         onSparepartCreated={async () => {
