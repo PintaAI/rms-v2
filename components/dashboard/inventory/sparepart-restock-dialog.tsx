@@ -313,7 +313,7 @@ function SparepartRestockDialogContent({
   };
 
   return (
-    <DialogContent className="min-w-2xl">
+    <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-xl">
           <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -334,7 +334,7 @@ function SparepartRestockDialogContent({
         )}
 
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-1">
               <div className="h-5 w-1 rounded-full bg-primary" />
               <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
@@ -352,8 +352,8 @@ function SparepartRestockDialogContent({
             </div>
           </div>
 
-          <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="barcode-input" className="flex items-center gap-1.5 text-sm">
@@ -415,8 +415,8 @@ function SparepartRestockDialogContent({
                   Hasil Pencarian
                 </span>
               </div>
-              <div className="ml-4 border-l border-border pl-4">
-                <ScrollArea className="h-48">
+              <div className="border-l border-border pl-3 sm:ml-4 sm:pl-4">
+                <ScrollArea className="h-40 sm:h-48">
                   <div className="space-y-0 rounded-lg border bg-muted/30 divide-y">
                     {searchResults.map((sp) => (
                       <button
@@ -426,7 +426,7 @@ function SparepartRestockDialogContent({
                         className="w-full px-3 py-2.5 text-left hover:bg-muted/50 transition-colors"
                       >
                         <div className="font-medium text-sm">{sp.name}</div>
-                        <div className="mt-0.5 text-xs text-muted-foreground">
+                        <div className="mt-0.5 break-all text-xs text-muted-foreground sm:break-normal">
                           {sp.barcode} | Stok: {sp.stock} | {formatCurrency(sp.defaultPrice)}
                         </div>
                       </button>
@@ -455,12 +455,12 @@ function SparepartRestockDialogContent({
                   Sparepart Dipilih
                 </span>
               </div>
-              <div className="ml-4 border-l border-border pl-4">
+              <div className="border-l border-border pl-3 sm:ml-4 sm:pl-4">
                 <div className="rounded-lg border bg-muted/30 p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <RiArchiveLine className="size-4 text-muted-foreground" />
-                      <span className="font-medium">{foundSparepart.name}</span>
+                      <span className="min-w-0 break-words font-medium">{foundSparepart.name}</span>
                       <Badge variant="outline">{foundSparepart.barcode}</Badge>
                     </div>
                     <Button
@@ -475,7 +475,7 @@ function SparepartRestockDialogContent({
                       <RiCloseLine className="size-4" />
                     </Button>
                   </div>
-                  <div className="mt-2 flex items-center gap-3 text-sm">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm sm:gap-3">
                     <span className="text-muted-foreground">Stok saat ini:</span>
                     <Badge variant="outline" className={cn(
                       foundSparepart.stock <= 0
@@ -506,8 +506,8 @@ function SparepartRestockDialogContent({
             </span>
           </div>
 
-          <div className="ml-4 border-l border-border pl-4">
-            <ScrollArea className="h-50 rounded-md border bg-muted/20">
+          <div className="border-l border-border pl-3 sm:ml-4 sm:pl-4">
+            <ScrollArea className="h-44 rounded-md border bg-muted/20 sm:h-50">
               {isLoadingHistory ? (
                 <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
                   <RiLoader4Line className="mr-2 size-4 animate-spin" />
@@ -520,17 +520,17 @@ function SparepartRestockDialogContent({
               ) : (
                 <div className="divide-y">
                   {history.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div key={item.id} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium">{item.sparepartName || "Sparepart"}</div>
-                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                           <RiUserLine className="size-3" />
                           <span>{item.userName}</span>
                           <span>|</span>
                           <span>{formatDate(new Date(item.createdAt))}</span>
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
+                      <div className="shrink-0 text-left sm:text-right">
                         <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                           +{item.addedQty}
                         </Badge>
@@ -562,7 +562,7 @@ function SparepartRestockDialogContent({
           </div>
         )}
 
-        <div className="flex justify-end gap-3 border-t pt-2">
+        <div className="flex flex-col-reverse gap-2 border-t pt-2 sm:flex-row sm:justify-end sm:gap-3">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Tutup
           </Button>

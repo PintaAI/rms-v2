@@ -196,7 +196,7 @@ function SparepartFormContent({
   }
 
   return (
-    <DialogContent className="min-w-2xl">
+    <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-xl">
           <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -216,7 +216,7 @@ function SparepartFormContent({
             </span>
           </div>
 
-          <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
+          <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="name" className="text-sm">Nama Sparepart</Label>
               <Input
@@ -229,7 +229,7 @@ function SparepartFormContent({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="price" className="flex items-center gap-1.5 text-sm">
@@ -284,16 +284,16 @@ function SparepartFormContent({
             </span>
           </div>
 
-          <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
+          <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
             {selectedDevices.length === 0 && (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-start gap-2">
                 <Checkbox
                   id="isUniversal"
                   checked={isUniversal}
                   onCheckedChange={(checked) => setIsUniversal(checked === true)}
                   disabled={isLoading}
                 />
-                <Label htmlFor="isUniversal" className="text-sm">Universal (dapat digunakan di perangkat apapun)</Label>
+                <Label htmlFor="isUniversal" className="text-sm leading-relaxed">Universal (dapat digunakan di perangkat apapun)</Label>
               </div>
             )}
 
@@ -331,7 +331,7 @@ function SparepartFormContent({
           </div>
         )}
 
-        <div className="flex justify-end gap-3 border-t pt-2">
+        <div className="flex flex-col-reverse gap-2 border-t pt-2 sm:flex-row sm:justify-end sm:gap-3">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Batal
           </Button>

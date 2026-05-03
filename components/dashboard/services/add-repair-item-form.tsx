@@ -238,7 +238,7 @@ export function AddRepairItemForm({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="min-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -261,7 +261,7 @@ export function AddRepairItemForm({
                 </span>
               </div>
 
-              <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
+              <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
                 <Tabs
                   value={itemType}
                   onValueChange={(value) => {
@@ -277,7 +277,7 @@ export function AddRepairItemForm({
                   <TabsContent value="sparepart" className="mt-4 flex flex-col gap-3">
                     {manualItemsEnabled && (
                       <>
-                        <div className="flex items-end gap-2">
+                        <div className="grid gap-2 sm:grid-cols-[1fr_7rem_5rem] sm:items-end">
                           <div className="flex-1 min-w-0 flex flex-col gap-2">
                             <Label htmlFor="manual-item-name" className="text-sm">Nama Item</Label>
                             <Input
@@ -287,7 +287,7 @@ export function AddRepairItemForm({
                               placeholder="Contoh: LCD iPhone 11"
                             />
                           </div>
-                          <div className="w-28 flex flex-col gap-2">
+                          <div className="flex flex-col gap-2">
                             <Label htmlFor="manual-item-price" className="text-sm">Harga</Label>
                             <Input
                               id="manual-item-price"
@@ -298,7 +298,7 @@ export function AddRepairItemForm({
                               placeholder="0"
                             />
                           </div>
-                          <div className="w-20 flex flex-col gap-2">
+                          <div className="flex flex-col gap-2">
                             <Label htmlFor="manual-item-qty" className="text-sm">Qty</Label>
                             <Input
                               id="manual-item-qty"
@@ -318,14 +318,14 @@ export function AddRepairItemForm({
                       </>
                     )}
 
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
                         <Label className="text-sm">Pilih Sparepart</Label>
                         <span className="text-xs text-muted-foreground">
                           Kompatibel dengan {deviceName}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <ScannerToggleButton
                           isOpen={scanner.isOpen}
                           onToggle={() => scanner.setIsOpen((open) => !open)}
@@ -373,7 +373,7 @@ export function AddRepairItemForm({
                         {searchQuery ? "Tidak ditemukan sparepart sesuai pencarian" : "Tidak ada sparepart tersedia di inventaris"}
                       </div>
                     ) : (
-                      <ScrollArea className="h-[300px]">
+                      <ScrollArea className="h-[240px] sm:h-[300px]">
                         <div className="space-y-1.5 pr-1">
                           {filteredSpareparts.map((sp) => {
                             const qty = sparepartQtys[sp.id] ?? 0;
@@ -385,7 +385,7 @@ export function AddRepairItemForm({
                                 onClick={() => sp.stock > 0 && incrementQty(sp.id, setSparepartQtys)}
                                 onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && sp.stock > 0) incrementQty(sp.id, setSparepartQtys); }}
                                 className={cn(
-                                  "flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 transition-all",
+                                   "flex cursor-pointer flex-col gap-2 rounded-md border px-3 py-2 transition-all sm:flex-row sm:items-center sm:justify-between",
                                   qty > 0
                                     ? "border-primary bg-primary/10"
                                     : "border-muted bg-background hover:border-muted-foreground/50 hover:bg-muted/30"
@@ -409,7 +409,7 @@ export function AddRepairItemForm({
                                     {sp.name}
                                   </span>
                                 </div>
-                                <div className="flex shrink-0 items-center gap-3">
+                                <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-3">
                                   <span className={cn(
                                     "text-xs font-semibold",
                                     qty > 0 ? "text-primary" : "text-muted-foreground"
@@ -441,7 +441,7 @@ export function AddRepairItemForm({
                   <TabsContent value="service" className="mt-4 flex flex-col gap-3">
                     {manualItemsEnabled && (
                       <>
-                        <div className="flex items-end gap-2">
+                        <div className="grid gap-2 sm:grid-cols-[1fr_7rem_5rem] sm:items-end">
                           <div className="flex-1 min-w-0 flex flex-col gap-2">
                             <Label htmlFor="manual-item-name" className="text-sm">Nama Item</Label>
                             <Input
@@ -451,7 +451,7 @@ export function AddRepairItemForm({
                               placeholder="Contoh: Jasa bongkar pasang"
                             />
                           </div>
-                          <div className="w-28 flex flex-col gap-2">
+                          <div className="flex flex-col gap-2">
                             <Label htmlFor="manual-item-price" className="text-sm">Harga</Label>
                             <Input
                               id="manual-item-price"
@@ -462,7 +462,7 @@ export function AddRepairItemForm({
                               placeholder="0"
                             />
                           </div>
-                          <div className="w-20 flex flex-col gap-2">
+                          <div className="flex flex-col gap-2">
                             <Label htmlFor="manual-item-qty" className="text-sm">Qty</Label>
                             <Input
                               id="manual-item-qty"
@@ -482,7 +482,7 @@ export function AddRepairItemForm({
                       </>
                     )}
 
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <Label className="text-sm">Pilih Jasa</Label>
                       <Button
                         type="button"
@@ -521,7 +521,7 @@ export function AddRepairItemForm({
                         {searchQuery ? "Tidak ditemukan jasa sesuai pencarian" : "Tidak ada jasa tersedia"}
                       </div>
                     ) : (
-                      <ScrollArea className="h-[300px]">
+                      <ScrollArea className="h-[240px] sm:h-[300px]">
                         <div className="space-y-1.5 pr-1">
                           {filteredServicePricelists.map((sp) => {
                             const qty = serviceQtys[sp.id] ?? 0;
@@ -533,7 +533,7 @@ export function AddRepairItemForm({
                                 onClick={() => incrementQty(sp.id, setServiceQtys)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") incrementQty(sp.id, setServiceQtys); }}
                                 className={cn(
-                                  "flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 transition-all",
+                                  "flex cursor-pointer flex-col gap-2 rounded-md border px-3 py-2 transition-all sm:flex-row sm:items-center sm:justify-between",
                                   qty > 0
                                     ? "border-primary bg-primary/10"
                                     : "border-muted bg-background hover:border-muted-foreground/50 hover:bg-muted/30"
@@ -557,7 +557,7 @@ export function AddRepairItemForm({
                                     {sp.title}
                                   </span>
                                 </div>
-                                <div className="flex shrink-0 items-center gap-3">
+                                <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-3">
                                   <span className={cn(
                                     "text-xs font-semibold",
                                     qty > 0 ? "text-primary" : "text-muted-foreground"
@@ -581,18 +581,18 @@ export function AddRepairItemForm({
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 border-t pt-2">
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+            <div className="flex flex-col gap-2 border-t pt-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+              <Button type="button" variant="outline" className="sm:order-2" onClick={() => handleOpenChange(false)}>
                 Batal
               </Button>
               {(isManualFilled || hasItemsSelected) && (
-                <div className="mr-auto flex items-center text-sm text-muted-foreground">
+                <div className="flex items-center text-sm text-muted-foreground sm:order-1 sm:mr-auto">
                   Total: <span className="ml-1 font-semibold text-foreground">
                     {formatCurrency(totalWithQuantity)}
                   </span>
                 </div>
               )}
-              <Button type="submit" disabled={!canSubmit}>
+              <Button type="submit" disabled={!canSubmit} className="sm:order-3">
                 <RiAddLine className="size-4" />
                 Tambah Item
               </Button>

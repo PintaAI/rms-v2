@@ -610,23 +610,24 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="min-w-3xl h-[500px] max-h-[85vh] p-0 overflow-hidden" showCloseButton={true}>
+      <DialogContent className="h-[min(640px,90vh)] w-[calc(100%-1rem)] overflow-hidden p-0 sm:max-w-3xl" showCloseButton={true}>
         <DialogHeader className="sr-only">
           <DialogTitle>User Settings</DialogTitle>
         </DialogHeader>
         <SidebarProvider defaultOpen={true} className="h-full min-h-0">
-          <div className="flex h-full min-h-0 w-full">
-            <Sidebar collapsible="none" className="w-[200px] border-r shrink-0" side="left">
+          <div className="flex h-full min-h-0 w-full flex-col sm:flex-row">
+            <Sidebar collapsible="none" className="h-auto w-full shrink-0 border-b sm:h-full sm:w-[200px] sm:border-b-0 sm:border-r" side="left">
               <SidebarContent>
                 <SidebarGroup>
-                  <SidebarGroupLabel>Settings</SidebarGroupLabel>
+                  <SidebarGroupLabel className="sm:flex">Settings</SidebarGroupLabel>
                   <SidebarGroupContent>
-                    <SidebarMenu>
+                    <SidebarMenu className="flex-row gap-1 overflow-x-auto px-1 pb-2 sm:flex-col sm:overflow-x-visible sm:px-0 sm:pb-0">
                       {menuItems.map((item) => (
-                        <SidebarMenuItem key={item.id}>
+                        <SidebarMenuItem key={item.id} className="shrink-0 sm:shrink">
                           <SidebarMenuButton
                             isActive={activeTab === item.id}
                             onClick={() => setActiveTab(item.id)}
+                            className="whitespace-nowrap"
                           >
                             {item.icon}
                             <span>{item.label}</span>
@@ -638,12 +639,12 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
                 </SidebarGroup>
               </SidebarContent>
             </Sidebar>
-            <main className="flex min-h-0 flex-1 flex-col p-6">
+            <main className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
               <div className="shrink-0 ">
                 <h2 className="font-heading text-sm font-medium">{getTabTitle()}</h2>
                 <Separator className="mt-2" />
               </div>
-              <ScrollArea className="h-[500px] pr-4">
+              <ScrollArea className="min-h-0 flex-1 pr-3 sm:pr-4">
                 <div className="pt-4">{renderContent()}</div>
               </ScrollArea>
             </main>
