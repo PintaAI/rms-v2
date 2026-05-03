@@ -113,6 +113,7 @@ export interface ServiceDetailCardItem {
     name: string;
     qty: number;
     price: number;
+    isPending?: boolean;
   }>;
     invoice: {
       id: string;
@@ -200,6 +201,7 @@ export function ServiceDetailCard({
   const [servicePricelists, setServicePricelists] = useState<
     Array<{ id: string; title: string; defaultPrice: number }>
   >([]);
+  const [removingItemIds, setRemovingItemIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isActive || !inventoryEnabled) return;
@@ -247,27 +249,60 @@ export function ServiceDetailCard({
   }, [undoStatus, onRefresh, mutate]);
 
   const handleRemoveItem = useCallback(async (itemId: string) => {
-    await mutate({
-      optimistic: (prev) => ({ ...prev, items: prev.items.filter((item) => item.id !== itemId) }),
-      action: () => removeItem(itemId),
-      onSuccess: () => onRefresh?.(),
-    });
-  }, [mutate, onRefresh]);
+    if (itemId.startsWith("temp-")) {
+      toast.error("Item masih disimpan. Tunggu sebentar lalu coba lagi.");
+      return;
+    }
+
+    setRemovingItemIds((prev) => new Set(prev).add(itemId));
+    try {
+      const result = await removeItem(itemId);
+      if (!result.success) {
+        toast.error(result.error || "Gagal menghapus item");
+        return;
+      }
+
+      setLocalService((prev) => ({
+        ...prev,
+        items: prev.items.filter((item) => item.id !== itemId),
+      }));
+      onRefresh?.();
+    } catch (err) {
+      console.error("Error removing item:", err);
+      toast.error("Gagal menghapus item");
+    } finally {
+      setRemovingItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }
+  }, [onRefresh]);
 
   const handleOptimisticAddItem = useCallback(
-    (newItem: { id: string; type: string; name: string; qty: number; price: number }) => {
+    (newItem: { id: string; type: string; name: string; qty: number; price: number; isPending?: boolean }) => {
       pendingMutationsRef.current += 1;
       setLocalService((prev) => ({ ...prev, items: [...prev.items, newItem] }));
     },
     []
   );
 
+  const handleAddItemSaved = useCallback(
+    (tempId: string, savedItem: { id: string; type: string; name: string; qty: number; price: number }) => {
+      setLocalService((prev) => ({
+        ...prev,
+        items: prev.items.map((item) => item.id === tempId ? savedItem : item),
+      }));
+    },
+    []
+  );
+
   const handleAddItemSuccess = useCallback(() => {
-    pendingMutationsRef.current -= 1;
+    pendingMutationsRef.current = 0;
   }, []);
 
   const handleAddItemRevert = useCallback(() => {
-    pendingMutationsRef.current -= 1;
+    pendingMutationsRef.current = 0;
     setLocalService(servicePropRef.current);
   }, []);
 
@@ -538,9 +573,16 @@ export function ServiceDetailCard({
                     </TableHeader>
                     <TableBody>
                       {localService.items.map((item) => (
-                        <TableRow key={item.id}>
+                        <TableRow key={item.id} className={item.isPending ? "opacity-70" : undefined}>
                           <TableCell>
-                            <Badge variant="outline">{item.type}</Badge>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline">{item.type}</Badge>
+                              {item.isPending && (
+                                <Badge variant="secondary" className="text-[10px] font-normal">
+                                  Menyimpan...
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>{item.name}</TableCell>
                           <TableCell>{item.qty}</TableCell>
@@ -553,6 +595,7 @@ export function ServiceDetailCard({
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                disabled={removingItemIds.has(item.id) || item.id.startsWith("temp-")}
                                 onClick={() => {
                                   if (onRemoveItem) {
                                     onRemoveItem(item.id);
@@ -817,6 +860,7 @@ export function ServiceDetailCard({
         }}
         onError={(err) => toast.error(err)}
         onAddItem={handleOptimisticAddItem}
+        onAddItemSaved={handleAddItemSaved}
         onAddItemError={handleAddItemRevert}
         onSparepartCreated={async () => {
           const result = await getCompatibleSpareparts(localService.tokoId, localService.hpCatalog.id);

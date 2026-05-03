@@ -41,7 +41,11 @@ interface AddRepairItemFormProps {
   servicePricelists: Array<{ id: string; title: string; defaultPrice: number }>;
   onSuccess: () => void;
   onError: (error: string) => void;
-  onAddItem?: (item: { id: string; type: string; name: string; qty: number; price: number }) => void;
+  onAddItem?: (item: { id: string; type: string; name: string; qty: number; price: number; isPending?: boolean }) => void;
+  onAddItemSaved?: (
+    tempId: string,
+    item: { id: string; type: string; name: string; qty: number; price: number }
+  ) => void;
   onAddItemError?: () => void;
   onSparepartCreated?: () => void;
   onPricelistCreated?: () => void;
@@ -60,6 +64,7 @@ export function AddRepairItemForm({
   onSuccess,
   onError,
   onAddItem,
+  onAddItemSaved,
   onAddItemError,
   onSparepartCreated,
   onPricelistCreated,
@@ -192,38 +197,27 @@ export function AddRepairItemForm({
           .map((sp) => ({ ...sp, qty: serviceQtys[sp.id] }));
 
     const itemsToAdd = [...manualItems, ...selectedItems];
+    const pendingItems = itemsToAdd.map((item) => {
+      const isManual = "id" in item && item.id === "";
+      const itemNameToUse = isManual
+        ? manualName.trim()
+        : "name" in item
+          ? item.name
+          : (item as typeof item & { title: string }).title;
+      const itemPriceToUse = isManual ? parseInt(manualPrice, 10) : item.defaultPrice;
+      const tempId = `temp-${crypto.randomUUID()}`;
 
-    const insufficientStockItem = itemType === "sparepart"
-      ? selectedItems.find((item) => "stock" in item && item.qty > item.stock)
-      : undefined;
-
-    if (insufficientStockItem && "stock" in insufficientStockItem) {
-      toast.error(`Stok sparepart "${insufficientStockItem.name}" hanya tersedia ${insufficientStockItem.stock}`);
-      return;
-    }
-
-    handleOpenChange(false);
-
-    try {
-      for (const item of itemsToAdd) {
-        const isManual = "id" in item && item.id === "";
-        const itemNameToUse = isManual
-          ? manualName.trim()
-          : "name" in item
-            ? item.name
-            : (item as typeof item & { title: string }).title;
-        const itemPriceToUse = isManual ? parseInt(manualPrice, 10) : item.defaultPrice;
-
-        const newItem = {
-          id: `temp-${crypto.randomUUID()}`,
+      return {
+        tempId,
+        newItem: {
+          id: tempId,
           type: itemType,
           name: itemNameToUse || "",
           qty: item.qty,
           price: itemPriceToUse,
-        };
-        onAddItem?.(newItem);
-
-        const result = await addItem({
+          isPending: true,
+        },
+        payload: {
           serviceId,
           type: itemType,
           sparepartId: itemType === "sparepart" && !isManual ? item.id : undefined,
@@ -231,12 +225,25 @@ export function AddRepairItemForm({
           name: itemNameToUse || "",
           qty: item.qty,
           price: itemPriceToUse,
-        });
+        },
+      };
+    });
+
+    pendingItems.forEach(({ newItem }) => onAddItem?.(newItem));
+    handleOpenChange(false);
+
+    try {
+      for (const pendingItem of pendingItems) {
+        const result = await addItem(pendingItem.payload);
 
         if (!result.success) {
           onAddItemError?.();
           onError(result.error || "Gagal menambahkan item");
           return;
+        }
+
+        if (result.data) {
+          onAddItemSaved?.(pendingItem.tempId, result.data);
         }
       }
 

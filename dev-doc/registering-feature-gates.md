@@ -1,27 +1,43 @@
 # Registering Feature Gates
 
-A guide for developers to add new plan-gated features to the system.
+A guide for adding plan-gated, role-gated, and per-toko configurable features.
 
-## The 3-Layer System
+## Current Architecture
 
-Every feature gate has three layers:
+Feature gates are evaluated from one registry and then exposed through request scope.
 
+```txt
+lib/features.ts
+  FeatureKey + FEATURE_REGISTRY + getFeatureLockReason()
+
+lib/auth/request-scope.ts
+  getRequestScope(tokoId)
+    -> user, effective plan, disabledFeatures, featureAccess, capabilities
+  assertFeature(scope, key)
+  getPageFeatureCheck(scope, key)
+
+actions/feature-settings.ts
+  reads/writes TokoFeatureSetting.disabledFeatures
+  powers Pengaturan Fitur UI
 ```
-Registry  →  Server enforcement  →  UI enforcement
-(lib/features.ts)   (assertFeature)     (featureAccess[key])
-```
 
-You must always do Layer 1 + 2. Layer 3 is optional (skip if the feature has no UI).
+Feature gates combine three independent checks:
 
----
+| Check | Source | Lock reason |
+|---|---|---|
+| Role access | `FEATURE_REGISTRY[key].allowedRoles` | `role_denied` |
+| Plan access | `FEATURE_REGISTRY[key].minimumPlan` | `plan_required` |
+| Per-toko admin toggle | `TokoFeatureSetting.disabledFeatures` | `disabled_by_toko` |
 
-## Step 1: Registry
+Capabilities are separate from features. Use `assertCapability()` and `scope.capabilities` for core role permissions such as `dashboard.overview`, `toko.manage`, and `service.management`. Use feature gates only for plan/configurable product features.
 
-Both changes in `lib/features.ts`.
+## Step 1: Register The Feature
 
-### 1a. Add to the type union
+All registry work is in `lib/features.ts`.
 
-Find `FeatureKey` and append your key:
+### 1a. Add The Key
+
+Append the new key to `FeatureKey`:
 
 ```ts
 export type FeatureKey =
@@ -33,10 +49,12 @@ export type FeatureKey =
   | "activityLog.view"
   | "analytics.revenue"
   | "inventory.audit"
-  | "whatsapp.integration";     // <-- add
+  | "whatsapp.integration";
 ```
 
-### 1b. Add to `FEATURE_REGISTRY`
+### 1b. Add Metadata
+
+Add a matching entry to `FEATURE_REGISTRY`:
 
 ```ts
 "whatsapp.integration": {
@@ -50,42 +68,45 @@ export type FeatureKey =
 },
 ```
 
-**Field reference:**
+Field reference:
 
 | Field | Purpose |
 |---|---|
-| `key` | Must match the `FeatureKey` union member |
-| `label` | User-facing name shown in Feature Settings, billing, locked state |
-| `description` | Shown in Feature Settings toggle tooltip |
-| `category` | Groups features in settings UI (`dashboard`, `toko`, `service`, `inventory`, `team`, `analytics`) |
-| `allowedRoles` | Which roles can use this feature (independent of plan) |
-| `minimumPlan` | Minimum plan required (`"free"`, `"premium"`, `"enterprise"`) |
-| `configurable` | If `true`, admin can disable it per-toko in Feature Settings |
+| `key` | Must match a `FeatureKey` union member |
+| `label` | User-facing name in settings, locked states, and previews |
+| `description` | User-facing explanation in settings and locked UI |
+| `category` | Groups rows in Pengaturan Fitur: `dashboard`, `toko`, `service`, `inventory`, `team`, `analytics` |
+| `allowedRoles` | Roles allowed to use the feature, independent of plan |
+| `minimumPlan` | Minimum plan required: `free`, `premium`, or `enterprise` |
+| `configurable` | Whether admin can disable it per toko |
 
-That's all the registry work. The rest flows automatically:
-- `getRequestScope()` includes the key in `featureAccess`
-- `getFeatureLockReason()` computes the right lock reason
-- Admin Feature Settings page shows the toggle
-- Billing summary shows it as locked/included
+After registration, these update automatically:
 
----
+- `FEATURE_KEYS`
+- `getFeatureLockReason()`
+- `getRequestScope(tokoId).featureAccess`
+- `getRequestScope(tokoId).disabledFeatures`
+- Pengaturan Fitur rows from `getTokoFeatureSettingsWithStatus()`
+- Billing/onboarding code that reads `FEATURE_REGISTRY`
 
-## Step 2: Server Enforcement
+## Step 2: Enforce On The Server
 
-Every server action that the feature controls must have an `assertFeature()` call.
+Server enforcement is mandatory. UI hiding is not a security boundary.
 
-### Pattern
+### Preferred Pattern: RequestScope
+
+Use this for new server actions and server data functions when the `tokoId` is known at the start of the function.
 
 ```ts
-import { getRequestScope, assertFeature } from "@/lib/auth/request-scope";
 import { actionError } from "@/lib/auth/authorization";
+import { assertFeature, getRequestScope } from "@/lib/auth/request-scope";
 
-export async function someMutation(tokoId: string, ...args) {
+export async function updateWhatsappSetting(tokoId: string, input: Input) {
   try {
     const scope = await getRequestScope(tokoId);
-    assertFeature(scope, "your.feature.key");
+    assertFeature(scope, "whatsapp.integration");
 
-    // ... mutation logic ...
+    // mutate toko-scoped data
 
     return { success: true };
   } catch (error) {
@@ -94,125 +115,207 @@ export async function someMutation(tokoId: string, ...args) {
 }
 ```
 
-**Rules:**
-- Always gate the action even if the UI is hidden — this is the security boundary
-- Use `actionError()` to convert `AuthError` to a user-friendly `ActionResult`
-- The `assertFeature` check combines: role, plan level, and per-toko disabled setting
+Use `assertRole()` or `assertCapability()` alongside `assertFeature()` when the action also needs role/capability enforcement.
 
-For read-only data fetching that should be limited, use the `RequestScope` directly:
+```ts
+const scope = await getRequestScope(tokoId);
+assertRole(scope, ["admin"]);
+assertFeature(scope, "karyawan.management");
+```
+
+For read-only server data that receives an existing scope:
 
 ```ts
 import type { RequestScope } from "@/lib/auth/request-scope";
+import { assertFeature } from "@/lib/auth/request-scope";
 
-export async function getSomeData(scope: RequestScope) {
-  assertFeature(scope, "your.feature.key");
-  return prisma.someModel.findMany({ where: { tokoId: scope.tokoId } });
-}
-```
-
----
-
-## Step 3: UI Enforcement
-
-Choose the pattern that matches the feature type.
-
-### Pattern A — Navigation item (sidebar)
-
-In the role-specific nav component (`components/dashboard/nav/admin-nav.tsx`, `staff-nav.tsx`, etc.):
-
-```tsx
-{featureAccess["your.feature.key"] && (
-  <NavItem
-    href={`/${tokoid}/admin/some-page`}
-    icon={RiSomeIcon}
-    label="Feature Name"
-  />
-)}
-```
-
-### Pattern B — Tab in an existing page
-
-In the page or tab container:
-
-```tsx
-// app/(dashboard)/[tokoid]/admin/toko/page.tsx (server component)
-const scope = await getRequestScope(tokoid);
-
-// Pass to client component:
-return <ManageToko currentTokoId={tokoid} featureAccess={scope.featureAccess} />;
-
-// Inside the client component, gate the tab:
-const { featureAccess } = useDashboardScope();  // or from props
-{featureAccess["your.feature.key"] && (
-  <TabsTrigger value="settings-tab">Feature Label</TabsTrigger>
-)}
-{featureAccess["your.feature.key"] && (
-  <TabsContent value="settings-tab">
-    <FeatureSettingsTab tokoId={tokoid} />
-  </TabsContent>
-)}
-```
-
-### Pattern C — Route-level gate (whole page)
-
-In the layout file:
-
-```tsx
-import { getRequestScope, assertFeature } from "@/lib/auth/request-scope";
-
-export default async function SomePageLayout({ children, params }) {
-  const { tokoid } = await params;
-  const scope = await getRequestScope(tokoid);
-  assertFeature(scope, "your.feature.key");   // throws, shows error
-  return <>{children}</>;
-}
-```
-
-### Pattern D — Automation only (no UI)
-
-Skip this step entirely. Only Step 1 + 2 are needed.
-
-**What happens when the plan is too low?**
-- The server action returns `{ success: false, error: "..." }`
-- No UI to hide because there is none
-- The automation simply doesn't fire for users on lower plans
-
----
-
-## Example A: Full Feature (Analytics Revenue)
-
-Registry:
-```ts
-"analytics.revenue": {
-  key: "analytics.revenue",
-  label: "Revenue Analytics",
-  description: "Pantau performa pendapatan dan metrik service.",
-  category: "analytics",
-  allowedRoles: ["admin"],
-  minimumPlan: "premium",
-  configurable: true,
-},
-```
-
-Server enforcement — already handled by `getRequestScope()` generating `featureAccess`. The data function checks:
-
-```ts
 export async function getRevenueData(scope: RequestScope) {
-  assertRole(scope, ["admin"]);
-  assertCapability(scope, "dashboard.overview");
-  // If the caller also wants to check the feature:
   assertFeature(scope, "analytics.revenue");
   return prisma.service.findMany({ where: { tokoId: scope.tokoId } });
 }
 ```
 
-UI — sidebar nav already checks `featureAccess["analytics.revenue"]`.
+### Existing Legacy Pattern
 
----
+Some older actions first load a record, discover `tokoId`, and then use `ensureFeatureAccess()` with `getDisabledFeaturesForToko()`.
 
-## Example B: Automation Only (WhatsApp)
+```ts
+import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
+import { ensureFeatureAccess } from "@/lib/auth/enforcement";
+
+const disabledFeatures = await getDisabledFeaturesForToko(service.tokoId);
+const featureError = ensureFeatureAccess(scopedUser, "inventory.management", disabledFeatures);
+if (featureError) return featureError;
+```
+
+This is still valid in existing code, but prefer `getRequestScope()` for new code once the `tokoId` is available. `assertFeature()` gives consistent `AuthError` handling through `actionError()`.
+
+## Step 3: Enforce In The UI
+
+UI behavior depends on the desired locked-state experience.
+
+### Dashboard Scope In Client Components
+
+The root dashboard layout calls `getRequestScope(tokoid)` and provides `featureAccess`, `capabilities`, and `disabledFeatures` through `DashboardScopeProvider`.
+
+Use `useDashboardScope()` in client components:
+
+```tsx
+"use client";
+
+import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
+
+export function SomeClientComponent() {
+  const { featureAccess, disabledFeatures } = useDashboardScope();
+  const enabled = featureAccess["inventory.management"] ?? false;
+  const disabledByToko = disabledFeatures.includes("inventory.management");
+
+  if (disabledByToko) return null;
+
+  return <button disabled={!enabled}>Inventory action</button>;
+}
+```
+
+### Navigation Items
+
+Current nav generally hides features disabled by toko, but keeps plan-locked features visible with a lock badge.
+
+```tsx
+const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
+const inventoryEnabled = featureAccess["inventory.management"] ?? false;
+
+{!isFeatureDisabled("inventory.management") && (
+  <NavItem
+    href={`/${tokoid}/admin/inventory`}
+    icon={<RiToolsLine />}
+    label="Sparepart & Jasa"
+    isLocked={!inventoryEnabled}
+  />
+)}
+```
+
+Use this behavior when a lower plan should see an upgrade path. If the feature should be completely invisible whenever inaccessible, check only `featureAccess[key]`.
+
+### Whole Pages
+
+For full-page features, use `getPageFeatureCheck(scope, key)` in the page and handle each lock reason explicitly.
+
+```tsx
+import { FeaturePreview } from "@/components/dashboard/feature-preview";
+import { getPageFeatureCheck, getRequestScope } from "@/lib/auth/request-scope";
+import { redirect } from "next/navigation";
+
+export default async function AdminInventoryPage({ params }: Props) {
+  const { tokoid } = await params;
+  const scope = await getRequestScope(tokoid);
+  const access = getPageFeatureCheck(scope, "inventory.management");
+
+  if (access.reason === "role_denied") redirect("/dashboard");
+  if (access.reason === "disabled_by_toko") redirect(`/${tokoid}/admin`);
+
+  if (access.reason === "plan_required") {
+    return (
+      <FeaturePreview
+        featureKey="inventory.management"
+        requiredPlan={access.metadata.minimumPlan}
+        tokoId={tokoid}
+      />
+    );
+  }
+
+  return <InventoryTabs tokoId={tokoid} readOnly={false} />;
+}
+```
+
+Use `FeatureLocked` when the desired behavior is an explanatory locked page instead of a preview or redirect.
+
+```tsx
+import { FeatureLocked } from "@/components/dashboard/feature-locked";
+import { FEATURE_REGISTRY, getFeatureLockReason } from "@/lib/features";
+
+const reason = getFeatureLockReason({
+  plan: scope.plan,
+  role: scope.user.role,
+  feature: "staff.workflow",
+  disabledFeatures: scope.disabledFeatures,
+});
+
+if (reason) {
+  const feature = FEATURE_REGISTRY["staff.workflow"];
+  return (
+    <FeatureLocked
+      featureLabel={feature.label}
+      featureDescription={feature.description}
+      requiredPlan={feature.minimumPlan}
+      reason={reason}
+      tokoId={tokoid}
+    />
+  );
+}
+```
+
+### Tabs Or Partial UI
+
+For tabs and partial UI, pass or read `featureAccess` from dashboard scope. Hide disabled-by-toko controls when needed, and show a locked/disabled control only if an upgrade path is useful.
+
+```tsx
+const { featureAccess, disabledFeatures } = useDashboardScope();
+const hiddenByToko = disabledFeatures.includes("analytics.revenue");
+const enabled = featureAccess["analytics.revenue"] ?? false;
+
+{!hiddenByToko && (
+  <TabsTrigger value="revenue" disabled={!enabled}>
+    Revenue
+  </TabsTrigger>
+)}
+
+{enabled && (
+  <TabsContent value="revenue">
+    <RevenueAnalytics />
+  </TabsContent>
+)}
+```
+
+## Step 4: Admin Feature Settings
+
+Per-toko toggles are stored in `TokoFeatureSetting.disabledFeatures` and managed by `actions/feature-settings.ts`.
+
+`getTokoFeatureSettingsWithStatus(tokoId)` returns every registered feature with:
+
+| Status | Meaning |
+|---|---|
+| `enabled` | Plan allows it and toko has not disabled it |
+| `disabled_by_toko` | Admin disabled it for this toko |
+| `plan_required` | Current toko plan is below `minimumPlan` |
+| `required` | Feature is not configurable and must stay enabled when plan allows it |
+
+`FeatureSettingsTab` displays these rows under Pengaturan Fitur. It disables switches for `plan_required`, shows required features as always-on, and calls `setTokoFeatureEnabled()` for configurable features.
+
+When a feature is disabled by toko:
+
+- `scope.disabledFeatures` includes the key.
+- `scope.featureAccess[key]` becomes `false`.
+- `assertFeature()` throws `AuthError("feature_locked", "Fitur ini dinonaktifkan untuk toko ini")`.
+- `getPageFeatureCheck()` returns `reason: "disabled_by_toko"`.
+
+## Plan Levels
+
+Plan comparison lives in `lib/plans.ts` and is re-exported from `lib/features.ts` for feature-related code.
+
+```txt
+free rank 0
+premium rank 1
+enterprise rank 2
+```
+
+`isPlanAtLeast(plan, minimumPlan)` compares these ranks. A `premium` toko passes `minimumPlan: "free"` and `minimumPlan: "premium"`, but fails `minimumPlan: "enterprise"`.
+
+Effective plan is resolved per request scope through `getEffectivePlanForToko(user, tokoId)`, so staff and technicians inherit the appropriate toko/admin plan instead of relying only on their own user record.
+
+## Example: Automation Feature
 
 Registry:
+
 ```ts
 "whatsapp.integration": {
   key: "whatsapp.integration",
@@ -225,14 +328,16 @@ Registry:
 },
 ```
 
-Server enforcement — in the notification trigger action:
+Mutation enforcement:
+
 ```ts
-export async function updateServiceStatus(tokoId: string, serviceId: string, status: string) {
+export async function sendWhatsappInvoice(tokoId: string, serviceId: string) {
   try {
     const scope = await getRequestScope(tokoId);
-    // ... update status ...
     assertFeature(scope, "whatsapp.integration");
-    await sendServiceStatusWhatsappNotification({ serviceId, status });
+
+    await sendInvoiceNotification({ tokoId, serviceId });
+
     return { success: true };
   } catch (error) {
     return actionError(error);
@@ -240,57 +345,16 @@ export async function updateServiceStatus(tokoId: string, serviceId: string, sta
 }
 ```
 
-Also gate the settings mutation:
-```ts
-export async function updateTokoWhatsappSetting(tokoId: string, input: ...) {
-  try {
-    const scope = await getRequestScope(tokoId);
-    assertFeature(scope, "whatsapp.integration");
-    // ... save setting ...
-  } catch (error) {
-    return actionError(error);
-  }
-}
-```
+UI is optional for automation-only features. If there is no UI, Step 1 and server enforcement are enough.
 
-UI — none needed (automation feature).
+## Checklist
 
----
-
-## How Plan Levels Work
-
-```
-free (rank 0)  →  basic features only
-premium (rank 1)  →  mid-tier features
-enterprise (rank 2)  →  all features
-```
-
-`isPlanAtLeast(plan, minimumPlan)` compares ranks. A `premium` user passes a `minimumPlan: "free"` check but fails `minimumPlan: "enterprise"`.
-
-If a feature's `minimumPlan` is changed (e.g. from `"premium"` to `"free"`), all gates update automatically — no code changes needed outside the registry.
-
----
-
-## Feature Settings Admin Toggle
-
-When `configurable: true`, the admin can disable the feature per-toko from **Pengaturan Toko → Fitur** (Feature Settings tab). The toggle:
-- Is visible only if the plan meets the `minimumPlan`
-- Is disabled (greyed out) with `plan_required` status if plan is too low
-- Is switchable if plan is sufficient
-
-When a feature is disabled by the admin:
-- The feature's `featureAccess` value becomes `false`
-- `assertFeature()` throws with code `"feature_locked"` and message `"Fitur ini dinonaktifkan untuk toko ini"`
-- The toggle in Feature Settings shows it as disabled
-
----
-
-## Summary Checklist
-
-```
-[ ] Add key to FeatureKey type
-[ ] Add entry to FEATURE_REGISTRY
-[ ] Add assertFeature() in every relevant server action
-[ ] (if has UI) Gate nav item / tab / page with featureAccess[key]
-[ ] (if has UI) Gate route layout with assertFeature() for full-page features
+```txt
+[ ] Add key to FeatureKey in lib/features.ts
+[ ] Add metadata to FEATURE_REGISTRY
+[ ] Add assertFeature() in every new server action/data function controlled by the feature
+[ ] For legacy actions, pass disabledFeatures into ensureFeatureAccess() if not using RequestScope
+[ ] For full pages, use getPageFeatureCheck() and choose preview, locked page, or redirect behavior
+[ ] For nav/partial UI, gate with featureAccess and disabledFeatures from dashboard scope
+[ ] Confirm Pengaturan Fitur shows the expected status and toggle behavior
 ```

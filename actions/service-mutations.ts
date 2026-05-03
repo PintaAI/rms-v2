@@ -626,7 +626,13 @@ export async function assignTechnician(
   }
 }
 
-export async function addItem(data: z.infer<typeof addItemSchema>): Promise<ActionResult> {
+export async function addItem(data: z.infer<typeof addItemSchema>): Promise<ActionResultWithData<{
+  id: string;
+  type: string;
+  name: string;
+  qty: number;
+  price: number;
+}>> {
   try {
     const { user, tokoIds } = await getSessionAndTokos();
     if (!user) return { success: false, error: "Unauthorized" };
@@ -659,6 +665,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
     const validated = addItemSchema.parse(data);
     const scopedUser = await getTokoScopedUser(user, service.tokoId);
     const disabledFeatures = await getDisabledFeaturesForToko(service.tokoId);
+    let createdItem: { id: string; type: string; name: string; qty: number; price: number } | null = null;
 
     if (validated.type === "sparepart" && validated.servicePricelistId) {
       return { success: false, error: "Sparepart item cannot use a service pricelist" };
@@ -708,7 +715,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           throw new Error(`Insufficient stock. Available: ${sparepart.stock}`);
         }
 
-        await tx.serviceItem.create({
+        createdItem = await tx.serviceItem.create({
           data: {
             serviceId: validated.serviceId,
             type: validated.type,
@@ -777,7 +784,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
       }
 
       await prisma.$transaction(async (tx) => {
-        await tx.serviceItem.create({
+        createdItem = await tx.serviceItem.create({
           data: {
             serviceId: validated.serviceId,
             type: validated.type,
@@ -814,7 +821,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
 
     revalidateServicePaths(service.tokoId);
 
-    return { success: true };
+    return { success: true, data: createdItem ?? undefined };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message };
