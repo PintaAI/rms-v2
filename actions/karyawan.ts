@@ -29,6 +29,41 @@ export interface KaryawanStats {
   total: number;
 }
 
+export interface TechnicianPerformanceServiceItem {
+  id: string;
+  customerName: string | null;
+  noWa: string;
+  complaint: string;
+  status: "done" | "failed";
+  checkinAt: Date;
+  doneAt: Date | null;
+  hpCatalog: {
+    modelName: string;
+    brand: { name: string };
+  };
+  invoice: {
+    grandTotal: number;
+    paymentStatus: string;
+  } | null;
+}
+
+export interface TechnicianPerformanceDetail {
+  technician: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  periodDays: number;
+  summary: {
+    servicesHandled: number;
+    servicesCompleted: number;
+    servicesFailed: number;
+    successRate: number;
+    paidRevenue: number;
+  };
+  services: TechnicianPerformanceServiceItem[];
+}
+
 async function getKaryawanPerformanceMap(
   tokoId: string,
   assignments: Array<{
@@ -68,7 +103,6 @@ async function getKaryawanPerformanceMap(
             tokoId,
             technicianId: { in: technicianIds },
             status: { in: ["done", "failed"] },
-            isPickedUp: true,
             doneAt: { gte: monthlyStart },
           },
           _count: { _all: true },
@@ -207,6 +241,122 @@ export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
   ]);
 
   return { staff, technician, total: staff + technician };
+}
+
+export async function getTechnicianPerformanceDetail(
+  tokoId: string,
+  technicianId: string
+): Promise<{ success: boolean; data?: TechnicianPerformanceDetail; error?: string }> {
+  const user = await getRequestUser();
+
+  if (!user) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  if (user.role !== "admin") {
+    return { success: false, error: "Only admins can view technician performance" };
+  }
+
+  if (!user.tokoIds.includes(tokoId)) {
+    return { success: false, error: "Access denied" };
+  }
+
+  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
+  if (featureError) return featureError;
+
+  const assignment = await prisma.userToko.findFirst({
+    where: {
+      tokoId,
+      userId: technicianId,
+      user: { role: "technician" },
+    },
+    select: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  if (!assignment) {
+    return { success: false, error: "Technician not found" };
+  }
+
+  const periodDays = 30;
+  const monthlyStart = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+  const serviceWhere: Prisma.ServiceWhereInput = {
+    tokoId,
+    technicianId,
+    status: { in: ["done", "failed"] },
+    doneAt: { gte: monthlyStart },
+  };
+
+  const [statusCounts, paidRevenue, services] = await Promise.all([
+    prisma.service.groupBy({
+      by: ["status"],
+      where: serviceWhere,
+      _count: { _all: true },
+    }),
+    prisma.invoice.aggregate({
+      where: {
+        paymentStatus: "paid",
+        service: serviceWhere,
+      },
+      _sum: { grandTotal: true },
+    }),
+    prisma.service.findMany({
+      where: serviceWhere,
+      orderBy: [{ doneAt: "desc" }, { checkinAt: "desc" }],
+      take: 50,
+      select: {
+        id: true,
+        customerName: true,
+        noWa: true,
+        complaint: true,
+        status: true,
+        checkinAt: true,
+        doneAt: true,
+        hpCatalog: {
+          select: {
+            modelName: true,
+            brand: { select: { name: true } },
+          },
+        },
+        invoice: {
+          select: {
+            grandTotal: true,
+            paymentStatus: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const servicesCompleted = statusCounts.find((count) => count.status === "done")?._count._all ?? 0;
+  const servicesFailed = statusCounts.find((count) => count.status === "failed")?._count._all ?? 0;
+  const servicesHandled = servicesCompleted + servicesFailed;
+
+  return {
+    success: true,
+    data: {
+      technician: assignment.user,
+      periodDays,
+      summary: {
+        servicesHandled,
+        servicesCompleted,
+        servicesFailed,
+        successRate: servicesHandled > 0 ? Math.round((servicesCompleted / servicesHandled) * 100) : 0,
+        paidRevenue: paidRevenue._sum.grandTotal ?? 0,
+      },
+      services: services.map((service) => ({
+        ...service,
+        status: service.status as "done" | "failed",
+      })),
+    },
+  };
 }
 
 export async function createKaryawan(

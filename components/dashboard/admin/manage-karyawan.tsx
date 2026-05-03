@@ -22,6 +22,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
+import { TechnicianPerformanceDialog } from "@/components/dashboard/admin/technician-performance-dialog";
 import { createKaryawan, deleteKaryawan } from "@/actions/karyawan";
 import type { KaryawanItem, KaryawanStats } from "@/actions/karyawan";
 import {
@@ -49,7 +50,15 @@ interface StatsCardProps {
   variant?: StatsVariant;
 }
 
-function PerformanceBadge({ performance, role }: { performance: KaryawanItem["performance"]; role: "staff" | "technician" }) {
+function PerformanceBadge({
+  performance,
+  role,
+  onClick,
+}: {
+  performance: KaryawanItem["performance"];
+  role: "staff" | "technician";
+  onClick?: () => void;
+}) {
   if (!performance) {
     return <span className="text-muted-foreground text-xs">-</span>;
   }
@@ -67,7 +76,12 @@ function PerformanceBadge({ performance, role }: { performance: KaryawanItem["pe
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+      title="Lihat detail performance teknisi"
+    >
       <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-green-50 dark:bg-green-950">
         <RiCheckboxCircleLine className="size-3 text-green-600 dark:text-green-400" />
         <span className="text-xs font-medium text-green-700 dark:text-green-300">{performance.servicesCompleted}</span>
@@ -78,8 +92,8 @@ function PerformanceBadge({ performance, role }: { performance: KaryawanItem["pe
           <span className="text-xs font-medium text-red-700 dark:text-red-300">{performance.servicesFailed}</span>
         </div>
       )}
-      <span className="text-xs text-muted-foreground ml-1">(30d)</span>
-    </div>
+      <span className="text-xs text-muted-foreground ml-1">Detail (30d)</span>
+    </button>
   );
 }
 
@@ -156,6 +170,8 @@ export function ManageKaryawan({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<KaryawanItem | null>(null);
+  const [performanceDialogOpen, setPerformanceDialogOpen] = useState(false);
+  const [selectedTechnician, setSelectedTechnician] = useState<KaryawanItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,6 +221,13 @@ export function ManageKaryawan({
   const handleDeleteClick = (item: KaryawanItem) => {
     setDeleteTarget(item);
     setDeleteDialogOpen(true);
+  };
+
+  const handlePerformanceClick = (item: KaryawanItem) => {
+    if (item.role !== "technician") return;
+
+    setSelectedTechnician(item);
+    setPerformanceDialogOpen(true);
   };
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -319,7 +342,11 @@ export function ManageKaryawan({
                         </span>
                       </TableCell>
                       <TableCell>
-                        <PerformanceBadge performance={item.performance} role={item.role} />
+                        <PerformanceBadge
+                          performance={item.performance}
+                          role={item.role}
+                          onClick={item.role === "technician" ? () => handlePerformanceClick(item) : undefined}
+                        />
                       </TableCell>
                       <TableCell>
                         <Button
@@ -444,6 +471,16 @@ export function ManageKaryawan({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <TechnicianPerformanceDialog
+        open={performanceDialogOpen}
+        onOpenChange={(open) => {
+          setPerformanceDialogOpen(open);
+          if (!open) setSelectedTechnician(null);
+        }}
+        technician={selectedTechnician}
+        tokoId={tokoId}
+      />
 
       <DeleteDialog
         open={deleteDialogOpen}
