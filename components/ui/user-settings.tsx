@@ -9,16 +9,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +27,8 @@ import { changePassword, getBillingPlanSummary, updateProfile, uploadAvatar, set
 import { useAuth } from "@/components/auth/auth-provider"
 import { FeatureSettingsTab } from "@/components/dashboard/admin/feature-settings-tab"
 import { WhatsappSettingsTab } from "@/components/dashboard/admin/whatsapp-settings-tab"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 import type { SubscriptionPlan } from "@/lib/features"
 import { getThemeMode, setThemeMode, type ThemeMode } from "@/lib/theme-preference"
 import {
@@ -538,6 +535,7 @@ function AppearanceSettings() {
 
 export function UserSettings({ open, onOpenChange, user, initialTab }: UserSettingsProps) {
   const [activeTab, setActiveTab] = React.useState<SettingsTab>(() => initialTab || "profile")
+  const isMobile = useIsMobile()
   const params = useParams<{ tokoid?: string | string[] }>()
   const currentTokoId = getParamValue(params?.tokoid)
   const [billingSummary, setBillingSummary] = React.useState<BillingPlanSummary | null>(null)
@@ -608,48 +606,65 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
     return item?.label || "Settings"
   }
 
+  const settingsContent = (
+    <div className="flex h-full min-h-0 w-full flex-col md:flex-row">
+      <nav className="shrink-0 border-b bg-sidebar text-sidebar-foreground md:w-[200px] md:border-b-0 md:border-r">
+        <div className="px-3 pb-2 pt-3 text-xs text-sidebar-foreground/70 md:h-8 md:px-4 md:py-2">
+          Settings
+        </div>
+        <div className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:overflow-x-visible md:px-2 md:pb-2">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setActiveTab(item.id)}
+              className={cn(
+                "relative flex h-9 shrink-0 items-center gap-2 overflow-hidden rounded-lg px-3 text-left text-xs whitespace-nowrap transition-all hover:bg-primary/10 hover:text-primary md:w-full",
+                activeTab === item.id && "bg-gradient-to-r from-primary/10 via-primary/5 to-transparent font-semibold text-foreground shadow-sm"
+              )}
+            >
+              <span className="[&>svg]:size-4 [&>svg]:shrink-0">{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+      <main className="flex min-h-0 flex-1 flex-col p-4 md:p-6">
+        <div className="shrink-0">
+          <h2 className="font-heading text-sm font-medium">{getTabTitle()}</h2>
+          <Separator className="mt-2" />
+        </div>
+        <ScrollArea className="min-h-0 flex-1 pr-3 md:pr-4">
+          <div className="pt-4">{renderContent()}</div>
+        </ScrollArea>
+      </main>
+    </div>
+  )
+
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent
+          side="bottom"
+          className="h-[90dvh] max-h-[90dvh] rounded-t-2xl p-0"
+          showCloseButton={true}
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>User Settings</SheetTitle>
+          </SheetHeader>
+          {settingsContent}
+        </SheetContent>
+      </Sheet>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="h-[min(640px,90vh)] w-[calc(100%-1rem)] overflow-hidden p-0 sm:max-w-3xl" showCloseButton={true}>
         <DialogHeader className="sr-only">
           <DialogTitle>User Settings</DialogTitle>
         </DialogHeader>
-        <SidebarProvider defaultOpen={true} className="h-full min-h-0">
-          <div className="flex h-full min-h-0 w-full flex-col sm:flex-row">
-            <Sidebar collapsible="none" className="h-auto w-full shrink-0 border-b sm:h-full sm:w-[200px] sm:border-b-0 sm:border-r" side="left">
-              <SidebarContent>
-                <SidebarGroup>
-                  <SidebarGroupLabel className="sm:flex">Settings</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarMenu className="flex-row gap-1 overflow-x-auto px-1 pb-2 sm:flex-col sm:overflow-x-visible sm:px-0 sm:pb-0">
-                      {menuItems.map((item) => (
-                        <SidebarMenuItem key={item.id} className="shrink-0 sm:shrink">
-                          <SidebarMenuButton
-                            isActive={activeTab === item.id}
-                            onClick={() => setActiveTab(item.id)}
-                            className="whitespace-nowrap"
-                          >
-                            {item.icon}
-                            <span>{item.label}</span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              </SidebarContent>
-            </Sidebar>
-            <main className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
-              <div className="shrink-0 ">
-                <h2 className="font-heading text-sm font-medium">{getTabTitle()}</h2>
-                <Separator className="mt-2" />
-              </div>
-              <ScrollArea className="min-h-0 flex-1 pr-3 sm:pr-4">
-                <div className="pt-4">{renderContent()}</div>
-              </ScrollArea>
-            </main>
-          </div>
-        </SidebarProvider>
+        {settingsContent}
       </DialogContent>
     </Dialog>
   )

@@ -12,6 +12,7 @@ const devOrigins = [
   "http://100.108.102.102:3000",
   "http://192.168.0.102:3000",
   "http://127.0.0.1:3000",
+  "http://192.168.1.102:3000",
 ];
 
 const configuredOrigin = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
