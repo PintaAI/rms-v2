@@ -607,7 +607,7 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
   }
 
   const settingsContent = (
-    <div className="flex h-full min-h-0 w-full flex-col md:flex-row">
+    <div className="flex min-h-0 flex-1 flex-col md:flex-row">
       <nav className="shrink-0 border-b bg-sidebar text-sidebar-foreground md:w-[200px] md:border-b-0 md:border-r">
         <div className="px-3 pb-2 pt-3 text-xs text-sidebar-foreground/70 md:h-8 md:px-4 md:py-2">
           Settings
@@ -629,14 +629,20 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
           ))}
         </div>
       </nav>
-      <main className="flex min-h-0 flex-1 flex-col p-4 md:p-6">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 md:p-6">
         <div className="shrink-0">
           <h2 className="font-heading text-sm font-medium">{getTabTitle()}</h2>
           <Separator className="mt-2" />
         </div>
-        <ScrollArea className="min-h-0 flex-1 pr-3 md:pr-4">
-          <div className="pt-4">{renderContent()}</div>
-        </ScrollArea>
+        {isMobile ? (
+          <div className="min-h-0 flex-1 overflow-y-auto pr-3">
+            <div className="pt-4 pb-4">{renderContent()}</div>
+          </div>
+        ) : (
+          <ScrollArea className="min-h-0 flex-1 pr-4">
+            <div className="pt-4">{renderContent()}</div>
+          </ScrollArea>
+        )}
       </main>
     </div>
   )
@@ -646,7 +652,7 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
       <Sheet open={open} onOpenChange={handleOpenChange}>
         <SheetContent
           side="bottom"
-          className="h-[90dvh] max-h-[90dvh] rounded-t-2xl p-0"
+          className="h-[90dvh] max-h-[90dvh] overflow-hidden rounded-t-2xl p-0"
           showCloseButton={true}
         >
           <SheetHeader className="sr-only">

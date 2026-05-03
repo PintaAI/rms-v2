@@ -9,6 +9,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { RiArrowDownSLine, RiVipCrownLine } from "@remixicon/react";
 import { cn } from "@/lib/utils";
@@ -23,12 +24,17 @@ interface NavItemProps {
 
 export function NavItem({ href, icon, label, isLocked }: NavItemProps) {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
   const isActive = pathname === href.split("?")[0];
+
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={isActive}>
-        <Link href={href}>
+        <Link href={href} onClick={closeMobileSidebar}>
           {icon}
           <span className="truncate">{label}</span>
           {isLocked && (
@@ -49,10 +55,15 @@ interface NavGroupProps {
 
 export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupProps) {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const isGroupActive = items.some(
     (item) => pathname === item.href.split("?")[0] || pathname.startsWith(item.href.split("?")[0] + "/")
   );
+
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <SidebarMenuItem>
@@ -78,7 +89,7 @@ export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupPro
                 asChild
                 isActive={pathname === item.href.split("?")[0]}
               >
-                <Link href={item.href}>
+                <Link href={item.href} onClick={closeMobileSidebar}>
                   {item.icon}
                   <span className="truncate">{item.label}</span>
                   {item.isLocked && (
@@ -116,6 +127,7 @@ export function NavFilterGroup({ title, icon, items, defaultOpen = true }: NavFi
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   const isItemActive = (href: string) => {
@@ -143,6 +155,8 @@ export function NavFilterGroup({ title, icon, items, defaultOpen = true }: NavFi
       // Coming from a different page — do a full navigation
       router.push(href);
     }
+
+    if (isMobile) setOpenMobile(false);
   };
 
   return (
