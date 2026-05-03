@@ -4,6 +4,20 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -26,13 +40,58 @@ import {
 import { deleteService, getService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
-import { RiAddLine } from "@remixicon/react";
+import { fuzzyScore } from "@/lib/fuzzy-search";
+import { RiAddLine, RiCalendarLine, RiCloseLine, RiSearchLine } from "@remixicon/react";
 
 interface ManageServiceProps {
   allServices: ServiceListItem[];
   tokoId: string;
   pageSize: number;
   hideTechnicianColumn?: boolean;
+}
+
+function getServiceSearchScore(query: string, service: ServiceListItem): number | null {
+  const targets = [
+    service.customerName,
+    service.noWa,
+    service.complaint,
+    service.imei,
+    service.note,
+    service.passwordPattern,
+    service.hpCatalog?.brand?.name,
+    service.hpCatalog?.modelName,
+    `${service.hpCatalog?.brand?.name ?? ""} ${service.hpCatalog?.modelName ?? ""}`,
+    service.technician?.name,
+    service.createdBy?.name,
+    service.invoice?.id,
+    ...(service.includedItems ?? []),
+  ].filter((target): target is string => Boolean(target));
+
+  return targets.reduce<number | null>((bestScore, target) => {
+    const score = fuzzyScore(query, target);
+    if (score === null) return bestScore;
+    return bestScore === null ? score : Math.max(bestScore, score);
+  }, null);
+}
+
+function isSameDate(value: Date | string | null | undefined, date: Date | null): boolean {
+  if (!date) return true;
+  if (!value) return false;
+
+  const valueDate = new Date(value);
+  return valueDate.getFullYear() === date.getFullYear()
+    && valueDate.getMonth() === date.getMonth()
+    && valueDate.getDate() === date.getDate();
+}
+
+function formatFilterDate(date: Date | null): string {
+  if (!date) return "Pilih tanggal";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 export function ManageService({
@@ -55,6 +114,11 @@ export function ManageService({
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [createdByFilter, setCreatedByFilter] = useState("all");
+  const [technicianFilter, setTechnicianFilter] = useState("all");
+  const [checkinDateFilter, setCheckinDateFilter] = useState<Date | null>(null);
+  const [checkoutDateFilter, setCheckoutDateFilter] = useState<Date | null>(null);
   const pendingMutationsRef = useRef(0);
 
   useEffect(() => {
@@ -64,14 +128,77 @@ export function ManageService({
     }
   }, [allServices]);
 
-  const filteredServices = useMemo(() => {
-    if (pickedUpFilter) {
-      return services.filter((s) => s.isPickedUp);
+  const createdByOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    for (const service of services) {
+      if (service.createdBy?.name) {
+        options.set(service.createdBy.name, service.createdBy.name);
+      }
     }
-    if (!statusFilter) return services;
-    const filterStatuses = statusFilter.split(",");
-    return services.filter((s) => filterStatuses.includes(s.status) && !s.isPickedUp);
-  }, [services, statusFilter, pickedUpFilter]);
+
+    return Array.from(options, ([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [services]);
+
+  const technicianOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    for (const service of services) {
+      if (service.technician?.name) {
+        options.set(service.technician.name, service.technician.name);
+      }
+    }
+
+    return Array.from(options, ([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [services]);
+
+  const servicesFilteredWithoutSearch = useMemo(() => {
+    const statusFilteredServices = (() => {
+      if (pickedUpFilter) {
+        return services.filter((s) => s.isPickedUp);
+      }
+      if (!statusFilter) return services;
+      const filterStatuses = statusFilter.split(",");
+      return services.filter((s) => filterStatuses.includes(s.status) && !s.isPickedUp);
+    })();
+
+    return statusFilteredServices.filter((service) => {
+      if (createdByFilter !== "all" && service.createdBy?.name !== createdByFilter) return false;
+      if (technicianFilter !== "all" && service.technician?.name !== technicianFilter) return false;
+      if (!isSameDate(service.checkinAt, checkinDateFilter)) return false;
+      if (!isSameDate(service.checkoutAt, checkoutDateFilter)) return false;
+      return true;
+    });
+  }, [services, statusFilter, pickedUpFilter, createdByFilter, technicianFilter, checkinDateFilter, checkoutDateFilter]);
+
+  const filteredServices = useMemo(() => {
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return servicesFilteredWithoutSearch;
+
+    return servicesFilteredWithoutSearch
+      .map((service) => ({
+        service,
+        score: getServiceSearchScore(trimmedQuery, service),
+      }))
+      .filter((item): item is { service: ServiceListItem; score: number } => item.score !== null)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return new Date(b.service.checkinAt).getTime() - new Date(a.service.checkinAt).getTime();
+      })
+      .map((item) => item.service);
+  }, [servicesFilteredWithoutSearch, searchQuery]);
+
+  const hasAdvancedFilters = createdByFilter !== "all"
+    || technicianFilter !== "all"
+    || checkinDateFilter !== null
+    || checkoutDateFilter !== null;
+
+  const resetAdvancedFilters = useCallback(() => {
+    setCreatedByFilter("all");
+    setTechnicianFilter("all");
+    setCheckinDateFilter(null);
+    setCheckoutDateFilter(null);
+  }, []);
 
   const paginatedServices = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -227,12 +354,12 @@ export function ManageService({
   // Reset to page 1 when filter changes
   const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}`);
   useEffect(() => {
-    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}`;
+    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}|${createdByFilter}|${technicianFilter}|${checkinDateFilter?.toISOString() ?? ""}|${checkoutDateFilter?.toISOString() ?? ""}`;
     if (prevFilterRef.current !== nextFilterKey) {
       prevFilterRef.current = nextFilterKey;
       setCurrentPage(1);
     }
-  }, [statusFilter, pickedUpFilter]);
+  }, [statusFilter, pickedUpFilter, searchQuery, createdByFilter, technicianFilter, checkinDateFilter, checkoutDateFilter]);
 
   const getPageTitle = () => {
     if (pickedUpFilter) return "Service Diambil";
@@ -244,6 +371,8 @@ export function ManageService({
   };
 
   const getEmptyMessage = () => {
+    if (searchQuery.trim()) return "Tidak ada service yang cocok dengan pencarian";
+    if (hasAdvancedFilters) return "Tidak ada service yang cocok dengan filter";
     if (pickedUpFilter) return "Tidak ada service yang sudah diambil";
     if (statusFilter === "done,failed" || statusFilter === "failed,done") {
       return "Tidak ada service selesai atau gagal yang belum diambil";
@@ -253,14 +382,102 @@ export function ManageService({
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-end">
-        <Button
-          onClick={() => { setEditData(null); setFormOpen(true); }}
-          className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
-        >
-          <RiAddLine className="h-4 w-4 mr-1.5" />
-          Tambah Service
-        </Button>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="grid w-full gap-3 sm:grid-cols-2 lg:max-w-5xl lg:grid-cols-5">
+          <div className="relative sm:col-span-2 lg:col-span-1">
+            <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Cari servisan..."
+              className="pl-9"
+            />
+          </div>
+          <Select value={createdByFilter} onValueChange={setCreatedByFilter}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Created by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua pembuat</SelectItem>
+              {createdByOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={technicianFilter} onValueChange={setTechnicianFilter}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Teknisi" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua teknisi</SelectItem>
+              {technicianOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="outline" className="justify-start gap-2 font-normal">
+                <RiCalendarLine className="size-4 text-muted-foreground" />
+                <span className="truncate">Checkin: {formatFilterDate(checkinDateFilter)}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={checkinDateFilter ?? undefined}
+                onSelect={(date) => setCheckinDateFilter(date ?? null)}
+              />
+              {checkinDateFilter && (
+                <div className="border-t border-border/50 p-2">
+                  <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setCheckinDateFilter(null)}>
+                    Hapus tanggal checkin
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="outline" className="justify-start gap-2 font-normal">
+                <RiCalendarLine className="size-4 text-muted-foreground" />
+                <span className="truncate">Checkout: {formatFilterDate(checkoutDateFilter)}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={checkoutDateFilter ?? undefined}
+                onSelect={(date) => setCheckoutDateFilter(date ?? null)}
+              />
+              {checkoutDateFilter && (
+                <div className="border-t border-border/50 p-2">
+                  <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setCheckoutDateFilter(null)}>
+                    Hapus tanggal checkout
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          {hasAdvancedFilters && (
+            <Button type="button" variant="outline" onClick={resetAdvancedFilters}>
+              <RiCloseLine className="h-4 w-4 mr-1.5" />
+              Reset Filter
+            </Button>
+          )}
+          <Button
+            onClick={() => { setEditData(null); setFormOpen(true); }}
+            className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+          >
+            <RiAddLine className="h-4 w-4 mr-1.5" />
+            Tambah Service
+          </Button>
+        </div>
       </div>
 
       <section>
@@ -270,7 +487,7 @@ export function ManageService({
               services={tableServices}
               role="admin"
               headerTitle={getPageTitle()}
-              headerDescription={`Halaman ${currentPage} dari ${totalPages || 1} (${filteredServices.length} dari ${services.length} total)`}
+              headerDescription={`Halaman ${currentPage} dari ${totalPages || 1} (${filteredServices.length} dari ${servicesFilteredWithoutSearch.length} ditampilkan)`}
               headerBadge={filteredServices.length}
               statusFilter={statusFilter}
               emptyMessage={getEmptyMessage()}
