@@ -1,0 +1,314 @@
+"use client";
+
+import Image from "next/image";
+import type { ReactNode } from "react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  RiArchiveLine,
+  RiBarChartBoxLine,
+  RiCheckDoubleLine,
+  RiMoneyDollarCircleLine,
+  RiPrinterLine,
+  RiStore2Line,
+  RiTimeLine,
+} from "@remixicon/react";
+import type { AdminAnalyticsData } from "@/actions/analytics";
+import { AnalyticsFilter } from "@/components/dashboard/admin/analytics-filter";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatCurrency } from "@/lib/utils";
+
+const revenueChartConfig = {
+  revenue: { label: "Paid", color: "var(--chart-1)" },
+  pending: { label: "Pending", color: "var(--chart-2)" },
+} satisfies ChartConfig;
+
+const serviceChartConfig = {
+  services: { label: "Service", color: "var(--chart-3)" },
+  completed: { label: "Selesai", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+const statusChartConfig = {
+  received: { label: "Masuk", color: "var(--chart-2)" },
+  repairing: { label: "Proses", color: "var(--chart-3)" },
+  done: { label: "Selesai", color: "var(--chart-1)" },
+  failed: { label: "Gagal", color: "var(--chart-5)" },
+} satisfies ChartConfig;
+
+interface AdminAnalyticsDashboardProps {
+  data: AdminAnalyticsData;
+}
+
+export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) {
+  const statusData = data.statusBreakdown.map((item) => ({
+    ...item,
+    fill: `var(--color-${item.status})`,
+  }));
+  const handlePrintReport = () => window.print();
+
+  return (
+    <div className="flex flex-col gap-6 print:mx-auto print:w-[190mm] print:max-w-none print:gap-3 print:text-[10px] lg:gap-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-black tracking-tight print:text-xl sm:text-3xl">Analytics</h1>
+            <div className="h-5 w-1 shrink-0 rounded-full bg-primary sm:h-6" />
+            <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 px-2 py-1 sm:bg-transparent sm:px-0 sm:py-0">
+              {data.toko.logoUrl ? (
+                <Image
+                  src={data.toko.logoUrl}
+                  alt={data.toko.name}
+                  width={20}
+                  height={20}
+                  className="size-5 shrink-0 rounded-md object-cover"
+                />
+              ) : (
+                <div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted">
+                  <RiStore2Line className="size-3 text-muted-foreground" />
+                </div>
+              )}
+              <span className="min-w-0 truncate text-sm font-medium text-muted-foreground">{data.toko.name}</span>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground/70">
+            <span>Insight performa toko untuk periode</span>
+            <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary shadow-sm shadow-primary/5">
+              {data.periodLabel}
+            </span>
+            {data.filters.allTime && (
+              <span className="rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-xs font-medium text-foreground">
+                All time
+              </span>
+            )}
+            {data.filters.status && (
+              <span className="rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-xs font-medium text-foreground">
+                Status: {statusChartConfig[data.filters.status].label}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <AnalyticsFilter filters={data.filters} />
+          <Button variant="outline" size="sm" onClick={handlePrintReport}>
+            <RiPrinterLine data-icon="inline-start" />
+            Print Laporan
+          </Button>
+          <Badge variant="warning" className="w-fit gap-1">
+            <RiBarChartBoxLine className="size-3" />
+            Enterprise Analytics
+          </Badge>
+        </div>
+      </div>
+
+      <section className="grid gap-3 print:grid-cols-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AnalyticsMetricCard
+          title="Paid Revenue"
+          value={formatCurrency(data.summary.paidRevenue)}
+          description={`${data.summary.paidInvoices} invoice paid`}
+          icon={<RiMoneyDollarCircleLine className="size-4" />}
+          variant="success"
+        />
+        <AnalyticsMetricCard
+          title="Pending Revenue"
+          value={formatCurrency(data.summary.pendingRevenue)}
+          description="Sisa tagihan unpaid / DP"
+          icon={<RiTimeLine className="size-4" />}
+          variant="warning"
+        />
+        <AnalyticsMetricCard
+          title="Completion Rate"
+          value={`${data.summary.completionRate}%`}
+          description={`${data.summary.totalServices} service periode ini`}
+          icon={<RiCheckDoubleLine className="size-4" />}
+          variant="primary"
+        />
+        <AnalyticsMetricCard
+          title="Inventory Health"
+          value={`${data.summary.lowStockCount}`}
+          description={`${data.summary.totalSpareparts} item, ${data.summary.totalStock} stok total`}
+          icon={<RiArchiveLine className="size-4" />}
+          variant={data.summary.lowStockCount > 0 ? "warning" : "default"}
+        />
+      </section>
+
+      <section className="grid gap-4 print:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] print:gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
+        <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
+          <CardHeader>
+            <CardTitle>Revenue Trend</CardTitle>
+            <CardDescription>
+              Paid dan pending revenue per {data.bucketMode === "month" ? "bulan" : "hari"} dalam periode terpilih.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={revenueChartConfig} className="h-[260px] w-full print:h-[145px]">
+              <AreaChart accessibilityLayer data={data.trend} margin={{ left: 0, right: 12 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => compactCurrency(Number(value))}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value, name) => (
+                        <>
+                          <span className="text-muted-foreground">{revenueChartConfig[name as keyof typeof revenueChartConfig]?.label}</span>
+                          <span className="ml-auto font-mono font-medium tabular-nums">
+                            {formatCurrency(Number(value))}
+                          </span>
+                        </>
+                      )}
+                    />
+                  }
+                />
+                <Area dataKey="pending" type="natural" fill="var(--color-pending)" fillOpacity={0.18} stroke="var(--color-pending)" />
+                <Area dataKey="revenue" type="natural" fill="var(--color-revenue)" fillOpacity={0.28} stroke="var(--color-revenue)" />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
+          <CardHeader>
+            <CardTitle>Status Service</CardTitle>
+            <CardDescription>Distribusi status service periode ini.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={statusChartConfig} className="mx-auto h-[260px] w-full max-w-sm print:h-[145px]">
+              <PieChart accessibilityLayer>
+                <ChartTooltip content={<ChartTooltipContent nameKey="label" hideLabel />} />
+                <Pie data={statusData} dataKey="count" nameKey="label" innerRadius={58} strokeWidth={4}>
+                  {statusData.map((entry) => (
+                    <Cell key={entry.status} fill={entry.fill} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+              {statusData.map((item) => (
+                <div key={item.status} className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 rounded-full" style={{ backgroundColor: item.fill }} />
+                    <span className="text-sm text-muted-foreground">{item.label}</span>
+                  </div>
+                  <span className="font-mono text-sm font-semibold tabular-nums">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 print:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)] print:gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
+        <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
+          <CardHeader>
+            <CardTitle>Service Trend</CardTitle>
+            <CardDescription>Service masuk dibanding service selesai.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={serviceChartConfig} className="h-[260px] w-full print:h-[145px]">
+              <BarChart accessibilityLayer data={data.trend}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis tickLine={false} axisLine={false} tickMargin={8} allowDecimals={false} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="services" fill="var(--color-services)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="completed" fill="var(--color-completed)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
+          <CardHeader>
+            <CardTitle>Top Teknisi</CardTitle>
+            <CardDescription>Berdasarkan service selesai periode ini.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Teknisi</TableHead>
+                  <TableHead className="text-right">Selesai</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.topTechnicians.length > 0 ? (
+                  data.topTechnicians.map((technician) => (
+                    <TableRow key={technician.id}>
+                      <TableCell className="font-medium">{technician.name}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{technician.completedServices}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{formatCurrency(technician.revenue)}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                      Belum ada service selesai dengan teknisi.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </section>
+    </div>
+  );
+}
+
+interface AnalyticsMetricCardProps {
+  title: string;
+  value: string;
+  description: string;
+  icon: ReactNode;
+  variant: "default" | "primary" | "success" | "warning";
+}
+
+const metricStyles: Record<AnalyticsMetricCardProps["variant"], string> = {
+  default: "from-card via-card to-muted/30",
+  primary: "from-primary/10 via-card to-primary/[0.03]",
+  success: "from-chart-1/10 via-card to-chart-1/[0.03]",
+  warning: "from-destructive/10 via-card to-destructive/[0.03]",
+};
+
+function AnalyticsMetricCard({ title, value, description, icon, variant }: AnalyticsMetricCardProps) {
+  return (
+    <Card className={`overflow-hidden border-border/50 bg-gradient-to-br ${metricStyles[variant]} shadow-lg shadow-black/5 print:shadow-none`}>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2 print:p-3 print:pb-1">
+        <div className="min-w-0">
+          <CardDescription className="truncate text-[10px] font-semibold uppercase tracking-widest">{title}</CardDescription>
+          <CardTitle className="mt-2 truncate text-2xl font-black tracking-tight tabular-nums print:text-base">{value}</CardTitle>
+        </div>
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">{icon}</div>
+      </CardHeader>
+      <CardContent className="print:px-3 print:pb-3">
+        <p className="truncate text-xs text-muted-foreground/80">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function compactCurrency(value: number) {
+  if (value >= 1_000_000) return `${Math.round(value / 1_000_000)}jt`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}rb`;
+  return String(value);
+}

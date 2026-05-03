@@ -93,11 +93,11 @@ export const FEATURE_REGISTRY = {
   },
   "analytics.revenue": {
     key: "analytics.revenue",
-    label: "Revenue Analytics",
-    description: "Pantau performa pendapatan dan metrik service.",
+    label: "Analytics",
+    description: "Pantau performa pendapatan, service, teknisi, dan inventory toko.",
     category: "analytics",
     allowedRoles: ["admin"],
-    minimumPlan: "premium",
+    minimumPlan: "enterprise",
     configurable: true,
   },
   "inventory.audit": {

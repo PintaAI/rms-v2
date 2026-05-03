@@ -5,7 +5,7 @@ import {
   SidebarGroupContent,
   SidebarMenu,
 } from "@/components/ui/sidebar";
-import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine, RiFileList3Line } from "@remixicon/react";
+import { RiDashboardLine, RiToolsLine, RiUserSettingsLine, RiArchiveLine, RiInboxLine, RiProgress1Line, RiCheckLine, RiStore2Line, RiLogoutBoxLine, RiFileList3Line, RiLineChartLine } from "@remixicon/react";
 import { NavItem, NavFilterGroup, NavGroup } from "./nav-item";
 import type { ServiceStats } from "@/actions/service";
 import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
@@ -26,6 +26,7 @@ export function AdminNav({ tokoid, featureAccess, capabilities, disabledFeatures
 
   const inventoryEnabled = featureAccess["inventory.management"] ?? false;
   const auditEnabled = featureAccess["inventory.audit"] ?? false;
+  const analyticsEnabled = featureAccess["analytics.revenue"] ?? false;
 
   if (!isFeatureDisabled("inventory.management")) {
     inventoryItems.push({
@@ -60,6 +61,14 @@ export function AdminNav({ tokoid, featureAccess, capabilities, disabledFeatures
             label="Admin Overview"
             isLocked={!dashboardEnabled}
           />
+          {!isFeatureDisabled("analytics.revenue") && (
+            <NavItem
+              href={`/${tokoid}/admin/analytics`}
+              icon={<RiLineChartLine />}
+              label="Analytics"
+              isLocked={!analyticsEnabled}
+            />
+          )}
           <NavItem
             href={`/${tokoid}/admin/toko`}
             icon={<RiStore2Line />}
