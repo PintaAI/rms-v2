@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import prisma from "@/lib/prisma";
 import type { SubscriptionPlan } from "@/lib/plans";
+import type { SubscriptionStatus } from "@/prisma/generated/prisma/enums";
 import { AuthError } from "./authorization";
 import { resolveEffectivePlan } from "./plan";
 
@@ -14,6 +15,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   plan: SubscriptionPlan;
+  subscriptionStatus: SubscriptionStatus | null;
   tokoIds: string[];
 }
 
@@ -30,7 +32,7 @@ export const getRequestUser = cache(async (): Promise<AuthUser | null> => {
   });
 
   const tokoIds = userToko.map((t) => t.tokoId);
-  const plan = await resolveEffectivePlan(session.user.id, role, tokoIds);
+  const { plan, status } = await resolveEffectivePlan(session.user.id, role, tokoIds);
 
   return {
     id: session.user.id,
@@ -38,6 +40,7 @@ export const getRequestUser = cache(async (): Promise<AuthUser | null> => {
     email: session.user.email,
     role,
     plan,
+    subscriptionStatus: status,
     tokoIds,
   };
 });

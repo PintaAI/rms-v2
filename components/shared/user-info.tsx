@@ -22,7 +22,7 @@ import { useState } from "react";
 
 const planLabels: Record<SubscriptionPlan, string> = {
   free: "Free",
-  premium: "Premium",
+  premium: "Pro",
   enterprise: "Enterprise",
 };
 

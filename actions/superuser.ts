@@ -5,10 +5,14 @@ import { requireRequestUser } from "@/lib/auth/request-user";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { revalidatePath } from "next/cache";
 import type { SubscriptionPlan } from "@/lib/features";
+import { createCommissionForPaidPlanActivation } from "@/actions/affiliate";
+import { activatePaidSubscription } from "@/lib/subscription-billing";
+import { addDays, PRO_PERIOD_DAYS } from "@/lib/subscription-billing";
+import type { SubscriptionInvoiceStatus, SubscriptionPaymentMethod } from "@/prisma/generated/prisma/enums";
 
 const SUBSCRIPTION_PRICES: Record<Exclude<SubscriptionPlan, "free">, number> = {
-  premium: 500_000,
-  enterprise: 1_000_000,
+  premium: 990_000,
+  enterprise: 0,
 };
 
 export interface SuperuserDashboardStats {
@@ -51,6 +55,8 @@ export interface SuperuserUserRow {
   name: string;
   email: string;
   plan: SubscriptionPlan;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: Date | null;
   tokoCount: number;
   staffCount: number;
   technicianCount: number;
@@ -58,9 +64,27 @@ export interface SuperuserUserRow {
   lastActivity?: Date | null;
 }
 
+export interface PendingSubscriptionPaymentRow {
+  paymentId: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  invoiceStatus: SubscriptionInvoiceStatus;
+  ownerId: string;
+  ownerName: string;
+  ownerEmail: string;
+  amount: number;
+  invoiceAmount: number;
+  method: SubscriptionPaymentMethod;
+  referenceNumber: string | null;
+  proofUrl: string | null;
+  note: string | null;
+  submittedAt: Date;
+}
+
 export interface SuperuserDashboardData {
   stats: SuperuserDashboardStats;
   users: SuperuserUserRow[];
+  pendingPayments: PendingSubscriptionPaymentRow[];
 }
 
 export async function getSuperuserDashboard(): Promise<ActionResultWithData<SuperuserDashboardData>> {
@@ -81,6 +105,7 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
     monthlyServiceCount,
     monthlySubscriptionCounts,
     users,
+    pendingPayments,
   ] = await Promise.all([
     prisma.user.groupBy({
       by: ["role"],
@@ -115,7 +140,7 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
         email: true,
         createdAt: true,
         subscription: {
-          select: { plan: true },
+          select: { plan: true, status: true, currentPeriodEnd: true },
         },
         tokoAssignments: {
           select: {
@@ -140,6 +165,17 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
         },
       },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.subscriptionPayment.findMany({
+      where: { status: "pending_review" },
+      orderBy: { submittedAt: "asc" },
+      include: {
+        invoice: {
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
     }),
   ]);
 
@@ -197,6 +233,8 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
       name: user.name,
       email: user.email,
       plan: (user.subscription?.plan as SubscriptionPlan) || "free",
+      subscriptionStatus: user.subscription?.status ?? null,
+      currentPeriodEnd: user.subscription?.currentPeriodEnd ?? null,
       tokoCount: user.tokoAssignments.length,
       staffCount: staffIds.size,
       technicianCount: technicianIds.size,
@@ -245,8 +283,92 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
 
   return {
     success: true,
-    data: { stats, users: userRows },
+    data: {
+      stats,
+      users: userRows,
+      pendingPayments: pendingPayments.map((payment) => ({
+        paymentId: payment.id,
+        invoiceId: payment.invoiceId,
+        invoiceNumber: payment.invoice.invoiceNumber,
+        invoiceStatus: payment.invoice.status,
+        ownerId: payment.invoice.user.id,
+        ownerName: payment.invoice.user.name,
+        ownerEmail: payment.invoice.user.email,
+        amount: payment.amount,
+        invoiceAmount: payment.invoice.amount,
+        method: payment.method,
+        referenceNumber: payment.referenceNumber,
+        proofUrl: payment.proofUrl,
+        note: payment.note,
+        submittedAt: payment.submittedAt,
+      })),
+    },
   };
+}
+
+export async function approveSubscriptionPayment(paymentId: string): Promise<ActionResultWithData<{ paymentId: string }>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
+
+  const payment = await prisma.subscriptionPayment.findUnique({
+    where: { id: paymentId },
+    include: { invoice: { include: { subscription: true } } },
+  });
+
+  if (!payment || payment.status !== "pending_review") {
+    return { success: false, error: "Pending payment not found" };
+  }
+
+  await prisma.subscriptionPayment.update({
+    where: { id: paymentId },
+    data: { status: "approved", reviewedById: user.id, reviewedAt: new Date() },
+  });
+
+  await activatePaidSubscription(payment.invoice.userId, payment.invoice.subscriptionId, payment.invoiceId);
+
+  await createCommissionForPaidPlanActivation({
+    userId: payment.invoice.userId,
+    previousPlan: payment.invoice.subscription.plan as SubscriptionPlan,
+    nextPlan: "premium",
+  });
+
+  revalidatePath("/superuser");
+  revalidatePath("/dashboard");
+  return { success: true, data: { paymentId } };
+}
+
+export async function rejectSubscriptionPayment(paymentId: string, rejectionReason: string): Promise<ActionResultWithData<{ paymentId: string }>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
+
+  const payment = await prisma.subscriptionPayment.findUnique({
+    where: { id: paymentId },
+    include: { invoice: true },
+  });
+
+  if (!payment || payment.status !== "pending_review") {
+    return { success: false, error: "Pending payment not found" };
+  }
+
+  await prisma.$transaction([
+    prisma.subscriptionPayment.update({
+      where: { id: paymentId },
+      data: {
+        status: "rejected",
+        reviewedById: user.id,
+        reviewedAt: new Date(),
+        rejectionReason: rejectionReason.trim() || "Bukti pembayaran belum valid",
+      },
+    }),
+    prisma.subscriptionInvoice.update({
+      where: { id: payment.invoiceId },
+      data: { status: "rejected" },
+    }),
+  ]);
+
+  revalidatePath("/superuser");
+  revalidatePath("/dashboard");
+  return { success: true, data: { paymentId } };
 }
 
 export async function updateUserSubscription(
@@ -263,11 +385,27 @@ export async function updateUserSubscription(
   }
 
   try {
+    const existingSubscription = await prisma.subscription.findUnique({
+      where: { userId },
+      select: { plan: true },
+    });
+
+    const now = new Date();
+    const subscriptionData = plan === "free"
+      ? { plan, status: "active" as const, trialEndsAt: null, currentPeriodStart: null, currentPeriodEnd: null, graceEndsAt: null, cancelledAt: null }
+      : { plan, status: "active" as const, trialEndsAt: null, currentPeriodStart: now, currentPeriodEnd: plan === "premium" ? addDays(now, PRO_PERIOD_DAYS) : null, graceEndsAt: null, cancelledAt: null };
+
     const subscription = await prisma.subscription.upsert({
       where: { userId },
-      create: { userId, plan },
-      update: { plan },
+      create: { userId, ...subscriptionData },
+      update: subscriptionData,
       select: { userId: true, plan: true },
+    });
+
+    await createCommissionForPaidPlanActivation({
+      userId,
+      previousPlan: (existingSubscription?.plan as SubscriptionPlan | undefined) ?? null,
+      nextPlan: plan,
     });
 
     revalidatePath("/superuser");

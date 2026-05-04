@@ -102,7 +102,7 @@ const allSteps: { key: StepKey; title: string; description: string }[] = [
 
 const planLabels: Record<SubscriptionPlan, string> = {
   free: "Free",
-  premium: "Premium",
+  premium: "Pro",
   enterprise: "Enterprise",
 };
 
@@ -505,8 +505,8 @@ function SurveyStep({ data, setData }: WizardStepProps) {
         label="Apakah bisnismu punya cabang, atau hanya satu cabang saja?"
         options={[
           { value: "one", title: "Satu cabang saja", description: "Cukup untuk memulai di Free" },
-          { value: "twoToThree", title: "2-3 cabang", description: "Cocok dengan Premium" },
-          { value: "moreThanThree", title: "Lebih dari 3 cabang", description: "Butuh Enterprise" },
+          { value: "twoToThree", title: "2-3 cabang", description: "Cocok dengan Pro" },
+          { value: "moreThanThree", title: "Lebih dari 3 cabang", description: "Pro dengan tambahan toko atau Enterprise custom" },
         ]}
         value={data.branchPlan}
         onChange={(branchPlan) => setData((prev) => ({ ...prev, branchPlan: branchPlan as BranchPlan }))}
@@ -517,7 +517,7 @@ function SurveyStep({ data, setData }: WizardStepProps) {
         options={[
           { value: "ownerOnly", title: "Hanya saya sendiri", description: "Operasional sederhana" },
           { value: "smallTeam", title: "1-5 orang", description: "Tim kecil" },
-          { value: "largerTeam", title: "Lebih dari 5 orang", description: "Kemungkinan butuh limit Enterprise" },
+          { value: "largerTeam", title: "Lebih dari 5 orang", description: "Kemungkinan butuh Enterprise custom" },
         ]}
         value={data.teamSize}
         onChange={handleTeamSizeChange}

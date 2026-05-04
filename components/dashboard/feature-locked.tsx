@@ -7,7 +7,7 @@ import type { FeatureLockReason, SubscriptionPlan } from "@/lib/features";
 
 const planLabels: Record<SubscriptionPlan, string> = {
   free: "Free",
-  premium: "Premium",
+  premium: "Pro",
   enterprise: "Enterprise",
 };
 

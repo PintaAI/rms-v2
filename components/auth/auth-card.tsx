@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { signIn, signUp } from "@/lib/auth-client";
+import { attachPendingReferralToCurrentUser, attachReferralToCurrentUser, storePendingReferralCode, type ReferralCodePreview } from "@/actions/affiliate";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -97,6 +98,9 @@ export function AuthCard({
   const [registerIsLoading, setRegisterIsLoading] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+  const [referralPreview, setReferralPreview] = useState<ReferralCodePreview | null>(null);
+  const [referralMessage, setReferralMessage] = useState<string | undefined>();
 
   // Touch tracking for real-time validation
   const [loginTouched, setLoginTouched] = useState<{ email: boolean; password: boolean }>({
@@ -128,6 +132,46 @@ export function AuthCard({
       ? validateConfirmPassword(registerPassword, registerConfirmPassword)
       : undefined,
   };
+
+  React.useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("ref");
+    if (code) {
+      window.setTimeout(() => {
+        setActiveTab("register");
+        setReferralCode(code.trim().toUpperCase());
+      }, 0);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const code = referralCode.trim().toUpperCase();
+    if (!code) {
+      const timeout = window.setTimeout(() => {
+        setReferralPreview(null);
+        setReferralMessage(undefined);
+      }, 0);
+      return () => window.clearTimeout(timeout);
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(async () => {
+      const result = await storePendingReferralCode(code);
+      if (cancelled) return;
+
+      if (result.success && result.data) {
+        setReferralPreview(result.data);
+        setReferralMessage(undefined);
+      } else {
+        setReferralPreview(null);
+        setReferralMessage("Kode referral tidak valid atau sudah tidak aktif.");
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [referralCode]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,6 +244,11 @@ export function AuthCard({
         return;
       }
 
+      const attachResult = await attachPendingReferralToCurrentUser();
+      if (attachResult.success && !attachResult.data && referralCode.trim()) {
+        await attachReferralToCurrentUser(referralCode);
+      }
+
       if (onRegisterSuccess) {
         onRegisterSuccess();
       } else {
@@ -215,6 +264,10 @@ export function AuthCard({
 
   const handleGoogleSignIn = async () => {
     try {
+      if (referralCode.trim()) {
+        await storePendingReferralCode(referralCode);
+      }
+
       const result = await signIn.social({
         provider: "google",
         callbackURL: redirectAfterLogin,
@@ -479,6 +532,24 @@ export function AuthCard({
                     <FieldError
                       errors={registerErrors.confirmPassword ? [{ message: registerErrors.confirmPassword }] : []}
                     />
+                  </FieldContent>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="register-referral">Kode referral (opsional)</FieldLabel>
+                  <FieldContent>
+                    <Input
+                      id="register-referral"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                      placeholder="RMS-BUDI-4K8D"
+                      disabled={registerIsLoading}
+                    />
+                    {referralPreview ? (
+                      <FieldDescription>Referral aktif: {referralPreview.affiliatorName}</FieldDescription>
+                    ) : referralMessage ? (
+                      <FieldDescription>{referralMessage}</FieldDescription>
+                    ) : null}
                   </FieldContent>
                 </Field>
               </FieldGroup>

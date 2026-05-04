@@ -3,16 +3,6 @@
   "permission": {
     "websearch": "allow"
   },
-  "default_agent": "build-supervised",
-  "agent": {
-    "build-supervised": {
-      "description": "Build-like agent that asks before editing files.",
-      "mode": "primary",
-      "permission": {
-        "edit": "ask"
-      }
-    }
-  },
   "mcp": {
     "notion": {
       "type": "remote",

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { OnboardingWizard } from "@/components/shared/onboarding-wizard";
+import { attachPendingReferralToCurrentUser } from "@/actions/affiliate";
 
 export default function OnboardPage() {
   const router = useRouter();
@@ -12,21 +13,27 @@ export default function OnboardPage() {
   useEffect(() => {
     if (isLoading) return;
 
-    if (!user) {
-      router.replace("/auth");
-      return;
+    async function attachAndRedirect() {
+      if (!user) {
+        router.replace("/auth");
+        return;
+      }
+      const currentUser = user;
+
+      await attachPendingReferralToCurrentUser();
+
+      if (currentUser.role !== "admin") {
+        router.replace("/dashboard");
+        return;
+      }
+
+      if (tokoList.length > 0) {
+        const firstToko = tokoList[0];
+        router.replace(`/${firstToko.id}/admin`);
+      }
     }
 
-    if (user.role !== "admin") {
-      router.replace("/dashboard");
-      return;
-    }
-
-    if (tokoList.length > 0) {
-      const firstToko = tokoList[0];
-      router.replace(`/${firstToko.id}/admin`);
-      return;
-    }
+    void attachAndRedirect();
   }, [user, tokoList, isLoading, router]);
 
   if (isLoading) {

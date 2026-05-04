@@ -33,7 +33,7 @@ const categoryLabels: Record<string, string> = {
 
 const planLabels: Record<string, string> = {
   free: "Free",
-  premium: "Premium",
+  premium: "Pro",
   enterprise: "Enterprise",
 };
 

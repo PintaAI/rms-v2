@@ -1,0 +1,10 @@
+import { Suspense } from "react";
+import { MobileScannerClient } from "@/components/mobile-scanner/mobile-scanner-client";
+
+export default function SavedScannerPage() {
+  return (
+    <Suspense fallback={<div className="min-h-dvh bg-background p-6 text-sm text-muted-foreground">Memuat scanner...</div>}>
+      <MobileScannerClient />
+    </Suspense>
+  );
+}

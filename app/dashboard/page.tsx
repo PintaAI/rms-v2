@@ -4,6 +4,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { getRoleRedirectPath } from "@/lib/redirect-by-role";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { attachPendingReferralToCurrentUser } from "@/actions/affiliate";
 
 export default function DashboardLandingPage() {
   const router = useRouter();
@@ -11,21 +12,28 @@ export default function DashboardLandingPage() {
 
   useEffect(() => {
     if (isLoading || !user) return;
+    const currentUser = user;
 
-    if (user.role === "superuser") {
-      router.replace("/superuser");
-      return;
-    }
+    async function attachAndRedirect() {
+      await attachPendingReferralToCurrentUser();
 
-    if (tokoList.length === 0) {
-      if (user.role === "admin") {
-        router.replace("/onboard");
+      if (currentUser.role === "superuser") {
+        router.replace("/superuser");
+        return;
       }
-      return;
+
+      if (tokoList.length === 0) {
+        if (currentUser.role === "admin") {
+          router.replace("/onboard");
+        }
+        return;
+      }
+
+      const firstToko = tokoList[0];
+      router.replace(getRoleRedirectPath(firstToko.id, currentUser.role));
     }
 
-    const firstToko = tokoList[0];
-    router.replace(getRoleRedirectPath(firstToko.id, user.role));
+    void attachAndRedirect();
   }, [user, tokoList, isLoading, router]);
 
   if (!isLoading && user && user.role === "superuser") {

@@ -2,6 +2,13 @@ import { cache } from "react";
 import prisma from "@/lib/prisma";
 import { isPlanAtLeast, normalizePlan, type SubscriptionPlan } from "@/lib/plans";
 import type { AuthUser, UserRole } from "./request-user";
+import { ensureUserSubscription, refreshSubscriptionStatus } from "@/lib/subscription-billing";
+import type { SubscriptionStatus } from "@/prisma/generated/prisma/enums";
+
+type EffectivePlanResult = {
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus | null;
+};
 
 function getHighestPlan(plans: Array<string | null | undefined>): SubscriptionPlan {
   return plans.reduce<SubscriptionPlan>((highestPlan, plan) => {
@@ -10,14 +17,13 @@ function getHighestPlan(plans: Array<string | null | undefined>): SubscriptionPl
   }, "free");
 }
 
-async function resolveEffectivePlan(userId: string, role: UserRole, tokoIds: string[]): Promise<SubscriptionPlan> {
-  const subscription = await prisma.subscription.findUnique({
-    where: { userId },
-    select: { plan: true },
-  });
+async function resolveEffectivePlan(userId: string, role: UserRole, tokoIds: string[]): Promise<EffectivePlanResult> {
+  const subscription = role === "admin"
+    ? await ensureUserSubscription(userId)
+    : await prisma.subscription.findUnique({ where: { userId } });
 
   if (role === "admin" || tokoIds.length === 0) {
-    return normalizePlan(subscription?.plan);
+    return { plan: normalizePlan(subscription?.plan), status: subscription?.status ?? null };
   }
 
   const adminUsers = await prisma.user.findMany({
@@ -31,15 +37,21 @@ async function resolveEffectivePlan(userId: string, role: UserRole, tokoIds: str
     },
     select: {
       subscription: {
-        select: { plan: true },
+        select: { id: true, plan: true, status: true },
       },
     },
   });
 
-  return getHighestPlan([
+  const refreshedSubscriptions = await Promise.all(
+    adminUsers.map((admin) => admin.subscription?.id ? refreshSubscriptionStatus(admin.subscription.id) : null)
+  );
+  const highestPlan = getHighestPlan([
     subscription?.plan,
-    ...adminUsers.map((admin) => admin.subscription?.plan),
+    ...refreshedSubscriptions.map((adminSubscription) => adminSubscription?.plan),
   ]);
+  const ownerSubscription = refreshedSubscriptions.find((adminSubscription) => adminSubscription?.plan === highestPlan) ?? refreshedSubscriptions[0];
+
+  return { plan: highestPlan, status: ownerSubscription?.status ?? null };
 }
 
 export const getEffectivePlanForToko = cache(async (user: AuthUser, tokoId: string): Promise<SubscriptionPlan> => {

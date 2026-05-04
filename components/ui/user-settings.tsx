@@ -22,11 +22,26 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { changePassword, getBillingPlanSummary, updateProfile, uploadAvatar, setDevUserPlan, type BillingPlanSummary } from "@/actions"
+import {
+  changePassword,
+  createProSubscriptionInvoice,
+  applyProTrial,
+  getBillingPlanSummary,
+  getOwnerBillingSummary,
+  submitSubscriptionPaymentProof,
+  updateProfile,
+  uploadAvatar,
+  setDevUserPlan,
+  type BillingPlanSummary,
+  type OwnerBillingSummary,
+} from "@/actions"
 import { useAuth } from "@/components/auth/auth-provider"
 import { FeatureSettingsTab } from "@/components/dashboard/admin/feature-settings-tab"
 import { WhatsappSettingsTab } from "@/components/dashboard/admin/whatsapp-settings-tab"
+import { AffiliateSettings } from "@/components/affiliate/affiliate-settings"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import type { SubscriptionPlan } from "@/lib/features"
@@ -43,9 +58,10 @@ import {
   RiLock2Line,
   RiSettings4Line,
   RiWhatsappLine,
+  RiMoneyDollarCircleLine,
 } from "@remixicon/react"
 
-export type SettingsTab = "profile" | "features" | "whatsapp" | "password" | "billing" | "premium" | "appearance"
+export type SettingsTab = "profile" | "features" | "whatsapp" | "password" | "billing" | "premium" | "appearance" | "affiliate"
 
 interface UserSettingsProps {
   open: boolean
@@ -65,13 +81,14 @@ const menuItems: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: "whatsapp", label: "WhatsApp", icon: <RiWhatsappLine /> },
   { id: "password", label: "Password", icon: <RiLockPasswordLine /> },
   { id: "appearance", label: "Tampilan", icon: <RiPaletteLine /> },
+  { id: "affiliate", label: "Affiliate", icon: <RiMoneyDollarCircleLine /> },
   { id: "billing", label: "Billing", icon: <RiBankCard2Line /> },
-  { id: "premium", label: "Upgrade to Premium", icon: <RiVipCrownLine /> },
+  { id: "premium", label: "Upgrade to Pro", icon: <RiVipCrownLine /> },
 ]
 
 const planLabels: Record<SubscriptionPlan, string> = {
   free: "Free",
-  premium: "Premium",
+  premium: "Pro",
   enterprise: "Enterprise",
 }
 
@@ -81,6 +98,16 @@ function formatLimit(limit: number | null) {
 
 function formatUsage(used: number, limit: number | null) {
   return `${used} / ${formatLimit(limit)}`
+}
+
+function formatCurrency(value: number | null | undefined) {
+  if (value === null || value === undefined) return "Custom"
+
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value)
 }
 
 function getParamValue(value: string | string[] | undefined) {
@@ -333,8 +360,36 @@ function PasswordSettings({ onSuccess }: { onSuccess?: () => void }) {
   )
 }
 
-function BillingSettings({ summary, isLoading }: { summary: BillingPlanSummary | null; isLoading: boolean }) {
+function BillingSettings({ summary, ownerBilling, isLoading, onChanged }: { summary: BillingPlanSummary | null; ownerBilling: OwnerBillingSummary | null; isLoading: boolean; onChanged: () => void }) {
   const plan = summary?.plan ?? "free"
+  const [isPending, startTransition] = React.useTransition()
+  const [method, setMethod] = React.useState("bank_transfer")
+  const invoice = ownerBilling?.latestInvoice ?? null
+
+  const handleCreateInvoice = () => {
+    startTransition(async () => {
+      const result = await createProSubscriptionInvoice()
+      if (!result.success) {
+        toast.error(result.error || "Gagal membuat invoice")
+        return
+      }
+      toast.success("Invoice Pro siap dibayar")
+      onChanged()
+    })
+  }
+
+  const handleSubmitPayment = (formData: FormData) => {
+    formData.set("method", method)
+    startTransition(async () => {
+      const result = await submitSubscriptionPaymentProof(formData)
+      if (!result.success) {
+        toast.error(result.error || "Gagal upload bukti bayar")
+        return
+      }
+      toast.success("Bukti pembayaran dikirim untuk review")
+      onChanged()
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -356,22 +411,127 @@ function BillingSettings({ summary, isLoading }: { summary: BillingPlanSummary |
         <UsageTile label="Teknisi" value={summary ? formatUsage(summary.usage.technicians, summary.limits.technicians) : "-"} />
       </div>
 
+      <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Estimasi tagihan bulanan</span>
+          <span className="font-semibold">{summary ? formatCurrency(summary.pricing.estimatedMonthlyAmount) : "-"}</span>
+        </div>
+        {summary?.plan === "premium" && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Pro termasuk {summary.pricing.includedTokos ?? 2} toko. Tambahan toko {formatCurrency(summary.pricing.additionalTokoPrice)}/toko/bulan.
+          </p>
+        )}
+        {summary?.plan === "free" && (
+          <p className="mt-1 text-xs text-muted-foreground">Free permanen dengan 1 toko dan 20 service/bulan.</p>
+        )}
+        {summary?.plan === "enterprise" && (
+          <p className="mt-1 text-xs text-muted-foreground">Enterprise memakai harga custom dan diaktifkan manual oleh super admin.</p>
+        )}
+      </div>
+
       <Separator />
       <div className="space-y-2">
-        <p className="font-medium">Billing History</p>
-        <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-          Belum ada billing history. Payment provider belum dihubungkan.
+        <p className="font-medium">Status Subscription</p>
+        <div className="rounded-lg border bg-card p-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-muted-foreground">Status</span>
+            <Badge variant={ownerBilling?.subscription.status === "active" || ownerBilling?.subscription.status === "trialing" ? "success" : ownerBilling?.subscription.status === "past_due" ? "warning" : "outline"}>
+              {ownerBilling?.subscription.status ?? "-"}
+            </Badge>
+          </div>
+          <div className="mt-2 grid gap-1 text-xs text-muted-foreground">
+            {ownerBilling?.subscription.trialEndsAt && <span>Trial sampai {new Date(ownerBilling.subscription.trialEndsAt).toLocaleDateString("id-ID")}</span>}
+            {ownerBilling?.subscription.currentPeriodEnd && <span>Aktif sampai {new Date(ownerBilling.subscription.currentPeriodEnd).toLocaleDateString("id-ID")}</span>}
+            {ownerBilling?.subscription.graceEndsAt && <span>Grace period sampai {new Date(ownerBilling.subscription.graceEndsAt).toLocaleDateString("id-ID")}</span>}
+          </div>
         </div>
       </div>
       <Separator />
       <div className="space-y-2">
-        <p className="font-medium">Upgrade</p>
-        <Button variant="outline" className="w-full" disabled>
-          Upgrade flow belum tersedia
-        </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          Integrasi pembayaran sengaja di luar scope MVP ini.
-        </p>
+        <p className="font-medium">Pembayaran Manual</p>
+        {ownerBilling?.subscription.plan === "free" && !ownerBilling.subscription.proTrialStartedAt && (
+          <Button variant="outline" className="w-full" disabled={isPending || isLoading} onClick={() => startTransition(async () => {
+            const result = await applyProTrial()
+            if (!result.success) {
+              toast.error(result.error || "Gagal apply trial Pro")
+              return
+            }
+            toast.success("Trial Pro 1 bulan aktif")
+            onChanged()
+          })}>
+            Coba Pro gratis 1 bulan
+          </Button>
+        )}
+        {!invoice || ["paid", "void"].includes(invoice.status) ? (
+          <Button variant="outline" className="w-full" disabled={isPending || isLoading} onClick={handleCreateInvoice}>
+            Buat invoice Pro Rp990.000
+          </Button>
+        ) : (
+          <div className="space-y-3 rounded-lg border bg-card p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-semibold">{invoice.invoiceNumber}</p>
+                <p className="text-xs text-muted-foreground">Jatuh tempo {new Date(invoice.dueAt).toLocaleDateString("id-ID")}</p>
+              </div>
+              <Badge variant={invoice.status === "pending_review" ? "warning" : invoice.status === "rejected" ? "destructive" : "outline"}>{invoice.status}</Badge>
+            </div>
+            <div className="rounded-md bg-muted/30 p-3 text-sm">
+              <div className="flex justify-between"><span>Total</span><strong>{formatCurrency(invoice.amount)}</strong></div>
+              <p className="mt-1 text-xs text-muted-foreground">{invoice.tokoCount} toko · {invoice.additionalTokos} toko tambahan</p>
+            </div>
+            <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+              Transfer ke {ownerBilling?.instructions.bankName} · {ownerBilling?.instructions.accountNumber} a.n. {ownerBilling?.instructions.accountName}, atau QRIS RMS.
+            </div>
+            {invoice.status !== "pending_review" && (
+              <form action={handleSubmitPayment} className="space-y-3">
+                <input type="hidden" name="invoiceId" value={invoice.id} />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label>Nominal dibayar</Label>
+                    <Input name="amount" inputMode="numeric" defaultValue={invoice.amount} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Metode</Label>
+                    <Select value={method} onValueChange={setMethod}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bank_transfer">Transfer Bank</SelectItem>
+                        <SelectItem value="qris">QRIS</SelectItem>
+                        <SelectItem value="ewallet">E-Wallet</SelectItem>
+                        <SelectItem value="other">Lainnya</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Nomor referensi</Label>
+                  <Input name="referenceNumber" placeholder="Opsional" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Bukti pembayaran</Label>
+                  <Input name="proof" type="file" accept="image/*,.pdf" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Catatan</Label>
+                  <Textarea name="note" placeholder="Opsional" />
+                </div>
+                <Button className="w-full" disabled={isPending}>{isPending ? "Mengirim..." : "Kirim bukti bayar"}</Button>
+              </form>
+            )}
+            {invoice.payments.length > 0 && (
+              <div className="space-y-2 border-t pt-3">
+                <p className="text-xs font-medium text-muted-foreground">Riwayat bukti bayar</p>
+                {invoice.payments.map((payment) => (
+                  <div key={payment.id} className="rounded-md bg-muted/20 p-2 text-xs">
+                    <div className="flex justify-between gap-2"><span>{formatCurrency(payment.amount)}</span><Badge variant="outline">{payment.status}</Badge></div>
+                    {payment.rejectionReason && <p className="mt-1 text-destructive">{payment.rejectionReason}</p>}
+                    {payment.proofUrl && <a href={payment.proofUrl} target="_blank" rel="noreferrer" className="text-primary underline">Lihat bukti</a>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -386,7 +546,7 @@ function UsageTile({ label, value }: { label: string; value: string }) {
   )
 }
 
-function PremiumSettings({ summary, isLoading, currentTokoId, onPlanChanged }: { summary: BillingPlanSummary | null; isLoading: boolean; currentTokoId?: string; onPlanChanged?: () => void }) {
+function PlanSettings({ summary, isLoading, currentTokoId, onPlanChanged }: { summary: BillingPlanSummary | null; isLoading: boolean; currentTokoId?: string; onPlanChanged?: () => void }) {
   const plan = summary?.plan ?? "free"
   const { refetchSession } = useAuth()
   const [isUpgrading, setIsUpgrading] = React.useState(false)
@@ -448,7 +608,7 @@ function PremiumSettings({ summary, isLoading, currentTokoId, onPlanChanged }: {
             {isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Free"}
           </Button>
           <Button onClick={() => handleDevUpgrade("premium")} disabled={isUpgrading || plan === "premium"}>
-            {isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Premium"}
+            {isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Pro"}
           </Button>
           <Button onClick={() => handleDevUpgrade("enterprise")} disabled={isUpgrading || plan === "enterprise"}>
             {isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Enterprise"}
@@ -539,7 +699,15 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
   const params = useParams<{ tokoid?: string | string[] }>()
   const currentTokoId = getParamValue(params?.tokoid)
   const [billingSummary, setBillingSummary] = React.useState<BillingPlanSummary | null>(null)
+  const [ownerBillingSummary, setOwnerBillingSummary] = React.useState<OwnerBillingSummary | null>(null)
   const [isBillingLoading, setIsBillingLoading] = React.useState(false)
+  const [billingReloadKey, setBillingReloadKey] = React.useState(0)
+
+  const reloadBilling = React.useCallback(() => {
+    setBillingSummary(null)
+    setOwnerBillingSummary(null)
+    setBillingReloadKey((key) => key + 1)
+  }, [])
 
   React.useEffect(() => {
     let active = true
@@ -549,13 +717,19 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
 
       setIsBillingLoading(true)
       try {
-        const result = await getBillingPlanSummary(currentTokoId)
+        const [result, ownerBillingResult] = await Promise.all([
+          getBillingPlanSummary(currentTokoId),
+          getOwnerBillingSummary(),
+        ])
         if (!active) return
 
         if (result.success && result.data) {
           setBillingSummary(result.data)
         } else {
           toast.error(result.error || "Gagal memuat data plan")
+        }
+        if (ownerBillingResult.success && ownerBillingResult.data) {
+          setOwnerBillingSummary(ownerBillingResult.data)
         }
       } catch (error) {
         if (active) {
@@ -571,7 +745,7 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
     return () => {
       active = false
     }
-  }, [activeTab, currentTokoId, open])
+  }, [activeTab, currentTokoId, open, billingReloadKey])
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen && !initialTab) {
@@ -592,10 +766,12 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
         return <PasswordSettings onSuccess={() => onOpenChange(false)} />
       case "appearance":
         return <AppearanceSettings />
+      case "affiliate":
+        return <AffiliateSettings />
       case "billing":
-        return <BillingSettings summary={billingSummary} isLoading={isBillingLoading} />
+        return <BillingSettings summary={billingSummary} ownerBilling={ownerBillingSummary} isLoading={isBillingLoading} onChanged={reloadBilling} />
       case "premium":
-        return <PremiumSettings summary={billingSummary} isLoading={isBillingLoading} currentTokoId={currentTokoId} onPlanChanged={() => setBillingSummary(null)} />
+        return <PlanSettings summary={billingSummary} isLoading={isBillingLoading} currentTokoId={currentTokoId} onPlanChanged={reloadBilling} />
       default:
         return <ProfileSettings key={`${user?.name ?? "user"}-${user?.image ?? "no-image"}`} user={user} onSuccess={() => onOpenChange(false)} />
     }

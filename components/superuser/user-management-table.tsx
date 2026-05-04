@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 interface UserManagementTableProps {
   users: SuperuserUserRow[];
@@ -46,6 +47,8 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Plan</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Active Until</TableHead>
             <TableHead>Toko Count</TableHead>
             <TableHead>Staff</TableHead>
             <TableHead>Technicians</TableHead>
@@ -69,10 +72,18 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="free">Free</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
+                    <SelectItem value="premium">Pro</SelectItem>
                     <SelectItem value="enterprise">Enterprise</SelectItem>
                   </SelectContent>
                 </Select>
+              </TableCell>
+              <TableCell>
+                <Badge variant={user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing" ? "success" : user.subscriptionStatus === "past_due" ? "warning" : "outline"}>
+                  {user.subscriptionStatus ?? "-"}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {user.currentPeriodEnd ? new Date(user.currentPeriodEnd).toLocaleDateString("id-ID") : "-"}
               </TableCell>
               <TableCell>{user.tokoCount}</TableCell>
               <TableCell>{user.staffCount}</TableCell>

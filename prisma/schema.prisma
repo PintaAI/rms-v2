@@ -30,6 +30,36 @@ enum SubscriptionPlan {
   enterprise
 }
 
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  suspended
+  cancelled
+}
+
+enum SubscriptionInvoiceStatus {
+  issued
+  pending_review
+  paid
+  rejected
+  overdue
+  void
+}
+
+enum SubscriptionPaymentStatus {
+  pending_review
+  approved
+  rejected
+}
+
+enum SubscriptionPaymentMethod {
+  bank_transfer
+  qris
+  ewallet
+  other
+}
+
 enum TokoUserRole {
   owner
 }
@@ -92,6 +122,23 @@ enum PaymentStatus {
   unpaid
   dp
   paid
+}
+
+enum AffiliatorStatus {
+  active
+  inactive
+}
+
+enum AffiliateCommissionType {
+  fixed
+  percentage
+}
+
+enum AffiliateCommissionStatus {
+  pending
+  approved
+  paid
+  rejected
 }
 
 //////////////////////
@@ -170,10 +217,15 @@ model User {
   accounts       Account[]
   tokoAssignments UserToko[]
   subscription   Subscription?
+  subscriptionInvoices SubscriptionInvoice[]
+  reviewedSubscriptionPayments SubscriptionPayment[] @relation("SubscriptionPaymentReviewedBy")
   createdServices  Service[]    @relation("ServiceCreatedBy")
   assignedServices Service[]    @relation("ServiceTechnician")
   activities      ActivityLog[]
   createdInventoryAuditSessions InventoryAuditSession[] @relation("InventoryAuditCreatedBy")
+  affiliatorProfile Affiliator?
+  referredByReferral Referral?
+  affiliateCommissions AffiliateCommission[]
 
   @@index([role])
   @@map("user")
@@ -195,15 +247,166 @@ model UserToko {
 }
 
 model Subscription {
-  id        String           @id @default(uuid())
-  userId    String           @unique
-  plan      SubscriptionPlan @default(free)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id        String             @id @default(uuid())
+  userId    String             @unique
+  plan      SubscriptionPlan   @default(free)
+  status    SubscriptionStatus @default(trialing)
+
+  trialEndsAt        DateTime?
+  proTrialStartedAt  DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  graceEndsAt        DateTime?
+  cancelledAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices SubscriptionInvoice[]
 
+  @@index([plan])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@index([trialEndsAt])
   @@map("subscription")
+}
+
+model SubscriptionInvoice {
+  id             String                    @id @default(uuid())
+  invoiceNumber  String                    @unique
+  userId         String
+  subscriptionId String
+
+  plan                SubscriptionPlan
+  amount              Int
+  tokoCount           Int
+  includedTokos       Int?
+  additionalTokos     Int @default(0)
+  additionalTokoPrice Int?
+
+  status   SubscriptionInvoiceStatus @default(issued)
+  issuedAt DateTime                  @default(now())
+  dueAt    DateTime
+  paidAt   DateTime?
+  voidedAt DateTime?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  payments     SubscriptionPayment[]
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([dueAt])
+  @@map("subscription_invoice")
+}
+
+model SubscriptionPayment {
+  id        String                    @id @default(uuid())
+  invoiceId String
+
+  amount          Int
+  method          SubscriptionPaymentMethod @default(bank_transfer)
+  referenceNumber String?
+  proofUrl        String?
+  note            String?
+  status          SubscriptionPaymentStatus @default(pending_review)
+  rejectionReason String?
+
+  submittedAt  DateTime @default(now())
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  invoice    SubscriptionInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  reviewedBy User?               @relation("SubscriptionPaymentReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([status])
+  @@index([reviewedById])
+  @@map("subscription_payment")
+}
+
+model Affiliator {
+  id     String  @id @default(uuid())
+  userId String? @unique
+
+  name  String
+  email String?
+  phone String?
+
+  code        String           @unique
+  portalToken String           @unique
+  status      AffiliatorStatus @default(active)
+
+  commissionType            AffiliateCommissionType @default(fixed)
+  premiumCommissionValue    Int                     @default(100000)
+  enterpriseCommissionValue Int                     @default(200000)
+
+  payoutInfo Json?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  referrals   Referral[]
+  commissions AffiliateCommission[]
+
+  @@index([status])
+  @@index([email])
+  @@map("affiliator")
+}
+
+model Referral {
+  id             String   @id @default(uuid())
+  affiliatorId   String
+  referredUserId String   @unique
+  referralCode   String
+  convertedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  affiliator   Affiliator @relation(fields: [affiliatorId], references: [id])
+  referredUser User       @relation(fields: [referredUserId], references: [id])
+
+  commissions AffiliateCommission[]
+
+  @@index([affiliatorId])
+  @@index([referralCode])
+  @@index([createdAt])
+  @@map("referral")
+}
+
+model AffiliateCommission {
+  id         String                    @id @default(uuid())
+  affiliatorId String
+  referralId   String
+  userId       String
+  plan       SubscriptionPlan
+  amount     Int
+  status     AffiliateCommissionStatus @default(pending)
+  createdAt  DateTime                  @default(now())
+  approvedAt DateTime?
+  paidAt     DateTime?
+  rejectedAt DateTime?
+  notes      String?
+
+  affiliator Affiliator @relation(fields: [affiliatorId], references: [id])
+  referral   Referral   @relation(fields: [referralId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@unique([referralId, plan])
+  @@index([affiliatorId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("affiliate_commission")
 }
 
 model Session {

@@ -118,6 +118,10 @@ import {
   isPlanAtLeast as _isPlanAtLeast,
   isSubscriptionPlan as _isSubscriptionPlan,
   getPlanLimit as _getPlanLimit,
+  getPlanMonthlyPrice as _getPlanMonthlyPrice,
+  getPlanIncludedTokos as _getPlanIncludedTokos,
+  getPlanAdditionalTokoPrice as _getPlanAdditionalTokoPrice,
+  calculateMonthlyPlanAmount as _calculateMonthlyPlanAmount,
   SUBSCRIPTION_PLANS as _SUBSCRIPTION_PLANS,
   PLAN_LIMIT_KEYS as _PLAN_LIMIT_KEYS,
 } from "@/lib/plans";
@@ -128,6 +132,10 @@ export const normalizePlan = _normalizePlan;
 export const isSubscriptionPlan = _isSubscriptionPlan;
 export const isPlanAtLeast = _isPlanAtLeast;
 export const getPlanLimit = _getPlanLimit;
+export const getPlanMonthlyPrice = _getPlanMonthlyPrice;
+export const getPlanIncludedTokos = _getPlanIncludedTokos;
+export const getPlanAdditionalTokoPrice = _getPlanAdditionalTokoPrice;
+export const calculateMonthlyPlanAmount = _calculateMonthlyPlanAmount;
 
 export function isFeatureKey(feature: string): feature is FeatureKey {
   return Object.prototype.hasOwnProperty.call(FEATURE_REGISTRY, feature);

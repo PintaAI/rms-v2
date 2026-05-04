@@ -1,4 +1,5 @@
 import { getSuperuserDashboard } from "@/actions/superuser";
+import { getSuperuserAffiliateDashboard } from "@/actions/affiliate";
 import { formatCurrency } from "@/lib/utils";
 import {
   RiUserLine,
@@ -20,23 +21,28 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserManagementTable } from "@/components/superuser/user-management-table";
+import { AffiliateManagement } from "@/components/superuser/affiliate-management";
 import { UserInfo } from "@/components/shared/user-info";
+import { SubscriptionPaymentReview } from "@/components/superuser/subscription-payment-review";
 
 export default async function SuperuserPage() {
-  const result = await getSuperuserDashboard();
+  const [result, affiliateResult] = await Promise.all([
+    getSuperuserDashboard(),
+    getSuperuserAffiliateDashboard(),
+  ]);
 
-  if (!result.success || !result.data) {
+  if (!result.success || !result.data || !affiliateResult.success || !affiliateResult.data) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold">Superuser Dashboard</h1>
-          <p className="text-destructive">{result.error || "Failed to load data"}</p>
+          <p className="text-destructive">{result.error || affiliateResult.error || "Failed to load data"}</p>
         </div>
       </div>
     );
   }
 
-  const { stats, users } = result.data;
+  const { stats, users, pendingPayments } = result.data;
 
   return (
     <div className="min-h-screen bg-background p-6 lg:p-8">
@@ -175,7 +181,7 @@ export default async function SuperuserPage() {
                   variant: "default",
                 },
                 {
-                  label: "Premium",
+                  label: "Pro",
                   value: stats.subscriptions.premium,
                   icon: <RiVipCrownLine className="size-4" />,
                   variant: "accent",
@@ -191,13 +197,13 @@ export default async function SuperuserPage() {
           </div>
           <div className="hidden gap-4 md:grid md:grid-cols-3">
             <OverviewStatsCard
-              title="Free Plan"
+              title="Free"
               value={stats.subscriptions.free}
               icon={<RiVipCrownLine className="h-4 w-4" />}
               variant="default"
             />
             <OverviewStatsCard
-              title="Premium Plan"
+              title="Pro Plan"
               value={stats.subscriptions.premium}
               icon={<RiVipCrownLine className="h-4 w-4" />}
               variant="accent"
@@ -275,6 +281,10 @@ export default async function SuperuserPage() {
             </CardContent>
           </Card>
         </section>
+
+        <SubscriptionPaymentReview payments={pendingPayments} />
+
+        <AffiliateManagement data={affiliateResult.data} />
       </div>
     </div>
   );

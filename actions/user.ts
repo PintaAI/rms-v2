@@ -5,7 +5,11 @@ import prisma from "@/lib/prisma";
 import {
   FEATURE_KEYS,
   FEATURE_REGISTRY,
+  calculateMonthlyPlanAmount,
+  getPlanAdditionalTokoPrice,
+  getPlanIncludedTokos,
   getPlanLimit,
+  getPlanMonthlyPrice,
   isPlanAtLeast,
   type FeatureCategory,
   type FeatureKey,
@@ -30,7 +34,7 @@ export async function getAuthProviderData() {
   });
 
   return {
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan },
+    user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan, subscriptionStatus: user.subscriptionStatus },
     tokoList: assignments.map((a) => ({
       id: a.toko.id,
       name: a.toko.name,
@@ -62,6 +66,12 @@ export type BillingPlanSummary = {
     tokos: number;
     staff: number;
     technicians: number;
+  };
+  pricing: {
+    monthlyPrice: number | null;
+    includedTokos: number | null;
+    additionalTokoPrice: number | null;
+    estimatedMonthlyAmount: number | null;
   };
   includedFeatures: BillingFeatureSummary[];
   lockedFeatures: BillingFeatureSummary[];
@@ -118,6 +128,12 @@ export async function getBillingPlanSummary(tokoId?: string): Promise<ActionResu
         tokos: user.tokoIds.length,
         staff,
         technicians,
+      },
+      pricing: {
+        monthlyPrice: getPlanMonthlyPrice(user.plan),
+        includedTokos: getPlanIncludedTokos(user.plan),
+        additionalTokoPrice: getPlanAdditionalTokoPrice(user.plan),
+        estimatedMonthlyAmount: calculateMonthlyPlanAmount(user.plan, user.tokoIds.length),
       },
       includedFeatures: features.filter((feature) => isPlanAtLeast(user.plan, feature.minimumPlan)),
       lockedFeatures: features.filter((feature) => !isPlanAtLeast(user.plan, feature.minimumPlan)),

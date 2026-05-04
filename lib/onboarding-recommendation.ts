@@ -63,7 +63,7 @@ export function getOnboardingPlanRecommendation(
   }
 
   if (answers.branchPlan === "moreThanThree") {
-    requirePlan("enterprise", "Kebutuhan cabang melewati batas Premium.");
+    requirePlan("premium", "Lebih dari 2 cabang bisa memakai Pro dengan biaya tambahan per toko.");
   }
 
   if (answers.staffCount > 0 || answers.technicianCount > 0) {
@@ -83,12 +83,12 @@ export function getOnboardingPlanRecommendation(
   const premiumTechnicianLimit = getPlanLimit("premium", "maxTechnicians") ?? Number.POSITIVE_INFINITY;
 
   if (answers.staffCount > premiumStaffLimit || answers.technicianCount > premiumTechnicianLimit) {
-    requirePlan("enterprise", "Jumlah tim melewati batas Premium.");
+    requirePlan("enterprise", "Jumlah tim melewati batas Pro dan membutuhkan konfigurasi Enterprise custom.");
   }
 
   if (answers.usesInventory) {
     neededFeatures.add("inventory.management");
-    requirePlan("premium", "Manajemen inventory/sparepart membutuhkan Premium.");
+    requirePlan("premium", "Manajemen inventory/sparepart membutuhkan Pro.");
   } else {
     neededFeatures.add("service.manualItems");
   }
@@ -101,7 +101,7 @@ export function getOnboardingPlanRecommendation(
   if (answers.needsAnalyticsAndLogs) {
     neededFeatures.add("activityLog.view");
     neededFeatures.add("analytics.revenue");
-    requirePlan("premium", "Statistik dan pantauan proses membutuhkan fitur analytics dan activity log Premium.");
+    requirePlan("premium", "Statistik dan pantauan proses membutuhkan fitur analytics dan activity log Pro.");
   }
 
   if (reasons.length === 0) {

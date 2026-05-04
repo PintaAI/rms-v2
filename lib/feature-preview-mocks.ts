@@ -2,7 +2,7 @@ import type { FeatureKey, SubscriptionPlan } from "@/lib/features";
 
 export const planLabels: Record<SubscriptionPlan, string> = {
   free: "Free",
-  premium: "Premium",
+  premium: "Pro",
   enterprise: "Enterprise",
 };
 

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useMobileScannerHost, type UseMobileScannerHostReturn } from "@/hooks/use-mobile-scanner-host";
 import type { MobileScannerConnectionState } from "@/lib/webrtc";
-import { RiLoader4Line, RiRefreshLine, RiStopLine } from "@remixicon/react";
+import { RiDeleteBinLine, RiLoader4Line, RiRefreshLine, RiStopLine } from "@remixicon/react";
 import { RiQrScan2Line } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
@@ -19,12 +19,13 @@ export function getScannerStatusVariant(state: MobileScannerConnectionState) {
 export function useScannerPairing({ tokoId, onScan }: { tokoId: string; onScan: (value: string) => void | Promise<void> }) {
   const [isOpen, setIsOpen] = useState(false);
   const host = useMobileScannerHost({ tokoId, onScan });
+  const { state, startPairing } = host;
 
   useEffect(() => {
-    if (isOpen && host.state === "idle") {
-      void host.startPairing();
+    if (isOpen && state === "idle") {
+      void startPairing();
     }
-  }, [isOpen, host.state, host.startPairing]);
+  }, [isOpen, state, startPairing]);
 
   return { ...host, isOpen, setIsOpen };
 }
@@ -47,9 +48,33 @@ export function ScannerPairingPanel({ host, onClose, className }: ScannerPairing
       <div>
         <div className="text-sm font-medium">Phone Scanner</div>
         <div className="text-xs text-muted-foreground">
-          Scan QR ini dari HP untuk mengirim barcode.
+          {host.devices.length > 0
+            ? "Buka halaman scanner di HP tersimpan, atau scan QR untuk pair HP baru."
+            : "Scan QR ini dari HP untuk mengirim barcode."}
         </div>
       </div>
+
+      {host.devices.length > 0 && (
+        <div className="rounded-md border bg-background/70 p-2">
+          <div className="mb-1 text-xs font-medium text-muted-foreground">HP tersimpan</div>
+          <div className="space-y-1">
+            {host.devices.map((device) => (
+              <div key={device.id} className="flex items-center justify-between gap-2 text-xs">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{device.name}</div>
+                  <div className="text-muted-foreground">
+                    {device.lastSeenAt ? `Terakhir ${new Date(device.lastSeenAt).toLocaleString()}` : "Belum pernah reconnect"}
+                  </div>
+                </div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => void host.revokeDevice(device.id)}>
+                  <RiDeleteBinLine className="mr-1.5 size-3.5" />
+                  Lupakan
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && !isTimedOut && (
         <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">

@@ -1,5 +1,5 @@
 import { getFeatureLockReason, FEATURE_REGISTRY, type FeatureKey, type PlanLimitKey } from "@/lib/features";
-import { getPlanLimit, type SubscriptionPlan } from "@/lib/plans";
+import { getPlanLimit } from "@/lib/plans";
 import type { AuthUser } from "./request-user";
 import type { ActionResult } from "./authorization";
 import prisma from "@/lib/prisma";
@@ -7,7 +7,7 @@ import type { ActivityType } from "@/prisma/generated/prisma/enums";
 
 const planLabels = {
   free: "Free",
-  premium: "Premium",
+  premium: "Pro",
   enterprise: "Enterprise",
 } as const;
 

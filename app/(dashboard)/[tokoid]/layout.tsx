@@ -12,6 +12,9 @@ import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
 import { getRequestScope } from "@/lib/auth/request-scope";
 import { AuthError } from "@/lib/auth/authorization";
 import { DevAccessOverlay } from "@/components/dev/access-overlay";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const DEV_MODE = process.env.DEV_MODE === "true";
 interface DashboardLayoutProps {
@@ -91,11 +94,37 @@ export default async function DashboardLayout({ children, params }: DashboardLay
             </div>
           </header>
           <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
-            {children}
+            {scope.subscriptionStatus === "suspended" ? <SubscriptionSuspendedState tokoid={tokoid} role={scope.user.role} /> : children}
           </main>
           {DEV_MODE && <DevAccessOverlay />}
         </SidebarInset>
       </DashboardScopeProvider>
     </SidebarProvider>
+  );
+}
+
+function SubscriptionSuspendedState({ tokoid, role }: { tokoid: string; role: string }) {
+  const isAdmin = role === "admin";
+
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center p-4">
+      <Card className="max-w-xl border-warning/30 bg-card shadow-sm">
+        <CardHeader>
+          <CardTitle>Subscription toko sedang suspended</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm text-muted-foreground">
+          <p>
+            Akses operasional dibatasi karena masa trial/langganan owner sudah melewati grace period.
+          </p>
+          {isAdmin ? (
+            <Button asChild>
+              <Link href={`/${tokoid}/admin?settings=billing`}>Buka Billing</Link>
+            </Button>
+          ) : (
+            <p>Hubungi admin toko untuk menyelesaikan pembayaran langganan.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

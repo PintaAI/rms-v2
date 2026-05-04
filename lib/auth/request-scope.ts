@@ -54,6 +54,7 @@ export type RequestScope = {
   user: AuthUser;
   tokoId: string;
   plan: SubscriptionPlan;
+  subscriptionStatus: AuthUser["subscriptionStatus"];
   disabledFeatures: FeatureKey[];
   featureAccess: FeatureAccessMap;
   capabilities: CapabilityAccessMap;
@@ -72,6 +73,7 @@ export const getRequestScope = cache(async (tokoId: string): Promise<RequestScop
     user,
     tokoId,
     plan,
+    subscriptionStatus: user.subscriptionStatus,
     disabledFeatures,
     featureAccess: getFeatureAccessMap(user.role, plan, disabledFeatures),
     capabilities: getCapabilityAccessMap(user.role),

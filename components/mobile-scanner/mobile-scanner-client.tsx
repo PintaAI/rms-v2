@@ -10,12 +10,38 @@ import { RiCameraLine, RiLoader4Line, RiQrScan2Line } from "@remixicon/react";
 import { toast } from "sonner";
 
 interface MobileScannerClientProps {
-  code: string;
+  code?: string;
 }
 
 interface OfferResponse {
   offer: string;
   tokoId: string;
+}
+
+interface SavedDeviceCredentials {
+  deviceId: string;
+  token: string;
+}
+
+interface SavedOfferResponse {
+  device: {
+    id: string;
+    name: string;
+    tokoId: string;
+  };
+  session: {
+    code: string;
+    offer: string;
+    tokoId: string;
+  } | null;
+}
+
+interface RegisterDeviceResponse {
+  device: {
+    id: string;
+    name: string;
+  };
+  token: string;
 }
 
 type PhoneScannerState = "idle" | "connecting" | "connected" | "disconnected" | "failed";
@@ -32,10 +58,35 @@ const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   },
   audio: false,
 };
+const SAVED_DEVICE_STORAGE_KEY = "rms.mobileScannerDevice";
+const SAVED_RECONNECT_POLL_MS = 2_000;
+
+function readSavedDeviceCredentials(): SavedDeviceCredentials | null {
+  try {
+    const raw = window.localStorage.getItem(SAVED_DEVICE_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<SavedDeviceCredentials>;
+    if (typeof parsed.deviceId !== "string" || typeof parsed.token !== "string") return null;
+
+    return { deviceId: parsed.deviceId, token: parsed.token };
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedDeviceCredentials(credentials: SavedDeviceCredentials) {
+  window.localStorage.setItem(SAVED_DEVICE_STORAGE_KEY, JSON.stringify(credentials));
+}
+
+function clearSavedDeviceCredentials() {
+  window.localStorage.removeItem(SAVED_DEVICE_STORAGE_KEY);
+}
 
 export function MobileScannerClient({ code }: MobileScannerClientProps) {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const hasPairingToken = Boolean(code && token);
   const [connectionState, setConnectionState] = useState<PhoneScannerState>("idle");
   const [cameraState, setCameraState] = useState<CameraState>("idle");
   const [isScanning, setIsScanning] = useState(false);
@@ -53,6 +104,33 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
   const holdScanningRef = useRef(false);
   const sentInCurrentHoldRef = useRef<Set<string>>(new Set());
   const pairingRedirectingRef = useRef(false);
+  const registeringDeviceRef = useRef(false);
+
+  const registerRememberedDevice = useCallback(async () => {
+    if (!code || !token || registeringDeviceRef.current) return;
+
+    registeringDeviceRef.current = true;
+
+    try {
+      const name = navigator.userAgent.includes("iPhone")
+        ? "iPhone scanner"
+        : navigator.userAgent.includes("Android")
+          ? "Android scanner"
+          : "Phone scanner";
+      const response = await fetch("/api/mobile-scanner/signal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "register-device", code, token, name }),
+      });
+
+      if (!response.ok) return;
+
+      const data = (await response.json()) as RegisterDeviceResponse;
+      writeSavedDeviceCredentials({ deviceId: data.device.id, token: data.token });
+    } catch {
+      // Saved pairing is optional; the current QR connection can continue without it.
+    }
+  }, [code, token]);
 
   const playDetectedBeep = useCallback(() => {
     try {
@@ -276,9 +354,128 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
 
   useEffect(() => {
     let cancelled = false;
+    let reconnectPoll: ReturnType<typeof setTimeout> | null = null;
+
+    async function connectWithOffer(input: {
+      offer: string;
+      answerPayload: Record<string, string>;
+      onConnected?: () => void;
+    }) {
+      const pc = new RTCPeerConnection(rtcConfig);
+      pcRef.current = pc;
+
+      pc.ondatachannel = (event) => {
+        const channel = event.channel;
+        channelRef.current = channel;
+        channel.onopen = () => {
+          setConnectionState("connected");
+          input.onConnected?.();
+          sendMessage({ type: "ready", at: Date.now() });
+        };
+        channel.onclose = () => setConnectionState("disconnected");
+        channel.onerror = () => {
+          setConnectionState("failed");
+          setError("Koneksi ke desktop bermasalah");
+        };
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          setConnectionState("connected");
+        } else if (pc.connectionState === "disconnected") {
+          setConnectionState("disconnected");
+        } else if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+          setConnectionState(pc.connectionState === "failed" ? "failed" : "disconnected");
+        }
+      };
+
+      await pc.setRemoteDescription(JSON.parse(input.offer) as RTCSessionDescriptionInit);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await waitForIceGatheringComplete(pc);
+
+      if (!pc.localDescription) {
+        throw new Error("Gagal membuat jawaban WebRTC");
+      }
+
+      const answerResponse = await fetch("/api/mobile-scanner/signal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...input.answerPayload,
+          sdp: JSON.stringify(pc.localDescription),
+        }),
+      });
+
+      if (!answerResponse.ok) {
+        throw new Error("Gagal mengirim jawaban pairing");
+      }
+    }
 
     async function connect() {
-      if (!token) {
+      if (!hasPairingToken) {
+        const savedDevice = readSavedDeviceCredentials();
+
+        if (!savedDevice) {
+          setConnectionState("failed");
+          setError(null);
+          setDecodeFeedback("Belum terhubung. Scan QR pairing dari desktop.");
+          return;
+        }
+
+        setConnectionState("connecting");
+        setDecodeFeedback("Menunggu desktop membuka Scan via HP...");
+
+        const pollSavedSession = async () => {
+          try {
+            const response = await fetch(
+              `/api/mobile-scanner/signal?role=saved-device&deviceId=${encodeURIComponent(savedDevice.deviceId)}&deviceToken=${encodeURIComponent(savedDevice.token)}`,
+              { cache: "no-store" }
+            );
+
+            if (response.status === 404) {
+              clearSavedDeviceCredentials();
+              setConnectionState("failed");
+              setDecodeFeedback("Pairing tersimpan tidak valid. Scan QR pairing baru dari desktop.");
+              return;
+            }
+
+            if (!response.ok) {
+              throw new Error("Gagal mencari desktop aktif");
+            }
+
+            const data = (await response.json()) as SavedOfferResponse;
+
+            if (cancelled) return;
+
+            if (!data.session) {
+              reconnectPoll = setTimeout(pollSavedSession, SAVED_RECONNECT_POLL_MS);
+              return;
+            }
+
+            setDecodeFeedback("Desktop ditemukan. Menghubungkan...");
+            await connectWithOffer({
+              offer: data.session.offer,
+              answerPayload: {
+                type: "saved-answer",
+                code: data.session.code,
+                deviceId: savedDevice.deviceId,
+                deviceToken: savedDevice.token,
+              },
+            });
+          } catch (err) {
+            if (cancelled) return;
+            setConnectionState("failed");
+            setError(err instanceof Error ? err.message : "Reconnect gagal");
+            setDecodeFeedback("Gagal reconnect. Scan QR pairing baru dari desktop.");
+          }
+        };
+
+        await pollSavedSession();
+        return;
+      }
+
+      if (!code || !token) {
         setConnectionState("failed");
         setError(null);
         setDecodeFeedback("Belum terhubung. Scan QR pairing dari desktop.");
@@ -300,56 +497,11 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
         const offerData = (await offerResponse.json()) as OfferResponse;
         if (cancelled) return;
 
-        const pc = new RTCPeerConnection(rtcConfig);
-        pcRef.current = pc;
-
-        pc.ondatachannel = (event) => {
-          const channel = event.channel;
-          channelRef.current = channel;
-          channel.onopen = () => {
-            setConnectionState("connected");
-            sendMessage({ type: "ready", at: Date.now() });
-          };
-          channel.onclose = () => setConnectionState("disconnected");
-          channel.onerror = () => {
-            setConnectionState("failed");
-            setError("Koneksi ke desktop bermasalah");
-          };
-        };
-
-        pc.onconnectionstatechange = () => {
-          if (pc.connectionState === "connected") {
-            setConnectionState("connected");
-          } else if (pc.connectionState === "disconnected") {
-            setConnectionState("disconnected");
-          } else if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-            setConnectionState(pc.connectionState === "failed" ? "failed" : "disconnected");
-          }
-        };
-
-        await pc.setRemoteDescription(JSON.parse(offerData.offer) as RTCSessionDescriptionInit);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await waitForIceGatheringComplete(pc);
-
-        if (!pc.localDescription) {
-          throw new Error("Gagal membuat jawaban WebRTC");
-        }
-
-        const answerResponse = await fetch("/api/mobile-scanner/signal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "answer",
-            code,
-            token,
-            sdp: JSON.stringify(pc.localDescription),
-          }),
+        await connectWithOffer({
+          offer: offerData.offer,
+          answerPayload: { type: "answer", code, token },
+          onConnected: registerRememberedDevice,
         });
-
-        if (!answerResponse.ok) {
-          throw new Error("Gagal mengirim jawaban pairing");
-        }
       } catch (err) {
         if (cancelled) return;
         setConnectionState("failed");
@@ -362,13 +514,14 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
 
     return () => {
       cancelled = true;
+      if (reconnectPoll) clearTimeout(reconnectPoll);
       closeCamera();
       channelRef.current?.close();
       channelRef.current = null;
       pcRef.current?.close();
       pcRef.current = null;
     };
-  }, [closeCamera, code, sendMessage, token]);
+  }, [closeCamera, code, hasPairingToken, registerRememberedDevice, sendMessage, token]);
 
   const handleHoldScanStart = async () => {
     holdScanningRef.current = true;
@@ -405,7 +558,9 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
   const title = isConnected ? "Scan Sparepart" : "Pair Scanner";
   const instruction = isConnected
     ? "Kamera tetap aktif sebagai viewfinder. Tahan tombol hanya saat ingin scan."
-    : "Kamera tetap aktif sebagai viewfinder. Tahan tombol untuk pairing.";
+    : hasPairingToken
+      ? "Kamera tetap aktif sebagai viewfinder. Tahan tombol untuk pairing."
+      : "HP tersimpan akan otomatis terhubung saat desktop membuka Scan via HP.";
 
   return (
     <main className="flex h-dvh overflow-hidden bg-background text-foreground">
@@ -477,8 +632,21 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
             {isCameraOpening ? <RiLoader4Line className="size-8 animate-spin" /> : <RiCameraLine className="size-8" />}
           </Button>
           <div className="text-center text-xs font-medium text-muted-foreground">
-            {isScanning ? "Lepas untuk jeda scan" : isConnected ? "Tahan untuk scan" : "Tahan untuk pairing"}
+            {isScanning ? "Lepas untuk jeda scan" : isConnected ? "Tahan untuk scan" : hasPairingToken ? "Tahan untuk pairing" : "Menunggu desktop"}
           </div>
+          {!hasPairingToken && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                clearSavedDeviceCredentials();
+                window.location.reload();
+              }}
+            >
+              Lupakan HP ini
+            </Button>
+          )}
         </footer>
       </div>
     </main>
