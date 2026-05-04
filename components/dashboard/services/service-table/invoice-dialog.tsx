@@ -186,54 +186,54 @@ function InvoicePreviewCard({
             </div>
           )}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{getInvoiceTitle(mode)}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-700">{getInvoiceTitle(mode)}</p>
             <h3 className="mt-1 text-2xl font-black tracking-tight">{invoiceSettings.name}</h3>
             {(invoiceSettings.address || invoiceSettings.phone) && (
-              <div className="mt-1 space-y-0.5 text-xs leading-5 text-slate-500">
+              <div className="mt-1 space-y-0.5 text-xs leading-5 text-slate-700">
                 {invoiceSettings.address && <p>{invoiceSettings.address}</p>}
                 {invoiceSettings.phone && <p>{invoiceSettings.phone}</p>}
               </div>
             )}
-            <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-700">
               {getInvoiceDescription(mode)}
             </p>
           </div>
         </div>
 
         {!hasInvoice ? (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm">
-            <div className="flex items-center gap-2 font-semibold text-slate-700">
+          <div className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-slate-950">
               Nota Service
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs font-medium text-slate-700">
               Invoice belum dibuat
             </p>
           </div>
         ) : isDp ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm shadow-sm">
-            <div className="flex items-center gap-2 font-semibold text-amber-700">
+          <div className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-slate-950">
               DP {dpAmount ? formatCurrency(dpAmount) : ""}
             </div>
-            <p className="mt-1 text-xs text-amber-700/80">
+            <p className="mt-1 text-xs font-medium text-slate-700">
               Sisa: {formatCurrency(finalTotal)}
             </p>
           </div>
         ) : isPaid ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm shadow-sm">
-            <div className="flex items-center gap-2 font-semibold text-emerald-700">
+          <div className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-slate-950">
               <RiCheckboxCircleLine className="h-4 w-4" />
               Lunas
             </div>
-            <p className="mt-1 text-xs text-emerald-700/80">
+            <p className="mt-1 text-xs font-medium text-slate-700">
               Dibayar pada {formatInvoiceDate(service.invoice?.paidAt ?? service.checkoutAt)}
             </p>
           </div>
         ) : (
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm">
-            <div className="flex items-center gap-2 font-semibold text-slate-700">
+          <div className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm shadow-sm">
+            <div className="flex items-center gap-2 font-semibold text-slate-950">
               Nota Pengambilan
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs font-medium text-slate-700">
               Tagihan belum lunas
             </p>
           </div>
@@ -242,8 +242,8 @@ function InvoicePreviewCard({
 
       <div className="grid gap-6 py-6 sm:grid-cols-2">
         <div className="space-y-3 rounded-2xl bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{mode === "pickup-note" ? "Nota Pengambilan" : "Invoice"}</p>
-          <div className="space-y-2 text-sm text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">{mode === "pickup-note" ? "Nota Pengambilan" : "Invoice"}</p>
+          <div className="space-y-2 text-sm text-slate-700">
             <div className="flex items-center justify-between gap-4">
               <span>Nomor</span>
               <span className="font-semibold text-slate-900">{getInvoiceNumber(service)}</span>
@@ -260,8 +260,8 @@ function InvoicePreviewCard({
         </div>
 
         <div className="space-y-3 rounded-2xl bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pelanggan</p>
-          <div className="space-y-2 text-sm text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">Pelanggan</p>
+          <div className="space-y-2 text-sm text-slate-700">
             <div className="flex items-center justify-between gap-4">
               <span>Nama</span>
               <span className="font-semibold text-slate-900">{service.customerName || "Pelanggan"}</span>
@@ -282,7 +282,7 @@ function InvoicePreviewCard({
 
       <div className="overflow-hidden rounded-2xl border border-slate-200">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500">
+          <thead className="bg-slate-50 text-slate-700">
             <tr>
               <th className="px-4 py-3 text-left font-semibold">Item</th>
               <th className="px-4 py-3 text-left font-semibold">Tipe</th>
@@ -295,9 +295,9 @@ function InvoicePreviewCard({
             {items.map((item, index) => (
               <tr key={item.id || `${item.name}-${index}`} className="border-t border-slate-200">
                 <td className="px-4 py-3 font-medium text-slate-900">{item.name}</td>
-                <td className="px-4 py-3 text-slate-600">{item.type || "Item"}</td>
-                <td className="px-4 py-3 text-center text-slate-600">{item.qty}</td>
-                <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(item.price)}</td>
+                <td className="px-4 py-3 text-slate-700">{item.type || "Item"}</td>
+                <td className="px-4 py-3 text-center text-slate-700">{item.qty}</td>
+                <td className="px-4 py-3 text-right text-slate-700">{formatCurrency(item.price)}</td>
                 <td className="px-4 py-3 text-right font-semibold text-slate-900">{formatCurrency(item.qty * item.price)}</td>
               </tr>
             ))}
@@ -306,7 +306,7 @@ function InvoicePreviewCard({
       </div>
 
       {!hasDetailedItems && (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-slate-700">
           {mode === "pickup-note"
             ? "Detail item belum tersedia. Nota pengambilan menampilkan total tagihan service."
             : hasInvoice
@@ -322,62 +322,62 @@ function InvoicePreviewCard({
       )}
 
       <div className="mt-6 flex flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row sm:items-end sm:justify-between">
-        <div className="max-w-md space-y-2 text-sm text-slate-500">
+        <div className="max-w-md space-y-2 text-sm text-slate-700">
           <p className="font-semibold text-slate-900">Catatan Servis</p>
           <p>{service.complaint}</p>
         </div>
-        <div className="min-w-full rounded-2xl bg-slate-950 px-5 py-4 text-white shadow-sm sm:min-w-80">
+        <div className="min-w-full rounded-2xl border border-slate-300 bg-white px-5 py-4 text-slate-950 shadow-sm sm:min-w-80">
           <div className="flex items-end justify-between gap-6">
             <div className="min-w-0 flex-1 space-y-2">
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Ringkasan Pembayaran</p>
-              <div className="space-y-1 text-sm text-white/60">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">Ringkasan Pembayaran</p>
+              <div className="space-y-1 text-sm text-slate-700">
                 <div className="flex items-center justify-between gap-4">
                   <span>Total sebelum diskon</span>
-                  <span className="font-semibold tabular-nums text-white">{formatCurrency(grandTotal)}</span>
+                  <span className="font-semibold tabular-nums text-slate-950">{formatCurrency(grandTotal)}</span>
                 </div>
                 {dpAmount > 0 && (
                   <div className="flex items-center justify-between gap-4">
                     <span>DP dibayar</span>
-                    <span className="font-semibold tabular-nums text-white">- {formatCurrency(dpAmount)}</span>
+                    <span className="font-semibold tabular-nums text-slate-950">- {formatCurrency(dpAmount)}</span>
                   </div>
                 )}
                 {discountAmount > 0 && (
                   <div className="flex items-center justify-between gap-4">
                     <span>Diskon</span>
-                    <span className="font-semibold tabular-nums text-white">- {formatCurrency(discountAmount)}</span>
+                    <span className="font-semibold tabular-nums text-slate-950">- {formatCurrency(discountAmount)}</span>
                   </div>
                 )}
               </div>
-              <div className="flex items-end justify-between gap-4 border-t border-white/10 pt-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-white/50">{mode === "pickup-note" ? "Total Tagihan" : "Total Bayar"}</p>
+              <div className="flex items-end justify-between gap-4 border-t border-slate-300 pt-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">{mode === "pickup-note" ? "Total Tagihan" : "Total Bayar"}</p>
                 <p className="text-2xl font-black tracking-tight">{formatCurrency(finalTotal)}</p>
               </div>
             </div>
-            <Badge className="border-0 bg-white/12 px-3 py-1 text-white hover:bg-white/12">{!hasInvoice ? "Nota" : isPaid ? "Lunas" : isDp ? "DP" : "Pengambilan"}</Badge>
+            <Badge className="border border-slate-300 bg-white px-3 py-1 text-slate-900 hover:bg-white">{!hasInvoice ? "Nota" : isPaid ? "Lunas" : isDp ? "DP" : "Pengambilan"}</Badge>
           </div>
         </div>
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Syarat & Ketentuan</p>
-          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">{invoiceSettings.invoiceTerms}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">Syarat & Ketentuan</p>
+          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-700">{invoiceSettings.invoiceTerms}</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Garansi Service</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">Garansi Service</p>
           {warrantyUntil && (
             <p className="mt-2 text-sm font-semibold text-slate-900">
               Berlaku sampai {formatWarrantyDate(warrantyUntil)}
             </p>
           )}
-          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600">{invoiceSettings.invoiceWarranty}</p>
+          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-700">{invoiceSettings.invoiceWarranty}</p>
         </div>
       </div>
 
       <div className="mt-8 flex justify-end">
         <div className="w-full rounded-2xl border border-slate-200 p-4 text-center sm:w-64">
           <p className="text-sm font-semibold text-slate-900">Customer</p>
-          <div className="mt-16 border-t border-slate-300 pt-2 text-xs text-slate-500">
+          <div className="mt-16 border-t border-slate-300 pt-2 text-xs text-slate-700">
             {service.customerName || "Pelanggan"}
           </div>
         </div>
