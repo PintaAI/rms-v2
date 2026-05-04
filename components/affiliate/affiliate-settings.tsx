@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RMS_WHATSAPP_NUMBER } from "@/components/settings/helpers";
 import { RiFileCopyLine, RiWhatsappLine } from "@remixicon/react";
 
 export function AffiliateSettings() {
@@ -63,7 +64,7 @@ export function AffiliateSettings() {
 }
 
 function AffiliateCta() {
-  const contactUrl = "https://wa.me/?text=Saya%20tertarik%20menjadi%20affiliator%20RMS";
+  const contactUrl = `https://wa.me/${RMS_WHATSAPP_NUMBER}?text=Saya%20tertarik%20menjadi%20affiliator%20RMS`;
 
   return (
     <div className="flex flex-col gap-4">

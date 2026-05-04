@@ -4,6 +4,7 @@ import { FeatureLocked } from "@/components/dashboard/feature-locked";
 import { FeaturePreview } from "@/components/dashboard/feature-preview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getPageFeatureCheck, getRequestScope } from "@/lib/auth/request-scope";
+import { MOCK_ANALYTICS_DATA } from "@/lib/feature-preview-mocks";
 import { redirect } from "next/navigation";
 
 interface AdminAnalyticsPageProps {
@@ -22,15 +23,9 @@ export default async function AdminAnalyticsPage({ params, searchParams }: Admin
 
   if (access.reason === "plan_required") {
     return (
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-black tracking-tight">Analytics</h1>
-          <p className="text-sm text-muted-foreground/70">
-            Pantau revenue, service, teknisi, dan inventory dalam satu dashboard Enterprise.
-          </p>
-        </div>
-        <FeaturePreview featureKey="analytics.revenue" requiredPlan={access.metadata.minimumPlan} tokoId={tokoid} />
-      </div>
+      <FeaturePreview featureKey="analytics.revenue" requiredPlan={access.metadata.minimumPlan} tokoId={tokoid}>
+        <AdminAnalyticsDashboard data={MOCK_ANALYTICS_DATA} />
+      </FeaturePreview>
     );
   }
 

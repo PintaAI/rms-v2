@@ -9,6 +9,14 @@ import { setDevUserPlan } from "@/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -27,7 +35,9 @@ import {
   RiBarChartBoxLine,
   RiCheckboxCircleLine,
   RiCloseLine,
+  RiFileCopyLine,
   RiImageLine,
+  RiInformationLine,
   RiLockPasswordLine,
   RiMailLine,
   RiMapPinLine,
@@ -42,7 +52,6 @@ import {
 
 interface UserData {
   name: string;
-  email: string;
   password: string;
 }
 
@@ -69,7 +78,7 @@ interface WizardData {
   themeMode: ThemeMode;
 }
 
-const initialUserData: UserData = { name: "", email: "", password: "" };
+const initialUserData: UserData = { name: "", password: "" };
 
 const initialData: WizardData = {
   tokoName: "",
@@ -115,6 +124,10 @@ export function OnboardingWizard() {
   const [isDevUpgrading, setIsDevUpgrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    tokoId: string;
+    users: Array<{ name: string; email: string; password: string; role: string }>;
+  } | null>(null);
 
   const visibleSteps = allSteps.filter((step) => {
     if (step.key === "team" && data.teamSize === "ownerOnly") return false;
@@ -191,8 +204,6 @@ export function OnboardingWizard() {
     }
   };
 
-  const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
   const validateStep = (): boolean => {
     setError(null);
 
@@ -217,12 +228,8 @@ export function OnboardingWizard() {
       const technicianToValidate = shouldUseTechnician(data.teamAccess) ? data.technician : [];
 
       for (const staff of staffToValidate) {
-        if (!staff.name.trim() || !staff.email.trim() || !staff.password) {
+        if (!staff.name.trim() || !staff.password) {
           setError("All staff fields are required");
-          return false;
-        }
-        if (!validateEmail(staff.email)) {
-          setError("Invalid staff email format");
           return false;
         }
         if (staff.password.length < 4) {
@@ -232,24 +239,14 @@ export function OnboardingWizard() {
       }
 
       for (const tech of technicianToValidate) {
-        if (!tech.name.trim() || !tech.email.trim() || !tech.password) {
+        if (!tech.name.trim() || !tech.password) {
           setError("All technician fields are required");
-          return false;
-        }
-        if (!validateEmail(tech.email)) {
-          setError("Invalid technician email format");
           return false;
         }
         if (tech.password.length < 4) {
           setError("Technician password must be at least 4 characters");
           return false;
         }
-      }
-
-      const allEmails = [...staffToValidate.map((s) => s.email), ...technicianToValidate.map((t) => t.email)];
-      if (allEmails.length !== new Set(allEmails).size) {
-        setError("Duplicate emails detected");
-        return false;
       }
     }
 
@@ -303,7 +300,13 @@ export function OnboardingWizard() {
 
       setThemeMode(data.themeMode);
       await refetchTokoList();
-      router.push(`/${result.tokoId}/admin`);
+
+      if (result.users && result.users.length > 0) {
+        setCreatedCredentials({ tokoId: result.tokoId!, users: result.users });
+        setIsSubmitting(false);
+      } else {
+        router.push(`/${result.tokoId}/admin`);
+      }
     } catch (err) {
       console.error("Submit error:", err);
       setError("An unexpected error occurred. Please try again.");
@@ -312,7 +315,7 @@ export function OnboardingWizard() {
   };
 
   return (
-    <Card>
+    <><Card>
       <CardHeader>
         <div className="mb-4 flex items-center justify-center gap-2">
           {visibleSteps.map((step, idx) => (
@@ -398,6 +401,76 @@ export function OnboardingWizard() {
         )}
       </CardFooter>
     </Card>
+
+    {createdCredentials && (
+      <Dialog open onOpenChange={(open) => {
+        if (!open) {
+          const tid = createdCredentials.tokoId;
+          setCreatedCredentials(null);
+          router.push(`/${tid}/admin`);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Akun Berhasil Dibuat</DialogTitle>
+            <DialogDescription>
+              Simpan informasi berikut dan kirimkan ke masing-masing anggota tim.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border/50 bg-muted/30 divide-y divide-border/50">
+              {createdCredentials.users.map((cred, idx) => (
+                <div key={idx} className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{cred.role}</span>
+                      <span className="text-xs text-muted-foreground/50">-</span>
+                      <span className="text-xs font-medium">{cred.name}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => navigator.clipboard.writeText(`Email: ${cred.email}\nPassword: ${cred.password}`)}
+                      title="Salin kredensial"
+                    >
+                      <RiFileCopyLine className="size-3.5" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="space-y-0.5">
+                      <p className="text-muted-foreground">Email</p>
+                      <p className="font-mono">{cred.email}</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-muted-foreground">Password</p>
+                      <p className="font-mono">{cred.password}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 p-3">
+              <RiInformationLine className="size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Pastikan Anda menyimpan informasi ini. Password tidak dapat dilihat kembali setelah dialog ini ditutup.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => {
+              const tid = createdCredentials.tokoId;
+              setCreatedCredentials(null);
+              router.push(`/${tid}/admin`);
+            }}>
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )}
+  </>
   );
 }
 
@@ -663,10 +736,10 @@ function TeamStep({ data, setData, canCreateTeam, recommendedPlan }: WizardStepP
       )}
 
       {canAddStaff && (
-        <UserListSection title="Staff" users={data.staff} onAdd={() => setData((prev) => ({ ...prev, staff: [...prev.staff, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, staff: prev.staff.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, staff: prev.staff.map((staff, i) => (i === index ? { ...staff, [field]: value } : staff)) }))} />
+        <UserListSection title="Staff" users={data.staff} tokoName={data.tokoName} onAdd={() => setData((prev) => ({ ...prev, staff: [...prev.staff, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, staff: prev.staff.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, staff: prev.staff.map((staff, i) => (i === index ? { ...staff, [field]: value } : staff)) }))} />
       )}
       {canAddTechnician && (
-        <UserListSection title="Technician" users={data.technician} onAdd={() => setData((prev) => ({ ...prev, technician: [...prev.technician, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, technician: prev.technician.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, technician: prev.technician.map((tech, i) => (i === index ? { ...tech, [field]: value } : tech)) }))} />
+        <UserListSection title="Technician" users={data.technician} tokoName={data.tokoName} onAdd={() => setData((prev) => ({ ...prev, technician: [...prev.technician, { ...initialUserData }] }))} onRemove={(index) => setData((prev) => ({ ...prev, technician: prev.technician.filter((_, i) => i !== index) }))} onUpdate={(index, field, value) => setData((prev) => ({ ...prev, technician: prev.technician.map((tech, i) => (i === index ? { ...tech, [field]: value } : tech)) }))} />
       )}
     </div>
   );
@@ -826,18 +899,23 @@ function TeamModeButton({ active, title, description, onClick, disabled }: { act
   );
 }
 
+const sanitizeForEmail = (str: string) =>
+  str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
 function UserListSection({
   title,
   users,
   onAdd,
   onRemove,
   onUpdate,
+  tokoName,
 }: {
   title: string;
   users: UserData[];
   onAdd: () => void;
   onRemove: (index: number) => void;
   onUpdate: (index: number, field: keyof UserData, value: string) => void;
+  tokoName: string;
 }) {
   return (
     <div className="space-y-3">
@@ -849,19 +927,30 @@ function UserListSection({
         </Button>
       </div>
       {users.length === 0 && <p className="text-xs text-muted-foreground">No {title.toLowerCase()} added.</p>}
-      {users.map((person, index) => (
-        <div key={index} className="space-y-3 rounded-lg border p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium">{title} #{index + 1}</span>
-            <Button variant="ghost" size="icon-xs" onClick={() => onRemove(index)}>
-              <RiCloseLine className="size-3" />
-            </Button>
+      {users.map((person, index) => {
+        const role = title.toLowerCase() as "staff" | "technician";
+        const emailPreview = person.name.trim() && tokoName
+          ? `${sanitizeForEmail(person.name)}-${role}@${sanitizeForEmail(tokoName)}.com`
+          : null;
+        return (
+          <div key={index} className="space-y-3 rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">{title} #{index + 1}</span>
+              <Button variant="ghost" size="icon-xs" onClick={() => onRemove(index)}>
+                <RiCloseLine className="size-3" />
+              </Button>
+            </div>
+            <IconInput icon="user" value={person.name} onChange={(value) => onUpdate(index, "name", value)} placeholder="Name" />
+            {emailPreview && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <RiMailLine className="size-3 shrink-0" />
+                <span className="font-mono text-[11px]">{emailPreview}</span>
+              </div>
+            )}
+            <IconInput icon="password" type="password" value={person.password} onChange={(value) => onUpdate(index, "password", value)} placeholder="Password" />
           </div>
-          <IconInput icon="user" value={person.name} onChange={(value) => onUpdate(index, "name", value)} placeholder="Name" />
-          <IconInput icon="mail" type="email" value={person.email} onChange={(value) => onUpdate(index, "email", value)} placeholder="Email" />
-          <IconInput icon="password" type="password" value={person.password} onChange={(value) => onUpdate(index, "password", value)} placeholder="Password" />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -918,7 +1007,7 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 }
 
 function cleanUsers(users: UserData[]): UserData[] {
-  return users.map((user) => ({ name: user.name.trim(), email: user.email.trim(), password: user.password }));
+  return users.map((user) => ({ name: user.name.trim(), password: user.password }));
 }
 
 function shouldUseStaff(teamAccess: TeamAccess) {

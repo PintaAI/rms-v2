@@ -38,6 +38,8 @@ import {
   RiCheckboxCircleLine,
   RiCloseCircleLine,
   RiFileListLine,
+  RiFileCopyLine,
+  RiInformationLine,
 } from "@remixicon/react";
 
 type StatsVariant = "default" | "primary" | "success" | "warning" | "accent";
@@ -154,16 +156,21 @@ function StatsCard({ title, value, icon, description, variant = "default" }: Sta
   );
 }
 
+const sanitizeForEmail = (str: string) =>
+  str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
 interface ManageKaryawanProps {
   initialKaryawan: KaryawanItem[];
   initialStats: KaryawanStats;
   tokoId: string;
+  tokoName?: string;
 }
 
 export function ManageKaryawan({
   initialKaryawan,
   initialStats,
   tokoId,
+  tokoName = "toko",
 }: ManageKaryawanProps) {
   const [karyawan, setKaryawan] = useState<KaryawanItem[]>(initialKaryawan);
   const [stats, setStats] = useState<KaryawanStats>(initialStats);
@@ -179,13 +186,24 @@ export function ManageKaryawan({
 
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
     password: "",
     role: "staff" as "staff" | "technician",
   });
 
+  const [credentialsDialogOpen, setCredentialsDialogOpen] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    email: string;
+    password: string;
+  } | null>(null);
+
+  const generatedEmailPreview =
+    formData.name.trim() && tokoName
+      ? `${sanitizeForEmail(formData.name)}-${formData.role}@${sanitizeForEmail(tokoName)}.com`
+      : null;
+
   const resetForm = () => {
-    setFormData({ name: "", email: "", password: "", role: "staff" });
+    setFormData({ name: "", password: "", role: "staff" });
     setError(null);
     setSuccess(null);
   };
@@ -209,13 +227,17 @@ export function ManageKaryawan({
         [formData.role]: prev[formData.role] + 1,
         total: prev.total + 1,
       }));
+      setCreatedCredentials({
+        name: result.data.name,
+        email: result.data.email,
+        password: formData.password,
+      });
+      setCredentialsDialogOpen(true);
     }
 
-    setSuccess("Karyawan berhasil ditambahkan");
     setIsSubmitting(false);
     setAddDialogOpen(false);
     resetForm();
-    setTimeout(() => setSuccess(null), 3000);
   }, [tokoId, formData]);
 
   const handleDeleteClick = (item: KaryawanItem) => {
@@ -394,22 +416,12 @@ export function ManageKaryawan({
                   />
                   <RiUserLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 </div>
-              </FieldContent>
-            </Field>
-
-            <Field>
-              <FieldLabel>Email</FieldLabel>
-              <FieldContent>
-                <div className="relative">
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-                    placeholder="Email"
-                    className="pl-10"
-                  />
-                  <RiMailLine className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                </div>
+                {generatedEmailPreview && (
+                  <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                    <RiMailLine className="size-3 shrink-0" />
+                    <span className="font-mono text-[11px]">{generatedEmailPreview}</span>
+                  </p>
+                )}
               </FieldContent>
             </Field>
 
@@ -467,6 +479,71 @@ export function ManageKaryawan({
               ) : (
                 "Tambah"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={credentialsDialogOpen} onOpenChange={(open) => {
+        setCredentialsDialogOpen(open);
+        if (!open) setCreatedCredentials(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Akun Berhasil Dibuat</DialogTitle>
+            <DialogDescription>
+              Simpan informasi berikut dan kirimkan ke <strong>{createdCredentials?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          {createdCredentials && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Email</p>
+                    <p className="text-sm font-mono">{createdCredentials.email}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => navigator.clipboard.writeText(createdCredentials.email)}
+                    title="Salin email"
+                  >
+                    <RiFileCopyLine className="size-4" />
+                  </Button>
+                </div>
+                <div className="h-px bg-border/50" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Password</p>
+                    <p className="text-sm font-mono">{createdCredentials.password}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => navigator.clipboard.writeText(createdCredentials.password)}
+                    title="Salin password"
+                  >
+                    <RiFileCopyLine className="size-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 p-3">
+                <RiInformationLine className="size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Pastikan Anda menyimpan informasi ini. Password tidak dapat dilihat kembali setelah dialog ini ditutup.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => {
+              setCredentialsDialogOpen(false);
+              setCreatedCredentials(null);
+            }}>
+              Tutup
             </Button>
           </DialogFooter>
         </DialogContent>

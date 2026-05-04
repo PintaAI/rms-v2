@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { sendWhatsappText } from "@/lib/evolution";
+import { isPlanAtLeast, normalizePlan, type FeatureKey } from "@/lib/features";
 import { normalizeWhatsappNumber } from "@/lib/whatsapp-number";
 
 const DEFAULT_DONE_MESSAGE =
@@ -13,6 +14,14 @@ function renderTemplate(
   values: Record<"customerName" | "brand" | "model" | "tokoName" | "status", string>
 ) {
   return template.replace(/\{(customerName|brand|model|tokoName|status)\}/g, (_, key: keyof typeof values) => values[key]);
+}
+
+function hasWhatsappIntegrationAccess(input: {
+  adminPlans: Array<string | null | undefined>;
+  disabledFeatures: FeatureKey[];
+}) {
+  if (input.disabledFeatures.includes("whatsapp.integration")) return false;
+  return input.adminPlans.some((plan) => isPlanAtLeast(normalizePlan(plan), "premium"));
 }
 
 export async function sendServiceStatusWhatsappNotification(input: {
@@ -38,7 +47,12 @@ export async function sendServiceStatusWhatsappNotification(input: {
         toko: {
           select: {
             name: true,
+            featureSetting: { select: { disabledFeatures: true } },
             whatsappSetting: true,
+            userAssignments: {
+              where: { user: { role: "admin" } },
+              select: { user: { select: { subscription: { select: { plan: true } } } } },
+            },
           },
         },
       },
@@ -52,6 +66,12 @@ export async function sendServiceStatusWhatsappNotification(input: {
     if (!setting) {
       return;
     }
+    if (!hasWhatsappIntegrationAccess({
+      adminPlans: service.toko.userAssignments.map((assignment) => assignment.user.subscription?.plan),
+      disabledFeatures: Array.isArray(service.toko.featureSetting?.disabledFeatures)
+        ? service.toko.featureSetting.disabledFeatures.filter((feature): feature is FeatureKey => feature === "whatsapp.integration")
+        : [],
+    })) return;
     if (!setting.enabled) return;
     if (input.status === "done" && !setting.notifyDone) return;
     if (input.status === "failed" && !setting.notifyFailed) return;

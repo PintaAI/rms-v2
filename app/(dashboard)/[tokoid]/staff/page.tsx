@@ -2,6 +2,7 @@ import { getStaffOverview } from "@/actions/overview";
 import { getAuthProviderData } from "@/actions/user";
 import { StaffOverview } from "@/components/dashboard/staff/staff-overview";
 import { getRequestScope, getPageFeatureCheck } from "@/lib/auth/request-scope";
+import { MOCK_STAFF_OVERVIEW_DATA } from "@/lib/feature-preview-mocks";
 import { FeaturePreview } from "@/components/dashboard/feature-preview";
 import { redirect } from "next/navigation";
 
@@ -24,7 +25,9 @@ export default async function StaffOverviewPage({
         featureKey="staff.workflow"
         requiredPlan={access.metadata.minimumPlan}
         tokoId={tokoid}
-      />
+      >
+        <StaffOverview data={MOCK_STAFF_OVERVIEW_DATA} tokoId={tokoid} />
+      </FeaturePreview>
     );
   }
 

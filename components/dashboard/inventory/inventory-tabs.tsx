@@ -50,9 +50,11 @@ type ViewMode = "table" | "card";
 interface InventoryTabsProps {
   tokoId: string;
   readOnly?: boolean;
+  initialSpareparts?: SparepartWithCompatibilities[];
+  initialPricelists?: ServicePricelist[];
 }
 
-export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) {
+export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _initialSpareparts, initialPricelists: _initialPricelists }: InventoryTabsProps) {
   const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>([]);
   const [pricelists, setPricelists] = useState<ServicePricelist[]>([]);
   const [sparepartSearch, setSparepartSearch] = useState("");
@@ -78,6 +80,14 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   useEffect(() => {
+    if (_initialSpareparts !== undefined && _initialPricelists !== undefined) {
+      setSpareparts(_initialSpareparts);
+      setPricelists(_initialPricelists);
+      setIsLoadingSpareparts(false);
+      setIsLoadingPricelists(false);
+      return;
+    }
+
     let active = true;
 
     const load = async () => {
@@ -107,7 +117,7 @@ export function InventoryTabs({ tokoId, readOnly = false }: InventoryTabsProps) 
     return () => {
       active = false;
     };
-  }, [tokoId]);
+  }, [tokoId, _initialSpareparts, _initialPricelists]);
 
   const normalizedSparepartSearch = sparepartSearch.toLowerCase();
   const filteredSpareparts = spareparts.filter(

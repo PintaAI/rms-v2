@@ -9,7 +9,6 @@ import {
   BILLING_INSTRUCTIONS,
   ensureOpenProInvoice,
   ensureUserSubscription,
-  startProTrial,
 } from "@/lib/subscription-billing";
 import type {
   SubscriptionInvoiceStatus,
@@ -104,20 +103,6 @@ export async function createProSubscriptionInvoice(): Promise<ActionResultWithDa
   revalidatePath("/dashboard");
   revalidatePath("/superuser");
   return { success: true, data: serializeInvoice(invoice) };
-}
-
-export async function applyProTrial(): Promise<ActionResultWithData<{ trialEndsAt: Date | null }>> {
-  const user = await requireRequestUser();
-  if (user.role !== "admin") return { success: false, error: "Only admin owners can apply Pro trial" };
-
-  try {
-    const subscription = await startProTrial(user.id);
-    revalidatePath("/dashboard");
-    revalidatePath("/superuser");
-    return { success: true, data: { trialEndsAt: subscription?.trialEndsAt ?? null } };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Gagal apply trial Pro" };
-  }
 }
 
 export async function submitSubscriptionPaymentProof(formData: FormData): Promise<ActionResultWithData<{ invoiceId: string }>> {

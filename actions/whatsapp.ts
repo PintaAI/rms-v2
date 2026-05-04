@@ -10,8 +10,8 @@ import {
   fetchWhatsappInstances,
   getWhatsappConnectionState,
 } from "@/lib/evolution";
-import { getRequestUser } from "@/lib/auth/request-user";
-import type { ActionResultWithData } from "@/lib/auth/authorization";
+import { actionError, type ActionResultWithData } from "@/lib/auth/authorization";
+import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope";
 
 const updateWhatsappSettingSchema = z.object({
   enabled: z.boolean().optional(),
@@ -143,13 +143,15 @@ function serializeSetting(setting: {
 }
 
 async function authorizeWhatsappAdmin(tokoId: string) {
-  const user = await getRequestUser();
+  try {
+    const scope = await getRequestScope(tokoId);
+    assertRole(scope, ["admin"]);
+    assertFeature(scope, "whatsapp.integration");
 
-  if (!user) return { success: false as const, error: "Unauthorized" };
-  if (user.role !== "admin") return { success: false as const, error: "Only admins can manage WhatsApp settings" };
-  if (!user.tokoIds.includes(tokoId)) return { success: false as const, error: "Access denied" };
-
-  return { success: true as const, user };
+    return { success: true as const, user: scope.user };
+  } catch (error) {
+    return actionError(error);
+  }
 }
 
 async function getSettingByTokoId(tokoId: string) {

@@ -11,8 +11,14 @@ import { revalidatePath } from "next/cache";
 
 interface UserData {
   name: string;
+  password: string;
+}
+
+interface CreatedUserCredential {
+  name: string;
   email: string;
   password: string;
+  role: "staff" | "technician";
 }
 
 interface CreateTokoInput {
@@ -29,6 +35,7 @@ interface CreateTokoResult {
   success: boolean;
   tokoId?: string;
   error?: string;
+  users?: CreatedUserCredential[];
 }
 
 interface TokoDetail {
@@ -57,6 +64,30 @@ interface UpdateTokoInput {
 const DEFAULT_INVOICE_TERMS = "Barang yang tidak diambil lebih dari 30 hari di luar tanggung jawab toko.";
 const DEFAULT_INVOICE_WARRANTY = "Garansi berlaku sesuai jenis kerusakan dan tidak berlaku untuk kerusakan fisik/cairan.";
 
+const sanitizeForEmail = (str: string) =>
+  str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+function generateKaryawanEmail(
+  name: string,
+  role: "staff" | "technician",
+  tokoName: string,
+  existingEmails: Set<string>
+): string {
+  const localPart = sanitizeForEmail(name);
+  const domainPart = sanitizeForEmail(tokoName);
+
+  let email = `${localPart}-${role}@${domainPart}.com`;
+  let counter = 1;
+
+  while (existingEmails.has(email)) {
+    counter++;
+    email = `${localPart}-${role}-${counter}@${domainPart}.com`;
+  }
+
+  existingEmails.add(email);
+  return email;
+}
+
 export async function createTokoWithUsers(input: CreateTokoInput): Promise<CreateTokoResult> {
   const user = await getRequestUser();
 
@@ -77,17 +108,7 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
   const technicianLimitError = ensurePlanLimit(user, "maxTechnicians", 0, input.technician.length);
   if (technicianLimitError) return technicianLimitError;
 
-  const allEmails = [...input.staff.map(s => s.email), ...input.technician.map(t => t.email)];
   const disabledFeatures = getAllowedDisabledFeatures(input.disabledFeatures ?? [], user.plan);
-  const existingUsers = await prisma.user.findMany({
-    where: { email: { in: allEmails } },
-    select: { email: true },
-  });
-
-  if (existingUsers.length > 0) {
-    const duplicateEmails = existingUsers.map(u => u.email).join(", ");
-    return { success: false, error: `Emails already registered: ${duplicateEmails}` };
-  }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -128,30 +149,37 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
         });
       }
 
+      const existingEmails = new Set<string>();
+      const createdUsers: CreatedUserCredential[] = [];
+
       for (const staff of input.staff) {
+        const email = generateKaryawanEmail(staff.name, "staff", input.name, existingEmails);
         await createCredentialUserWithToko(tx, {
           name: staff.name,
-          email: staff.email,
+          email,
           password: staff.password,
           role: "staff",
           tokoId: toko.id,
         });
+        createdUsers.push({ name: staff.name, email, password: staff.password, role: "staff" });
       }
 
       for (const tech of input.technician) {
+        const email = generateKaryawanEmail(tech.name, "technician", input.name, existingEmails);
         await createCredentialUserWithToko(tx, {
           name: tech.name,
-          email: tech.email,
+          email,
           password: tech.password,
           role: "technician",
           tokoId: toko.id,
         });
+        createdUsers.push({ name: tech.name, email, password: tech.password, role: "technician" });
       }
 
-      return toko.id;
+      return { tokoId: toko.id, users: createdUsers };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    return { success: true, tokoId: result };
+    return { success: true, tokoId: result.tokoId, users: result.users };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Your ")) {
       return { success: false, error: error.message };

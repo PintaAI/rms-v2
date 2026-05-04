@@ -3,6 +3,7 @@ import { ManageKaryawan } from "@/components/dashboard/admin/manage-karyawan";
 import { FeatureLocked } from "@/components/dashboard/feature-locked";
 import { FeaturePreview } from "@/components/dashboard/feature-preview";
 import { getRequestScope, getPageFeatureCheck } from "@/lib/auth/request-scope";
+import { MOCK_KARYAWAN, MOCK_KARYAWAN_STATS } from "@/lib/feature-preview-mocks";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
 import { RiStore2Line } from "@remixicon/react";
@@ -22,17 +23,33 @@ export default async function AdminKaryawanPage({ params }: AdminKaryawanPagePro
 
   if (access.reason === "plan_required") {
     return (
-      <div className="space-y-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black tracking-tight">Karyawan</h1>
-          <p className="text-sm text-muted-foreground/70">Kelola karyawan toko</p>
+      <FeaturePreview
+        featureKey="karyawan.management"
+        requiredPlan={access.metadata.minimumPlan}
+        tokoId={tokoid}
+      >
+        <div className="space-y-8">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-black tracking-tight">Karyawan</h1>
+              <div className="h-6 w-1 bg-primary rounded-full" />
+              <div className="flex items-center gap-2">
+                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-muted">
+                  <RiStore2Line className="h-3 w-3 text-muted-foreground" />
+                </div>
+                <span className="text-sm font-medium text-muted-foreground">Toko Example</span>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground/70">Kelola karyawan toko</p>
+          </div>
+          <ManageKaryawan
+            initialKaryawan={MOCK_KARYAWAN}
+            initialStats={MOCK_KARYAWAN_STATS}
+            tokoId={tokoid}
+            tokoName="Toko Example"
+          />
         </div>
-        <FeaturePreview
-          featureKey="karyawan.management"
-          requiredPlan={access.metadata.minimumPlan}
-          tokoId={tokoid}
-        />
-      </div>
+      </FeaturePreview>
     );
   }
 
@@ -120,6 +137,7 @@ export default async function AdminKaryawanPage({ params }: AdminKaryawanPagePro
         initialKaryawan={karyawanResult.data}
         initialStats={stats}
         tokoId={tokoid}
+        tokoName={toko?.name ?? "Toko"}
       />
     </div>
   );

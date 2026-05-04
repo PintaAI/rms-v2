@@ -658,7 +658,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
     });
     if (!service) return { success: false, error: "Service not found" };
     if (!hasTokoAccess(tokoIds, service.tokoId)) return { success: false, error: "Access denied" };
-    if (!isStaffOrAdminRole(user.role) && !(isTechnicianRole(user.role) && service.technicianId === user.id)) {
+    if (!isTechnicianOrAdminRole(user.role)) {
       return { success: false, error: "Access denied" };
     }
 
@@ -734,10 +734,18 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           },
         });
 
+        const serviceUpdateData: Record<string, unknown> = {};
         if (service.status === "received") {
+          serviceUpdateData.status = "repairing";
+        }
+        if (service.technicianId !== user.id) {
+          serviceUpdateData.technicianId = user.id;
+          serviceUpdateData.assignedAt = new Date();
+        }
+        if (Object.keys(serviceUpdateData).length > 0) {
           await tx.service.update({
             where: { id: validated.serviceId },
-            data: { status: "repairing" },
+            data: serviceUpdateData,
           });
         }
 
@@ -803,12 +811,22 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           },
         });
 
+        const serviceUpdateData: Record<string, unknown> = {};
         if (service.status === "received") {
+          serviceUpdateData.status = "repairing";
+        }
+        if (service.technicianId !== user.id) {
+          serviceUpdateData.technicianId = user.id;
+          serviceUpdateData.assignedAt = new Date();
+        }
+        if (Object.keys(serviceUpdateData).length > 0) {
           await tx.service.update({
             where: { id: validated.serviceId },
-            data: { status: "repairing" },
+            data: serviceUpdateData,
           });
+        }
 
+        if (service.status === "received") {
           await createActivityLog(tx, {
             tokoId: service.tokoId,
             userId: user.id,

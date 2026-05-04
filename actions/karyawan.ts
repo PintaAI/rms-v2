@@ -359,9 +359,50 @@ export async function getTechnicianPerformanceDetail(
   };
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const sanitizeForEmail = (str: string) =>
+  str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+async function generateKaryawanEmail(
+  name: string,
+  role: "staff" | "technician",
+  tokoId: string
+): Promise<{ email?: string; error?: string }> {
+  const toko = await prisma.toko.findUnique({
+    where: { id: tokoId },
+    select: { name: true },
+  });
+
+  if (!toko) {
+    return { error: "Toko not found" };
+  }
+
+  const localPart = sanitizeForEmail(name);
+  const domainPart = sanitizeForEmail(toko.name);
+
+  if (!localPart || !domainPart) {
+    return { error: "Could not generate email from name and toko name" };
+  }
+
+  let generatedEmail = `${localPart}-${role}@${domainPart}.com`;
+  let counter = 1;
+
+  while (await prisma.user.findUnique({ where: { email: generatedEmail } })) {
+    counter++;
+    generatedEmail = `${localPart}-${role}-${counter}@${domainPart}.com`;
+  }
+
+  if (!EMAIL_REGEX.test(generatedEmail)) {
+    return { error: "Could not generate a valid email from name and toko name" };
+  }
+
+  return { email: generatedEmail };
+}
+
 export async function createKaryawan(
   tokoId: string,
-  input: { name: string; email: string; password: string; role: "staff" | "technician" }
+  input: { name: string; password: string; role: "staff" | "technician" }
 ): Promise<{ success: boolean; data?: KaryawanItem; error?: string }> {
   const user = await getRequestUser();
 
@@ -384,26 +425,15 @@ export async function createKaryawan(
     return { success: false, error: "Name must be at least 2 characters" };
   }
 
-  if (!input.email.trim()) {
-    return { success: false, error: "Email is required" };
-  }
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(input.email)) {
-    return { success: false, error: "Invalid email format" };
-  }
-
   if (!input.password || input.password.length < 4) {
     return { success: false, error: "Password must be at least 4 characters" };
   }
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email: input.email.trim() },
-  });
-
-  if (existingUser) {
-    return { success: false, error: "Email already registered" };
+  const { email: _generatedEmail, error: emailError } = await generateKaryawanEmail(input.name, input.role, tokoId);
+  if (emailError || !_generatedEmail) {
+    return { success: false, error: emailError ?? "Could not generate email" };
   }
+  const generatedEmail: string = _generatedEmail;
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -419,7 +449,7 @@ export async function createKaryawan(
 
       const createdUser = await createCredentialUserWithToko(tx, {
         name: input.name,
-        email: input.email,
+        email: generatedEmail,
         password: input.password,
         role: input.role,
         tokoId: tokoId,

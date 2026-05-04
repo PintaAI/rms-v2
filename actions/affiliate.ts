@@ -7,7 +7,7 @@ import { unstable_rethrow } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { getRequestUser, requireRequestUser } from "@/lib/auth/request-user";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
-import type { SubscriptionPlan } from "@/lib/plans";
+import { getPlanMonthlyPrice, type SubscriptionPlan } from "@/lib/plans";
 import {
   AFFILIATE_PENDING_REFERRAL_COOKIE,
   DEFAULT_ENTERPRISE_COMMISSION,
@@ -581,6 +581,7 @@ export async function createCommissionForPaidPlanActivation(input: {
     commissionType: referral.affiliator.commissionType,
     premiumCommissionValue: referral.affiliator.premiumCommissionValue,
     enterpriseCommissionValue: referral.affiliator.enterpriseCommissionValue,
+    subscriptionPrice: getPlanMonthlyPrice(plan) ?? 0,
   });
 
   await prisma.$transaction(async (tx) => {

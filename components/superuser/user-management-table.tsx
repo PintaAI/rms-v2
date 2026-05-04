@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { updateUserSubscription, type SuperuserUserRow } from "@/actions/superuser";
+import { grantUserProTrial, updateUserSubscription, type SuperuserUserRow } from "@/actions/superuser";
 import type { SubscriptionPlan } from "@/lib/features";
 import {
   Table,
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface UserManagementTableProps {
   users: SuperuserUserRow[];
@@ -39,6 +40,17 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
     });
   };
 
+  const handleGrantTrial = (userId: string) => {
+    startTransition(async () => {
+      const result = await grantUserProTrial(userId);
+      if (!result.success) {
+        toast.error(result.error || "Failed to grant Pro trial");
+        return;
+      }
+      toast.success("Pro trial granted");
+    });
+  };
+
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -49,6 +61,7 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
             <TableHead>Plan</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Active Until</TableHead>
+            <TableHead>Trial</TableHead>
             <TableHead>Toko Count</TableHead>
             <TableHead>Staff</TableHead>
             <TableHead>Technicians</TableHead>
@@ -84,6 +97,17 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {user.currentPeriodEnd ? new Date(user.currentPeriodEnd).toLocaleDateString("id-ID") : "-"}
+              </TableCell>
+              <TableCell>
+                {user.subscriptionStatus === "trialing" && user.trialEndsAt ? (
+                  <Badge variant="warning">Until {new Date(user.trialEndsAt).toLocaleDateString("id-ID")}</Badge>
+                ) : user.proTrialStartedAt ? (
+                  <Badge variant="outline">Used</Badge>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={isPending} onClick={() => handleGrantTrial(user.id)}>
+                    Grant Pro Trial
+                  </Button>
+                )}
               </TableCell>
               <TableCell>{user.tokoCount}</TableCell>
               <TableCell>{user.staffCount}</TableCell>

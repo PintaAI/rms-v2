@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import type { SubscriptionPlan } from "@/lib/features";
 import { createCommissionForPaidPlanActivation } from "@/actions/affiliate";
 import { activatePaidSubscription } from "@/lib/subscription-billing";
-import { addDays, PRO_PERIOD_DAYS } from "@/lib/subscription-billing";
+import { addDays, PRO_PERIOD_DAYS, startProTrial } from "@/lib/subscription-billing";
 import type { SubscriptionInvoiceStatus, SubscriptionPaymentMethod } from "@/prisma/generated/prisma/enums";
 
 const SUBSCRIPTION_PRICES: Record<Exclude<SubscriptionPlan, "free">, number> = {
@@ -56,6 +56,8 @@ export interface SuperuserUserRow {
   email: string;
   plan: SubscriptionPlan;
   subscriptionStatus: string | null;
+  trialEndsAt: Date | null;
+  proTrialStartedAt: Date | null;
   currentPeriodEnd: Date | null;
   tokoCount: number;
   staffCount: number;
@@ -140,7 +142,7 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
         email: true,
         createdAt: true,
         subscription: {
-          select: { plan: true, status: true, currentPeriodEnd: true },
+          select: { plan: true, status: true, trialEndsAt: true, proTrialStartedAt: true, currentPeriodEnd: true },
         },
         tokoAssignments: {
           select: {
@@ -234,6 +236,8 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
       email: user.email,
       plan: (user.subscription?.plan as SubscriptionPlan) || "free",
       subscriptionStatus: user.subscription?.status ?? null,
+      trialEndsAt: user.subscription?.trialEndsAt ?? null,
+      proTrialStartedAt: user.subscription?.proTrialStartedAt ?? null,
       currentPeriodEnd: user.subscription?.currentPeriodEnd ?? null,
       tokoCount: user.tokoAssignments.length,
       staffCount: staffIds.size,
@@ -328,7 +332,7 @@ export async function approveSubscriptionPayment(paymentId: string): Promise<Act
 
   await createCommissionForPaidPlanActivation({
     userId: payment.invoice.userId,
-    previousPlan: payment.invoice.subscription.plan as SubscriptionPlan,
+    previousPlan: payment.invoice.subscription.status === "trialing" ? "free" : payment.invoice.subscription.plan as SubscriptionPlan,
     nextPlan: "premium",
   });
 
@@ -387,7 +391,7 @@ export async function updateUserSubscription(
   try {
     const existingSubscription = await prisma.subscription.findUnique({
       where: { userId },
-      select: { plan: true },
+      select: { plan: true, status: true },
     });
 
     const now = new Date();
@@ -404,7 +408,7 @@ export async function updateUserSubscription(
 
     await createCommissionForPaidPlanActivation({
       userId,
-      previousPlan: (existingSubscription?.plan as SubscriptionPlan | undefined) ?? null,
+      previousPlan: existingSubscription?.status === "trialing" ? "free" : (existingSubscription?.plan as SubscriptionPlan | undefined) ?? null,
       nextPlan: plan,
     });
 
@@ -413,6 +417,31 @@ export async function updateUserSubscription(
   } catch (error) {
     console.error("Failed to update subscription:", error);
     return { success: false, error: "Failed to update subscription" };
+  }
+}
+
+export async function grantUserProTrial(userId: string): Promise<ActionResultWithData<{ userId: string; trialEndsAt: Date | null }>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true },
+  });
+
+  if (!targetUser || targetUser.role !== "admin") {
+    return { success: false, error: "Only admin owners can receive Pro trial" };
+  }
+
+  try {
+    const subscription = await startProTrial(userId);
+    revalidatePath("/superuser");
+    revalidatePath("/dashboard");
+    return { success: true, data: { userId, trialEndsAt: subscription?.trialEndsAt ?? null } };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed to grant Pro trial" };
   }
 }
 

@@ -12,6 +12,7 @@ export type FeatureKey =
   | "staff.workflow"
   | "technician.workflow"
   | "activityLog.view"
+  | "whatsapp.integration"
   | "analytics.revenue"
   | "inventory.audit";
 
@@ -87,6 +88,15 @@ export const FEATURE_REGISTRY = {
     label: "Activity Log",
     description: "Lihat riwayat aktivitas operasional toko.",
     category: "analytics",
+    allowedRoles: ["admin"],
+    minimumPlan: "premium",
+    configurable: true,
+  },
+  "whatsapp.integration": {
+    key: "whatsapp.integration",
+    label: "WhatsApp Integration",
+    description: "Kirim notifikasi status service otomatis ke pelanggan via WhatsApp.",
+    category: "service",
     allowedRoles: ["admin"],
     minimumPlan: "premium",
     configurable: true,
