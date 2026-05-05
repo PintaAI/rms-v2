@@ -390,7 +390,7 @@ export function ServiceDetailCard({
 
   const hasCompletedStatus = localService.status === "done" || localService.status === "failed";
   const canPayInvoice = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.invoice?.paymentStatus === "unpaid" || localService.invoice?.paymentStatus === "dp");
-  const canMarkPickedUp = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp;
+  const canMarkPickedUp = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.status === "failed" || localService.invoice?.paymentStatus === "paid");
   const canContactDuringRepair = (localService.status === "received" || localService.status === "repairing") && Boolean(localService.noWa);
   const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp || Boolean(localService.invoice));
   const warrantyUntilDate = localService.warrantyUntil ? new Date(localService.warrantyUntil) : null;
@@ -751,13 +751,13 @@ export function ServiceDetailCard({
                     <ActionTile icon={RiFileListLine} label="Invoice" onClick={() => setInvoiceDialogOpen(true)}
                       variant="outline" className="flex-1" />
                   )}
-                  {canPayInvoice && (
-                    <ActionTile icon={RiMoneyDollarCircleLine} label="Bayar" onClick={() => setPaymentDialogOpen(true)}
-                      variant="outline" disabled={isPayingInvoice} className="flex-1" />
-                  )}
                   {localService.noWa && (
                     <ActionTile icon={RiWhatsappLine} label="WhatsApp" onClick={openWhatsApp}
                       variant="outline" className="flex-1 border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60" />
+                  )}
+                  {canPayInvoice && (
+                    <ActionTile icon={RiMoneyDollarCircleLine} label="Bayar" onClick={() => setPaymentDialogOpen(true)}
+                      disabled={isPayingInvoice} className="flex-1 border-amber-400 bg-amber-500 text-white shadow-sm shadow-amber-500/25 hover:bg-amber-600 dark:border-amber-500 dark:bg-amber-600 dark:hover:bg-amber-700" />
                   )}
                   {canMarkPickedUp && (
                     <ActionTile icon={RiLogoutBoxLine} label="Diambil" onClick={handlePickup}
