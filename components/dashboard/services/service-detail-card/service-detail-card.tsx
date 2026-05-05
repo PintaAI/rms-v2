@@ -462,6 +462,10 @@ export function ServiceDetailCard({
     window.open(`https://wa.me/${normalized}`, "_blank", "noopener,noreferrer");
   }
 
+  function openPaidInvoiceDialog() {
+    setInvoiceDialogOpen(true);
+  }
+
   async function handlePayInvoice(payment: { discountAmount: number }) {
     if (!localService.invoice || !canPayInvoice) return false;
     setIsPayingInvoice(true);
@@ -901,22 +905,31 @@ export function ServiceDetailCard({
                 value={warrantyDate}
                 onChange={(event) => setWarrantyDate(event.target.value)}
               />
-              <div className="flex flex-wrap gap-2">
-                {warrantyPresets.map((preset) => (
-                  <Button
-                    key={preset.label}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setWarrantyDate(getPresetWarrantyDate(preset))}
-                  >
-                    {preset.label}
-                  </Button>
-                ))}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {warrantyPresets.map((preset) => {
+                  const presetDate = getPresetWarrantyDate(preset);
+                  const isSelected = warrantyDate === presetDate;
+
+                  return (
+                    <Button
+                      key={preset.label}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      aria-pressed={isSelected}
+                      className="w-full"
+                      onClick={() => setWarrantyDate(presetDate)}
+                    >
+                      {preset.label}
+                    </Button>
+                  );
+                })}
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant={warrantyDate === "" ? "default" : "outline"}
                   size="sm"
+                  aria-pressed={warrantyDate === ""}
+                  className="w-full"
                   onClick={() => setWarrantyDate("")}
                 >
                   Tanpa garansi
@@ -1036,6 +1049,7 @@ export function ServiceDetailCard({
         invoiceTotal={localService.invoice?.grandTotal || 0}
         dpAmount={localService.invoice?.dpAmount || 0}
         isSubmitting={isPayingInvoice}
+        onSuccess={openPaidInvoiceDialog}
         onConfirm={handlePayInvoice}
       />
       <InvoiceDialog
