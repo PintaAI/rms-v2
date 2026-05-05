@@ -867,7 +867,7 @@ export function ServiceDetailCard({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark Service as Done</DialogTitle>
+            <DialogTitle>Selesai Service</DialogTitle>
             <DialogDescription>
               Optionally add a service note before completing this service
             </DialogDescription>
@@ -949,7 +949,7 @@ export function ServiceDetailCard({
       <Dialog open={failedDialogOpen} onOpenChange={setFailedDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark Service as Failed</DialogTitle>
+            <DialogTitle>Gagal Service</DialogTitle>
             <DialogDescription>
               Provide a service note explaining why this service failed
             </DialogDescription>
