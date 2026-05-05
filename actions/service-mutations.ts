@@ -375,10 +375,10 @@ export async function updateStatus(
     const isCompleting = isCompletingStatus(status);
     const shouldAssignActor =
       isCompleting &&
-      (isTechnicianRole(user.role) ||
-        (user.role === "admin" && options?.takeOwnership === true && (!service.technicianId || status === "done")));
+      (isTechnicianRole(scope.user.role) ||
+        (scope.user.role === "admin" && options?.takeOwnership === true && (!service.technicianId || status === "done")));
 
-    if (isCompleting && user.role === "admin" && !service.technicianId && !options?.takeOwnership) {
+    if (isCompleting && scope.user.role === "admin" && !service.technicianId && !options?.takeOwnership) {
       return {
         success: false,
         error: "Service belum memiliki penanggung jawab. Centang konfirmasi bahwa Anda yang menangani service ini.",
@@ -393,7 +393,7 @@ export async function updateStatus(
           doneAt: isCompleting ? changedAt : null,
           warrantyUntil: status === "done" ? warrantyDate : null,
           ...(note !== undefined ? { note } : {}),
-          ...(isCompletingStatus(status)
+          ...(shouldAssignActor
             ? { technicianId: scope.user.id, assignedAt: changedAt }
             : {}),
         },
@@ -411,8 +411,8 @@ export async function updateStatus(
           previousTechnicianId: service.technicianId,
           note: note ?? null,
           warrantyUntil: warrantyDate?.toISOString() ?? null,
-          assignedActor: isCompletingStatus(status),
-          technicianId: scope.user.id,
+          assignedActor: shouldAssignActor,
+          technicianId: shouldAssignActor ? scope.user.id : service.technicianId,
         },
       });
     });
