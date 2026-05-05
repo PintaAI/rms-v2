@@ -1,22 +1,24 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { RiVipCrownLine, RiUserLine, RiToolsLine, RiLineChartLine, RiClipboardLine, RiCheckboxCircleLine } from "@remixicon/react";
+import { RiVipCrownLine, RiUserLine, RiToolsLine, RiLineChartLine, RiClipboardLine, RiCheckboxCircleLine, RiWhatsappLine } from "@remixicon/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getWhatsAppEnterpriseUrl, getWhatsAppProBetaRequestUrl } from "@/components/settings/helpers";
 import type { FeatureKey, SubscriptionPlan } from "@/lib/features";
 import { FEATURE_PREVIEW_INFO, planLabels } from "@/lib/feature-preview-mocks";
 
 interface FeaturePreviewProps {
   featureKey: FeatureKey;
   requiredPlan: SubscriptionPlan;
-  tokoId: string;
   children: ReactNode;
 }
 
-export function FeaturePreview({ featureKey, requiredPlan, tokoId, children }: FeaturePreviewProps) {
+export function FeaturePreview({ featureKey, requiredPlan, children }: FeaturePreviewProps) {
   const info = FEATURE_PREVIEW_INFO[featureKey];
   if (!info) return null;
+  const upgradeUrl = requiredPlan === "enterprise"
+    ? getWhatsAppEnterpriseUrl({})
+    : getWhatsAppProBetaRequestUrl({ context: `Upgrade ${info.title} dari Feature Preview` });
 
   return (
     <div className="relative h-[60vh] overflow-hidden">
@@ -54,10 +56,10 @@ export function FeaturePreview({ featureKey, requiredPlan, tokoId, children }: F
               </ul>
             </div>
             <Button asChild className="w-full">
-              <Link href={`/${tokoId}/admin?settings=premium`}>
-                <RiVipCrownLine className="size-4" />
+              <a href={upgradeUrl} target="_blank" rel="noreferrer">
+                <RiWhatsappLine className="size-4" />
                 Upgrade ke {planLabels[requiredPlan]}
-              </Link>
+              </a>
             </Button>
           </CardContent>
         </Card>

@@ -29,7 +29,6 @@ export default async function AdminInventoryPage({ params, searchParams }: Admin
       <FeaturePreview
         featureKey="inventory.management"
         requiredPlan={access.metadata.minimumPlan}
-        tokoId={tokoid}
       >
         <div className="space-y-8">
           <div className="space-y-1">

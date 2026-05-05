@@ -33,7 +33,6 @@ export default async function AdminAuditGudangPage({ params }: AdminAuditGudangP
       <FeaturePreview
         featureKey="inventory.audit"
         requiredPlan={access.metadata.minimumPlan}
-        tokoId={tokoid}
       >
         <div className="space-y-8">
           <div className="flex flex-wrap items-center gap-3">
