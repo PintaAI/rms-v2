@@ -1,18 +1,13 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { ensureFeatureAccess } from "@/lib/auth/enforcement";
-import { getEffectivePlanForToko } from "@/lib/auth/plan";
-import { getDisabledFeaturesForToko } from "./feature-settings";
+import { getRequestUser } from "@/lib/auth/request-user";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
+import { withScope } from "@/lib/auth/wrapper";
 import {
   buildTimeFilter,
   getAvailableTaskRecords,
   getMyTaskRecords,
-  getSessionAndTokos,
-  hasTokoAccess,
-  isStaffOrAdminRole,
-  isTechnicianOrAdminRole,
   isTechnicianRole,
   mapServiceToListItem,
   serviceItemSelect,
@@ -39,260 +34,147 @@ export async function getServiceList(
   pageSize: number = 15,
   statusFilter?: ServiceStatus[]
 ): Promise<ActionResultWithData<PaginatedResult<ServiceListItem>>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
+  if (!tokoId) {
+    const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
+    tokoId = user.tokoIds[0];
+    if (!tokoId) return { success: false, error: "No toko found" };
+  }
 
-    const targetTokoId = tokoId ?? tokoIds[0];
-    if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!hasTokoAccess(tokoIds, targetTokoId) || !isStaffOrAdminRole(user.role)) {
-      return { success: false, error: "Access denied" };
-    }
-
+  return withScope(tokoId, { role: ["admin", "staff"] }, async () => {
     const timeFilterCondition = buildTimeFilter(timeFilter);
-    const statusCondition =
-      statusFilter && statusFilter.length > 0 ? { status: { in: statusFilter } } : {};
+    const statusCondition = statusFilter?.length ? { status: { in: statusFilter } } : {};
 
-    const totalCount = await prisma.service.count({
-      where: { tokoId: targetTokoId, ...timeFilterCondition, ...statusCondition },
-    });
-
-    const skip = (page - 1) * pageSize;
-    const totalPages = Math.ceil(totalCount / pageSize);
-
-    const services = await prisma.service.findMany({
-      where: { tokoId: targetTokoId, ...timeFilterCondition, ...statusCondition },
-      orderBy: { checkinAt: "desc" },
-      skip,
-      take: pageSize,
-      select: serviceSelectBase,
-    });
+    const [totalCount, services] = await Promise.all([
+      prisma.service.count({ where: { tokoId, ...timeFilterCondition, ...statusCondition } }),
+      prisma.service.findMany({
+        where: { tokoId, ...timeFilterCondition, ...statusCondition },
+        orderBy: { checkinAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: serviceSelectBase,
+      }),
+    ]);
 
     return {
-      success: true,
-      data: {
-        data: services.map(mapServiceToListItem),
-        total: totalCount,
-        page,
-        pageSize,
-        totalPages,
-      },
+      data: services.map(mapServiceToListItem),
+      total: totalCount,
+      page,
+      pageSize,
+      totalPages: Math.ceil(totalCount / pageSize),
     };
-  } catch (error) {
-    console.error("Error fetching service list:", error);
-    return { success: false, error: "Failed to fetch service list" };
-  }
+  });
 }
 
 export async function getService(
   serviceId: string
 ): Promise<ActionResultWithData<ServiceDetail>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
+  const service = await prisma.service.findUnique({
+    where: { id: serviceId },
+    select: {
+      ...serviceSelectBase,
+      tokoId: true,
+      items: { select: serviceItemSelect },
+    },
+  });
 
-    const service = await prisma.service.findUnique({
-      where: { id: serviceId },
-      select: {
-        ...serviceSelectBase,
-        tokoId: true,
-        items: { select: serviceItemSelect },
-      },
-    });
+  if (!service) return { success: false, error: "Service not found" };
 
-    if (!service) return { success: false, error: "Service not found" };
-    if (!hasTokoAccess(tokoIds, service.tokoId)) return { success: false, error: "Access denied" };
-
-    if (isTechnicianRole(user.role)) {
+  return withScope(service.tokoId, {}, async (scope) => {
+    if (isTechnicianRole(scope.user.role)) {
       const canReadTask =
-        service.technician?.id === user.id || technicianAvailableStatuses.includes(service.status);
-      if (!canReadTask) return { success: false, error: "Access denied" };
+        service.technician?.id === scope.user.id || technicianAvailableStatuses.includes(service.status);
+      if (!canReadTask) throw new Error("Access denied");
     }
 
     return {
-      success: true,
-      data: {
-        ...mapServiceToListItem(service),
-        tokoId: service.tokoId,
-        items: service.items,
-      },
+      ...mapServiceToListItem(service),
+      tokoId: service.tokoId,
+      items: service.items,
     };
-  } catch (error) {
-    console.error("Error fetching service:", error);
-    return { success: false, error: "Failed to fetch service" };
-  }
+  });
 }
 
 export async function getAvailableTasks(
   tokoId?: string
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
+  if (!tokoId) {
+    const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
-
-    const targetTokoId = tokoId ?? tokoIds[0];
-    if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!hasTokoAccess(tokoIds, targetTokoId) || !isTechnicianOrAdminRole(user.role)) {
-      return { success: false, error: "Access denied" };
-    }
-
-    const workflowError = ensureFeatureAccess(
-      { role: user.role, plan: await getEffectivePlanForToko(user, targetTokoId) },
-      "technician.workflow",
-      await getDisabledFeaturesForToko(targetTokoId)
-    );
-    if (workflowError) return workflowError;
-
-    const services = await getAvailableTaskRecords(targetTokoId, user.id, technicianTaskListLimit);
-
-    return { success: true, data: services.map(mapServiceToListItem) };
-  } catch (error) {
-    console.error("Error fetching available tasks:", error);
-    return { success: false, error: "Failed to fetch available tasks" };
+    tokoId = user.tokoIds[0];
+    if (!tokoId) return { success: false, error: "No toko found" };
   }
+
+  return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
+    const services = await getAvailableTaskRecords(tokoId, scope.user.id, technicianTaskListLimit);
+    return services.map(mapServiceToListItem);
+  });
 }
 
 export async function getMyTasks(
   tokoId: string,
   statuses: ServiceStatus[] = technicianAvailableStatuses
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
-    if (!hasTokoAccess(tokoIds, tokoId) || !isTechnicianOrAdminRole(user.role)) {
-      return { success: false, error: "Access denied" };
-    }
-
-    const workflowError = ensureFeatureAccess(
-      { role: user.role, plan: await getEffectivePlanForToko(user, tokoId) },
-      "technician.workflow",
-      await getDisabledFeaturesForToko(tokoId)
-    );
-    if (workflowError) return workflowError;
-
-    const services = await getMyTaskRecords(tokoId, user.id, statuses, technicianTaskListLimit);
-
-    return { success: true, data: services.map(mapServiceToListItem) };
-  } catch (error) {
-    console.error("Error fetching my tasks:", error);
-    return { success: false, error: "Failed to fetch tasks" };
-  }
+  return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
+    const services = await getMyTaskRecords(tokoId, scope.user.id, statuses, technicianTaskListLimit);
+    return services.map(mapServiceToListItem);
+  });
 }
 
 export async function getTechnicianDashboard(
   tokoId?: string
 ): Promise<ActionResultWithData<TechnicianDashboardData>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
+  if (!tokoId) {
+    const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
+    tokoId = user.tokoIds[0];
+    if (!tokoId) return { success: false, error: "No toko found" };
+  }
 
-    const userTokoId = tokoId ?? tokoIds[0];
-    if (!userTokoId) return { success: false, error: "No toko found" };
-    if (!hasTokoAccess(tokoIds, userTokoId) || !isTechnicianOrAdminRole(user.role)) {
-      return { success: false, error: "Access denied" };
-    }
-
-    const workflowError = ensureFeatureAccess(
-      { role: user.role, plan: await getEffectivePlanForToko(user, userTokoId) },
-      "technician.workflow",
-      await getDisabledFeaturesForToko(userTokoId)
-    );
-    if (workflowError) return workflowError;
-
+  return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
     const monthlyStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const [monthlyAssigned, availableCount, inProgressCount, doneCount, availableServices, myTasks] =
       await Promise.all([
         prisma.service.count({
-          where: {
-            tokoId: userTokoId,
-            technicianId: user.id,
-            assignedAt: { gte: monthlyStart },
-          },
+          where: { tokoId, technicianId: scope.user.id, assignedAt: { gte: monthlyStart } },
         }),
         prisma.service.count({
-          where: {
-            tokoId: userTokoId,
-            status: { in: technicianAvailableStatuses },
-            OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
-          },
+          where: { tokoId, status: { in: technicianAvailableStatuses }, OR: [{ technicianId: null }, { technicianId: { not: scope.user.id } }] },
         }),
-        prisma.service.count({ where: { tokoId: userTokoId, technicianId: user.id, status: "repairing" } }),
-        prisma.service.count({
-          where: { tokoId: userTokoId, technicianId: user.id, status: "done", isPickedUp: false },
-        }),
-        getAvailableTaskRecords(userTokoId, user.id, 10),
-        getMyTaskRecords(userTokoId, user.id, technicianAvailableStatuses, 10, true),
+        prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "repairing" } }),
+        prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "done", isPickedUp: false } }),
+        getAvailableTaskRecords(tokoId, scope.user.id, 10),
+        getMyTaskRecords(tokoId, scope.user.id, technicianAvailableStatuses, 10, true),
       ]);
 
-    const stats: TechnicianStats = {
-      monthlyAssigned,
-      availableCount,
-      inProgressCount,
-      doneCount,
-    };
-
     return {
-      success: true,
-      data: {
-        stats,
-        availableServices: availableServices.map(mapServiceToListItem),
-        myTasks: myTasks.map((service) => ({
-          ...mapServiceToListItem(service),
-          tokoId: userTokoId,
-          items: service.items,
-        })),
-      },
+      stats: { monthlyAssigned, availableCount, inProgressCount, doneCount },
+      availableServices: availableServices.map(mapServiceToListItem),
+      myTasks: myTasks.map((service) => ({
+        ...mapServiceToListItem(service),
+        tokoId,
+        items: service.items,
+      })),
     };
-  } catch (error) {
-    console.error("Error fetching technician dashboard:", error);
-    return { success: false, error: "Failed to fetch dashboard data" };
-  }
+  });
 }
 
 export async function getTechniciansByToko(
   tokoId: string
 ): Promise<ActionResultWithData<{ id: string; name: string; email: string }[]>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
-    if (!hasTokoAccess(tokoIds, tokoId) || !isStaffOrAdminRole(user.role)) {
-      return { success: false, error: "Access denied" };
-    }
-
-    const assignmentError = ensureFeatureAccess(
-      { role: user.role, plan: await getEffectivePlanForToko(user, tokoId) },
-      "technician.workflow",
-      await getDisabledFeaturesForToko(tokoId)
-    );
-    if (assignmentError) return assignmentError;
-
+  return withScope(tokoId, { role: ["admin", "staff"], feature: "technician.workflow" }, async () => {
     const technicians = await prisma.userToko.findMany({
-      where: {
-        tokoId,
-        user: { role: "technician" },
-      },
-      select: {
-        user: { select: { id: true, name: true, email: true } },
-      },
+      where: { tokoId, user: { role: "technician" } },
+      select: { user: { select: { id: true, name: true, email: true } } },
       orderBy: { user: { name: "asc" } },
     });
-
-    return { success: true, data: technicians.map((t) => t.user) };
-  } catch (error) {
-    console.error("Error fetching technicians:", error);
-    return { success: false, error: "Failed to fetch technicians" };
-  }
+    return technicians.map((t) => t.user);
+  });
 }
 
 export async function getServiceStats(tokoId: string): Promise<ActionResultWithData<ServiceStats>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
-    if (!hasTokoAccess(tokoIds, tokoId) || !isStaffOrAdminRole(user.role)) {
-      return { success: false, error: "Access denied" };
-    }
-
+  return withScope(tokoId, { role: ["admin", "staff"] }, async () => {
     const [serviceStatusCounts, pickedUp, total] = await Promise.all([
       prisma.service.groupBy({
         by: ["status"],
@@ -304,9 +186,7 @@ export async function getServiceStats(tokoId: string): Promise<ActionResultWithD
     ]);
 
     const statusMap: Partial<Record<ServiceStatus, number>> = {};
-    for (const row of serviceStatusCounts) {
-      statusMap[row.status] = row._count.status;
-    }
+    for (const row of serviceStatusCounts) statusMap[row.status] = row._count.status;
 
     const received = statusMap.received ?? 0;
     const repairing = statusMap.repairing ?? 0;
@@ -314,58 +194,25 @@ export async function getServiceStats(tokoId: string): Promise<ActionResultWithD
     const failed = statusMap.failed ?? 0;
     const history = done + failed + pickedUp;
 
-    return {
-      success: true,
-      data: { received, repairing, done, pickedUp, failed, history, total },
-    };
-  } catch (error) {
-    console.error("Error fetching nav badge stats:", error);
-    return { success: false, error: "Failed to fetch stats" };
-  }
+    return { received, repairing, done, pickedUp, failed, history, total };
+  });
 }
 
 export async function getTechnicianTaskStats(
   tokoId: string
 ): Promise<ActionResultWithData<TechnicianTaskStats>> {
-  try {
-    const { user, tokoIds } = await getSessionAndTokos();
-    if (!user) return { success: false, error: "Unauthorized" };
-    if (!isTechnicianOrAdminRole(user.role)) {
-      return { success: false, error: "Access denied" };
-    }
-    if (!tokoIds.includes(tokoId)) return { success: false, error: "Access denied" };
-
+  return withScope(tokoId, { role: ["admin", "technician"] }, async (scope) => {
     const [tersedia, repairing, selesai, gagal, history, total] = await Promise.all([
       prisma.service.count({
-        where: {
-          tokoId,
-          status: { in: technicianAvailableStatuses },
-          OR: [{ technicianId: null }, { technicianId: { not: user.id } }],
-        },
+        where: { tokoId, status: { in: technicianAvailableStatuses }, OR: [{ technicianId: null }, { technicianId: { not: scope.user.id } }] },
       }),
-      prisma.service.count({
-        where: { tokoId, technicianId: user.id, status: "repairing" },
-      }),
-      prisma.service.count({
-        where: { tokoId, technicianId: user.id, status: "done", isPickedUp: false },
-      }),
-      prisma.service.count({
-        where: { tokoId, technicianId: user.id, status: "failed", isPickedUp: false },
-      }),
-      prisma.service.count({
-        where: { tokoId, technicianId: user.id, status: { in: ["done", "failed"] } },
-      }),
-      prisma.service.count({
-        where: { tokoId, technicianId: user.id },
-      }),
+      prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "repairing" } }),
+      prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "done", isPickedUp: false } }),
+      prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "failed", isPickedUp: false } }),
+      prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: { in: ["done", "failed"] } } }),
+      prisma.service.count({ where: { tokoId, technicianId: scope.user.id } }),
     ]);
 
-    return {
-      success: true,
-      data: { tersedia, repairing, selesai, gagal, history, total },
-    };
-  } catch (error) {
-    console.error("Error fetching technician task stats:", error);
-    return { success: false, error: "Failed to fetch stats" };
-  }
+    return { tersedia, repairing, selesai, gagal, history, total };
+  });
 }

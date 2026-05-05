@@ -33,11 +33,12 @@ import { formatCurrency } from "@/lib/utils";
 
 interface StaffSparepartTableProps {
   tokoId: string;
+  initialSearchQuery?: string;
 }
 
-export function StaffSparepartTable({ tokoId }: StaffSparepartTableProps) {
+export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSparepartTableProps) {
   const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>([]);
-  const [sparepartSearch, setSparepartSearch] = useState("");
+  const [sparepartSearch, setSparepartSearch] = useState(initialSearchQuery);
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(true);
 
   const [sparepartDialogOpen, setSparepartDialogOpen] = useState(false);

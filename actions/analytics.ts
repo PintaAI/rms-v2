@@ -1,8 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { actionError, type ActionResultWithData } from "@/lib/auth/authorization";
-import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope";
+import { withScope, type ActionResultWithData } from "@/lib/auth/wrapper";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 
 const STATUS_LABELS: Record<ServiceStatus, string> = {
@@ -77,10 +76,7 @@ export async function getAdminAnalytics(
   tokoId: string,
   filters?: AdminAnalyticsFilterInput
 ): Promise<ActionResultWithData<AdminAnalyticsData>> {
-  try {
-    const scope = await getRequestScope(tokoId);
-    assertRole(scope, ["admin"]);
-    assertFeature(scope, "analytics.revenue");
+  return withScope(tokoId, { role: ["admin"], feature: "analytics.revenue" }, async (scope): Promise<AdminAnalyticsData> => {
 
     const normalizedFilters = normalizeFilters(filters);
     const allTimeStart = normalizedFilters.allTime ? await getAllTimeStart(tokoId) : null;
@@ -139,7 +135,7 @@ export async function getAdminAnalytics(
     ]);
 
     if (!toko) {
-      return { success: false, error: "Toko not found" };
+      throw new Error("Toko not found");
     }
 
     const trendMap = Object.fromEntries(
@@ -218,39 +214,34 @@ export async function getAdminAnalytics(
     const completionRate = totalServices > 0 ? Math.round((statusCounts.done / totalServices) * 100) : 0;
 
     return {
-      success: true,
-      data: {
-        toko,
-        filters: normalizedFilters.allTime
-          ? { ...normalizedFilters, from: getDateKey(periodStart), to: getDateKey(addDays(periodEnd, -1)) }
-          : normalizedFilters,
-        bucketMode,
-        periodLabel,
-        summary: {
-          paidRevenue,
-          pendingRevenue,
-          paidInvoices,
-          averagePaidInvoice: paidInvoices > 0 ? Math.round(paidRevenue / paidInvoices) : 0,
-          totalServices,
-          completionRate,
-          totalSpareparts: sparepartCount,
-          lowStockCount,
-          totalStock: stockAggregate._sum.stock ?? 0,
-        },
-        trend: buckets.map((bucket) => trendMap[bucket.key]),
-        statusBreakdown: (Object.keys(statusCounts) as ServiceStatus[]).map((status) => ({
-          status,
-          label: STATUS_LABELS[status],
-          count: statusCounts[status],
-        })),
-        topTechnicians: Array.from(technicianMap.values())
-          .sort((a, b) => b.completedServices - a.completedServices || b.revenue - a.revenue)
-          .slice(0, 5),
+      toko,
+      filters: normalizedFilters.allTime
+        ? { ...normalizedFilters, from: getDateKey(periodStart), to: getDateKey(addDays(periodEnd, -1)) }
+        : normalizedFilters,
+      bucketMode,
+      periodLabel,
+      summary: {
+        paidRevenue,
+        pendingRevenue,
+        paidInvoices,
+        averagePaidInvoice: paidInvoices > 0 ? Math.round(paidRevenue / paidInvoices) : 0,
+        totalServices,
+        completionRate,
+        totalSpareparts: sparepartCount,
+        lowStockCount,
+        totalStock: stockAggregate._sum.stock ?? 0,
       },
+      trend: buckets.map((bucket) => trendMap[bucket.key]),
+      statusBreakdown: (Object.keys(statusCounts) as ServiceStatus[]).map((status) => ({
+        status,
+        label: STATUS_LABELS[status],
+        count: statusCounts[status],
+      })),
+      topTechnicians: Array.from(technicianMap.values())
+        .sort((a, b) => b.completedServices - a.completedServices || b.revenue - a.revenue)
+        .slice(0, 5),
     };
-  } catch (error) {
-    return actionError(error);
-  }
+  });
 }
 
 function normalizeFilters(filters: AdminAnalyticsFilterInput | undefined): AdminAnalyticsFilters {

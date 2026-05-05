@@ -11,8 +11,7 @@ import {
 } from "@/lib/features";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { revalidatePath } from "next/cache";
-import { getRequestScope, assertRole } from "@/lib/auth/request-scope";
-import { actionError } from "@/lib/auth/authorization";
+import { withScope } from "@/lib/auth/wrapper";
 
 export interface TokoFeatureSettingsData {
   tokoId: string;
@@ -40,46 +39,28 @@ export interface FeatureSettingsStatusData {
 export async function getTokoFeatureSettings(
   tokoId: string
 ): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  try {
-    await getRequestScope(tokoId);
-
+  return withScope(tokoId, {}, async () => {
     const setting = await prisma.tokoFeatureSetting.findUnique({
       where: { tokoId },
       select: { tokoId: true, disabledFeatures: true },
     });
 
-    if (!setting) {
-      return {
-        success: true,
-        data: { tokoId, disabledFeatures: [] },
-      };
-    }
+    if (!setting) return { tokoId, disabledFeatures: [] };
 
-    const disabledFeatures = parseDisabledFeatures(setting.disabledFeatures);
-
-    return {
-      success: true,
-      data: { tokoId, disabledFeatures },
-    };
-  } catch (error) {
-    return actionError(error);
-  }
+    return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
+  });
 }
 
 export async function getTokoFeatureSettingsWithStatus(
   tokoId: string
 ): Promise<ActionResultWithData<FeatureSettingsStatusData>> {
-  try {
-    const scope = await getRequestScope(tokoId);
-
+  return withScope(tokoId, {}, async (scope) => {
     const toko = await prisma.toko.findUnique({
       where: { id: tokoId },
       select: { name: true },
     });
 
-    if (!toko) {
-      return { success: false, error: "Toko not found" };
-    }
+    if (!toko) throw new Error("Toko not found");
 
     const disabledFeatures = scope.disabledFeatures;
 
@@ -117,33 +98,22 @@ export async function getTokoFeatureSettingsWithStatus(
       };
     });
 
-    return { success: true, data: { tokoId, tokoName: toko.name, plan: scope.plan, features: rows } };
-  } catch (error) {
-    return actionError(error);
-  }
+    return { tokoId, tokoName: toko.name, plan: scope.plan, features: rows };
+  });
 }
 
 export async function updateTokoFeatureSettings(
   tokoId: string,
   disabledFeatures: FeatureKey[]
 ): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  try {
-    const scope = await getRequestScope(tokoId);
-    assertRole(scope, ["admin"]);
-
+  return withScope(tokoId, { role: ["admin"] }, async (scope) => {
     for (const feature of disabledFeatures) {
       const metadata = FEATURE_REGISTRY[feature];
 
-      if (!metadata) {
-        return { success: false, error: `Invalid feature: ${feature}` };
-      }
-
-      if (!metadata.configurable) {
-        return { success: false, error: `${metadata.label} cannot be disabled` };
-      }
-
+      if (!metadata) throw new Error(`Invalid feature: ${feature}`);
+      if (!metadata.configurable) throw new Error(`${metadata.label} cannot be disabled`);
       if (!isPlanAtLeast(scope.plan, metadata.minimumPlan)) {
-        return { success: false, error: `${metadata.label} requires ${metadata.minimumPlan} plan` };
+        throw new Error(`${metadata.label} requires ${metadata.minimumPlan} plan`);
       }
     }
 
@@ -166,13 +136,8 @@ export async function updateTokoFeatureSettings(
     revalidatePath(`/${tokoId}/staff`);
     revalidatePath(`/${tokoId}/teknisi`);
 
-    return {
-      success: true,
-      data: { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) },
-    };
-  } catch (error) {
-    return actionError(error);
-  }
+    return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
+  });
 }
 
 export async function setTokoFeatureEnabled(
@@ -180,22 +145,14 @@ export async function setTokoFeatureEnabled(
   feature: FeatureKey,
   enabled: boolean
 ): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  try {
-    const scope = await getRequestScope(tokoId);
-    assertRole(scope, ["admin"]);
-
-    if (!isFeatureKey(feature)) {
-      return { success: false, error: "Invalid feature" };
-    }
+  return withScope(tokoId, { role: ["admin"] }, async (scope) => {
+    if (!isFeatureKey(feature)) throw new Error("Invalid feature");
 
     const metadata = FEATURE_REGISTRY[feature];
 
-    if (!metadata.configurable) {
-      return { success: false, error: `${metadata.label} cannot be disabled` };
-    }
-
+    if (!metadata.configurable) throw new Error(`${metadata.label} cannot be disabled`);
     if (!isPlanAtLeast(scope.plan, metadata.minimumPlan)) {
-      return { success: false, error: `${metadata.label} requires ${metadata.minimumPlan} plan` };
+      throw new Error(`${metadata.label} requires ${metadata.minimumPlan} plan`);
     }
 
     const existing = await prisma.tokoFeatureSetting.findUnique({
@@ -204,17 +161,11 @@ export async function setTokoFeatureEnabled(
     });
 
     const currentDisabled = existing ? parseDisabledFeatures(existing.disabledFeatures) : [];
-    let newDisabled: FeatureKey[];
-
-    if (enabled) {
-      newDisabled = currentDisabled.filter((f) => f !== feature);
-    } else {
-      if (!currentDisabled.includes(feature)) {
-        newDisabled = [...currentDisabled, feature];
-      } else {
-        newDisabled = currentDisabled;
-      }
-    }
+    const newDisabled: FeatureKey[] = enabled
+      ? currentDisabled.filter((f) => f !== feature)
+      : currentDisabled.includes(feature)
+        ? currentDisabled
+        : [...currentDisabled, feature];
 
     const setting = await prisma.tokoFeatureSetting.upsert({
       where: { tokoId },
@@ -233,13 +184,8 @@ export async function setTokoFeatureEnabled(
     revalidatePath(`/${tokoId}/staff`);
     revalidatePath(`/${tokoId}/teknisi`);
 
-    return {
-      success: true,
-      data: { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) },
-    };
-  } catch (error) {
-    return actionError(error);
-  }
+    return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
+  });
 }
 
 export async function getDisabledFeaturesForToko(tokoId: string): Promise<FeatureKey[]> {

@@ -9,10 +9,15 @@ import { redirect } from "next/navigation";
 
 interface AdminInventoryPageProps {
   params: Promise<{ tokoid: string }>;
+  searchParams: Promise<{ tab?: string | string[]; q?: string | string[] }>;
 }
 
-export default async function AdminInventoryPage({ params }: AdminInventoryPageProps) {
+export default async function AdminInventoryPage({ params, searchParams }: AdminInventoryPageProps) {
   const { tokoid } = await params;
+  const query = await searchParams;
+  const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab;
+  const initialTab = tab === "jasa" ? "jasa" : "sparepart";
+  const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
   const scope = await getRequestScope(tokoid);
   const access = getPageFeatureCheck(scope, "inventory.management");
 
@@ -41,10 +46,13 @@ export default async function AdminInventoryPage({ params }: AdminInventoryPageP
             <p className="text-sm text-muted-foreground/70">Kelola sparepart dan jasa service</p>
           </div>
           <InventoryTabs
+            key={`${initialTab}-${initialSearchQuery}`}
             tokoId={tokoid}
             readOnly
             initialSpareparts={MOCK_SPAREPARTS}
             initialPricelists={MOCK_PRICELISTS}
+            initialTab={initialTab}
+            initialSearchQuery={initialSearchQuery}
           />
         </div>
       </FeaturePreview>
@@ -81,7 +89,7 @@ export default async function AdminInventoryPage({ params }: AdminInventoryPageP
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola sparepart dan jasa service</p>
       </div>
-      <InventoryTabs tokoId={tokoid} readOnly={false} />
+      <InventoryTabs key={`${initialTab}-${initialSearchQuery}`} tokoId={tokoid} readOnly={false} initialTab={initialTab} initialSearchQuery={initialSearchQuery} />
     </div>
   );
 }

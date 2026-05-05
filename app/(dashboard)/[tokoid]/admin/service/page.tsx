@@ -9,10 +9,13 @@ import { RiStore2Line, RiInboxLine, RiToolsLine, RiCheckDoubleLine, RiLogoutBoxL
 
 interface AdminServicePageProps {
   params: Promise<{ tokoid: string }>;
+  searchParams: Promise<{ q?: string | string[] }>;
 }
 
-export default async function AdminServicePage({ params }: AdminServicePageProps) {
+export default async function AdminServicePage({ params, searchParams }: AdminServicePageProps) {
   const { tokoid } = await params;
+  const query = await searchParams;
+  const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
   const pageSize = 15;
 
   const toko = await prisma.toko.findUnique({
@@ -103,10 +106,12 @@ export default async function AdminServicePage({ params }: AdminServicePageProps
       </section>
 
       <ManageService
+        key={initialSearchQuery}
         allServices={servicesResult.data.data}
         tokoId={tokoid}
         pageSize={pageSize}
         hideTechnicianColumn={!technicianWorkflowEnabled}
+        initialSearchQuery={initialSearchQuery}
       />
     </div>
   );

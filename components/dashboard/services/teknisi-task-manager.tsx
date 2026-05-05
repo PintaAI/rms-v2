@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -24,6 +25,7 @@ import {
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
 import { useRealtimePolling } from "@/lib/use-idle-detection";
+import { getServiceSearchScore } from "@/lib/service-search";
 import {
   RiTaskLine,
   RiCheckLine,
@@ -35,6 +37,7 @@ import {
   RiLoader4Line,
   RiStore2Line,
   RiPulseLine,
+  RiSearchLine,
 } from "@remixicon/react";
 
 interface TechnicianTaskStats {
@@ -56,6 +59,7 @@ interface TeknisiTaskManagerProps {
     name: string;
     logoUrl: string | null;
   };
+  initialSearchQuery?: string;
 }
 
 export function TeknisiTaskManager({
@@ -64,6 +68,7 @@ export function TeknisiTaskManager({
   initialStats,
   tokoId,
   currentToko,
+  initialSearchQuery = "",
 }: TeknisiTaskManagerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -76,6 +81,7 @@ export function TeknisiTaskManager({
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
 
   const pendingMutationsRef = useRef(0);
   const userId = user?.id;
@@ -155,8 +161,7 @@ export function TeknisiTaskManager({
   }, [selectedTask, router]);
 
   const tableItems: ServiceTableItem[] = useMemo(() => {
-    if (status === "tersedia") {
-      return availableTasks.map((s) => ({
+    const toTableItems = (tasks: ServiceListItem[]) => tasks.map((s) => ({
         id: s.id,
         hpCatalogId: s.hpCatalogId,
         customerName: s.customerName,
@@ -177,6 +182,23 @@ export function TeknisiTaskManager({
         passwordPattern: s.passwordPattern,
         imei: s.imei,
       }));
+
+    const searchTasks = (tasks: ServiceListItem[]) => {
+      const trimmedQuery = searchQuery.trim();
+      if (!trimmedQuery) return tasks;
+
+      return tasks
+        .map((task) => ({ task, score: getServiceSearchScore(trimmedQuery, task) }))
+        .filter((item): item is { task: ServiceListItem; score: number } => item.score !== null)
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return new Date(b.task.checkinAt).getTime() - new Date(a.task.checkinAt).getTime();
+        })
+        .map((item) => item.task);
+    };
+
+    if (status === "tersedia") {
+      return toTableItems(searchTasks(availableTasks));
     }
     
     const statusFilter = status === "repairing"
@@ -193,28 +215,8 @@ export function TeknisiTaskManager({
       ? myTasks.filter((t) => statusFilter.includes(t.status))
       : myTasks;
     
-    return filteredTasks.map((t) => ({
-      id: t.id,
-      hpCatalogId: t.hpCatalogId,
-      customerName: t.customerName,
-      noWa: t.noWa,
-      complaint: t.complaint,
-      includedItems: t.includedItems,
-        note: t.note,
-        status: t.status,
-        isPickedUp: t.isPickedUp,
-        checkinAt: t.checkinAt,
-      doneAt: t.doneAt,
-      warrantyUntil: t.warrantyUntil,
-      checkoutAt: t.checkoutAt,
-      hpCatalog: t.hpCatalog,
-      technician: t.technician,
-      invoice: t.invoice,
-      createdBy: t.createdBy,
-      passwordPattern: t.passwordPattern,
-      imei: t.imei,
-    }));
-  }, [status, myTasks, availableTasks]);
+    return toTableItems(searchTasks(filteredTasks));
+  }, [status, myTasks, availableTasks, searchQuery]);
 
   const getPageTitle = () => {
     if (!status) return "Semua Task";
@@ -265,6 +267,16 @@ export function TeknisiTaskManager({
           <RiArrowRightLine className="mr-1.5 h-4 w-4" />
           Overview
         </Button>
+      </div>
+
+      <div className="relative w-full sm:max-w-sm">
+        <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Cari task..."
+          className="pl-9"
+        />
       </div>
 
       <section className="space-y-4">
@@ -324,7 +336,7 @@ export function TeknisiTaskManager({
                 headerTitle={getPageTitle()}
                 headerDescription="Task yang bisa diambil atau takeover"
                 headerBadge={tableItems.length}
-                emptyMessage="Tidak ada task yang bisa diambil atau takeover"
+                emptyMessage={searchQuery.trim() ? "Tidak ada task yang cocok dengan pencarian" : "Tidak ada task yang bisa diambil atau takeover"}
                 onTake={handleTakeTask}
                 onRowClick={handleOpenTask}
               />
@@ -335,7 +347,7 @@ export function TeknisiTaskManager({
                 headerTitle={getPageTitle()}
                 headerDescription="Task yang sedang atau pernah kamu tangani"
                 headerBadge={tableItems.length}
-                emptyMessage={`Tidak ada task${status ? ` dengan status ${status}` : ""}`}
+                emptyMessage={searchQuery.trim() ? "Tidak ada task yang cocok dengan pencarian" : `Tidak ada task${status ? ` dengan status ${status}` : ""}`}
                 onRowClick={handleOpenTask}
               />
             )}

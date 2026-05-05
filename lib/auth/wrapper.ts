@@ -2,10 +2,14 @@ import type { AuthUser } from "./request-user";
 import type { UserRole } from "./request-user";
 import { getRequestUser } from "./request-user";
 import { getRequestScope, type RequestScope } from "./request-scope";
+import { assertCapability, assertFeature } from "./request-scope";
+import type { CapabilityKey } from "./request-scope";
+import type { FeatureKey } from "@/lib/features";
 import { actionError } from "./authorization";
 import type { ActionResult, ActionResultWithData } from "./authorization";
 
 export type { AuthUser, UserRole, RequestScope, ActionResult, ActionResultWithData };
+export type { CapabilityKey, FeatureKey };
 
 export interface ActionContext {
   user: AuthUser;
@@ -18,6 +22,8 @@ export interface ScopedActionContext extends ActionContext {
 
 export interface ActionConfig {
   role?: UserRole[];
+  capability?: CapabilityKey;
+  feature?: FeatureKey;
 }
 
 function checkRole(user: AuthUser, allowedRoles?: UserRole[]): ActionResult | null {
@@ -92,6 +98,9 @@ export function defineScopedAction<TOutput>(
 
       const scope = await getRequestScope(tokoId);
 
+      if (config.capability) assertCapability(scope, config.capability);
+      if (config.feature) assertFeature(scope, config.feature);
+
       const result = await handler({ user, tokoId, scope });
 
       if (result && typeof result === "object" && "success" in result) {
@@ -119,6 +128,9 @@ export function defineScopedActionWithInput<TInput, TOutput>(
 
       const scope = await getRequestScope(input.tokoId);
 
+      if (config.capability) assertCapability(scope, config.capability);
+      if (config.feature) assertFeature(scope, config.feature);
+
       const result = await handler({ user, tokoId: input.tokoId, scope }, input);
 
       if (result && typeof result === "object" && "success" in result) {
@@ -130,4 +142,39 @@ export function defineScopedActionWithInput<TInput, TOutput>(
       return actionError(error) as ActionResultWithData<TOutput>;
     }
   };
+}
+
+/**
+ * Lightweight helper for actions whose signature doesn't match
+ * defineScopedAction / defineScopedActionWithInput.
+ * Handles auth, role check, scope resolution, feature/capability assertion,
+ * and error wrapping — same guarantees, no wrapper factory.
+ */
+export async function withScope<T>(
+  tokoId: string,
+  config: ActionConfig,
+  handler: (scope: RequestScope) => Promise<T>
+): Promise<ActionResultWithData<T>> {
+  try {
+    const user = await getRequestUser();
+    if (!user) return { success: false, error: "Silakan login terlebih dahulu" };
+
+    const roleError = checkRole(user, config.role);
+    if (roleError) return roleError;
+
+    const scope = await getRequestScope(tokoId);
+
+    if (config.capability) assertCapability(scope, config.capability);
+    if (config.feature) assertFeature(scope, config.feature);
+
+    const result = await handler(scope);
+
+    if (result && typeof result === "object" && "success" in result) {
+      return result as ActionResultWithData<T>;
+    }
+
+    return { success: true, data: result as T };
+  } catch (error) {
+    return actionError(error) as ActionResultWithData<T>;
+  }
 }

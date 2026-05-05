@@ -50,6 +50,14 @@ const getCachedDisabledFeatures = cache(async (tokoId: string): Promise<FeatureK
   return fetchDisabledFeatures(tokoId);
 });
 
+function getScopePlan(user: AuthUser, tokoId: string): Promise<SubscriptionPlan> | SubscriptionPlan {
+  if (user.role === "admin" || (user.tokoIds.length === 1 && user.tokoIds[0] === tokoId)) {
+    return user.plan;
+  }
+
+  return getEffectivePlanForToko(user, tokoId);
+}
+
 export type RequestScope = {
   user: AuthUser;
   tokoId: string;
@@ -65,7 +73,7 @@ export const getRequestScope = cache(async (tokoId: string): Promise<RequestScop
   assertTokoAccess(user, tokoId);
 
   const [plan, disabledFeatures] = await Promise.all([
-    getEffectivePlanForToko(user, tokoId),
+    getScopePlan(user, tokoId),
     getCachedDisabledFeatures(tokoId),
   ]);
 

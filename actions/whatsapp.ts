@@ -10,8 +10,8 @@ import {
   fetchWhatsappInstances,
   getWhatsappConnectionState,
 } from "@/lib/evolution";
-import { actionError, type ActionResultWithData } from "@/lib/auth/authorization";
-import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope";
+import { withScope } from "@/lib/auth/wrapper";
+import type { ActionResultWithData } from "@/lib/auth/authorization";
 
 const updateWhatsappSettingSchema = z.object({
   enabled: z.boolean().optional(),
@@ -142,18 +142,6 @@ function serializeSetting(setting: {
   };
 }
 
-async function authorizeWhatsappAdmin(tokoId: string) {
-  try {
-    const scope = await getRequestScope(tokoId);
-    assertRole(scope, ["admin"]);
-    assertFeature(scope, "whatsapp.integration");
-
-    return { success: true as const, user: scope.user };
-  } catch (error) {
-    return actionError(error);
-  }
-}
-
 async function getSettingByTokoId(tokoId: string) {
   return prisma.tokoWhatsappSetting.findUnique({
     where: { tokoId },
@@ -170,57 +158,43 @@ export interface WhatsappLiveState {
 export async function getTokoWhatsappSetting(
   tokoId: string
 ): Promise<ActionResultWithData<TokoWhatsappSettingData | null>> {
-  const auth = await authorizeWhatsappAdmin(tokoId);
-  if (!auth.success) return auth;
-
-  const setting = await getSettingByTokoId(tokoId);
-
-  return { success: true, data: setting ? serializeSetting(setting) : null };
+  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+    const setting = await getSettingByTokoId(tokoId);
+    return setting ? serializeSetting(setting) : null;
+  });
 }
 
 export async function getWhatsappState(
   tokoId: string
 ): Promise<ActionResultWithData<WhatsappLiveState>> {
-  const auth = await authorizeWhatsappAdmin(tokoId);
-  if (!auth.success) return auth;
+  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+    const setting = await getSettingByTokoId(tokoId);
+    if (!setting) throw new Error("WhatsApp setting not found");
 
-  const setting = await getSettingByTokoId(tokoId);
-  if (!setting) return { success: false, error: "WhatsApp setting not found" };
-
-  try {
     const stateResponse = await getWhatsappConnectionState(setting.instanceName);
     const state = getConnectionState(stateResponse) ?? "unknown";
 
     if (state !== "open") {
-      return { success: true, data: { state, connectedNumber: null, connectedProfileName: null } };
+      return { state, connectedNumber: null, connectedProfileName: null };
     }
 
     const instances = await fetchWhatsappInstances();
     const match = findInstanceFromFetch(instances, setting.instanceName);
 
     return {
-      success: true,
-      data: {
-        state,
-        connectedNumber: match ? getConnectedNumber(match) : null,
-        connectedProfileName: match ? getProfileName(match) : null,
-      },
+      state,
+      connectedNumber: match ? getConnectedNumber(match) : null,
+      connectedProfileName: match ? getProfileName(match) : null,
     };
-  } catch (error) {
-    console.error("Failed to get WhatsApp state:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Failed to get WhatsApp state" };
-  }
+  });
 }
 
 export async function connectTokoWhatsapp(
   tokoId: string
 ): Promise<ActionResultWithData<{ qr: unknown }>> {
-  const auth = await authorizeWhatsappAdmin(tokoId);
-  if (!auth.success) return auth;
-
-  try {
+  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
     const toko = await prisma.toko.findUnique({ where: { id: tokoId }, select: { id: true } });
-    if (!toko) return { success: false, error: "Toko not found" };
+    if (!toko) throw new Error("Toko not found");
 
     const instanceName = getInstanceName(tokoId);
 
@@ -247,28 +221,22 @@ export async function connectTokoWhatsapp(
 
     revalidatePath(`/${tokoId}/admin`);
 
-    return { success: true, data: { qr: connectResponse } };
-  } catch (error) {
-    console.error("Failed to connect WhatsApp:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Failed to connect WhatsApp" };
-  }
+    return { qr: connectResponse };
+  });
 }
 
 export async function refreshTokoWhatsappConnection(
   tokoId: string
 ): Promise<ActionResultWithData<WhatsappLiveState>> {
-  const auth = await authorizeWhatsappAdmin(tokoId);
-  if (!auth.success) return auth;
+  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+    const setting = await getSettingByTokoId(tokoId);
+    if (!setting) throw new Error("WhatsApp setting not found");
 
-  const setting = await getSettingByTokoId(tokoId);
-  if (!setting) return { success: false, error: "WhatsApp setting not found" };
-
-  try {
     const stateResponse = await getWhatsappConnectionState(setting.instanceName);
     const state = getConnectionState(stateResponse) ?? "unknown";
 
     if (state !== "open") {
-      return { success: true, data: { state, connectedNumber: null, connectedProfileName: null } };
+      return { state, connectedNumber: null, connectedProfileName: null };
     }
 
     const instances = await fetchWhatsappInstances();
@@ -289,26 +257,20 @@ export async function refreshTokoWhatsappConnection(
 
     revalidatePath(`/${tokoId}/admin`);
 
-    return { success: true, data: { state, connectedNumber, connectedProfileName } };
-  } catch (error) {
-    console.error("Failed to refresh WhatsApp connection:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Failed to refresh WhatsApp status" };
-  }
+    return { state, connectedNumber, connectedProfileName };
+  });
 }
 
 export async function updateTokoWhatsappSetting(
   tokoId: string,
   input: UpdateTokoWhatsappSettingInput
 ): Promise<ActionResultWithData<TokoWhatsappSettingData>> {
-  const auth = await authorizeWhatsappAdmin(tokoId);
-  if (!auth.success) return auth;
-
   const parsed = updateWhatsappSettingSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
-  try {
+  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
     const toko = await prisma.toko.findUnique({ where: { id: tokoId }, select: { id: true } });
-    if (!toko) return { success: false, error: "Toko not found" };
+    if (!toko) throw new Error("Toko not found");
 
     const data = parsed.data;
     const setting = await prisma.tokoWhatsappSetting.upsert({
@@ -334,20 +296,14 @@ export async function updateTokoWhatsappSetting(
 
     revalidatePath(`/${tokoId}/admin`);
 
-    return { success: true, data: serializeSetting(setting) };
-  } catch (error) {
-    console.error("Failed to update WhatsApp setting:", error);
-    return { success: false, error: "Failed to update WhatsApp setting" };
-  }
+    return serializeSetting(setting);
+  });
 }
 
 export async function disconnectTokoWhatsapp(
   tokoId: string
 ): Promise<ActionResultWithData<TokoWhatsappSettingData>> {
-  const auth = await authorizeWhatsappAdmin(tokoId);
-  if (!auth.success) return auth;
-
-  try {
+  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
     const setting = await getSettingByTokoId(tokoId);
     const instanceName = setting?.instanceName ?? getInstanceName(tokoId);
 
@@ -367,9 +323,6 @@ export async function disconnectTokoWhatsapp(
 
     revalidatePath(`/${tokoId}/admin`);
 
-    return { success: true, data: serializeSetting(updated) };
-  } catch (error) {
-    console.error("Failed to disconnect WhatsApp:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Failed to disconnect WhatsApp" };
-  }
+    return serializeSetting(updated);
+  });
 }

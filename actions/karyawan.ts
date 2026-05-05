@@ -1,9 +1,9 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { ensureFeatureAccess, ensurePlanLimit } from "@/lib/auth/enforcement";
-import { getRequestUser } from "@/lib/auth/request-user";
-import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
+import { ensurePlanLimit } from "@/lib/auth/enforcement";
+import { AuthError } from "@/lib/auth/authorization";
+import { withScope } from "@/lib/auth/wrapper";
 import { createCredentialUserWithToko } from "@/lib/auth-helpers";
 import { revalidateKaryawanPaths } from "@/lib/revalidation";
 import { Prisma } from "@/prisma/generated/prisma/client";
@@ -162,109 +162,65 @@ export async function getKaryawanList(tokoId: string): Promise<{
   data?: KaryawanItem[];
   error?: string;
 }> {
-  const user = await getRequestUser();
-
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
-  if (featureError) return featureError;
-
-  const assignments = await prisma.userToko.findMany({
-    where: { tokoId },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          createdAt: true,
+  return withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async () => {
+    const assignments = await prisma.userToko.findMany({
+      where: { tokoId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+          },
         },
       },
-    },
-    take: 100,
+      take: 100,
+    });
+
+    const filteredAssignments = assignments.filter(
+      (assignment) => assignment.user.role === "staff" || assignment.user.role === "technician"
+    );
+
+    const performanceMap = await getKaryawanPerformanceMap(tokoId, filteredAssignments);
+
+    return filteredAssignments.map((assignment) => ({
+      id: assignment.user.id,
+      name: assignment.user.name,
+      email: assignment.user.email,
+      role: assignment.user.role as "staff" | "technician",
+      createdAt: assignment.user.createdAt,
+      performance: performanceMap.get(assignment.user.id) ?? {
+        servicesCreated: 0,
+        servicesCompleted: 0,
+        servicesFailed: 0,
+      },
+    }));
   });
-
-  const filteredAssignments = assignments.filter(
-    (assignment) => assignment.user.role === "staff" || assignment.user.role === "technician"
-  );
-
-  const performanceMap = await getKaryawanPerformanceMap(tokoId, filteredAssignments);
-
-  const karyawanWithPerformance = filteredAssignments.map((assignment) => ({
-    id: assignment.user.id,
-    name: assignment.user.name,
-    email: assignment.user.email,
-    role: assignment.user.role as "staff" | "technician",
-    createdAt: assignment.user.createdAt,
-    performance: performanceMap.get(assignment.user.id) ?? {
-      servicesCreated: 0,
-      servicesCompleted: 0,
-      servicesFailed: 0,
-    },
-  }));
-
-  return { success: true, data: karyawanWithPerformance };
 }
 
+const emptyKaryawanStats: KaryawanStats = { staff: 0, technician: 0, total: 0 };
+
 export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
-  const user = await getRequestUser();
+  const result = await withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async () => {
+    const [staff, technician] = await Promise.all([
+      prisma.userToko.count({ where: { tokoId, user: { role: "staff" } } }),
+      prisma.userToko.count({ where: { tokoId, user: { role: "technician" } } }),
+    ]);
 
-  if (!user || !user.tokoIds.includes(tokoId)) {
-    return { staff: 0, technician: 0, total: 0 };
-  }
+    return { staff, technician, total: staff + technician };
+  });
 
-  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
-  if (featureError) {
-    return { staff: 0, technician: 0, total: 0 };
-  }
-
-  const [staff, technician] = await Promise.all([
-    prisma.userToko.count({
-      where: {
-        tokoId,
-        user: { role: "staff" },
-      },
-    }),
-    prisma.userToko.count({
-      where: {
-        tokoId,
-        user: { role: "technician" },
-      },
-    }),
-  ]);
-
-  return { staff, technician, total: staff + technician };
+  return result.success && result.data ? result.data : emptyKaryawanStats;
 }
 
 export async function getTechnicianPerformanceDetail(
   tokoId: string,
   technicianId: string
 ): Promise<{ success: boolean; data?: TechnicianPerformanceDetail; error?: string }> {
-  const user = await getRequestUser();
-
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (user.role !== "admin") {
-    return { success: false, error: "Only admins can view technician performance" };
-  }
-
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
-  if (featureError) return featureError;
-
-  const assignment = await prisma.userToko.findFirst({
+  return withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async () => {
+    const assignment = await prisma.userToko.findFirst({
     where: {
       tokoId,
       userId: technicianId,
@@ -281,9 +237,7 @@ export async function getTechnicianPerformanceDetail(
     },
   });
 
-  if (!assignment) {
-    return { success: false, error: "Technician not found" };
-  }
+    if (!assignment) throw new AuthError("forbidden", "Technician not found");
 
   const periodDays = 30;
   const monthlyStart = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
@@ -339,9 +293,7 @@ export async function getTechnicianPerformanceDetail(
   const servicesFailed = statusCounts.find((count) => count.status === "failed")?._count._all ?? 0;
   const servicesHandled = servicesCompleted + servicesFailed;
 
-  return {
-    success: true,
-    data: {
+    return {
       technician: assignment.user,
       periodDays,
       summary: {
@@ -355,8 +307,8 @@ export async function getTechnicianPerformanceDetail(
         ...service,
         status: service.status as "done" | "failed",
       })),
-    },
-  };
+    };
+  });
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -404,23 +356,6 @@ export async function createKaryawan(
   tokoId: string,
   input: { name: string; password: string; role: "staff" | "technician" }
 ): Promise<{ success: boolean; data?: KaryawanItem; error?: string }> {
-  const user = await getRequestUser();
-
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (user.role !== "admin") {
-    return { success: false, error: "Only admins can add karyawan" };
-  }
-
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
-  if (featureError) return featureError;
-
   if (!input.name.trim() || input.name.trim().length < 2) {
     return { success: false, error: "Name must be at least 2 characters" };
   }
@@ -429,13 +364,13 @@ export async function createKaryawan(
     return { success: false, error: "Password must be at least 4 characters" };
   }
 
-  const { email: _generatedEmail, error: emailError } = await generateKaryawanEmail(input.name, input.role, tokoId);
-  if (emailError || !_generatedEmail) {
-    return { success: false, error: emailError ?? "Could not generate email" };
-  }
-  const generatedEmail: string = _generatedEmail;
+  return withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async (scope) => {
+    const { email: _generatedEmail, error: emailError } = await generateKaryawanEmail(input.name, input.role, tokoId);
+    if (emailError || !_generatedEmail) {
+      throw new AuthError("forbidden", emailError ?? "Could not generate email");
+    }
+    const generatedEmail: string = _generatedEmail;
 
-  try {
     const result = await prisma.$transaction(async (tx) => {
       const limitKey = input.role === "staff" ? "maxStaff" : "maxTechnicians";
       const currentCount = await tx.userToko.count({
@@ -444,8 +379,8 @@ export async function createKaryawan(
           user: { role: input.role },
         },
       });
-      const limitError = ensurePlanLimit(user, limitKey, currentCount);
-      if (limitError) throw new Error(limitError.error);
+      const limitError = ensurePlanLimit(scope.user, limitKey, currentCount);
+      if (limitError) throw new AuthError("plan_limit", limitError.error);
 
       const createdUser = await createCredentialUserWithToko(tx, {
         name: input.name,
@@ -461,53 +396,26 @@ export async function createKaryawan(
     revalidateKaryawanPaths(tokoId);
 
     return {
-      success: true,
-      data: {
-        id: result.id,
-        name: result.name,
-        email: result.email,
-        role: result.role as "staff" | "technician",
-        createdAt: result.createdAt,
-        performance: {
-          servicesCreated: 0,
-          servicesCompleted: 0,
-          servicesFailed: 0,
-        },
+      id: result.id,
+      name: result.name,
+      email: result.email,
+      role: result.role as "staff" | "technician",
+      createdAt: result.createdAt,
+      performance: {
+        servicesCreated: 0,
+        servicesCompleted: 0,
+        servicesFailed: 0,
       },
     };
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Your ")) {
-      return { success: false, error: error.message };
-    }
-    console.error("Failed to create karyawan:", error);
-    return { success: false, error: "Failed to create karyawan" };
-  }
+  });
 }
 
 export async function deleteKaryawan(
   tokoId: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const user = await getRequestUser();
-
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (user.role !== "admin") {
-    return { success: false, error: "Only admins can delete karyawan" };
-  }
-
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  const featureError = ensureFeatureAccess(user, "karyawan.management", await getDisabledFeaturesForToko(tokoId));
-  if (featureError) return featureError;
-
-  if (userId === user.id) {
-    return { success: false, error: "Cannot delete yourself" };
-  }
+  return withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async (scope) => {
+    if (userId === scope.user.id) return { success: false, error: "Cannot delete yourself" };
 
   const targetUser = await prisma.user.findUnique({
     where: { id: userId },
@@ -526,7 +434,6 @@ export async function deleteKaryawan(
     return { success: false, error: "User not assigned to this toko" };
   }
 
-  try {
     await prisma.user.delete({
       where: { id: userId },
     });
@@ -534,8 +441,5 @@ export async function deleteKaryawan(
     revalidateKaryawanPaths(tokoId);
 
     return { success: true };
-  } catch (error) {
-    console.error("Failed to delete karyawan:", error);
-    return { success: false, error: "Failed to delete karyawan" };
-  }
+  });
 }

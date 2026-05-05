@@ -2,11 +2,9 @@
 
 import { z } from "zod";
 import { createActivityLog } from "@/lib/activity-log";
-import { ensureFeatureAccess } from "@/lib/auth/enforcement";
-import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import prisma from "@/lib/prisma";
-import { getRequestUser } from "@/lib/auth/request-user";
-import type { ActionResult, ActionResultWithData } from "@/lib/auth/authorization";
+import { actionError, type ActionResult, type ActionResultWithData } from "@/lib/auth/authorization";
+import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope";
 import { revalidateInventoryPaths } from "@/lib/revalidation";
 import { Prisma } from "@/prisma/generated/prisma/client";
 
@@ -86,24 +84,15 @@ export type InventoryAuditOverview = {
 };
 
 async function getInventoryAuditUser(tokoId: string, requireWriteAccess = false) {
-  const user = await getRequestUser();
+  try {
+    const scope = await getRequestScope(tokoId);
+    if (requireWriteAccess) assertRole(scope, ["admin"]);
+    assertFeature(scope, "inventory.audit");
 
-  if (!user) {
-    return { success: false as const, error: "Unauthorized" };
+    return { success: true as const, user: scope.user, scope };
+  } catch (error) {
+    return actionError(error) as { success: false; error: string };
   }
-
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false as const, error: "Access denied" };
-  }
-
-  if (requireWriteAccess && user.role !== "admin") {
-    return { success: false as const, error: "Only admins can manage inventory audits" };
-  }
-
-  const featureError = ensureFeatureAccess(user, "inventory.audit", await getDisabledFeaturesForToko(tokoId));
-  if (featureError) return { success: false as const, error: featureError.error ?? "Access denied" };
-
-  return { success: true as const, user };
 }
 
 function calculateItemValues(systemStock: number, physicalStock: number, snapshotPrice: number) {

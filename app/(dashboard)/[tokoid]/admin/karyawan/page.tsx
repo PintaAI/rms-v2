@@ -11,10 +11,13 @@ import { redirect } from "next/navigation";
 
 interface AdminKaryawanPageProps {
   params: Promise<{ tokoid: string }>;
+  searchParams: Promise<{ q?: string | string[] }>;
 }
 
-export default async function AdminKaryawanPage({ params }: AdminKaryawanPageProps) {
+export default async function AdminKaryawanPage({ params, searchParams }: AdminKaryawanPageProps) {
   const { tokoid } = await params;
+  const query = await searchParams;
+  const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
   const scope = await getRequestScope(tokoid);
   const access = getPageFeatureCheck(scope, "karyawan.management");
 
@@ -43,10 +46,12 @@ export default async function AdminKaryawanPage({ params }: AdminKaryawanPagePro
             <p className="text-sm text-muted-foreground/70">Kelola karyawan toko</p>
           </div>
           <ManageKaryawan
+            key={initialSearchQuery}
             initialKaryawan={MOCK_KARYAWAN}
             initialStats={MOCK_KARYAWAN_STATS}
             tokoId={tokoid}
             tokoName="Toko Example"
+            initialSearchQuery={initialSearchQuery}
           />
         </div>
       </FeaturePreview>
@@ -134,10 +139,12 @@ export default async function AdminKaryawanPage({ params }: AdminKaryawanPagePro
         <p className="text-sm text-muted-foreground/70">Kelola karyawan toko</p>
       </div>
       <ManageKaryawan
+        key={initialSearchQuery}
         initialKaryawan={karyawanResult.data}
         initialStats={stats}
         tokoId={tokoid}
         tokoName={toko?.name ?? "Toko"}
+        initialSearchQuery={initialSearchQuery}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +40,9 @@ import {
   RiFileListLine,
   RiFileCopyLine,
   RiInformationLine,
+  RiSearchLine,
 } from "@remixicon/react";
+import { fuzzyScore } from "@/lib/fuzzy-search";
 
 type StatsVariant = "default" | "primary" | "success" | "warning" | "accent";
 
@@ -164,6 +166,7 @@ interface ManageKaryawanProps {
   initialStats: KaryawanStats;
   tokoId: string;
   tokoName?: string;
+  initialSearchQuery?: string;
 }
 
 export function ManageKaryawan({
@@ -171,9 +174,11 @@ export function ManageKaryawan({
   initialStats,
   tokoId,
   tokoName = "toko",
+  initialSearchQuery = "",
 }: ManageKaryawanProps) {
   const [karyawan, setKaryawan] = useState<KaryawanItem[]>(initialKaryawan);
   const [stats, setStats] = useState<KaryawanStats>(initialStats);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<KaryawanItem | null>(null);
@@ -201,6 +206,29 @@ export function ManageKaryawan({
     formData.name.trim() && tokoName
       ? `${sanitizeForEmail(formData.name)}-${formData.role}@${sanitizeForEmail(tokoName)}.com`
       : null;
+
+  const filteredKaryawan = useMemo(() => {
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return karyawan;
+
+    return karyawan
+      .map((item) => {
+        const targets = [item.name, item.email, item.role, item.role === "technician" ? "teknisi" : "staff"];
+        const score = targets.reduce<number | null>((bestScore, target) => {
+          const currentScore = fuzzyScore(trimmedQuery, target);
+          if (currentScore === null) return bestScore;
+          return bestScore === null ? currentScore : Math.max(bestScore, currentScore);
+        }, null);
+
+        return { item, score };
+      })
+      .filter((entry): entry is { item: KaryawanItem; score: number } => entry.score !== null)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.item.name.localeCompare(b.item.name);
+      })
+      .map((entry) => entry.item);
+  }, [karyawan, searchQuery]);
 
   const resetForm = () => {
     setFormData({ name: "", password: "", role: "staff" });
@@ -319,13 +347,24 @@ export function ManageKaryawan({
             <div className="h-5 w-1 bg-primary rounded-full" />
             <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Daftar Karyawan</h2>
           </div>
-          <Button
-            onClick={() => setAddDialogOpen(true)}
-            className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
-          >
-            <RiAddLine className="h-4 w-4 mr-1.5" />
-            Tambah Karyawan
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="relative w-64">
+              <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Cari karyawan..."
+                className="pl-9"
+              />
+            </div>
+            <Button
+              onClick={() => setAddDialogOpen(true)}
+              className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+            >
+              <RiAddLine className="h-4 w-4 mr-1.5" />
+              Tambah Karyawan
+            </Button>
+          </div>
         </div>
 
         <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
@@ -341,14 +380,14 @@ export function ManageKaryawan({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {karyawan.length === 0 ? (
+                {filteredKaryawan.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                      Belum ada karyawan. Klik &quot;Tambah Karyawan&quot; untuk menambah.
+                      {searchQuery.trim() ? "Tidak ada karyawan yang cocok dengan pencarian" : "Belum ada karyawan. Klik \"Tambah Karyawan\" untuk menambah."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  karyawan.map((item) => (
+                  filteredKaryawan.map((item) => (
                     <TableRow key={item.id} className="border-border/50">
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.email}</TableCell>
