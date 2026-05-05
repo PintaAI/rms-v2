@@ -41,7 +41,7 @@ import { deleteService, getService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { getServiceSearchScore } from "@/lib/service-search";
-import { RiAddLine, RiCalendarLine, RiCloseLine, RiSearchLine } from "@remixicon/react";
+import { RiAddLine, RiCalendarLine, RiCloseLine, RiFilter3Line, RiSearchLine } from "@remixicon/react";
 
 interface ManageServiceProps {
   allServices: ServiceListItem[];
@@ -89,6 +89,7 @@ export function ManageService({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ServiceListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -170,6 +171,13 @@ export function ManageService({
     || technicianFilter !== "all"
     || checkinDateFilter !== null
     || checkoutDateFilter !== null;
+
+  const activeFilterCount = [
+    createdByFilter !== "all",
+    technicianFilter !== "all",
+    checkinDateFilter !== null,
+    checkoutDateFilter !== null,
+  ].filter(Boolean).length;
 
   const resetAdvancedFilters = useCallback(() => {
     setCreatedByFilter("all");
@@ -359,105 +367,140 @@ export function ManageService({
     return `Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`;
   };
 
+  const renderAdvancedFilters = () => (
+    <>
+      <Select value={createdByFilter} onValueChange={setCreatedByFilter}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Created by" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua pembuat</SelectItem>
+          {createdByOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={technicianFilter} onValueChange={setTechnicianFilter}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Teknisi" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua teknisi</SelectItem>
+          {technicianOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" className="justify-start gap-2 font-normal">
+            <RiCalendarLine className="size-4 text-muted-foreground" />
+            <span className="truncate">Checkin: {formatFilterDate(checkinDateFilter)}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar
+            mode="single"
+            selected={checkinDateFilter ?? undefined}
+            onSelect={(date) => setCheckinDateFilter(date ?? null)}
+          />
+          {checkinDateFilter && (
+            <div className="border-t border-border/50 p-2">
+              <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setCheckinDateFilter(null)}>
+                Hapus tanggal checkin
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" className="justify-start gap-2 font-normal">
+            <RiCalendarLine className="size-4 text-muted-foreground" />
+            <span className="truncate">Checkout: {formatFilterDate(checkoutDateFilter)}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar
+            mode="single"
+            selected={checkoutDateFilter ?? undefined}
+            onSelect={(date) => setCheckoutDateFilter(date ?? null)}
+          />
+          {checkoutDateFilter && (
+            <div className="border-t border-border/50 p-2">
+              <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setCheckoutDateFilter(null)}>
+                Hapus tanggal checkout
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="grid w-full gap-3 sm:grid-cols-2 lg:max-w-5xl lg:grid-cols-5">
-          <div className="relative sm:col-span-2 lg:col-span-1">
-            <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Cari servisan..."
-              className="pl-9"
-            />
+      <div className="rounded-2xl border border-border/60 bg-card/70 p-3 shadow-sm md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="grid w-full gap-3 md:grid-cols-2 lg:max-w-5xl lg:grid-cols-5">
+            <div className="relative md:col-span-2 lg:col-span-1">
+              <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Cari servisan..."
+                className="pl-9"
+              />
+            </div>
+            <div className="hidden md:contents">
+              {renderAdvancedFilters()}
+            </div>
           </div>
-          <Select value={createdByFilter} onValueChange={setCreatedByFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Created by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua pembuat</SelectItem>
-              {createdByOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
 
-          <Select value={technicianFilter} onValueChange={setTechnicianFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Teknisi" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua teknisi</SelectItem>
-              {technicianOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button type="button" variant="outline" className="justify-start gap-2 font-normal">
-                <RiCalendarLine className="size-4 text-muted-foreground" />
-                <span className="truncate">Checkin: {formatFilterDate(checkinDateFilter)}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={checkinDateFilter ?? undefined}
-                onSelect={(date) => setCheckinDateFilter(date ?? null)}
-              />
-              {checkinDateFilter && (
-                <div className="border-t border-border/50 p-2">
-                  <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setCheckinDateFilter(null)}>
-                    Hapus tanggal checkin
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button type="button" variant="outline" className="justify-start gap-2 font-normal">
-                <RiCalendarLine className="size-4 text-muted-foreground" />
-                <span className="truncate">Checkout: {formatFilterDate(checkoutDateFilter)}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={checkoutDateFilter ?? undefined}
-                onSelect={(date) => setCheckoutDateFilter(date ?? null)}
-              />
-              {checkoutDateFilter && (
-                <div className="border-t border-border/50 p-2">
-                  <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setCheckoutDateFilter(null)}>
-                    Hapus tanggal checkout
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          {hasAdvancedFilters && (
-            <Button type="button" variant="outline" onClick={resetAdvancedFilters}>
-              <RiCloseLine className="h-4 w-4 mr-1.5" />
-              Reset Filter
+          <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0">
+            <Button type="button" variant="outline" className="md:hidden" onClick={() => setFilterSheetOpen(true)}>
+              <RiFilter3Line className="h-4 w-4 mr-1.5" />
+              Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
             </Button>
-          )}
-          <Button
-            onClick={() => { setEditData(null); setFormOpen(true); }}
-            className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
-          >
-            <RiAddLine className="h-4 w-4 mr-1.5" />
-            Tambah Service
-          </Button>
+            {hasAdvancedFilters && (
+              <Button type="button" variant="outline" className="hidden md:inline-flex" onClick={resetAdvancedFilters}>
+                <RiCloseLine className="h-4 w-4 mr-1.5" />
+                Reset Filter
+              </Button>
+            )}
+            <Button
+              onClick={() => { setEditData(null); setFormOpen(true); }}
+              className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+            >
+              <RiAddLine className="h-4 w-4 mr-1.5" />
+              Tambah Service
+            </Button>
+          </div>
         </div>
       </div>
+
+      <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl p-4 md:hidden">
+          <SheetHeader className="px-0 text-left">
+            <SheetTitle className="font-bold">Filter service</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 grid gap-3">
+            {renderAdvancedFilters()}
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <Button type="button" variant="outline" onClick={resetAdvancedFilters} disabled={!hasAdvancedFilters}>
+              <RiCloseLine className="h-4 w-4 mr-1.5" />
+              Reset
+            </Button>
+            <Button type="button" onClick={() => setFilterSheetOpen(false)}>
+              Terapkan
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <section>
         <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
