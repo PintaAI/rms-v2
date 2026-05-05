@@ -377,6 +377,7 @@ export function StaffManageService({
                 service={selectedService}
                 variant={["done", "failed"].includes(selectedService.status) ? "completed" : "active"}
                 viewerRole="staff"
+                showActions={false}
                 onRefresh={handleRefreshDetail}
                 onStatusChange={() => {
                   setDetailDialogOpen(false);
