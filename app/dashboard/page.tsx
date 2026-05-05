@@ -9,32 +9,33 @@ import { attachPendingReferralToCurrentUser } from "@/actions/affiliate";
 export default function DashboardLandingPage() {
   const router = useRouter();
   const { user, tokoList, isLoading } = useAuth();
+  const userId = user?.id ?? null;
+  const userRole = user?.role ?? null;
+  const firstTokoId = tokoList[0]?.id ?? null;
 
   useEffect(() => {
-    if (isLoading || !user) return;
-    const currentUser = user;
+    if (isLoading || !userId || !userRole) return;
 
     async function attachAndRedirect() {
       await attachPendingReferralToCurrentUser();
 
-      if (currentUser.role === "superuser") {
+      if (userRole === "superuser") {
         router.replace("/superuser");
         return;
       }
 
-      if (tokoList.length === 0) {
-        if (currentUser.role === "admin") {
+      if (!firstTokoId) {
+        if (userRole === "admin") {
           router.replace("/onboard");
         }
         return;
       }
 
-      const firstToko = tokoList[0];
-      router.replace(getRoleRedirectPath(firstToko.id, currentUser.role));
+      router.replace(getRoleRedirectPath(firstTokoId, userRole));
     }
 
     void attachAndRedirect();
-  }, [user, tokoList, isLoading, router]);
+  }, [firstTokoId, isLoading, router, userId, userRole]);
 
   if (!isLoading && user && user.role === "superuser") {
     return null;

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { RiAddLine, RiCheckboxCircleLine, RiLoader4Line, RiLock2Line, RiVipCrownLine } from "@remixicon/react";
+import { RiAddLine, RiCheckboxCircleLine, RiLoader4Line, RiLock2Line, RiVipCrownLine, RiWhatsappLine } from "@remixicon/react";
 import { createProSubscriptionInvoice, getBillingPlanSummary, setDevUserPlan } from "@/actions";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { BillingPlanSummary } from "@/actions";
 import type { SubscriptionPlan } from "@/lib/features";
-import { getWhatsAppEnterpriseUrl, getWhatsAppTrialRequestUrl, planLabels } from "./helpers";
+import { getWhatsAppEnterpriseUrl, getWhatsAppProBetaRequestUrl, planLabels } from "./helpers";
 import type { PlanTabProps } from "./types";
 
 export function PlanSettingsTab({ summary, ownerBilling, isLoading, currentTokoId, onChanged, userEmail, tokoName }: PlanTabProps) {
@@ -18,7 +18,7 @@ export function PlanSettingsTab({ summary, ownerBilling, isLoading, currentTokoI
   const { refetchSession } = useAuth();
   const [isUpgrading, setIsUpgrading] = React.useState(false);
   const [isCreatingInvoice, startCreateInvoice] = React.useTransition();
-  const trialRequestUrl = getWhatsAppTrialRequestUrl({ email: userEmail, tokoName });
+  const proBetaRequestUrl = getWhatsAppProBetaRequestUrl({ email: userEmail, tokoName, context: "Upgrade ke Pro dari User Settings" });
   const enterpriseContactUrl = getWhatsAppEnterpriseUrl({ email: userEmail, tokoName });
   const latestInvoice = ownerBilling?.latestInvoice ?? null;
   const hasOpenProInvoice = latestInvoice?.plan === "premium" && !["paid", "void"].includes(latestInvoice.status);
@@ -58,7 +58,7 @@ export function PlanSettingsTab({ summary, ownerBilling, isLoading, currentTokoI
     <div className="space-y-4">
       {plan === "free" ? (
         <>
-          <ProUpgradeCard isLoading={isLoading} isCreatingInvoice={isCreatingInvoice} hasOpenProInvoice={Boolean(hasOpenProInvoice)} latestInvoice={latestInvoice} trialRequestUrl={trialRequestUrl} onCreateInvoice={handleCreateProInvoice} />
+          <ProUpgradeCard isLoading={isLoading} isCreatingInvoice={isCreatingInvoice} hasOpenProInvoice={Boolean(hasOpenProInvoice)} latestInvoice={latestInvoice} proBetaRequestUrl={proBetaRequestUrl} onCreateInvoice={handleCreateProInvoice} />
           <EnterpriseCard contactUrl={enterpriseContactUrl} />
         </>
       ) : plan === "premium" ? (
@@ -91,7 +91,7 @@ export function PlanSettingsTab({ summary, ownerBilling, isLoading, currentTokoI
   );
 }
 
-function ProUpgradeCard({ isLoading, isCreatingInvoice, hasOpenProInvoice, latestInvoice, trialRequestUrl, onCreateInvoice }: { isLoading: boolean; isCreatingInvoice: boolean; hasOpenProInvoice: boolean; latestInvoice: PlanTabProps["ownerBilling"] extends infer T ? T extends { latestInvoice: infer I } ? I : never : never; trialRequestUrl: string; onCreateInvoice: () => void }) {
+function ProUpgradeCard({ isLoading, isCreatingInvoice, hasOpenProInvoice, latestInvoice, proBetaRequestUrl, onCreateInvoice }: { isLoading: boolean; isCreatingInvoice: boolean; hasOpenProInvoice: boolean; latestInvoice: PlanTabProps["ownerBilling"] extends infer T ? T extends { latestInvoice: infer I } ? I : never : never; proBetaRequestUrl: string; onCreateInvoice: () => void }) {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-[radial-gradient(circle_at_8%_0%,hsl(var(--primary)/0.28),transparent_34%),radial-gradient(circle_at_100%_8%,hsl(var(--primary)/0.16),transparent_28%),linear-gradient(145deg,hsl(var(--card))_0%,hsl(var(--background))_58%,hsl(var(--primary)/0.08)_100%)] p-4 shadow-sm sm:p-5">
       <div className="pointer-events-none absolute -right-5 top-4 hidden h-28 w-28 bg-[radial-gradient(circle,hsl(var(--primary)/0.34)_1px,transparent_1px)] [background-size:9px_9px] opacity-45 sm:block" />
@@ -105,7 +105,7 @@ function ProUpgradeCard({ isLoading, isCreatingInvoice, hasOpenProInvoice, lates
           <div className="rounded-xl border bg-background/45 p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Paket ini termasuk</p><div className="mt-3 divide-y divide-border/50"><ProBenefitItem title="2 toko included" description="Kelola hingga 2 toko dalam 1 akun" /><ProBenefitItem title="Staff + Teknisi" description="3 staff + 2 teknisi dengan akses penuh" /><ProBenefitItem title="Service / bulan" description="Hingga 100 service setiap bulan" /></div></div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background/45 p-3.5"><div className="flex items-center gap-3"><div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><RiAddLine className="size-4.5" /></div><div><p className="text-sm font-semibold">Tambahan toko</p><p className="text-xs text-muted-foreground">Setelah 2 toko included</p></div></div><p className="font-bold tabular-nums">Rp499.000/toko/bulan</p></div>
-        <div className="grid gap-2.5 sm:grid-cols-2"><Button asChild variant="outline" disabled={isLoading} className="h-12"><a href={trialRequestUrl} target="_blank" rel="noreferrer">Request Trial Pro via WhatsApp</a></Button><Button className="h-12" disabled={isCreatingInvoice || hasOpenProInvoice} onClick={onCreateInvoice}>{isCreatingInvoice ? <RiLoader4Line className="size-4 animate-spin" /> : hasOpenProInvoice ? "Invoice Pro sudah aktif" : "Upgrade ke Pro"}</Button></div>
+        <div className="grid gap-2.5 sm:grid-cols-2"><Button asChild variant="outline" disabled={isLoading} className="h-12"><a href={proBetaRequestUrl} target="_blank" rel="noreferrer"><RiWhatsappLine data-icon="inline-start" />Request fitur Pro / join beta</a></Button><Button className="h-12" disabled={isCreatingInvoice || hasOpenProInvoice} onClick={onCreateInvoice}>{isCreatingInvoice ? <RiLoader4Line className="size-4 animate-spin" /> : hasOpenProInvoice ? "Invoice Pro sudah aktif" : "Upgrade ke Pro"}</Button></div>
         {hasOpenProInvoice && latestInvoice ? <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Invoice {latestInvoice.invoiceNumber} masih berstatus {latestInvoice.status}. Lanjutkan pembayaran di tab Billing.</div> : <p className="text-center text-xs text-muted-foreground">Aman, mudah, dan bisa dibatalkan kapan saja.</p>}
       </div>
     </div>

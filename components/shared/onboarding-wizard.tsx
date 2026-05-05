@@ -5,7 +5,7 @@ import type React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createTokoWithUsers } from "@/actions/toko";
-import { setDevUserPlan } from "@/actions";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,12 +17,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
-import { setThemeMode, type ThemeMode } from "@/lib/theme-preference";
 import { FEATURE_REGISTRY, isPlanAtLeast, type FeatureKey, type SubscriptionPlan } from "@/lib/features";
 import {
   getOnboardingPlanRecommendation,
@@ -41,12 +39,13 @@ import {
   RiLockPasswordLine,
   RiMailLine,
   RiMapPinLine,
-  RiPaletteLine,
+  RiPencilLine,
   RiPhoneLine,
   RiStore2Line,
   RiTeamLine,
   RiUserLine,
   RiVipCrownLine,
+  RiWhatsappLine,
   RiLoader4Line,
 } from "@remixicon/react";
 
@@ -55,7 +54,6 @@ interface UserData {
   password: string;
 }
 
-type PlanDecision = "free" | "upgrade";
 type StepKey = "toko" | "survey" | "recommendation" | "team" | "contact" | "summary";
 
 interface WizardData {
@@ -70,12 +68,9 @@ interface WizardData {
   needsInvoices: boolean;
   needsAnalyticsAndLogs: boolean;
   needsAudit: boolean;
-  wantsBranding: boolean;
-  planDecision: PlanDecision;
   hasEmployees: boolean;
   staff: UserData[];
   technician: UserData[];
-  themeMode: ThemeMode;
 }
 
 const initialUserData: UserData = { name: "", password: "" };
@@ -92,12 +87,9 @@ const initialData: WizardData = {
   needsInvoices: false,
   needsAnalyticsAndLogs: false,
   needsAudit: false,
-  wantsBranding: false,
-  planDecision: "free",
   hasEmployees: false,
   staff: [],
   technician: [],
-  themeMode: "default",
 };
 
 const allSteps: { key: StepKey; title: string; description: string }[] = [
@@ -117,11 +109,10 @@ const planLabels: Record<SubscriptionPlan, string> = {
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const { user, refetchTokoList, refetchSession } = useAuth();
+  const { user, refetchTokoList } = useAuth();
   const [currentStepKey, setCurrentStepKey] = useState<StepKey>("toko");
   const [data, setData] = useState<WizardData>(initialData);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDevUpgrading, setIsDevUpgrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [createdCredentials, setCreatedCredentials] = useState<{
@@ -129,13 +120,8 @@ export function OnboardingWizard() {
     users: Array<{ name: string; email: string; password: string; role: string }>;
   } | null>(null);
 
-  const visibleSteps = allSteps.filter((step) => {
-    if (step.key === "team" && data.teamSize === "ownerOnly") return false;
-    return true;
-  });
-  const currentStepIndex = visibleSteps.findIndex((step) => step.key === currentStepKey);
-  const currentStep = visibleSteps[currentStepIndex];
-
+  const currentPlan = user?.plan ?? "free";
+  const canCreateTeam = isPlanAtLeast(currentPlan, "premium");
   const estimatedTeamCounts = getEstimatedTeamCounts(data.teamSize, data.teamAccess);
   const recommendation = getOnboardingPlanRecommendation(
     {
@@ -146,41 +132,25 @@ export function OnboardingWizard() {
       needsInvoices: data.needsInvoices,
       needsAnalyticsAndLogs: data.needsAnalyticsAndLogs,
       needsAudit: data.needsAudit,
-      wantsBranding: data.wantsBranding,
+      wantsBranding: false,
       staffCount: estimatedTeamCounts.staffCount,
       technicianCount: estimatedTeamCounts.technicianCount,
     },
     user?.plan
   );
-  const currentPlan = user?.plan ?? "free";
-  const canCreateTeam = isPlanAtLeast(currentPlan, "premium");
   const isRecommendedPlanActive = isPlanAtLeast(currentPlan, recommendation.recommendedPlan);
-
-  const handleDevUpgrade = async () => {
-    setIsDevUpgrading(true);
-    setError(null);
-    try {
-      const result = await setDevUserPlan(recommendation.recommendedPlan);
-      if (result.success) {
-        await refetchSession();
-        await refetchTokoList();
-        setError(null);
-      } else {
-        setError(result.error || "Failed to upgrade plan");
-      }
-    } catch (err) {
-      console.error("Dev upgrade error:", err);
-      setError("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsDevUpgrading(false);
-    }
-  };
+  const visibleSteps = allSteps.filter((step) => {
+    if (step.key === "team" && (data.teamSize === "ownerOnly" || !canCreateTeam)) return false;
+    return true;
+  });
+  const currentStepIndex = visibleSteps.findIndex((step) => step.key === currentStepKey);
+  const currentStep = visibleSteps[currentStepIndex];
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setData((prev) => ({ ...prev, logoFile: file, wantsBranding: true, themeMode: "dynamic" }));
+    setData((prev) => ({ ...prev, logoFile: file }));
     const reader = new FileReader();
     reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -298,7 +268,6 @@ export function OnboardingWizard() {
         return;
       }
 
-      setThemeMode(data.themeMode);
       await refetchTokoList();
 
       if (result.users && result.users.length > 0) {
@@ -348,11 +317,8 @@ export function OnboardingWizard() {
           <RecommendationStep
             currentPlan={currentPlan}
             recommendation={recommendation}
-            decision={data.planDecision}
             isRecommendedPlanActive={isRecommendedPlanActive}
-            setDecision={(planDecision) => setData((prev) => ({ ...prev, planDecision }))}
-            onDevUpgrade={handleDevUpgrade}
-            isDevUpgrading={isDevUpgrading}
+            userEmail={user?.email}
           />
         )}
         {currentStepKey === "team" && (
@@ -501,56 +467,39 @@ function renderTokoStep(
       <Field>
         <FieldLabel>Logo (Optional)</FieldLabel>
         <FieldContent>
-          <div className="flex items-center gap-4">
-            {logoPreview ? (
-              <div className="relative">
-                {/* Local data URL preview from FileReader; next/image is unnecessary here. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logoPreview} alt="Logo preview" className="size-16 rounded-lg object-cover" />
+          <div className="flex flex-col items-center gap-2">
+            <div className="group relative">
+              <Avatar className="size-24">
+                {logoPreview ? (
+                  <AvatarImage src={logoPreview} alt="Logo preview" />
+                ) : (
+                  <AvatarFallback>
+                    <RiImageLine className="size-8 text-muted-foreground" />
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <label className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                <RiPencilLine className="size-5 text-white" />
+                <Input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
+              </label>
+              {logoPreview && (
                 <button
                   type="button"
                   onClick={() => {
                     setLogoPreview(null);
-                    setData((prev) => ({ ...prev, logoFile: null, wantsBranding: false, themeMode: "default" }));
+                    setData((prev) => ({ ...prev, logoFile: null }));
                   }}
-                  className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+                  className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
                 >
                   <RiCloseLine className="size-3" />
                 </button>
-              </div>
-            ) : (
-              <div className="flex size-16 items-center justify-center rounded-lg bg-muted">
-                <RiImageLine className="size-6 text-muted-foreground" />
-              </div>
-            )}
-            <Input type="file" accept="image/*" onChange={handleLogoChange} className="flex-1" />
+              )}
+            </div>
+            <p className="text-center text-xs text-muted-foreground">Klik logo untuk upload gambar toko.</p>
           </div>
         </FieldContent>
       </Field>
 
-      <Field>
-        <FieldLabel>Tema Dinamis</FieldLabel>
-        <FieldContent>
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div className="flex items-center gap-2">
-              <RiPaletteLine className="size-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm">Ekstrak warna dari logo</p>
-                <p className="text-xs text-muted-foreground">
-                  {logoPreview ? "Warna akan diambil dari logo yang diupload" : "Upload logo untuk menggunakan tema dinamis"}
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={data.themeMode === "dynamic"}
-              onCheckedChange={(checked) =>
-                setData((prev) => ({ ...prev, themeMode: checked ? "dynamic" : "default", wantsBranding: checked }))
-              }
-              disabled={!logoPreview}
-            />
-          </div>
-        </FieldContent>
-      </Field>
     </div>
   );
 }
@@ -573,7 +522,7 @@ function SurveyStep({ data, setData }: WizardStepProps) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       <ChoiceGroup
         label="Apakah bisnismu punya cabang, atau hanya satu cabang saja?"
         options={[
@@ -657,24 +606,24 @@ function SurveyStep({ data, setData }: WizardStepProps) {
 function RecommendationStep({
   currentPlan,
   recommendation,
-  decision,
   isRecommendedPlanActive,
-  setDecision,
-  onDevUpgrade,
-  isDevUpgrading,
+  userEmail,
 }: {
   currentPlan: SubscriptionPlan;
   recommendation: ReturnType<typeof getOnboardingPlanRecommendation>;
-  decision: PlanDecision;
   isRecommendedPlanActive: boolean;
-  setDecision: (decision: PlanDecision) => void;
-  onDevUpgrade?: () => void;
-  isDevUpgrading?: boolean;
+  userEmail?: string | null;
 }) {
+  const whatsappMessage = [
+    "Halo, saya ingin request fitur Pro atau join beta testing RMS.",
+    userEmail ? `Email: ${userEmail}` : null,
+  ].filter(Boolean).join("\n");
+  const proBetaWhatsappUrl = `https://wa.me/6285728212056?text=${encodeURIComponent(whatsappMessage)}`;
+
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-        <div className="flex items-center justify-between gap-3">
+      <div className="rounded-xl border bg-card p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <RiVipCrownLine className="size-5 text-primary" />
             <p className="font-medium">Rekomendasi: {planLabels[recommendation.recommendedPlan]}</p>
@@ -683,6 +632,7 @@ function RecommendationStep({
             Current: {planLabels[currentPlan]}
           </Badge>
         </div>
+
         <div className="mt-3 grid gap-2 text-sm">
           {recommendation.reasons.map((reason) => (
             <div key={reason} className="flex gap-2 text-muted-foreground">
@@ -691,33 +641,20 @@ function RecommendationStep({
             </div>
           ))}
         </div>
+
+        <div className="mt-4 rounded-lg bg-muted/30 p-3 text-sm text-muted-foreground">
+          {isRecommendedPlanActive
+            ? "Plan aktif Anda sudah sesuai untuk kebutuhan ini."
+            : "Toko tetap bisa dibuat dengan plan aktif saat ini. Jika membutuhkan akses Pro, hubungi kami untuk request fitur atau ikut beta testing."}
+        </div>
       </div>
 
-      <FeatureSummary title="Fitur yang direkomendasikan" features={recommendation.recommendedFeatures} emptyLabel="Fitur Free sudah cukup untuk kebutuhan ini." />
-
-      {!isRecommendedPlanActive && (
-        <>
-          <Separator />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <DecisionCard
-              title="Tetap Free"
-              description="Toko tetap dibuat sekarang. Fitur berbayar tetap terkunci oleh gate yang sudah ada."
-              active={decision === "free"}
-              onClick={() => setDecision("free")}
-              disabled={isDevUpgrading}
-            />
-            <DecisionCard
-              title="Upgrade sekarang (DEV)"
-              description="DEV: Langsung set plan tanpa payment flow. Hapus sebelum production."
-              active={decision === "upgrade" || (isDevUpgrading ?? false)}
-              onClick={onDevUpgrade}
-              disabled={isDevUpgrading ?? false}
-              loading={isDevUpgrading ?? false}
-            />
-          </div>
-          <FeatureSummary title="Tetap terkunci jika Free" features={recommendation.lockedIfFree} emptyLabel="Tidak ada fitur penting yang terkunci di Free." muted />
-        </>
-      )}
+      <Button asChild className="w-full" size="lg">
+        <a href={proBetaWhatsappUrl} target="_blank" rel="noreferrer">
+          <RiWhatsappLine data-icon="inline-start" />
+          Request fitur Pro / join beta testing
+        </a>
+      </Button>
     </div>
   );
 }
@@ -784,11 +721,7 @@ function SummaryStep({
 }) {
   const hasMembers = data.staff.length > 0 || data.technician.length > 0;
   const createdTeamCount = canCreateTeam && hasMembers ? data.staff.length + data.technician.length : 0;
-  const planDecisionLabel = isPlanAtLeast(currentPlan, recommendation.recommendedPlan)
-    ? "Plan aktif sudah sesuai"
-    : data.planDecision === "free"
-      ? "Tetap Free"
-      : "Upgrade nanti";
+  const planDecisionLabel = isPlanAtLeast(currentPlan, recommendation.recommendedPlan) ? "Plan aktif sudah sesuai" : "Tetap Free";
 
   const branchLabel = data.branchPlan === "one" ? "Satu cabang" : data.branchPlan === "twoToThree" ? "2-3 cabang" : "Lebih dari 3 cabang";
   const teamLabel = data.teamSize === "ownerOnly" ? "Hanya pemilik" : data.teamAccess === "staffOnly" ? "Staff saja" : data.teamAccess === "technicianOnly" ? "Teknisi saja" : "Staff dan teknisi";
@@ -803,7 +736,6 @@ function SummaryStep({
           <SummaryRow label="Current plan" value={planLabels[currentPlan]} />
           <SummaryRow label="Recommended plan" value={planLabels[recommendation.recommendedPlan]} />
           <SummaryRow label="Decision" value={planDecisionLabel} />
-          <SummaryRow label="Theme" value={data.themeMode === "dynamic" ? "Dinamis" : "Default"} />
           <SummaryRow label="Karyawan dibuat" value={createdTeamCount > 0 ? `${createdTeamCount} orang` : "Tidak ada"} />
           {data.address && <SummaryRow label="Address" value={data.address} />}
           {data.phone && <SummaryRow label="Phone" value={data.phone} />}
@@ -847,39 +779,26 @@ function ChoiceGroup<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <Field>
-      <FieldLabel>{label}</FieldLabel>
-      <FieldContent>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onChange(option.value)}
-              className={cn(
-                "rounded-lg border-2 p-3 text-left transition-all",
-                value === option.value ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-muted-foreground/50"
-              )}
-            >
-              <p className="text-sm font-medium">{option.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
-            </button>
-          ))}
-        </div>
-      </FieldContent>
-    </Field>
-  );
-}
+    <FieldSet className="gap-2 rounded-lg border bg-card p-4">
+      <FieldLegend className="mb-0">{label}</FieldLegend>
+      <RadioGroup value={value} onValueChange={(nextValue) => onChange(nextValue as T)} className="gap-1.5">
+        {options.map((option) => {
+          const optionId = `${label}-${option.value}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-function DecisionCard({ title, description, active, onClick, disabled, loading }: { title: string; description: string; active: boolean; onClick?: () => void; disabled?: boolean; loading?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className={cn("rounded-lg border-2 p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50", active ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-muted-foreground/50")}>
-      <div className="flex items-center gap-2">
-        <p className="text-sm font-medium">{title}</p>
-        {loading && <RiLoader4Line className="size-4 animate-spin" />}
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-    </button>
+          return (
+            <Field key={option.value} orientation="horizontal" className="items-start gap-3 rounded-md px-2 py-2 hover:bg-muted/50">
+              <RadioGroupItem id={optionId} value={option.value} className="mt-0.5" />
+              <FieldContent>
+                <FieldLabel htmlFor={optionId} className="w-full cursor-pointer text-sm font-medium">
+                  {option.title}
+                </FieldLabel>
+                <FieldDescription>{option.description}</FieldDescription>
+              </FieldContent>
+            </Field>
+          );
+        })}
+      </RadioGroup>
+    </FieldSet>
   );
 }
 

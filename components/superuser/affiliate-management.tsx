@@ -12,7 +12,6 @@ import {
   type AffiliateDashboardData,
   type AffiliatorRow,
 } from "@/actions/affiliate";
-import { buildAffiliateLinks } from "@/lib/affiliate";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -220,7 +219,6 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
               </TableHeader>
               <TableBody>
                 {data.affiliators.map((row) => {
-                  const links = buildAffiliateLinks(row.code, row.portalToken);
                   return (
                     <TableRow key={row.id}>
                       <TableCell>
@@ -233,8 +231,8 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
                       <TableCell>{formatCurrency(row.paidCommissionAmount)}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={() => copyText(links.referralLink, "Referral link")}><RiLink data-icon="inline-start" />Referral</Button>
-                          <Button size="sm" variant="outline" onClick={() => copyText(links.trackingLink, "Tracking link")}><RiFileCopyLine data-icon="inline-start" />Tracking</Button>
+                          <Button size="sm" variant="outline" onClick={() => copyText(row.links.referralLink, "Referral link")}><RiLink data-icon="inline-start" />Referral</Button>
+                          <Button size="sm" variant="outline" onClick={() => copyText(row.links.trackingLink, "Tracking link")}><RiFileCopyLine data-icon="inline-start" />Tracking</Button>
                         </div>
                       </TableCell>
                       <TableCell>

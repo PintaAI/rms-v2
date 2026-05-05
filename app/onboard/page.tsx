@@ -9,32 +9,33 @@ import { attachPendingReferralToCurrentUser } from "@/actions/affiliate";
 export default function OnboardPage() {
   const router = useRouter();
   const { user, tokoList, isLoading } = useAuth();
+  const userId = user?.id ?? null;
+  const userRole = user?.role ?? null;
+  const firstTokoId = tokoList[0]?.id ?? null;
 
   useEffect(() => {
     if (isLoading) return;
 
     async function attachAndRedirect() {
-      if (!user) {
+      if (!userId) {
         router.replace("/auth");
         return;
       }
-      const currentUser = user;
 
       await attachPendingReferralToCurrentUser();
 
-      if (currentUser.role !== "admin") {
+      if (userRole !== "admin") {
         router.replace("/dashboard");
         return;
       }
 
-      if (tokoList.length > 0) {
-        const firstToko = tokoList[0];
-        router.replace(`/${firstToko.id}/admin`);
+      if (firstTokoId) {
+        router.replace(`/${firstTokoId}/admin`);
       }
     }
 
     void attachAndRedirect();
-  }, [user, tokoList, isLoading, router]);
+  }, [firstTokoId, isLoading, router, userId, userRole]);
 
   if (isLoading) {
     return (
