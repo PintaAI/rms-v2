@@ -729,9 +729,9 @@ export function ServiceDetailCard({
                     <ActionTile icon={RiWhatsappLine} label="WhatsApp" onClick={openWhatsApp}
                       variant="outline" className="border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60" />
                   )}
-                  <ActionTile icon={RiCloseCircleLine} label="Mark as Failed" onClick={openFailedDialog}
+                  <ActionTile icon={RiCloseCircleLine} label="Gagal Service" onClick={openFailedDialog}
                     variant="outline" className="border-red-300 bg-red-100 text-red-700 hover:bg-red-200 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60" />
-                  <ActionTile icon={RiCheckDoubleLine} label="Mark as Done" onClick={openDoneDialog}
+                  <ActionTile icon={RiCheckDoubleLine} label="Selesai Service" onClick={openDoneDialog}
                     className="bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800" />
                 </div>
               </div>
