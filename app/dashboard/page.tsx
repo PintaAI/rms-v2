@@ -31,7 +31,7 @@ export default function DashboardLandingPage() {
         return;
       }
 
-      router.replace(getRoleRedirectPath(firstTokoId, userRole));
+      router.replace(getRoleRedirectPath(firstTokoId!, userRole!));
     }
 
     void attachAndRedirect();
