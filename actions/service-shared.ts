@@ -1,5 +1,4 @@
 import prisma from "@/lib/prisma";
-import { getRequestUser } from "@/lib/auth/request-user";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus, ServiceStatus } from "@/prisma/generated/prisma/enums";
 import type { JsonValue } from "@/prisma/generated/prisma/internal/prismaNamespace";
@@ -284,28 +283,6 @@ export function getStatusActivityTitle(status: ServiceStatus | "picked_up") {
   }
 }
 
-export async function getSessionAndTokos() {
-  const user = await getRequestUser();
-
-  if (!user) {
-    return { user: null, tokoIds: [] };
-  }
-
-  return { user, tokoIds: user.tokoIds };
-}
-
-export function hasTokoAccess(tokoIds: string[], tokoId: string) {
-  return tokoIds.includes(tokoId);
-}
-
-export function isStaffOrAdminRole(role: string | null | undefined) {
-  return role === "admin" || role === "staff";
-}
-
 export function isTechnicianRole(role: string | null | undefined) {
   return role === "technician";
-}
-
-export function isTechnicianOrAdminRole(role: string | null | undefined) {
-  return role === "technician" || role === "admin";
 }

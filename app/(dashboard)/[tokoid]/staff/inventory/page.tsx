@@ -5,10 +5,14 @@ import { RiStore2Line } from "@remixicon/react";
 
 export default async function StaffInventoryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tokoid: string }>;
+  searchParams: Promise<{ q?: string | string[] }>;
 }) {
   const { tokoid } = await params;
+  const query = await searchParams;
+  const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
   const toko = await prisma.toko.findUnique({
     where: { id: tokoid },
     select: { id: true, name: true, logoUrl: true },
@@ -39,7 +43,7 @@ export default async function StaffInventoryPage({
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola sparepart toko</p>
       </div>
-      <StaffSparepartTable tokoId={tokoid} />
+      <StaffSparepartTable key={initialSearchQuery} tokoId={tokoid} initialSearchQuery={initialSearchQuery} />
     </div>
   );
 }

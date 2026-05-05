@@ -2,8 +2,10 @@
 
 import prisma from "@/lib/prisma";
 import { ensurePlanLimit } from "@/lib/auth/enforcement";
+import { AuthError } from "@/lib/auth/authorization";
 import { FEATURE_REGISTRY, isFeatureKey, isPlanAtLeast, type FeatureKey } from "@/lib/features";
 import { getRequestUser } from "@/lib/auth/request-user";
+import { withScope } from "@/lib/auth/wrapper";
 import { createCredentialUserWithToko } from "@/lib/auth-helpers";
 import { revalidateTokoPaths } from "@/lib/revalidation";
 import { Prisma } from "@/prisma/generated/prisma/client";
@@ -261,62 +263,38 @@ export async function createToko(input: {
 }
 
 export async function getTokoById(tokoId: string): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
-  const user = await getRequestUser();
+  return withScope(tokoId, {}, async () => {
+    const toko = await prisma.toko.findUnique({
+      where: { id: tokoId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        logoUrl: true,
+        invoiceTerms: true,
+        invoiceWarranty: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
+    if (!toko) throw new AuthError("forbidden", "Toko not found");
 
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  const toko = await prisma.toko.findUnique({
-    where: { id: tokoId },
-    select: {
-      id: true,
-      name: true,
-      address: true,
-      phone: true,
-      logoUrl: true,
-      invoiceTerms: true,
-      invoiceWarranty: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    return toko;
   });
-
-  if (!toko) {
-    return { success: false, error: "Toko not found" };
-  }
-
-  return { success: true, data: toko };
 }
 
 export async function updateToko(
   tokoId: string,
   input: UpdateTokoInput
 ): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
-  const user = await getRequestUser();
-
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (user.role !== "admin") {
-    return { success: false, error: "Only admins can update toko" };
-  }
-
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
   if (input.name && input.name.trim().length < 2) {
     return { success: false, error: "Toko name must be at least 2 characters" };
   }
 
-  try {
+  return withScope(tokoId, { role: ["admin"] }, async () => {
     const toko = await prisma.toko.update({
       where: { id: tokoId },
       data: {
@@ -344,11 +322,8 @@ export async function updateToko(
 
     revalidateTokoPaths(tokoId);
 
-    return { success: true, data: toko };
-  } catch (error) {
-    console.error("Failed to update toko:", error);
-    return { success: false, error: "Failed to update toko" };
-  }
+    return toko;
+  });
 }
 
 export async function getTokoInvoiceSettings(tokoId: string): Promise<{
@@ -363,67 +338,38 @@ export async function getTokoInvoiceSettings(tokoId: string): Promise<{
   };
   error?: string;
 }> {
-  const user = await getRequestUser();
+  return withScope(tokoId, {}, async () => {
+    const toko = await prisma.toko.findUnique({
+      where: { id: tokoId },
+      select: {
+        name: true,
+        address: true,
+        phone: true,
+        logoUrl: true,
+        invoiceTerms: true,
+        invoiceWarranty: true,
+      },
+    });
 
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
+    if (!toko) throw new AuthError("forbidden", "Toko not found");
 
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  const toko = await prisma.toko.findUnique({
-    where: { id: tokoId },
-    select: {
-      name: true,
-      address: true,
-      phone: true,
-      logoUrl: true,
-      invoiceTerms: true,
-      invoiceWarranty: true,
-    },
-  });
-
-  if (!toko) {
-    return { success: false, error: "Toko not found" };
-  }
-
-  return {
-    success: true,
-    data: {
+    return {
       name: toko.name,
       address: toko.address,
       phone: toko.phone,
       logoUrl: toko.logoUrl,
       invoiceTerms: toko.invoiceTerms?.trim() || DEFAULT_INVOICE_TERMS,
       invoiceWarranty: toko.invoiceWarranty?.trim() || DEFAULT_INVOICE_WARRANTY,
-    },
-  };
+    };
+  });
 }
 
 export async function deleteToko(tokoId: string): Promise<{ success: boolean; error?: string }> {
-  const user = await getRequestUser();
+  return withScope(tokoId, { role: ["admin"] }, async (scope) => {
+    if (scope.user.tokoIds.length === 1) {
+      return { success: false, error: "Cannot delete the last toko. You must have at least one toko." };
+    }
 
-  if (!user) {
-    return { success: false, error: "Unauthorized" };
-  }
-
-  if (user.role !== "admin") {
-    return { success: false, error: "Only admins can delete toko" };
-  }
-
-  const tokoIds = user.tokoIds;
-
-  if (!tokoIds.includes(tokoId)) {
-    return { success: false, error: "Access denied" };
-  }
-
-  if (tokoIds.length === 1) {
-    return { success: false, error: "Cannot delete the last toko. You must have at least one toko." };
-  }
-
-  try {
     await prisma.toko.delete({
       where: { id: tokoId },
     });
@@ -431,8 +377,5 @@ export async function deleteToko(tokoId: string): Promise<{ success: boolean; er
     revalidatePath("/dashboard");
 
     return { success: true };
-  } catch (error) {
-    console.error("Failed to delete toko:", error);
-    return { success: false, error: "Failed to delete toko" };
-  }
+  });
 }

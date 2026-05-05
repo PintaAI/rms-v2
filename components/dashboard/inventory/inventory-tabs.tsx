@@ -52,15 +52,19 @@ interface InventoryTabsProps {
   readOnly?: boolean;
   initialSpareparts?: SparepartWithCompatibilities[];
   initialPricelists?: ServicePricelist[];
+  initialTab?: "sparepart" | "jasa";
+  initialSearchQuery?: string;
 }
 
-export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _initialSpareparts, initialPricelists: _initialPricelists }: InventoryTabsProps) {
-  const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>([]);
-  const [pricelists, setPricelists] = useState<ServicePricelist[]>([]);
-  const [sparepartSearch, setSparepartSearch] = useState("");
-  const [pricelistSearch, setPricelistSearch] = useState("");
-  const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(true);
-  const [isLoadingPricelists, setIsLoadingPricelists] = useState(true);
+export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _initialSpareparts, initialPricelists: _initialPricelists, initialTab = "sparepart", initialSearchQuery = "" }: InventoryTabsProps) {
+  const hasInitialData = _initialSpareparts !== undefined && _initialPricelists !== undefined;
+  const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>(_initialSpareparts ?? []);
+  const [pricelists, setPricelists] = useState<ServicePricelist[]>(_initialPricelists ?? []);
+  const [activeTab, setActiveTab] = useState<"sparepart" | "jasa">(initialTab);
+  const [sparepartSearch, setSparepartSearch] = useState(initialTab === "sparepart" ? initialSearchQuery : "");
+  const [pricelistSearch, setPricelistSearch] = useState(initialTab === "jasa" ? initialSearchQuery : "");
+  const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(!hasInitialData);
+  const [isLoadingPricelists, setIsLoadingPricelists] = useState(!hasInitialData);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
 
   const [sparepartDialogOpen, setSparepartDialogOpen] = useState(false);
@@ -80,13 +84,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (_initialSpareparts !== undefined && _initialPricelists !== undefined) {
-      setSpareparts(_initialSpareparts);
-      setPricelists(_initialPricelists);
-      setIsLoadingSpareparts(false);
-      setIsLoadingPricelists(false);
-      return;
-    }
+    if (hasInitialData) return;
 
     let active = true;
 
@@ -117,7 +115,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
     return () => {
       active = false;
     };
-  }, [tokoId, _initialSpareparts, _initialPricelists]);
+  }, [tokoId, hasInitialData]);
 
   const normalizedSparepartSearch = sparepartSearch.toLowerCase();
   const filteredSpareparts = spareparts.filter(
@@ -231,7 +229,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   };
 
   return (
-    <Tabs defaultValue="sparepart" className="w-full">
+    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value === "jasa" ? "jasa" : "sparepart")} className="w-full">
       <TabsList className={cn("mb-4")}>
         <TabsTrigger value="sparepart" className="gap-1.5">
           <RiArchiveLine className="h-4 w-4" />

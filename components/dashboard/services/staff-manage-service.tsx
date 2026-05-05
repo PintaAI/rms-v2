@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -18,18 +19,21 @@ import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope
 import { deleteService, getService } from "@/actions";
 import type { ServiceDetail, ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
-import { RiAddLine } from "@remixicon/react";
+import { getServiceSearchScore } from "@/lib/service-search";
+import { RiAddLine, RiSearchLine } from "@remixicon/react";
 
 interface StaffManageServiceProps {
   allServices: ServiceListItem[];
   tokoId: string;
   pageSize: number;
+  initialSearchQuery?: string;
 }
 
 export function StaffManageService({
   allServices,
   tokoId,
   pageSize,
+  initialSearchQuery = "",
 }: StaffManageServiceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -49,6 +53,7 @@ export function StaffManageService({
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
 
   const pendingMutationsRef = useRef(0);
 
@@ -60,13 +65,30 @@ export function StaffManageService({
   }, [allServices]);
 
   const filteredServices = useMemo(() => {
-    if (pickedUpFilter) {
-      return services.filter((s) => s.isPickedUp);
-    }
-    if (!statusFilter) return services;
-    const filterStatuses = statusFilter.split(",");
-    return services.filter((s) => filterStatuses.includes(s.status) && !s.isPickedUp);
-  }, [services, statusFilter, pickedUpFilter]);
+    const statusFilteredServices = (() => {
+      if (pickedUpFilter) {
+        return services.filter((s) => s.isPickedUp);
+      }
+      if (!statusFilter) return services;
+      const filterStatuses = statusFilter.split(",");
+      return services.filter((s) => filterStatuses.includes(s.status) && !s.isPickedUp);
+    })();
+
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return statusFilteredServices;
+
+    return statusFilteredServices
+      .map((service) => ({
+        service,
+        score: getServiceSearchScore(trimmedQuery, service),
+      }))
+      .filter((item): item is { service: ServiceListItem; score: number } => item.score !== null)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return new Date(b.service.checkinAt).getTime() - new Date(a.service.checkinAt).getTime();
+      })
+      .map((item) => item.service);
+  }, [services, statusFilter, pickedUpFilter, searchQuery]);
 
   const paginatedServices = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -202,14 +224,14 @@ export function StaffManageService({
     router.refresh();
   }, [router]);
 
-  const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}`);
+  const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}`);
   useEffect(() => {
-    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}`;
+    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}`;
     if (prevFilterRef.current !== nextFilterKey) {
       prevFilterRef.current = nextFilterKey;
       setCurrentPage(1);
     }
-  }, [statusFilter, pickedUpFilter]);
+  }, [statusFilter, pickedUpFilter, searchQuery]);
 
   const getPageTitle = () => {
     if (pickedUpFilter) return "Service Diambil";
@@ -221,6 +243,7 @@ export function StaffManageService({
   };
 
   const getEmptyMessage = () => {
+    if (searchQuery.trim()) return "Tidak ada service yang cocok dengan pencarian";
     if (pickedUpFilter) return "Tidak ada service yang sudah diambil";
     if (statusFilter === "done,failed" || statusFilter === "failed,done") {
       return "Tidak ada service selesai atau gagal yang belum diambil";
@@ -230,7 +253,16 @@ export function StaffManageService({
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Cari service..."
+            className="pl-9"
+          />
+        </div>
         <Button
           onClick={() => { setEditData(null); setFormOpen(true); }}
           className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"

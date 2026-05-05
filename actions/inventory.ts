@@ -1,15 +1,13 @@
 "use server"
 
 import { createActivityLogIfUser } from "@/lib/activity-log"
-import { ensureFeatureAccess } from "@/lib/auth/enforcement"
 import prisma from "@/lib/prisma"
-import { getRequestUser } from "@/lib/auth/request-user"
-import { getEffectivePlanForToko } from "@/lib/auth/plan"
-import type { ActionResult, ActionResultWithData } from "@/lib/auth/authorization"
+import { actionError, type ActionResult, type ActionResultWithData } from "@/lib/auth/authorization"
+import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope"
+import type { RequestScope } from "@/lib/auth/request-scope"
 import { revalidateInventoryPaths } from "@/lib/revalidation"
 import type { FeatureKey } from "@/lib/features"
 import { z } from "zod"
-import { getDisabledFeaturesForToko } from "./feature-settings"
 
 export type Sparepart = {
   id: string
@@ -157,29 +155,21 @@ async function getInventoryUser(
   requireWriteAccess: boolean = false,
   feature: FeatureKey = "inventory.management"
 ) {
-  const user = await getRequestUser()
+  try {
+    const scope = await getRequestScope(tokoId)
+    if (requireWriteAccess) assertRole(scope, ["admin"])
+    assertFeature(scope, feature)
+    assertWorkflowForInventory(scope)
 
-  if (!user) {
-    return { success: false as const, error: "Tidak terotorisasi" }
+    return { success: true as const, user: scope.user, scope }
+  } catch (error) {
+    return actionError(error) as { success: false; error: string }
   }
+}
 
-  if (!user.tokoIds.includes(tokoId)) {
-    return { success: false as const, error: "Akses ditolak" }
-  }
-
-  if (requireWriteAccess && user.role !== "admin") {
-    return { success: false as const, error: "Hanya admin yang dapat mengelola inventory" }
-  }
-
-  const plan = await getEffectivePlanForToko(user, tokoId)
-  const featureError = ensureFeatureAccess(
-    { role: user.role, plan },
-    feature,
-    await getDisabledFeaturesForToko(tokoId)
-  )
-  if (featureError) return { success: false as const, error: featureError.error }
-
-  return { success: true as const, user }
+function assertWorkflowForInventory(scope: RequestScope) {
+  if (scope.user.role === "staff") assertFeature(scope, "staff.workflow")
+  if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 }
 
 export async function getSpareparts(tokoId: string): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {

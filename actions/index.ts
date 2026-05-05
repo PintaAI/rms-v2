@@ -10,3 +10,4 @@ export * from "./dev-action";
 export * from "./superuser";
 export * from "./whatsapp";
 export * from "./billing";
+export * from "./global-search";

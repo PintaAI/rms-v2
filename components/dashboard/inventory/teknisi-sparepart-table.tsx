@@ -21,11 +21,12 @@ import { formatCurrency } from "@/lib/utils";
 
 interface TeknisiSparepartTableProps {
   tokoId: string;
+  initialSearchQuery?: string;
 }
 
-export function TeknisiSparepartTable({ tokoId }: TeknisiSparepartTableProps) {
+export function TeknisiSparepartTable({ tokoId, initialSearchQuery = "" }: TeknisiSparepartTableProps) {
   const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>([]);
-  const [sparepartSearch, setSparepartSearch] = useState("");
+  const [sparepartSearch, setSparepartSearch] = useState(initialSearchQuery);
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(true);
 
   useEffect(() => {

@@ -40,7 +40,7 @@ import {
 import { deleteService, getService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
-import { fuzzyScore } from "@/lib/fuzzy-search";
+import { getServiceSearchScore } from "@/lib/service-search";
 import { RiAddLine, RiCalendarLine, RiCloseLine, RiSearchLine } from "@remixicon/react";
 
 interface ManageServiceProps {
@@ -48,30 +48,7 @@ interface ManageServiceProps {
   tokoId: string;
   pageSize: number;
   hideTechnicianColumn?: boolean;
-}
-
-function getServiceSearchScore(query: string, service: ServiceListItem): number | null {
-  const targets = [
-    service.customerName,
-    service.noWa,
-    service.complaint,
-    service.imei,
-    service.note,
-    service.passwordPattern,
-    service.hpCatalog?.brand?.name,
-    service.hpCatalog?.modelName,
-    `${service.hpCatalog?.brand?.name ?? ""} ${service.hpCatalog?.modelName ?? ""}`,
-    service.technician?.name,
-    service.createdBy?.name,
-    service.invoice?.id,
-    ...(service.includedItems ?? []),
-  ].filter((target): target is string => Boolean(target));
-
-  return targets.reduce<number | null>((bestScore, target) => {
-    const score = fuzzyScore(query, target);
-    if (score === null) return bestScore;
-    return bestScore === null ? score : Math.max(bestScore, score);
-  }, null);
+  initialSearchQuery?: string;
 }
 
 function isSameDate(value: Date | string | null | undefined, date: Date | null): boolean {
@@ -99,6 +76,7 @@ export function ManageService({
   tokoId,
   pageSize,
   hideTechnicianColumn,
+  initialSearchQuery = "",
 }: ManageServiceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -114,7 +92,7 @@ export function ManageService({
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [createdByFilter, setCreatedByFilter] = useState("all");
   const [technicianFilter, setTechnicianFilter] = useState("all");
   const [checkinDateFilter, setCheckinDateFilter] = useState<Date | null>(null);

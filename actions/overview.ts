@@ -1,11 +1,8 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { getDisabledFeaturesForToko } from "@/actions/feature-settings";
 import { getRequestUser } from "@/lib/auth/request-user";
-import { getEffectivePlanForToko } from "@/lib/auth/plan";
-import { canUseFeature } from "@/lib/features";
-import { ensureFeatureAccess } from "@/lib/auth/enforcement";
+import { withScope } from "@/lib/auth/wrapper";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus } from "@/prisma/generated/prisma/enums";
 import type { ActionResultWithData } from "./service";
@@ -225,161 +222,76 @@ async function getSharedOverviewData(targetTokoId: string): Promise<ActionResult
 export async function getAdminOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<AdminOverviewData>> {
-  try {
+  if (!tokoId) {
     const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
-    if (user.role !== "admin") return { success: false, error: "Access denied" };
+    tokoId = user.tokoIds[0];
+    if (!tokoId) return { success: false, error: "No toko found" };
+  }
 
-    const targetTokoId = tokoId ?? user.tokoIds[0];
-    if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
-
-    const shared = await getSharedOverviewData(targetTokoId);
-    if (!shared.success || !shared.data) {
-      return { success: false, error: shared.error ?? "Failed to fetch overview data" };
-    }
+  return withScope(tokoId, { role: ["admin"] }, async (scope) => {
+    const shared = await getSharedOverviewData(tokoId);
+    if (!shared.success || !shared.data) throw new Error(shared.error ?? "Failed to fetch overview data");
 
     const { dailyStart, monthlyStart, statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
-    const [plan, disabledFeatures] = await Promise.all([
-      getEffectivePlanForToko(user, targetTokoId),
-      getDisabledFeaturesForToko(targetTokoId),
-    ]);
-    const canViewActivityLog = canUseFeature({ plan, role: user.role, feature: "activityLog.view", disabledFeatures });
-    const canViewRevenueAnalytics = canUseFeature({ plan, role: user.role, feature: "analytics.revenue", disabledFeatures });
-    const canUseTechnicianWorkflow = canUseFeature({ plan, role: user.role, feature: "technician.workflow", disabledFeatures });
+    const canViewActivityLog = scope.featureAccess["activityLog.view"] ?? false;
+    const canViewRevenueAnalytics = scope.featureAccess["analytics.revenue"] ?? false;
 
     const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, recentActivities] = await Promise.all([
       canViewRevenueAnalytics
-        ? prisma.invoice.aggregate({
-            where: {
-              service: { tokoId: targetTokoId },
-              paymentStatus: "paid",
-              paidAt: { gte: monthlyStart },
-            },
-            _sum: { grandTotal: true },
-          })
+        ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
       canViewRevenueAnalytics
-        ? prisma.invoice.aggregate({
-            where: {
-              service: { tokoId: targetTokoId },
-              paymentStatus: { in: ["unpaid", "dp"] },
-              createdAt: { gte: monthlyStart },
-            },
-            _sum: { grandTotal: true },
-          })
+        ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: { in: ["unpaid", "dp"] }, createdAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
       canViewRevenueAnalytics
-        ? prisma.invoice.aggregate({
-            where: {
-              service: { tokoId: targetTokoId },
-              paymentStatus: "paid",
-              paidAt: { gte: dailyStart },
-            },
-            _sum: { grandTotal: true },
-          })
+        ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: "paid", paidAt: { gte: dailyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
       canViewActivityLog
-        ? prisma.activityLog.findMany({
-            where: { tokoId: targetTokoId },
-            orderBy: { createdAt: "desc" },
-            take: 6,
-            select: activityLogSelect,
-          })
+        ? prisma.activityLog.findMany({ where: { tokoId }, orderBy: { createdAt: "desc" }, take: 6, select: activityLogSelect })
         : Promise.resolve([]),
     ]);
 
-    const stats: AdminOverviewStats = {
-      services: {
-        total,
-        repairing: statusMap["repairing"] || 0,
-        done: statusMap["done"] || 0,
-        failed: statusMap["failed"] || 0,
-        daily: dailyCount,
-        weekly: weeklyCount,
-      },
-      revenue: {
-        monthlyPaid: monthlyPaidRevenue._sum.grandTotal || 0,
-        monthlyPending: monthlyPendingRevenue._sum.grandTotal || 0,
-        dailyRevenue: dailyRevenue._sum.grandTotal || 0,
-      },
-      inventory: {
-        lowStockCount,
-      },
-    };
-
     return {
-      success: true,
-      data: {
-        stats,
-        recentServices,
-        recentActivities,
-        featureAccess: {
-          activityLog: canViewActivityLog,
-          revenueAnalytics: canViewRevenueAnalytics,
-          technicianWorkflow: canUseTechnicianWorkflow,
-        },
+      stats: {
+        services: { total, repairing: statusMap["repairing"] || 0, done: statusMap["done"] || 0, failed: statusMap["failed"] || 0, daily: dailyCount, weekly: weeklyCount },
+        revenue: { monthlyPaid: monthlyPaidRevenue._sum.grandTotal || 0, monthlyPending: monthlyPendingRevenue._sum.grandTotal || 0, dailyRevenue: dailyRevenue._sum.grandTotal || 0 },
+        inventory: { lowStockCount },
+      },
+      recentServices,
+      recentActivities,
+      featureAccess: {
+        activityLog: canViewActivityLog,
+        revenueAnalytics: canViewRevenueAnalytics,
+        technicianWorkflow: scope.featureAccess["technician.workflow"] ?? false,
       },
     };
-  } catch (error) {
-    console.error("Error fetching admin overview:", error);
-    return { success: false, error: "Failed to fetch overview data" };
-  }
+  });
 }
 
 export async function getStaffOverview(
   tokoId?: string
 ): Promise<ActionResultWithData<StaffOverviewData>> {
-  try {
+  if (!tokoId) {
     const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
-    if (user.role !== "staff" && user.role !== "admin") return { success: false, error: "Access denied" };
+    tokoId = user.tokoIds[0];
+    if (!tokoId) return { success: false, error: "No toko found" };
+  }
 
-    const targetTokoId = tokoId ?? user.tokoIds[0];
-    if (!targetTokoId) return { success: false, error: "No toko found" };
-    if (!user.tokoIds.includes(targetTokoId)) return { success: false, error: "Access denied" };
-
-    const [disabledFeatures, scopedPlan] = await Promise.all([
-      getDisabledFeaturesForToko(targetTokoId),
-      getEffectivePlanForToko(user, targetTokoId),
-    ]);
-    const featureError = ensureFeatureAccess(
-      { role: user.role, plan: scopedPlan },
-      "staff.workflow",
-      disabledFeatures
-    );
-    if (featureError) return featureError;
-
-    const shared = await getSharedOverviewData(targetTokoId);
-    if (!shared.success || !shared.data) {
-      return { success: false, error: shared.error ?? "Failed to fetch overview data" };
-    }
+  return withScope(tokoId, { role: ["admin", "staff"], feature: "staff.workflow" }, async () => {
+    const shared = await getSharedOverviewData(tokoId);
+    if (!shared.success || !shared.data) throw new Error(shared.error ?? "Failed to fetch overview data");
 
     const { statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
-    const stats: StaffOverviewStats = {
-      services: {
-        total,
-        repairing: statusMap["repairing"] || 0,
-        done: statusMap["done"] || 0,
-        daily: dailyCount,
-        weekly: weeklyCount,
-      },
-      inventory: {
-        lowStockCount,
-      },
-    };
-
     return {
-      success: true,
-      data: {
-        stats,
-        recentServices,
+      stats: {
+        services: { total, repairing: statusMap["repairing"] || 0, done: statusMap["done"] || 0, daily: dailyCount, weekly: weeklyCount },
+        inventory: { lowStockCount },
       },
+      recentServices,
     };
-  } catch (error) {
-    console.error("Error fetching staff overview:", error);
-    return { success: false, error: "Failed to fetch overview data" };
-  }
+  });
 }

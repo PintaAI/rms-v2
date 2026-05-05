@@ -6,6 +6,7 @@ import { DynamicBreadcrumb } from "@/components/dashboard/layout/dynamic-breadcr
 import { UserInfo } from "@/components/shared/user-info";
 import { LiveClock } from "@/components/shared/live-clock";
 import { SettingsButton } from "@/components/shared/settings-button";
+import { GlobalSearch } from "@/components/dashboard/layout/global-search";
 import { DashboardScopeProvider } from "@/components/dashboard/layout/dashboard-scope-context";
 import { getServiceStats, getTechnicianTaskStats } from "@/actions/service";
 import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
@@ -86,6 +87,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
               </div>
             </div>
             <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+              <GlobalSearch />
               <div className="hidden md:block">
                 <LiveClock />
               </div>

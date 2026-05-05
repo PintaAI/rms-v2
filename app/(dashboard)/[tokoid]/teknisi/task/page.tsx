@@ -16,11 +16,12 @@ export default async function TeknisiTaskPage({
   searchParams,
 }: {
   params: Promise<{ tokoid: string }>;
-  searchParams: Promise<{ status?: string | string[] }>;
+  searchParams: Promise<{ status?: string | string[]; q?: string | string[] }>;
 }) {
   const { tokoid } = await params;
   const query = await searchParams;
   const status = Array.isArray(query.status) ? query.status[0] : query.status;
+  const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
 
   const statsResult = await getTechnicianTaskStats(tokoid);
   const stats = statsResult.success && statsResult.data
@@ -35,10 +36,12 @@ export default async function TeknisiTaskPage({
 
   return (
     <TeknisiTaskManager
+      key={`${status ?? "all"}-${initialSearchQuery}`}
       myTasks={myTasks}
       availableTasks={availableTasks}
       initialStats={stats}
       tokoId={tokoid}
+      initialSearchQuery={initialSearchQuery}
     />
   );
 }

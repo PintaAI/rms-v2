@@ -7,10 +7,14 @@ import { RiStore2Line, RiInboxLine, RiToolsLine, RiCheckLine, RiLogoutBoxLine } 
 
 export default async function StaffServicePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tokoid: string }>;
+  searchParams: Promise<{ q?: string | string[] }>;
 }) {
   const { tokoid } = await params;
+  const query = await searchParams;
+  const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
   const pageSize = 15;
 
   const toko = await prisma.toko.findUnique({
@@ -96,9 +100,11 @@ export default async function StaffServicePage({
       </section>
 
       <StaffManageService
+        key={initialSearchQuery}
         allServices={servicesResult.data.data}
         tokoId={tokoid}
         pageSize={pageSize}
+        initialSearchQuery={initialSearchQuery}
       />
     </div>
   );
