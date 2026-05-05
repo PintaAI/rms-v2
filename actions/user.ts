@@ -17,8 +17,12 @@ import {
 } from "@/lib/features";
 import type { ActionResult, ActionResultWithData } from "@/lib/auth/authorization";
 import { getRequestUser } from "@/lib/auth/request-user";
+import { uploadImage } from "@/lib/blob";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export async function getAuthProviderData() {
   const user = await getRequestUser();
@@ -211,10 +215,19 @@ export async function uploadAvatar(file: File): Promise<ActionResultWithData<str
       return { success: false, error: "Unauthorized" };
     }
 
-    const { put } = await import("@vercel/blob");
-    const blob = await put(`avatars/${user.id}/${Date.now()}-${file.name}`, file, {
-      access: "public",
-    });
+    if (!file || file.size <= 0) {
+      return { success: false, error: "Avatar file is required" };
+    }
+
+    if (file.size > MAX_AVATAR_SIZE) {
+      return { success: false, error: "Avatar file max size is 5MB" };
+    }
+
+    if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+      return { success: false, error: "Avatar must be a JPG, PNG, or WEBP image" };
+    }
+
+    const blob = await uploadImage(`avatars/${user.id}/${Date.now()}-${file.name}`, file);
 
     const imageUrl = blob.url;
 

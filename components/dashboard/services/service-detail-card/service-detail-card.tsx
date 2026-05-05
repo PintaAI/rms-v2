@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -185,7 +186,7 @@ export function ServiceDetailCard({
   onPickupSuccess,
 }: ServiceDetailCardProps) {
   const isActive = variant === "active";
-  const { inventoryEnabled } = useDashboardScope();
+  const { inventoryEnabled, user: currentUser } = useDashboardScope();
   const canHandleCustomerHandoff = viewerRole === "admin" || viewerRole === "staff";
   const roleTone = roleToneClasses[viewerRole];
 
@@ -352,10 +353,12 @@ export function ServiceDetailCard({
   const [doneDialogOpen, setDoneDialogOpen] = useState(false);
   const [doneNote, setDoneNote] = useState("");
   const [warrantyDate, setWarrantyDate] = useState("");
+  const [showDoneTakeoverWarning, setShowDoneTakeoverWarning] = useState(false);
   const [isMarkingDone, setIsMarkingDone] = useState(false);
 
   const [failedDialogOpen, setFailedDialogOpen] = useState(false);
   const [failedNote, setFailedNote] = useState("");
+  const [failedTakeOwnership, setFailedTakeOwnership] = useState(false);
   const [isMarkingFailed, setIsMarkingFailed] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [isPayingInvoice, setIsPayingInvoice] = useState(false);
@@ -392,27 +395,45 @@ export function ServiceDetailCard({
   const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp || Boolean(localService.invoice));
   const warrantyUntilDate = localService.warrantyUntil ? new Date(localService.warrantyUntil) : null;
   const warrantyExpired = warrantyUntilDate ? warrantyUntilDate < new Date() : false;
+  const adminCompletingUnassignedService = viewerRole === "admin" && !localService.technician;
+  const adminCompletingAssignedService = viewerRole === "admin" && Boolean(localService.technician);
+  const adminCompletingAssignedToOther = viewerRole === "admin" && Boolean(localService.technician) && localService.technician?.id !== currentUser.id;
 
   function openDoneDialog() {
     setDoneNote("");
     setWarrantyDate(getPresetWarrantyDate(warrantyPresets[1]));
+    setShowDoneTakeoverWarning(false);
     setDoneDialogOpen(true);
   }
 
   async function handleMarkDone() {
+    if (adminCompletingAssignedToOther && !showDoneTakeoverWarning) {
+      setShowDoneTakeoverWarning(true);
+      return;
+    }
+
     setIsMarkingDone(true);
     const doneNoteValue = doneNote.trim();
     const warrantyUntil = parseDateInputValue(warrantyDate);
+    const currentService = localServiceRef.current;
+    const takeOwnership = viewerRole === "admin" && (!currentService.technician || currentService.technician.id !== currentUser.id);
     await mutate({
-      optimistic: (prev) => ({ ...prev, status: "done", doneAt: new Date(), warrantyUntil }),
-      action: () => updateStatus(localServiceRef.current.id, "done", doneNoteValue || undefined, warrantyUntil),
-      onSuccess: () => { setDoneDialogOpen(false); onRefresh?.(); onStatusChange?.("done"); },
+      optimistic: (prev) => ({
+        ...prev,
+        status: "done",
+        doneAt: new Date(),
+        warrantyUntil,
+        technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : prev.technician,
+      }),
+      action: () => updateStatus(localServiceRef.current.id, "done", doneNoteValue || undefined, warrantyUntil, { takeOwnership }),
+      onSuccess: () => { setDoneDialogOpen(false); setShowDoneTakeoverWarning(false); onRefresh?.(); onStatusChange?.("done"); },
     });
     setIsMarkingDone(false);
   }
 
   function openFailedDialog() {
     setFailedNote("");
+    setFailedTakeOwnership(false);
     setFailedDialogOpen(true);
   }
 
@@ -420,9 +441,16 @@ export function ServiceDetailCard({
     if (!failedNote.trim()) return;
     setIsMarkingFailed(true);
     const failedNoteValue = failedNote.trim();
+    const takeOwnership = adminCompletingUnassignedService && failedTakeOwnership;
     await mutate({
-      optimistic: (prev) => ({ ...prev, status: "failed", doneAt: new Date(), warrantyUntil: null }),
-      action: () => updateStatus(localServiceRef.current.id, "failed", failedNoteValue || undefined),
+      optimistic: (prev) => ({
+        ...prev,
+        status: "failed",
+        doneAt: new Date(),
+        warrantyUntil: null,
+        technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : prev.technician,
+      }),
+      action: () => updateStatus(localServiceRef.current.id, "failed", failedNoteValue || undefined, undefined, { takeOwnership }),
       onSuccess: () => { setFailedDialogOpen(false); onRefresh?.(); onStatusChange?.("failed"); },
     });
     setIsMarkingFailed(false);
@@ -830,7 +858,13 @@ export function ServiceDetailCard({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={doneDialogOpen} onOpenChange={setDoneDialogOpen}>
+      <Dialog
+        open={doneDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) setShowDoneTakeoverWarning(false);
+          setDoneDialogOpen(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark Service as Done</DialogTitle>
@@ -840,6 +874,14 @@ export function ServiceDetailCard({
           </DialogHeader>
 
           <div className="space-y-4">
+            {showDoneTakeoverWarning && adminCompletingAssignedToOther && (
+              <div className={cn(
+                "rounded-md border px-3 py-2 text-sm",
+                "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+              )}>
+                Service ini sedang ditangani oleh {localService.technician?.name}. Jika dilanjutkan, service akan di-take over dan penanggung jawab berubah ke {currentUser.name}.
+              </div>
+            )}
             <div>
               <Label htmlFor="done-note">Service Note (optional)</Label>
               <textarea
@@ -884,7 +926,13 @@ export function ServiceDetailCard({
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDoneDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDoneTakeoverWarning(false);
+                setDoneDialogOpen(false);
+              }}
+            >
               Cancel
             </Button>
             <Button
@@ -892,7 +940,7 @@ export function ServiceDetailCard({
               disabled={isMarkingDone}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isMarkingDone ? "Marking Done..." : "Confirm Done"}
+              {isMarkingDone ? "Marking Done..." : showDoneTakeoverWarning ? "Continue" : "Confirm Done"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -908,6 +956,26 @@ export function ServiceDetailCard({
           </DialogHeader>
 
           <div className="space-y-4">
+            {adminCompletingAssignedService && (
+              <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
+                Service ini sedang ditangani oleh {localService.technician?.name}. Menandai gagal tidak akan mengubah penanggung jawab.
+              </div>
+            )}
+            {adminCompletingUnassignedService && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="failed-take-ownership"
+                    checked={failedTakeOwnership}
+                    onCheckedChange={(checked) => setFailedTakeOwnership(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <Label htmlFor="failed-take-ownership" className="cursor-pointer leading-relaxed">
+                    Saya yang menangani service ini. Dengan melanjutkan, service akan diassign ke {currentUser.name}.
+                  </Label>
+                </div>
+              </div>
+            )}
             <div>
               <Label htmlFor="failed-note">Service Note</Label>
               <textarea
@@ -928,7 +996,7 @@ export function ServiceDetailCard({
             <Button
               variant="destructive"
               onClick={handleMarkFailed}
-              disabled={isMarkingFailed || !failedNote.trim()}
+              disabled={isMarkingFailed || !failedNote.trim() || (adminCompletingUnassignedService && !failedTakeOwnership)}
             >
               {isMarkingFailed ? "Marking Failed..." : "Confirm Failed"}
             </Button>

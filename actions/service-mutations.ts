@@ -426,7 +426,8 @@ export async function updateStatus(
   serviceId: string,
   status: ServiceStatus,
   note?: string,
-  warrantyUntil?: Date | null
+  warrantyUntil?: Date | null,
+  options?: { takeOwnership?: boolean }
 ): Promise<ActionResult> {
   try {
     const { user, tokoIds } = await getSessionAndTokos();
@@ -454,15 +455,28 @@ export async function updateStatus(
       return { success: false, error: "Invalid warranty date" };
     }
 
+    const isCompleting = isCompletingStatus(status);
+    const shouldAssignActor =
+      isCompleting &&
+      (isTechnicianRole(user.role) ||
+        (user.role === "admin" && options?.takeOwnership === true && (!service.technicianId || status === "done")));
+
+    if (isCompleting && user.role === "admin" && !service.technicianId && !options?.takeOwnership) {
+      return {
+        success: false,
+        error: "Service belum memiliki penanggung jawab. Centang konfirmasi bahwa Anda yang menangani service ini.",
+      };
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.service.update({
         where: { id: serviceId },
         data: {
           status,
-          doneAt: isCompletingStatus(status) ? changedAt : null,
+          doneAt: isCompleting ? changedAt : null,
           warrantyUntil: status === "done" ? warrantyDate : null,
           ...(note !== undefined ? { note } : {}),
-          ...(isCompletingStatus(status)
+          ...(shouldAssignActor
             ? {
                 technicianId: user.id,
                 assignedAt: changedAt,
@@ -483,13 +497,14 @@ export async function updateStatus(
           previousTechnicianId: service.technicianId,
           note: note ?? null,
           warrantyUntil: warrantyDate?.toISOString() ?? null,
-          assignedActor: isCompletingStatus(status),
-          technicianId: user.id,
+          assignedActor: shouldAssignActor,
+          technicianId: shouldAssignActor ? user.id : service.technicianId,
+          ownershipTakenOver: shouldAssignActor && Boolean(service.technicianId) && service.technicianId !== user.id,
         },
       });
     });
 
-    if (isCompletingStatus(status)) {
+    if (isCompleting) {
       await updateInvoiceTotal(serviceId);
       await sendServiceStatusWhatsappNotification({ serviceId, status });
     }
@@ -738,7 +753,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
         if (service.status === "received") {
           serviceUpdateData.status = "repairing";
         }
-        if (service.technicianId !== user.id) {
+        if (isTechnicianRole(user.role) && service.technicianId !== user.id) {
           serviceUpdateData.technicianId = user.id;
           serviceUpdateData.assignedAt = new Date();
         }
@@ -815,7 +830,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
         if (service.status === "received") {
           serviceUpdateData.status = "repairing";
         }
-        if (service.technicianId !== user.id) {
+        if (isTechnicianRole(user.role) && service.technicianId !== user.id) {
           serviceUpdateData.technicianId = user.id;
           serviceUpdateData.assignedAt = new Date();
         }
