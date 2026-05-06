@@ -67,7 +67,6 @@ interface WizardData {
   needsInvoices: boolean;
   needsAnalyticsAndLogs: boolean;
   needsAudit: boolean;
-  needsAudit: boolean;
   hasEmployees: boolean;
   staff: UserData[];
   technician: UserData[];
@@ -86,7 +85,6 @@ const initialData: WizardData = {
   usesInventory: false,
   needsInvoices: false,
   needsAnalyticsAndLogs: false,
-  needsAudit: false,
   needsAudit: false,
   hasEmployees: false,
   staff: [],
