@@ -127,6 +127,10 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
 
       const data = (await response.json()) as RegisterDeviceResponse;
       writeSavedDeviceCredentials({ deviceId: data.device.id, token: data.token });
+
+      if (window.location.pathname !== "/scanner") {
+        window.history.replaceState(null, "", "/scanner");
+      }
     } catch {
       // Saved pairing is optional; the current QR connection can continue without it.
     }
@@ -412,6 +416,59 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
       }
     }
 
+    async function connectSavedDevice(savedDevice: SavedDeviceCredentials, waitingMessage = "Menunggu desktop membuka Scan via HP...") {
+      setConnectionState("connecting");
+      setError(null);
+      setDecodeFeedback(waitingMessage);
+
+      const pollSavedSession = async () => {
+        try {
+          const response = await fetch(
+            `/api/mobile-scanner/signal?role=saved-device&deviceId=${encodeURIComponent(savedDevice.deviceId)}&deviceToken=${encodeURIComponent(savedDevice.token)}`,
+            { cache: "no-store" }
+          );
+
+          if (response.status === 404) {
+            clearSavedDeviceCredentials();
+            setConnectionState("failed");
+            setDecodeFeedback("Pairing tersimpan tidak valid. Scan QR pairing baru dari desktop.");
+            return;
+          }
+
+          if (!response.ok) {
+            throw new Error("Gagal mencari desktop aktif");
+          }
+
+          const data = (await response.json()) as SavedOfferResponse;
+
+          if (cancelled) return;
+
+          if (!data.session) {
+            reconnectPoll = setTimeout(pollSavedSession, SAVED_RECONNECT_POLL_MS);
+            return;
+          }
+
+          setDecodeFeedback("Desktop ditemukan. Menghubungkan...");
+          await connectWithOffer({
+            offer: data.session.offer,
+            answerPayload: {
+              type: "saved-answer",
+              code: data.session.code,
+              deviceId: savedDevice.deviceId,
+              deviceToken: savedDevice.token,
+            },
+          });
+        } catch (err) {
+          if (cancelled) return;
+          setConnectionState("failed");
+          setError(err instanceof Error ? err.message : "Reconnect gagal");
+          setDecodeFeedback("Gagal reconnect. Scan QR pairing baru dari desktop.");
+        }
+      };
+
+      await pollSavedSession();
+    }
+
     async function connect() {
       if (!hasPairingToken) {
         const savedDevice = readSavedDeviceCredentials();
@@ -423,55 +480,7 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
           return;
         }
 
-        setConnectionState("connecting");
-        setDecodeFeedback("Menunggu desktop membuka Scan via HP...");
-
-        const pollSavedSession = async () => {
-          try {
-            const response = await fetch(
-              `/api/mobile-scanner/signal?role=saved-device&deviceId=${encodeURIComponent(savedDevice.deviceId)}&deviceToken=${encodeURIComponent(savedDevice.token)}`,
-              { cache: "no-store" }
-            );
-
-            if (response.status === 404) {
-              clearSavedDeviceCredentials();
-              setConnectionState("failed");
-              setDecodeFeedback("Pairing tersimpan tidak valid. Scan QR pairing baru dari desktop.");
-              return;
-            }
-
-            if (!response.ok) {
-              throw new Error("Gagal mencari desktop aktif");
-            }
-
-            const data = (await response.json()) as SavedOfferResponse;
-
-            if (cancelled) return;
-
-            if (!data.session) {
-              reconnectPoll = setTimeout(pollSavedSession, SAVED_RECONNECT_POLL_MS);
-              return;
-            }
-
-            setDecodeFeedback("Desktop ditemukan. Menghubungkan...");
-            await connectWithOffer({
-              offer: data.session.offer,
-              answerPayload: {
-                type: "saved-answer",
-                code: data.session.code,
-                deviceId: savedDevice.deviceId,
-                deviceToken: savedDevice.token,
-              },
-            });
-          } catch (err) {
-            if (cancelled) return;
-            setConnectionState("failed");
-            setError(err instanceof Error ? err.message : "Reconnect gagal");
-            setDecodeFeedback("Gagal reconnect. Scan QR pairing baru dari desktop.");
-          }
-        };
-
-        await pollSavedSession();
+        await connectSavedDevice(savedDevice);
         return;
       }
 
@@ -504,6 +513,14 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
         });
       } catch (err) {
         if (cancelled) return;
+
+        const savedDevice = readSavedDeviceCredentials();
+        if (savedDevice) {
+          window.history.replaceState(null, "", "/scanner");
+          await connectSavedDevice(savedDevice, "QR lama sudah kedaluwarsa. Mencoba HP tersimpan...");
+          return;
+        }
+
         setConnectionState("failed");
         setError(err instanceof Error ? err.message : "Pairing gagal");
         setDecodeFeedback("Gagal terhubung. Scan QR pairing baru dari desktop.");
