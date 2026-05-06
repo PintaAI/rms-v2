@@ -12,12 +12,10 @@ import { getServiceStats, getTechnicianTaskStats } from "@/actions/service";
 import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
 import { getRequestScope } from "@/lib/auth/request-scope";
 import { AuthError } from "@/lib/auth/authorization";
-import { DevAccessOverlay } from "@/components/dev/access-overlay";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const DEV_MODE = process.env.DEV_MODE === "true";
 interface DashboardLayoutProps {
   children: React.ReactNode;
   params: Promise<{ tokoid: string }>;
@@ -98,7 +96,6 @@ export default async function DashboardLayout({ children, params }: DashboardLay
           <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
             {scope.subscriptionStatus === "suspended" ? <SubscriptionSuspendedState tokoid={tokoid} role={scope.user.role} /> : children}
           </main>
-          {DEV_MODE && <DevAccessOverlay />}
         </SidebarInset>
       </DashboardScopeProvider>
     </SidebarProvider>

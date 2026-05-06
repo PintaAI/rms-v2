@@ -1,11 +1,15 @@
 import type { AffiliatePortalData } from "@/actions/affiliate";
 import { AffiliateCopyLinkButton } from "@/components/affiliate/affiliate-copy-link-button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
+import { RiBookOpenLine } from "@remixicon/react";
+import Link from "next/link";
 
-export function AffiliatePortal({ data }: { data: AffiliatePortalData }) {
+export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; token: string }) {
+  const knowledgeHref = `/affiliate/portal/${encodeURIComponent(data.affiliator.code)}/knowledge?token=${encodeURIComponent(token)}`;
   return (
     <main className="min-h-screen bg-background p-6 lg:p-8">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -24,6 +28,21 @@ export function AffiliatePortal({ data }: { data: AffiliatePortalData }) {
             </CardContent>
           </Card>
         ) : null}
+
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <RiBookOpenLine className="mt-0.5 size-5 shrink-0 text-primary" />
+              <div>
+                <h3 className="font-semibold">Product Knowledge</h3>
+                <p className="text-sm text-muted-foreground">Pelajari fitur, paket harga, dan strategi promosi RMS agar Anda bisa memasarkan dengan percaya diri.</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" asChild className="shrink-0">
+              <Link href={knowledgeHref}>Buka Product Knowledge</Link>
+            </Button>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader><CardTitle>Referral Link</CardTitle></CardHeader>

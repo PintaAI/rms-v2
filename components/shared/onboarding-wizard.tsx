@@ -42,7 +42,6 @@ import {
   RiPencilLine,
   RiPhoneLine,
   RiStore2Line,
-  RiTeamLine,
   RiUserLine,
   RiVipCrownLine,
   RiWhatsappLine,
@@ -662,7 +661,6 @@ function RecommendationStep({
 function TeamStep({ data, setData, canCreateTeam, recommendedPlan }: WizardStepProps & { canCreateTeam: boolean; recommendedPlan: SubscriptionPlan }) {
   const canAddStaff = data.teamAccess === "staffOnly" || data.teamAccess === "staffAndTechnician";
   const canAddTechnician = data.teamAccess === "technicianOnly" || data.teamAccess === "staffAndTechnician";
-  const teamDescription = data.teamAccess === "staffOnly" ? "Staff/admin toko" : data.teamAccess === "technicianOnly" ? "Teknisi" : "Staff & teknisi";
 
   return (
     <div className="space-y-6">
@@ -801,23 +799,6 @@ function ChoiceGroup<T extends string>({
     </FieldSet>
   );
 }
-
-function TeamModeButton({ active, title, description, onClick, disabled }: { active: boolean; title: string; description: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className={cn("flex-1 rounded-lg border-2 p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50", active ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-muted-foreground/50")}>
-      <div className="flex items-center gap-3">
-        <div className={cn("flex size-8 items-center justify-center rounded-full", active ? "bg-primary text-primary-foreground" : "bg-muted")}>
-          {title === "Ya" ? <RiTeamLine className="size-4" /> : <RiUserLine className="size-4" />}
-        </div>
-        <div>
-          <p className="text-sm font-medium">{title}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-      </div>
-    </button>
-  );
-}
-
 const sanitizeForEmail = (str: string) =>
   str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 

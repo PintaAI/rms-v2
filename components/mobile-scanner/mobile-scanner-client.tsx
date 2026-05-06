@@ -263,8 +263,8 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
       setCameraState("active");
       setDecodeFeedback(
         connectionState === "connected"
-          ? "Viewfinder aktif. Tahan tombol untuk scan label sparepart."
-          : "Viewfinder aktif. Tahan tombol untuk scan QR pairing."
+          ? "Tahan tombol untuk scan label sparepart."
+          : "Tahan tombol untuk scan QR pairing."
       );
     } catch (err) {
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -557,8 +557,8 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
     setDecodeFeedback(
       cameraState === "active"
         ? connectionState === "connected"
-          ? "Viewfinder aktif. Tahan tombol untuk scan label sparepart."
-          : "Viewfinder aktif. Tahan tombol untuk scan QR pairing."
+          ? "Tahan tombol untuk scan label sparepart."
+          : "Tahan tombol untuk scan QR pairing."
         : "Tahan tombol untuk mulai."
     );
   };
@@ -610,11 +610,6 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
               </div>
             )}
 
-            {isCameraActive && !isScanning && (
-              <div className="absolute inset-x-4 bottom-4 rounded-full bg-black/65 px-4 py-2 text-center text-xs font-medium text-white/85">
-                Viewfinder aktif, tahan tombol untuk scan
-              </div>
-            )}
           </div>
 
           {(error || lastScanned || decodeFeedback) && (

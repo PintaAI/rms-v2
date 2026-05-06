@@ -282,7 +282,11 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" disabled={isPending || commission.status !== "pending"} onClick={() => updateCommission(commission, "approved")}>Approve</Button>
                         <Button size="sm" variant="outline" disabled={isPending || commission.status !== "approved"} onClick={() => updateCommission(commission, "paid")}>Paid</Button>
-                        <Button size="sm" variant="ghost" disabled={isPending || commission.status === "paid"} onClick={() => updateCommission(commission, "rejected")}>Reject</Button>
+                        {commission.status === "rejected" ? (
+                          <Button size="sm" variant="outline" disabled={isPending} onClick={() => updateCommission(commission, "pending")}>Re-open</Button>
+                        ) : (
+                          <Button size="sm" variant="ghost" disabled={isPending || commission.status === "paid"} onClick={() => updateCommission(commission, "rejected")}>Reject</Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
