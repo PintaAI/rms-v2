@@ -291,7 +291,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <div className="relative">
+      <div className="relative z-0 overflow-hidden">
         <header className="absolute top-3 left-0 right-0 z-20 mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-full border border-border/60 bg-background/82 px-3 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/62 sm:px-4">
           <Link href="/" className="flex min-w-0 items-center gap-2.5">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 sm:size-10">
@@ -358,7 +358,7 @@ export default async function Home() {
         />
       </div>
 
-      <section className="border-y border-border/60 bg-card/52 py-5 backdrop-blur">
+      <section className="relative z-10 border-y border-border/60 bg-card/52 py-5 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 sm:px-6 lg:px-10">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
