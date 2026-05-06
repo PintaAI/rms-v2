@@ -3,20 +3,16 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { RiAddLine, RiCheckboxCircleLine, RiLoader4Line, RiLock2Line, RiVipCrownLine } from "@remixicon/react";
-import { createProSubscriptionInvoice, getBillingPlanSummary, setDevUserPlan } from "@/actions";
-import { useAuth } from "@/components/auth/auth-provider";
+import { createProSubscriptionInvoice } from "@/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { BillingPlanSummary } from "@/actions";
-import type { SubscriptionPlan } from "@/lib/features";
 import { getWhatsAppEnterpriseUrl, getWhatsAppTrialRequestUrl, planLabels } from "./helpers";
 import type { PlanTabProps } from "./types";
 
-export function PlanSettingsTab({ summary, ownerBilling, isLoading, currentTokoId, onChanged, userEmail, tokoName }: PlanTabProps) {
+export function PlanSettingsTab({ summary, ownerBilling, isLoading, onChanged, userEmail, tokoName }: PlanTabProps) {
   const plan = summary?.plan ?? "free";
-  const { refetchSession } = useAuth();
-  const [isUpgrading, setIsUpgrading] = React.useState(false);
   const [isCreatingInvoice, startCreateInvoice] = React.useTransition();
   const trialRequestUrl = getWhatsAppTrialRequestUrl({ email: userEmail, tokoName });
   const enterpriseContactUrl = getWhatsAppEnterpriseUrl({ email: userEmail, tokoName });
@@ -34,24 +30,6 @@ export function PlanSettingsTab({ summary, ownerBilling, isLoading, currentTokoI
       toast.success("Invoice Pro siap dibayar");
       onChanged();
     });
-  };
-
-  const handleDevUpgrade = async (targetPlan: SubscriptionPlan) => {
-    setIsUpgrading(true);
-    try {
-      const result = await setDevUserPlan(targetPlan);
-      if (!result.success) return toast.error(result.error || "Failed to update plan");
-      await refetchSession();
-      if (currentTokoId) {
-        const newSummary = await getBillingPlanSummary(currentTokoId);
-        if (newSummary.success && newSummary.data) onChanged();
-      }
-      toast.success(`Plan updated to ${targetPlan}`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update plan");
-    } finally {
-      setIsUpgrading(false);
-    }
   };
 
   return (
@@ -75,17 +53,6 @@ export function PlanSettingsTab({ summary, ownerBilling, isLoading, currentTokoI
       <div className="space-y-2">
         <p className="font-medium">{plan === "enterprise" ? "Fitur Enterprise" : "Masih Enterprise"}</p>
         <FeatureList features={allFeatures.filter((feature) => feature.minimumPlan === "enterprise")} emptyLabel={plan === "enterprise" ? "Tidak ada fitur Enterprise." : "Tidak ada fitur Enterprise yang terkunci."} included={plan === "enterprise"} />
-      </div>
-
-      <Separator />
-      <div className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">DEV-ONLY</p>
-        <p className="text-xs text-muted-foreground">Bypass payment flow for testing. Remove before production.</p>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <Button variant="outline" onClick={() => handleDevUpgrade("free")} disabled={isUpgrading || plan === "free"}>{isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Free"}</Button>
-          <Button onClick={() => handleDevUpgrade("premium")} disabled={isUpgrading || plan === "premium"}>{isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Pro"}</Button>
-          <Button onClick={() => handleDevUpgrade("enterprise")} disabled={isUpgrading || plan === "enterprise"}>{isUpgrading ? <RiLoader4Line className="size-4 animate-spin" /> : "Set Enterprise"}</Button>
-        </div>
       </div>
     </div>
   );

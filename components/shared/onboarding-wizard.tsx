@@ -5,7 +5,6 @@ import type React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { createTokoWithUsers } from "@/actions/toko";
-import { setDevUserPlan } from "@/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,6 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { setThemeMode, type ThemeMode } from "@/lib/theme-preference";
@@ -44,7 +42,6 @@ import {
   RiPaletteLine,
   RiPhoneLine,
   RiStore2Line,
-  RiTeamLine,
   RiUserLine,
   RiVipCrownLine,
   RiLoader4Line,
@@ -55,7 +52,6 @@ interface UserData {
   password: string;
 }
 
-type PlanDecision = "free" | "upgrade";
 type StepKey = "toko" | "survey" | "recommendation" | "team" | "contact" | "summary";
 
 interface WizardData {
@@ -71,7 +67,6 @@ interface WizardData {
   needsAnalyticsAndLogs: boolean;
   needsAudit: boolean;
   wantsBranding: boolean;
-  planDecision: PlanDecision;
   hasEmployees: boolean;
   staff: UserData[];
   technician: UserData[];
@@ -93,7 +88,6 @@ const initialData: WizardData = {
   needsAnalyticsAndLogs: false,
   needsAudit: false,
   wantsBranding: false,
-  planDecision: "free",
   hasEmployees: false,
   staff: [],
   technician: [],
@@ -117,11 +111,10 @@ const planLabels: Record<SubscriptionPlan, string> = {
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const { user, refetchTokoList, refetchSession } = useAuth();
+  const { user, refetchTokoList } = useAuth();
   const [currentStepKey, setCurrentStepKey] = useState<StepKey>("toko");
   const [data, setData] = useState<WizardData>(initialData);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDevUpgrading, setIsDevUpgrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [createdCredentials, setCreatedCredentials] = useState<{
@@ -155,26 +148,6 @@ export function OnboardingWizard() {
   const currentPlan = user?.plan ?? "free";
   const canCreateTeam = isPlanAtLeast(currentPlan, "premium");
   const isRecommendedPlanActive = isPlanAtLeast(currentPlan, recommendation.recommendedPlan);
-
-  const handleDevUpgrade = async () => {
-    setIsDevUpgrading(true);
-    setError(null);
-    try {
-      const result = await setDevUserPlan(recommendation.recommendedPlan);
-      if (result.success) {
-        await refetchSession();
-        await refetchTokoList();
-        setError(null);
-      } else {
-        setError(result.error || "Failed to upgrade plan");
-      }
-    } catch (err) {
-      console.error("Dev upgrade error:", err);
-      setError("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsDevUpgrading(false);
-    }
-  };
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -348,11 +321,7 @@ export function OnboardingWizard() {
           <RecommendationStep
             currentPlan={currentPlan}
             recommendation={recommendation}
-            decision={data.planDecision}
             isRecommendedPlanActive={isRecommendedPlanActive}
-            setDecision={(planDecision) => setData((prev) => ({ ...prev, planDecision }))}
-            onDevUpgrade={handleDevUpgrade}
-            isDevUpgrading={isDevUpgrading}
           />
         )}
         {currentStepKey === "team" && (
@@ -657,19 +626,11 @@ function SurveyStep({ data, setData }: WizardStepProps) {
 function RecommendationStep({
   currentPlan,
   recommendation,
-  decision,
   isRecommendedPlanActive,
-  setDecision,
-  onDevUpgrade,
-  isDevUpgrading,
 }: {
   currentPlan: SubscriptionPlan;
   recommendation: ReturnType<typeof getOnboardingPlanRecommendation>;
-  decision: PlanDecision;
   isRecommendedPlanActive: boolean;
-  setDecision: (decision: PlanDecision) => void;
-  onDevUpgrade?: () => void;
-  isDevUpgrading?: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -696,27 +657,12 @@ function RecommendationStep({
       <FeatureSummary title="Fitur yang direkomendasikan" features={recommendation.recommendedFeatures} emptyLabel="Fitur Free sudah cukup untuk kebutuhan ini." />
 
       {!isRecommendedPlanActive && (
-        <>
-          <Separator />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <DecisionCard
-              title="Tetap Free"
-              description="Toko tetap dibuat sekarang. Fitur berbayar tetap terkunci oleh gate yang sudah ada."
-              active={decision === "free"}
-              onClick={() => setDecision("free")}
-              disabled={isDevUpgrading}
-            />
-            <DecisionCard
-              title="Upgrade sekarang (DEV)"
-              description="DEV: Langsung set plan tanpa payment flow. Hapus sebelum production."
-              active={decision === "upgrade" || (isDevUpgrading ?? false)}
-              onClick={onDevUpgrade}
-              disabled={isDevUpgrading ?? false}
-              loading={isDevUpgrading ?? false}
-            />
+        <div className="space-y-3">
+          <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+            Toko tetap bisa dibuat sekarang. Fitur berbayar akan tetap terkunci sampai plan di-upgrade melalui billing.
           </div>
           <FeatureSummary title="Tetap terkunci jika Free" features={recommendation.lockedIfFree} emptyLabel="Tidak ada fitur penting yang terkunci di Free." muted />
-        </>
+        </div>
       )}
     </div>
   );
@@ -725,7 +671,6 @@ function RecommendationStep({
 function TeamStep({ data, setData, canCreateTeam, recommendedPlan }: WizardStepProps & { canCreateTeam: boolean; recommendedPlan: SubscriptionPlan }) {
   const canAddStaff = data.teamAccess === "staffOnly" || data.teamAccess === "staffAndTechnician";
   const canAddTechnician = data.teamAccess === "technicianOnly" || data.teamAccess === "staffAndTechnician";
-  const teamDescription = data.teamAccess === "staffOnly" ? "Staff/admin toko" : data.teamAccess === "technicianOnly" ? "Teknisi" : "Staff & teknisi";
 
   return (
     <div className="space-y-6">
@@ -786,9 +731,7 @@ function SummaryStep({
   const createdTeamCount = canCreateTeam && hasMembers ? data.staff.length + data.technician.length : 0;
   const planDecisionLabel = isPlanAtLeast(currentPlan, recommendation.recommendedPlan)
     ? "Plan aktif sudah sesuai"
-    : data.planDecision === "free"
-      ? "Tetap Free"
-      : "Upgrade nanti";
+    : "Tetap Free";
 
   const branchLabel = data.branchPlan === "one" ? "Satu cabang" : data.branchPlan === "twoToThree" ? "2-3 cabang" : "Lebih dari 3 cabang";
   const teamLabel = data.teamSize === "ownerOnly" ? "Hanya pemilik" : data.teamAccess === "staffOnly" ? "Staff saja" : data.teamAccess === "technicianOnly" ? "Teknisi saja" : "Staff dan teknisi";
@@ -848,54 +791,29 @@ function ChoiceGroup<T extends string>({
 }) {
   return (
     <Field>
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel className="text-sm font-medium leading-snug">{label}</FieldLabel>
       <FieldContent>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-1.5 rounded-xl border bg-muted/20 p-1.5 sm:grid-cols-3">
           {options.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
               className={cn(
-                "rounded-lg border-2 p-3 text-left transition-all",
-                value === option.value ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-muted-foreground/50"
+                "rounded-lg px-3 py-2.5 text-left transition-colors",
+                value === option.value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
               )}
             >
-              <p className="text-sm font-medium">{option.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
+              <span className="flex items-center gap-2">
+                <span className={cn("size-1.5 rounded-full", value === option.value ? "bg-primary" : "bg-muted-foreground/30")} />
+                <span className="text-sm font-medium">{option.title}</span>
+              </span>
+              {value === option.value && <p className="mt-1 pl-3.5 text-xs text-muted-foreground">{option.description}</p>}
             </button>
           ))}
         </div>
       </FieldContent>
     </Field>
-  );
-}
-
-function DecisionCard({ title, description, active, onClick, disabled, loading }: { title: string; description: string; active: boolean; onClick?: () => void; disabled?: boolean; loading?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className={cn("rounded-lg border-2 p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50", active ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-muted-foreground/50")}>
-      <div className="flex items-center gap-2">
-        <p className="text-sm font-medium">{title}</p>
-        {loading && <RiLoader4Line className="size-4 animate-spin" />}
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-    </button>
-  );
-}
-
-function TeamModeButton({ active, title, description, onClick, disabled }: { active: boolean; title: string; description: string; onClick: () => void; disabled?: boolean }) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} className={cn("flex-1 rounded-lg border-2 p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50", active ? "border-primary bg-primary/5" : "border-muted-foreground/30 hover:border-muted-foreground/50")}>
-      <div className="flex items-center gap-3">
-        <div className={cn("flex size-8 items-center justify-center rounded-full", active ? "bg-primary text-primary-foreground" : "bg-muted")}>
-          {title === "Ya" ? <RiTeamLine className="size-4" /> : <RiUserLine className="size-4" />}
-        </div>
-        <div>
-          <p className="text-sm font-medium">{title}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-      </div>
-    </button>
   );
 }
 

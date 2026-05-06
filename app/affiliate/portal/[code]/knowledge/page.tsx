@@ -1,13 +1,13 @@
 import { getAffiliatePortalData } from "@/actions/affiliate";
-import { AffiliatePortal } from "@/components/affiliate/affiliate-portal";
+import { AffiliateProductKnowledge } from "@/components/affiliate/affiliate-product-knowledge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface AffiliatePortalPageProps {
+interface AffiliateProductKnowledgePageProps {
   params: Promise<{ code: string }>;
   searchParams: Promise<{ token?: string }>;
 }
 
-export default async function AffiliatePortalPage({ params, searchParams }: AffiliatePortalPageProps) {
+export default async function AffiliateProductKnowledgePage({ params, searchParams }: AffiliateProductKnowledgePageProps) {
   const [{ code }, { token }] = await Promise.all([params, searchParams]);
   const result = await getAffiliatePortalData({ code, token: token || "" });
 
@@ -24,5 +24,10 @@ export default async function AffiliatePortalPage({ params, searchParams }: Affi
     );
   }
 
-  return <AffiliatePortal data={result.data} token={token || ""} />;
+  return (
+    <AffiliateProductKnowledge
+      affiliatorName={result.data.affiliator.name}
+      affiliateCode={result.data.affiliator.code}
+    />
+  );
 }
