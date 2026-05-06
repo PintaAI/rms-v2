@@ -320,6 +320,7 @@ export default async function Home() {
         </header>
 
         <MacbookScroll
+          src="/mac.png"
           title={
             <span className="flex flex-col items-center gap-4">
               <span className="mx-auto inline-flex w-fit items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { motion, useScroll, useTransform, type MotionValue } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,13 +34,7 @@ export const MacbookScroll = ({
     offset: ["start start", "end start"],
   });
 
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (window && window.innerWidth < 768) {
-      setIsMobile(true);
-    }
-  }, []);
+  const [isMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
 
   const scaleX = useTransform(
     scrollYProgress,
@@ -156,6 +150,8 @@ export const Lid = ({
           src={src}
           alt="RMS Dashboard"
           fill
+          priority
+          sizes="(max-width: 768px) 80vw, 512px"
           className="rounded-lg object-cover object-left-top"
         />
       ) : (
