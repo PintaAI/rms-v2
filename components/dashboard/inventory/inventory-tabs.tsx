@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -29,6 +30,7 @@ import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/spar
 import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepart-restock-dialog";
 import { SparepartImportDialog } from "@/components/dashboard/inventory/sparepart-import-dialog";
 import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
+import { ServicePricelistImportDialog } from "@/components/dashboard/inventory/service-pricelist-import-dialog";
 import {
   RiAddLine,
   RiEditLine,
@@ -46,6 +48,27 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 
 type ViewMode = "table" | "card";
+type StockFilter = "all" | "critical" | "out" | "safe";
+
+function getStockVariant(sparepart: SparepartWithCompatibilities) {
+  if (sparepart.stock <= 0) return "warning";
+  if (sparepart.stock <= sparepart.criticalStock) return "accent";
+  return "success";
+}
+
+function getStockBadgeClass(sparepart: SparepartWithCompatibilities) {
+  const stockVariant = getStockVariant(sparepart);
+  if (stockVariant === "warning") return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200";
+  if (stockVariant === "accent") return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200";
+  return "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200";
+}
+
+function getStockLabel(sparepart: SparepartWithCompatibilities) {
+  const stockVariant = getStockVariant(sparepart);
+  if (stockVariant === "warning") return "Habis";
+  if (stockVariant === "accent") return "Kritis";
+  return "Aman";
+}
 
 interface InventoryTabsProps {
   tokoId: string;
@@ -62,6 +85,8 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const [pricelists, setPricelists] = useState<ServicePricelist[]>(_initialPricelists ?? []);
   const [activeTab, setActiveTab] = useState<"sparepart" | "jasa">(initialTab);
   const [sparepartSearch, setSparepartSearch] = useState(initialTab === "sparepart" ? initialSearchQuery : "");
+  const [sparepartCategoryFilter, setSparepartCategoryFilter] = useState("all");
+  const [sparepartStockFilter, setSparepartStockFilter] = useState<StockFilter>("all");
   const [pricelistSearch, setPricelistSearch] = useState(initialTab === "jasa" ? initialSearchQuery : "");
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(!hasInitialData);
   const [isLoadingPricelists, setIsLoadingPricelists] = useState(!hasInitialData);
@@ -82,6 +107,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
   const [restockDialogOpen, setRestockDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [pricelistImportDialogOpen, setPricelistImportDialogOpen] = useState(false);
 
   useEffect(() => {
     if (hasInitialData) return;
@@ -118,10 +144,24 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   }, [tokoId, hasInitialData]);
 
   const normalizedSparepartSearch = sparepartSearch.toLowerCase();
+  const sparepartCategories = Array.from(
+    new Map(
+      spareparts
+        .filter((sparepart) => sparepart.category)
+        .map((sparepart) => [sparepart.category!.id, sparepart.category!])
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
   const filteredSpareparts = spareparts.filter(
     (sp) =>
-      sp.name.toLowerCase().includes(normalizedSparepartSearch) ||
-      sp.barcode.toLowerCase().includes(normalizedSparepartSearch)
+      (sparepartCategoryFilter === "all" || sp.categoryId === sparepartCategoryFilter) &&
+      (sparepartStockFilter === "all" ||
+        (sparepartStockFilter === "critical" && sp.stock > 0 && sp.stock <= sp.criticalStock) ||
+        (sparepartStockFilter === "out" && sp.stock <= 0) ||
+        (sparepartStockFilter === "safe" && sp.stock > sp.criticalStock)) &&
+      (sp.name.toLowerCase().includes(normalizedSparepartSearch) ||
+        sp.barcode.toLowerCase().includes(normalizedSparepartSearch) ||
+        (sp.supplierName?.toLowerCase().includes(normalizedSparepartSearch) ?? false) ||
+        (sp.category?.name.toLowerCase().includes(normalizedSparepartSearch) ?? false))
   );
 
   const filteredPricelists = pricelists.filter((pl) =>
@@ -209,6 +249,15 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
       }
     }
     setEditingPricelist(null);
+  };
+
+  const handlePricelistImportSuccess = async () => {
+    setIsLoadingPricelists(true);
+    const result = await getServicePricelists(tokoId);
+    if (result.success && result.data) {
+      setPricelists(result.data);
+    }
+    setIsLoadingPricelists(false);
   };
 
   const handleDeletePricelistClick = (pricelist: ServicePricelist) => {
@@ -299,14 +348,38 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             </div>
           </div>
 
-          <div className="relative">
-            <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={sparepartSearch}
-              onChange={(e) => setSparepartSearch(e.target.value)}
-              placeholder="Cari sparepart..."
-              className="pl-9"
-            />
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px_180px]">
+            <div className="relative">
+              <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={sparepartSearch}
+                onChange={(e) => setSparepartSearch(e.target.value)}
+                placeholder="Cari sparepart..."
+                className="pl-9"
+              />
+            </div>
+            <Select value={sparepartCategoryFilter} onValueChange={setSparepartCategoryFilter}>
+              <SelectTrigger className="h-9 w-full">
+                <SelectValue placeholder="Filter kategori" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua kategori</SelectItem>
+                {sparepartCategories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sparepartStockFilter} onValueChange={(value) => setSparepartStockFilter(value as StockFilter)}>
+              <SelectTrigger className="h-9 w-full">
+                <SelectValue placeholder="Filter stok" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua stok</SelectItem>
+                <SelectItem value="critical">Stok kritis</SelectItem>
+                <SelectItem value="out">Stok habis</SelectItem>
+                <SelectItem value="safe">Stok aman</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {isLoadingSpareparts ? (
@@ -323,7 +396,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredSpareparts.map((sparepart) => {
-                  const stockVariant = sparepart.stock <= 0 ? "warning" : sparepart.stock <= 5 ? "accent" : "success";
+                  const stockVariant = getStockVariant(sparepart);
                   const bgStyles: Record<string, string> = {
                     default: "bg-card",
                     success: "bg-gradient-to-br from-chart-1/5 via-card to-chart-1/[0.02]",
@@ -358,23 +431,35 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                         <div className="mt-2 text-lg font-bold tracking-tight text-foreground truncate transition-transform duration-300 group-hover:scale-[1.02]">{sparepart.name}</div>
                         <div className="mt-3 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Harga</span>
+                            <span className="text-xs text-muted-foreground">Harga Beli</span>
+                            <span className="font-semibold text-sm tabular-nums">
+                              {sparepart.purchasePrice != null ? formatCurrency(sparepart.purchasePrice) : "-"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Harga Jual</span>
                             <span className="font-semibold text-sm tabular-nums">{formatCurrency(sparepart.defaultPrice)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-muted-foreground">Supplier</span>
+                            <span className="truncate text-sm font-medium">{sparepart.supplierName || "-"}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-muted-foreground">Kategori</span>
+                            <span className="truncate text-sm font-medium">{sparepart.category?.name || "-"}</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Stok</span>
                             <Badge
                               variant="outline"
-                              className={
-                                sparepart.stock <= 0
-                                  ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                                  : sparepart.stock <= 5
-                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
-                                  : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
-                              }
+                              className={getStockBadgeClass(sparepart)}
                             >
-                              {sparepart.stock}
+                              {sparepart.stock} - {getStockLabel(sparepart)}
                             </Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Stok Kritis</span>
+                            <span className="font-semibold text-sm tabular-nums">{sparepart.criticalStock}</span>
                           </div>
                           <div className="pt-2">
                             <span className="text-xs text-muted-foreground">Kompatibilitas</span>
@@ -439,18 +524,22 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kompatibilitas</TableHead>
-                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>}
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga Beli</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga Jual</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kategori</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Supplier</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok Kritis</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kompatibilitas</TableHead>
+                        {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredSpareparts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={readOnly ? 4 : 5} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={readOnly ? 8 : 9} className="h-24 text-center text-muted-foreground">
                           {sparepartSearch
                             ? "No spareparts found matching your search"
                             : "No spareparts yet. Click \"Add Sparepart\" to add one."}
@@ -460,21 +549,19 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                       filteredSpareparts.map((sparepart) => (
                         <TableRow key={sparepart.id} className="border-border/50">
                           <TableCell className="font-medium">{sparepart.name}</TableCell>
+                          <TableCell>{sparepart.purchasePrice != null ? formatCurrency(sparepart.purchasePrice) : "-"}</TableCell>
                           <TableCell>{formatCurrency(sparepart.defaultPrice)}</TableCell>
+                          <TableCell>{sparepart.category?.name || "-"}</TableCell>
+                          <TableCell>{sparepart.supplierName || "-"}</TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={
-                                sparepart.stock <= 0
-                                  ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                                  : sparepart.stock <= 5
-                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
-                                  : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
-                              }
+                              className={getStockBadgeClass(sparepart)}
                             >
-                              {sparepart.stock}
+                              {sparepart.stock} - {getStockLabel(sparepart)}
                             </Badge>
                           </TableCell>
+                          <TableCell>{sparepart.criticalStock}</TableCell>
                           <TableCell>
                             {sparepart.isUniversal ? (
                               <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
@@ -608,6 +695,15 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   <RiGridFill className="h-3.5 w-3.5" />
                 </Button>
               </ButtonGroup>
+              {!readOnly && (
+                <Button
+                  variant="outline"
+                  onClick={() => setPricelistImportDialogOpen(true)}
+                >
+                  <RiUpload2Line className="h-4 w-4 mr-1.5" />
+                  Import Excel
+                </Button>
+              )}
               {!readOnly && (
                 <Button
                   onClick={handleAddPricelist}
@@ -746,6 +842,15 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             pricelist={editingPricelist}
             tokoId={tokoId}
             onSuccess={handlePricelistSuccess}
+          />
+        )}
+
+        {!readOnly && (
+          <ServicePricelistImportDialog
+            open={pricelistImportDialogOpen}
+            onOpenChange={setPricelistImportDialogOpen}
+            tokoId={tokoId}
+            onSuccess={handlePricelistImportSuccess}
           />
         )}
 

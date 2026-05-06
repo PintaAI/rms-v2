@@ -13,7 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   createSparepart,
+  getSparepartCategories,
   updateSparepart,
+  type SparepartCategory,
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
 import { MultiDeviceInput, type HpCatalogOption } from "@/components/shared/multi-device-input";
@@ -56,15 +58,27 @@ function SparepartFormContent({
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(sparepart?.name ?? "");
   const [defaultPrice, setDefaultPrice] = useState(sparepart ? sparepart.defaultPrice.toString() : "");
+  const [purchasePrice, setPurchasePrice] = useState(sparepart?.purchasePrice != null ? sparepart.purchasePrice.toString() : "");
+  const [supplierName, setSupplierName] = useState(sparepart?.supplierName ?? "");
+  const [categoryName, setCategoryName] = useState(sparepart?.category?.name ?? "");
   const [stock, setStock] = useState(sparepart ? sparepart.stock.toString() : "");
+  const [criticalStock, setCriticalStock] = useState(sparepart ? sparepart.criticalStock.toString() : "5");
   const [isUniversal, setIsUniversal] = useState(sparepart?.isUniversal ?? false);
   const [selectedDevices, setSelectedDevices] = useState<HpCatalogOption[]>(() => toDeviceOptions(sparepart));
   const sparepartRef = useRef(sparepart);
+  const [categories, setCategories] = useState<SparepartCategory[]>([]);
   const [devices, setDevices] = useState<HpCatalogOption[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(true);
 
   useEffect(() => {
     let active = true;
+
+    getSparepartCategories(tokoId)
+      .then((result) => {
+        if (!active) return;
+        if (result.success && result.data) setCategories(result.data);
+      })
+      .catch(() => undefined);
 
     loadDeviceCatalog()
       .then((catalog) => {
@@ -83,7 +97,7 @@ function SparepartFormContent({
     return () => {
       active = false;
     };
-  }, []);
+  }, [tokoId]);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -117,7 +131,13 @@ function SparepartFormContent({
 
     const price = parseInt(defaultPrice, 10);
     if (isNaN(price) || price < 0) {
-      setError("Harga harus berupa angka yang valid");
+      setError("Harga jual harus berupa angka yang valid");
+      return;
+    }
+
+    const parsedPurchasePrice = purchasePrice.trim() ? parseInt(purchasePrice, 10) : null;
+    if (parsedPurchasePrice !== null && (isNaN(parsedPurchasePrice) || parsedPurchasePrice < 0)) {
+      setError("Harga beli harus berupa angka yang valid");
       return;
     }
 
@@ -127,8 +147,22 @@ function SparepartFormContent({
       return;
     }
 
+    const criticalStockValue = parseInt(criticalStock, 10);
+    if (isNaN(criticalStockValue) || criticalStockValue < 0) {
+      setError("Stok kritis harus berupa angka yang valid");
+      return;
+    }
+
     const hpCatalogIds = selectedDevices.map((d) => d.id);
     const finalIsUniversal = hpCatalogIds.length === 0 ? true : isUniversal;
+    const trimmedCategoryName = categoryName.trim();
+    const optimisticCategory = trimmedCategoryName
+      ? categories.find((category) => category.name.toLowerCase() === trimmedCategoryName.toLowerCase()) ?? {
+          id: `temp-category-${Date.now()}`,
+          name: trimmedCategoryName,
+          tokoId,
+        }
+      : null;
 
     const tempId = sparepart?.id || `temp-${Date.now()}`;
     const optimisticSparepart: SparepartWithCompatibilities = {
@@ -136,9 +170,14 @@ function SparepartFormContent({
       barcode: sparepart?.barcode ?? "membuat...",
       name,
       defaultPrice: price,
+      purchasePrice: parsedPurchasePrice,
+      supplierName: supplierName.trim() || null,
+      categoryId: optimisticCategory?.id ?? null,
       stock: stockValue,
+      criticalStock: criticalStockValue,
       isUniversal: finalIsUniversal,
       tokoId,
+      category: optimisticCategory,
       compatibilities: selectedDevices.map((d) => ({
         hpCatalogId: d.id,
         sparepartId: tempId,
@@ -167,14 +206,22 @@ function SparepartFormContent({
           id: sparepartRef.current.id,
           name,
           defaultPrice: price,
+          purchasePrice: parsedPurchasePrice,
+          supplierName: supplierName.trim() || null,
+          categoryName: trimmedCategoryName || null,
           stock: stockValue,
+          criticalStock: criticalStockValue,
           isUniversal: finalIsUniversal,
           hpCatalogIds,
         })
       : await createSparepart({
           name,
           defaultPrice: price,
+          purchasePrice: parsedPurchasePrice,
+          supplierName: supplierName.trim() || null,
+          categoryName: trimmedCategoryName || null,
           stock: stockValue,
+          criticalStock: criticalStockValue,
           isUniversal: finalIsUniversal,
           tokoId,
           hpCatalogIds,
@@ -234,7 +281,7 @@ function SparepartFormContent({
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="price" className="flex items-center gap-1.5 text-sm">
                     <RiPriceTag3Line className="size-3.5" />
-                    Harga Default
+                    Harga Jual
                   </Label>
                   <span className="text-sm leading-none text-destructive">*</span>
                 </div>
@@ -247,6 +294,22 @@ function SparepartFormContent({
                   min="0"
                   disabled={isLoading}
                   required
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="purchasePrice" className="flex items-center gap-1.5 text-sm">
+                  <RiPriceTag3Line className="size-3.5" />
+                  Harga Beli
+                </Label>
+                <Input
+                  id="purchasePrice"
+                  type="number"
+                  value={purchasePrice}
+                  onChange={(e) => setPurchasePrice(e.target.value)}
+                  placeholder="0"
+                  min="0"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -268,6 +331,53 @@ function SparepartFormContent({
                   disabled={isLoading}
                   required
                 />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="criticalStock" className="flex items-center gap-1.5 text-sm">
+                  <RiStackLine className="size-3.5" />
+                  Stok Kritis
+                </Label>
+                <Input
+                  id="criticalStock"
+                  type="number"
+                  value={criticalStock}
+                  onChange={(e) => setCriticalStock(e.target.value)}
+                  placeholder="5"
+                  min="0"
+                  disabled={isLoading}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Sparepart dianggap kritis jika stok sama dengan atau di bawah angka ini.</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="supplierName" className="text-sm">Nama Supplier</Label>
+                <Input
+                  id="supplierName"
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                  placeholder="Contoh: Toko Sparepart Jaya"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="categoryName" className="text-sm">Kategori</Label>
+                <Input
+                  id="categoryName"
+                  list="sparepart-category-options"
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                  placeholder="Contoh: LCD, Baterai, Konektor"
+                  disabled={isLoading}
+                />
+                <datalist id="sparepart-category-options">
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.name} />
+                  ))}
+                </datalist>
+                <p className="text-xs text-muted-foreground">Kategori baru akan dibuat otomatis saat disimpan.</p>
               </div>
             </div>
           </div>

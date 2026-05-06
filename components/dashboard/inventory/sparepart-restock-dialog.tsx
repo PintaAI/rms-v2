@@ -480,7 +480,7 @@ function SparepartRestockDialogContent({
                     <Badge variant="outline" className={cn(
                       foundSparepart.stock <= 0
                         ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                        : foundSparepart.stock <= 5
+                        : foundSparepart.stock <= foundSparepart.criticalStock
                           ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
                           : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
                     )}>

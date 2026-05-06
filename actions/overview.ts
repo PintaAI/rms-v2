@@ -186,9 +186,12 @@ async function getSharedOverviewData(targetTokoId: string): Promise<ActionResult
     prisma.service.count({
       where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } },
     }),
-    prisma.sparepart.count({
-      where: { tokoId: targetTokoId, stock: { lte: 5 } },
-    }),
+    prisma.$queryRaw<{ count: number }[]>`
+      SELECT COUNT(*)::int AS count
+      FROM "sparepart"
+      WHERE "tokoId" = ${targetTokoId}
+        AND "stock" <= "criticalStock"
+    `,
     prisma.service.findMany({
       where: { tokoId: targetTokoId },
       orderBy: { checkinAt: "desc" },
@@ -196,6 +199,8 @@ async function getSharedOverviewData(targetTokoId: string): Promise<ActionResult
       select: recentServiceSelect,
     }),
   ]);
+
+  const lowStockTotal = lowStockCount[0]?.count ?? 0;
 
   const total =
     (statusMap["received"] || 0) +
@@ -212,7 +217,7 @@ async function getSharedOverviewData(targetTokoId: string): Promise<ActionResult
       pickedUpCount,
       dailyCount,
       weeklyCount,
-      lowStockCount,
+      lowStockCount: lowStockTotal,
       recentServices,
       total,
     },

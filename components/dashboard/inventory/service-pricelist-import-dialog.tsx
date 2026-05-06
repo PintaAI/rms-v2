@@ -22,16 +22,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { importSpareparts, type ImportSparepartInput } from "@/actions/inventory";
+import { importServicePricelists, type ImportServicePricelistInput } from "@/actions/inventory";
 import { RiDownload2Line, RiLoader4Line, RiUpload2Line } from "@remixicon/react";
 
 const MAX_IMPORT_ROWS = 100;
 
-type ParsedRow = ImportSparepartInput & {
+type ParsedRow = ImportServicePricelistInput & {
   error?: string;
 };
 
-interface SparepartImportDialogProps {
+interface ServicePricelistImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tokoId: string;
@@ -64,74 +64,40 @@ function parseNumber(value: unknown) {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : Number.NaN;
 }
 
-function parseUniversal(value: unknown) {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value === 1;
-  if (typeof value !== "string") return undefined;
-
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (["ya", "y", "yes", "true", "1", "universal"].includes(normalized)) return true;
-  if (["tidak", "n", "no", "false", "0", "non universal", "non-universal"].includes(normalized)) return false;
-
-  return undefined;
-}
-
 function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
-  const seenNames = new Map<string, number>();
+  const seenTitles = new Map<string, number>();
 
   return rawRows
     .map<ParsedRow | null>((row, index) => {
       const rowNumber = index + 2;
-      const rawName = getCell(row, ["Nama", "Name", "Nama Sparepart", "Sparepart"]);
-      const rawPrice = getCell(row, ["Harga Jual", "Harga", "Harga Default", "Default Price", "defaultPrice"]);
-      const rawPurchasePrice = getCell(row, ["Harga Beli", "Purchase Price", "purchasePrice"]);
-      const rawSupplierName = getCell(row, ["Supplier", "Nama Supplier", "supplierName"]);
-      const rawCategoryName = getCell(row, ["Kategori", "Category", "categoryName"]);
-      const rawStock = getCell(row, ["Stok", "Stock"]);
-      const rawCriticalStock = getCell(row, ["Stok Kritis", "Critical Stock", "criticalStock", "Minimum Stock", "minimumStock"]);
-      const rawUniversal = getCell(row, ["Universal", "Is Universal", "isUniversal"]);
-      const name = typeof rawName === "string" ? rawName.trim() : String(rawName ?? "").trim();
+      const rawTitle = getCell(row, ["Judul", "Title", "Jasa", "Nama Jasa", "Service", "Layanan"]);
+      const rawPrice = getCell(row, ["Harga", "Harga Default", "Harga Jasa", "Default Price", "defaultPrice"]);
+      const title = typeof rawTitle === "string" ? rawTitle.trim() : String(rawTitle ?? "").trim();
 
-      if (!name && rawPrice === undefined && rawPurchasePrice === undefined && rawSupplierName === undefined && rawCategoryName === undefined && rawStock === undefined) return null;
+      if (!title && (rawPrice === undefined || rawPrice === "")) return null;
 
       const defaultPrice = parseNumber(rawPrice);
-      const purchasePrice = rawPurchasePrice === undefined || rawPurchasePrice === "" ? null : parseNumber(rawPurchasePrice);
-      const supplierName = typeof rawSupplierName === "string" ? rawSupplierName.trim() : String(rawSupplierName ?? "").trim();
-      const categoryName = typeof rawCategoryName === "string" ? rawCategoryName.trim() : String(rawCategoryName ?? "").trim();
-      const stock = parseNumber(rawStock);
-      const criticalStock = rawCriticalStock === undefined || rawCriticalStock === "" ? 5 : parseNumber(rawCriticalStock);
-      const isUniversal = parseUniversal(rawUniversal);
-      const normalizedName = name.toLowerCase();
-      const duplicateRow = seenNames.get(normalizedName);
+      const normalizedTitle = title.toLowerCase();
+      const duplicateRow = seenTitles.get(normalizedTitle);
       let error: string | undefined;
 
-      if (!name) error = "Nama wajib diisi";
-      else if (duplicateRow) error = `Nama duplikat dengan baris ${duplicateRow}`;
-      else if (!Number.isInteger(defaultPrice) || defaultPrice < 0) error = "Harga jual harus angka 0 atau lebih";
-      else if (purchasePrice !== null && (!Number.isInteger(purchasePrice) || purchasePrice < 0)) error = "Harga beli harus angka 0 atau lebih";
-      else if (!Number.isInteger(stock) || stock < 0) error = "Stok harus angka 0 atau lebih";
-      else if (!Number.isInteger(criticalStock) || criticalStock < 0) error = "Stok kritis harus angka 0 atau lebih";
+      if (!title) error = "Judul wajib diisi";
+      else if (duplicateRow) error = `Judul duplikat dengan baris ${duplicateRow}`;
+      else if (!Number.isInteger(defaultPrice) || defaultPrice < 0) error = "Harga harus angka 0 atau lebih";
 
-      if (name && !duplicateRow) seenNames.set(normalizedName, rowNumber);
+      if (title && !duplicateRow) seenTitles.set(normalizedTitle, rowNumber);
 
       return {
         rowNumber,
-        name,
+        title,
         defaultPrice: Number.isFinite(defaultPrice) ? defaultPrice : 0,
-        purchasePrice: purchasePrice !== null && Number.isFinite(purchasePrice) ? purchasePrice : null,
-        supplierName: supplierName || null,
-        categoryName: categoryName || null,
-        stock: Number.isFinite(stock) ? stock : 0,
-        criticalStock: Number.isFinite(criticalStock) ? criticalStock : 5,
-        isUniversal: isUniversal ?? true,
         error,
       };
     })
     .filter((row): row is ParsedRow => row !== null);
 }
 
-export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }: SparepartImportDialogProps) {
+export function ServicePricelistImportDialog({ open, onOpenChange, tokoId, onSuccess }: ServicePricelistImportDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
@@ -163,14 +129,8 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
           ...parsedRows.slice(0, MAX_IMPORT_ROWS),
           {
             rowNumber: MAX_IMPORT_ROWS + 2,
-            name: "",
+            title: "",
             defaultPrice: 0,
-            purchasePrice: null,
-            supplierName: null,
-            categoryName: null,
-            stock: 0,
-            criticalStock: 5,
-            isUniversal: true,
             error: `Maksimal ${MAX_IMPORT_ROWS} baris per import`,
           },
         ]);
@@ -178,7 +138,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
       }
 
       setRows(parsedRows);
-      if (parsedRows.length === 0) toast.error("Tidak ada data sparepart di file Excel");
+      if (parsedRows.length === 0) toast.error("Tidak ada data jasa di file Excel");
     } catch (error) {
       setRows([]);
       toast.error(error instanceof Error ? error.message : "Gagal membaca file Excel");
@@ -189,37 +149,31 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
 
   function handleDownloadTemplate() {
     const worksheet = XLSX.utils.aoa_to_sheet([
-      ["Nama", "Kategori", "Harga Beli", "Harga Jual", "Supplier", "Stok", "Stok Kritis", "Universal"],
-      ["LCD iPhone 13", "LCD", 350000, 450000, "Supplier A", 5, 2, "ya"],
-      ["Baterai Samsung A12", "Baterai", 120000, 180000, "Supplier B", 10, 5, "ya"],
+      ["Judul", "Harga Default"],
+      ["Ganti LCD", 150000],
+      ["Servis Software", 75000],
     ]);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sparepart");
-    XLSX.writeFile(workbook, "template-import-sparepart.xlsx");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Jasa");
+    XLSX.writeFile(workbook, "template-import-jasa.xlsx");
   }
 
   async function handleImport() {
     if (!canImport) return;
 
     setIsImporting(true);
-    const result = await importSpareparts({
+    const result = await importServicePricelists({
       tokoId,
       rows: validRows.map((row) => ({
         rowNumber: row.rowNumber,
-        name: row.name,
+        title: row.title,
         defaultPrice: row.defaultPrice,
-        purchasePrice: row.purchasePrice,
-        supplierName: row.supplierName,
-        categoryName: row.categoryName,
-        stock: row.stock,
-        criticalStock: row.criticalStock,
-        isUniversal: row.isUniversal,
       })),
     });
     setIsImporting(false);
 
     if (!result.success || !result.data) {
-      toast.error(result.error || "Gagal import sparepart");
+      toast.error(result.error || "Gagal import jasa");
       return;
     }
 
@@ -234,22 +188,22 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <span className="flex size-8 items-center justify-center rounded-md bg-chart-1/10 text-chart-1">
               <RiUpload2Line className="size-4" />
             </span>
-            Import Excel Sparepart
+            Import Excel Jasa
           </DialogTitle>
           <DialogDescription>
-            Import maksimal {MAX_IMPORT_ROWS} baris. Jika nama sparepart sudah ada, harga, supplier, dan stok akan diupdate.
+            Import maksimal {MAX_IMPORT_ROWS} baris. Jika judul jasa sudah ada, harga default akan diupdate.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-            Format kolom: <span className="font-medium text-foreground">Nama</span>, <span className="font-medium text-foreground">Kategori</span> optional, <span className="font-medium text-foreground">Harga Jual</span>, <span className="font-medium text-foreground">Harga Beli</span> optional, <span className="font-medium text-foreground">Supplier</span> optional, <span className="font-medium text-foreground">Stok</span>, <span className="font-medium text-foreground">Stok Kritis</span> optional, dan <span className="font-medium text-foreground">Universal</span> optional berisi ya/tidak.
+            Format kolom: <span className="font-medium text-foreground">Judul</span> dan <span className="font-medium text-foreground">Harga Default</span>.
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -287,14 +241,8 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     <TableHead className="w-16">Baris</TableHead>
-                    <TableHead>Nama</TableHead>
-                    <TableHead>Kategori</TableHead>
-                    <TableHead>Harga Beli</TableHead>
-                    <TableHead>Harga Jual</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead>Stok</TableHead>
-                    <TableHead>Stok Kritis</TableHead>
-                    <TableHead>Universal</TableHead>
+                    <TableHead>Judul</TableHead>
+                    <TableHead>Harga Default</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -302,14 +250,8 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
                   {rows.slice(0, 10).map((row) => (
                     <TableRow key={row.rowNumber}>
                       <TableCell>{row.rowNumber}</TableCell>
-                      <TableCell className="font-medium">{row.name || "-"}</TableCell>
-                      <TableCell>{row.categoryName || "-"}</TableCell>
-                      <TableCell>{row.purchasePrice ?? "-"}</TableCell>
+                      <TableCell className="font-medium">{row.title || "-"}</TableCell>
                       <TableCell>{row.defaultPrice}</TableCell>
-                      <TableCell>{row.supplierName || "-"}</TableCell>
-                      <TableCell>{row.stock}</TableCell>
-                      <TableCell>{row.criticalStock ?? 5}</TableCell>
-                      <TableCell>{row.isUniversal ? "Ya" : "Tidak"}</TableCell>
                       <TableCell>
                         {row.error ? (
                           <span className="text-destructive">{row.error}</span>
