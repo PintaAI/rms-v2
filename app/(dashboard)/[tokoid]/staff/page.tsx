@@ -24,7 +24,6 @@ export default async function StaffOverviewPage({
       <FeaturePreview
         featureKey="staff.workflow"
         requiredPlan={access.metadata.minimumPlan}
-        tokoId={tokoid}
       >
         <StaffOverview data={MOCK_STAFF_OVERVIEW_DATA} tokoId={tokoid} />
       </FeaturePreview>

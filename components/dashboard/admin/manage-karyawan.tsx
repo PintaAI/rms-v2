@@ -61,7 +61,7 @@ function PerformanceBadge({
 }: {
   performance: KaryawanItem["performance"];
   role: "staff" | "technician";
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   if (!performance) {
     return <span className="text-muted-foreground text-xs">-</span>;
@@ -387,39 +387,61 @@ export function ManageKaryawan({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredKaryawan.map((item) => (
-                    <TableRow key={item.id} className="border-border/50">
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>{item.email}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
-                            item.role === "staff"
-                              ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                              : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                          }`}
-                        >
-                          {item.role === "staff" ? "Staff" : "Technician"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <PerformanceBadge
-                          performance={item.performance}
-                          role={item.role}
-                          onClick={item.role === "technician" ? () => handlePerformanceClick(item) : undefined}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handleDeleteClick(item)}
-                        >
-                          <RiDeleteBinLine className="size-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  filteredKaryawan.map((item) => {
+                    const canOpenPerformance = item.role === "technician";
+
+                    return (
+                      <TableRow
+                        key={item.id}
+                        className={`border-border/50 ${canOpenPerformance ? "cursor-pointer hover:bg-muted/50" : ""}`}
+                        onClick={canOpenPerformance ? () => handlePerformanceClick(item) : undefined}
+                        onKeyDown={canOpenPerformance ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handlePerformanceClick(item);
+                          }
+                        } : undefined}
+                        tabIndex={canOpenPerformance ? 0 : undefined}
+                        title={canOpenPerformance ? "Klik untuk melihat detail performance teknisi" : undefined}
+                      >
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell>{item.email}</TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                              item.role === "staff"
+                                ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                                : "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                            }`}
+                          >
+                            {item.role === "staff" ? "Staff" : "Technician"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <PerformanceBadge
+                            performance={item.performance}
+                            role={item.role}
+                            onClick={canOpenPerformance ? (event) => {
+                              event.stopPropagation();
+                              handlePerformanceClick(item);
+                            } : undefined}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteClick(item);
+                            }}
+                          >
+                            <RiDeleteBinLine className="size-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

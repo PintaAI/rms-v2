@@ -41,6 +41,17 @@ export function getWhatsAppTrialRequestUrl(input: { email?: string | null; tokoN
   return `https://web.whatsapp.com/send?phone=${RMS_WHATSAPP_NUMBER}&text=${encodeURIComponent(message)}`;
 }
 
+export function getWhatsAppProBetaRequestUrl(input: { email?: string | null; tokoName?: string | null; context?: string }) {
+  const message = [
+    "Halo, saya ingin request fitur Pro atau join beta testing RMS.",
+    `Email: ${input.email || "-"}`,
+    `Toko: ${input.tokoName || "-"}`,
+    input.context ? `Konteks: ${input.context}` : null,
+  ].filter(Boolean).join("\n");
+
+  return `https://wa.me/${RMS_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+}
+
 export function getWhatsAppEnterpriseUrl(input: { email?: string | null; tokoName?: string | null }) {
   const message = [
     "Halo tim RMS, saya ingin konsultasi paket Enterprise.",

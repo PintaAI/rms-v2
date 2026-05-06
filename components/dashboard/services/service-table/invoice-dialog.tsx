@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   RiCheckboxCircleLine,
+  RiCloseLine,
   RiDownload2Line,
   RiPrinterLine,
 } from "@remixicon/react";
@@ -491,6 +492,15 @@ export function InvoiceDialog({
       <DialogContent className="flex max-h-[90vh] w-[calc(100%-1rem)] flex-col overflow-hidden sm:max-w-5xl" showCloseButton={false}>
         {service && (
           <>
+            <button
+              type="button"
+              aria-label="Tutup invoice"
+              onClick={() => onOpenChange(false)}
+              className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground sm:hidden"
+            >
+              <RiCloseLine className="h-5 w-5" />
+            </button>
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <DialogHeader>
                 <DialogTitle className="text-base font-semibold">

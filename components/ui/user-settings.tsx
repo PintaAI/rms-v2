@@ -24,7 +24,9 @@ import { getParamValue } from "@/components/settings/helpers";
 import { PasswordSettingsTab } from "@/components/settings/password-tab";
 import { PlanSettingsTab } from "@/components/settings/plan-tab";
 import { ProfileSettingsTab } from "@/components/settings/profile-tab";
+import { getWhatsAppProBetaRequestUrl } from "@/components/settings/helpers";
 import type { SettingsTab, SettingsUser } from "@/components/settings/types";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -120,7 +122,7 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
         return currentTokoId ? <FeatureSettingsTab tokoId={currentTokoId} /> : <EmptyTabMessage message="Pilih toko untuk mengatur fitur." />;
       case "whatsapp":
         if (!isPlanAtLeast(normalizePlan(currentPlan), "premium")) {
-          return <WhatsappLocked currentPlan={currentPlan} />;
+          return <WhatsappLocked userEmail={user?.email} tokoName={currentToko?.name} />;
         }
         return currentTokoId ? <WhatsappSettingsTab tokoId={currentTokoId} /> : <EmptyTabMessage message="Pilih toko untuk mengatur WhatsApp." />;
       case "password":
@@ -172,7 +174,9 @@ function EmptyTabMessage({ message }: { message: string }) {
   return <div className="py-8 text-center text-muted-foreground">{message}</div>;
 }
 
-function WhatsappLocked({ currentPlan }: { currentPlan: string }) {
+function WhatsappLocked({ userEmail, tokoName }: { userEmail?: string | null; tokoName?: string | null }) {
+  const proBetaRequestUrl = getWhatsAppProBetaRequestUrl({ email: userEmail, tokoName, context: "Membuka fitur WhatsApp" });
+
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
@@ -182,6 +186,12 @@ function WhatsappLocked({ currentPlan }: { currentPlan: string }) {
       <p className="mt-1 max-w-xs text-sm text-muted-foreground">
         Fitur WhatsApp hanya tersedia di paket Pro. Upgrade untuk mengirim notifikasi status service otomatis ke pelanggan.
       </p>
+      <Button asChild className="mt-4">
+        <a href={proBetaRequestUrl} target="_blank" rel="noreferrer">
+          <RiWhatsappLine data-icon="inline-start" />
+          Request fitur Pro / join beta
+        </a>
+      </Button>
     </div>
   );
 }

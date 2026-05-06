@@ -22,7 +22,7 @@ export function useScannerPairing({ tokoId, onScan }: { tokoId: string; onScan: 
   const { state, startPairing } = host;
 
   useEffect(() => {
-    if (isOpen && state === "idle") {
+    if (isOpen && (state === "idle" || state === "disconnected")) {
       void startPairing();
     }
   }, [isOpen, state, startPairing]);

@@ -55,6 +55,7 @@ interface PaymentDialogProps {
   invoiceTotal: number;
   dpAmount?: number;
   isSubmitting?: boolean;
+  onSuccess?: () => void;
   onConfirm: (payment: { discountAmount: number }) => Promise<boolean>;
 }
 
@@ -73,6 +74,7 @@ export function PaymentDialog({
   invoiceTotal,
   dpAmount = 0,
   isSubmitting = false,
+  onSuccess,
   onConfirm,
 }: PaymentDialogProps) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
@@ -108,6 +110,7 @@ export function PaymentDialog({
       setUsePercentDiscount(false);
       setDiscountInput("");
       setCashInput("");
+      onSuccess?.();
     }
   }
 

@@ -29,7 +29,6 @@ export default async function AdminKaryawanPage({ params, searchParams }: AdminK
       <FeaturePreview
         featureKey="karyawan.management"
         requiredPlan={access.metadata.minimumPlan}
-        tokoId={tokoid}
       >
         <div className="space-y-8">
           <div className="space-y-1">

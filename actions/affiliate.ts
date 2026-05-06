@@ -14,6 +14,7 @@ import {
   DEFAULT_PREMIUM_COMMISSION,
   generateAffiliatorCode,
   generatePortalToken,
+  buildAffiliateLinks,
   getCommissionAmount,
   getReferralLink,
   maskEmail,
@@ -43,6 +44,10 @@ export interface AffiliatorRow {
   approvedCommissionAmount: number;
   paidCommissionAmount: number;
   createdAt: Date;
+  links: {
+    referralLink: string;
+    trackingLink: string;
+  };
 }
 
 export interface AffiliateCommissionRow {
@@ -257,6 +262,7 @@ function toAffiliatorRow(affiliator: {
     approvedCommissionAmount: sumCommissions(affiliator.commissions, "approved"),
     paidCommissionAmount: sumCommissions(affiliator.commissions, "paid"),
     createdAt: affiliator.createdAt,
+    links: buildAffiliateLinks(affiliator.code, affiliator.portalToken),
   };
 }
 

@@ -9,13 +9,16 @@ import { RiStore2Line, RiInboxLine, RiToolsLine, RiCheckDoubleLine, RiLogoutBoxL
 
 interface AdminServicePageProps {
   params: Promise<{ tokoid: string }>;
-  searchParams: Promise<{ q?: string | string[] }>;
+  searchParams: Promise<{ q?: string | string[]; status?: string | string[]; pickedup?: string | string[] }>;
 }
 
 export default async function AdminServicePage({ params, searchParams }: AdminServicePageProps) {
   const { tokoid } = await params;
   const query = await searchParams;
   const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
+  const statusFilter = Array.isArray(query.status) ? query.status[0] : query.status;
+  const pickedUpFilter = Array.isArray(query.pickedup) ? query.pickedup[0] : query.pickedup;
+  const isAllMenu = !statusFilter && pickedUpFilter !== "true";
   const pageSize = 15;
 
   const toko = await prisma.toko.findUnique({
@@ -95,7 +98,7 @@ export default async function AdminServicePage({ params, searchParams }: AdminSe
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola semua service di toko</p>
       </div>
-      <section className="space-y-4">
+      <section className={`space-y-4 ${isAllMenu ? "" : "hidden md:block"}`}>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <OverviewStatsCard title="Masuk" value={stats.received} icon={<RiInboxLine className="h-4 w-4" />} description="menunggu teknisi" variant="primary" />
           <OverviewStatsCard title="Proses" value={stats.repairing} icon={<RiToolsLine className="h-4 w-4" />} description="sedang diperbaiki" variant="accent" />

@@ -437,9 +437,9 @@ export function ServiceTable({
                         );
                         
                         if (colKey !== "invoice" || !service.invoice) return cellContent;
-                        
-                        const isPaidInvoice = service.invoice.paymentStatus === "paid";
-                        if (!isPaidInvoice) return cellContent;
+
+                        const isNonClickableInvoice = ["paid", "unpaid", "dp"].includes(service.invoice.paymentStatus);
+                        if (isNonClickableInvoice) return cellContent;
 
                         return (
                           <button

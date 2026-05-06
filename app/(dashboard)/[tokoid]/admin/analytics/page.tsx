@@ -23,7 +23,7 @@ export default async function AdminAnalyticsPage({ params, searchParams }: Admin
 
   if (access.reason === "plan_required") {
     return (
-      <FeaturePreview featureKey="analytics.revenue" requiredPlan={access.metadata.minimumPlan} tokoId={tokoid}>
+      <FeaturePreview featureKey="analytics.revenue" requiredPlan={access.metadata.minimumPlan}>
         <AdminAnalyticsDashboard data={MOCK_ANALYTICS_DATA} />
       </FeaturePreview>
     );
