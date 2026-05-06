@@ -29,6 +29,7 @@ import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/spar
 import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepart-restock-dialog";
 import { SparepartImportDialog } from "@/components/dashboard/inventory/sparepart-import-dialog";
 import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
+import { ServicePricelistImportDialog } from "@/components/dashboard/inventory/service-pricelist-import-dialog";
 import {
   RiAddLine,
   RiEditLine,
@@ -82,6 +83,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
   const [restockDialogOpen, setRestockDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [pricelistImportDialogOpen, setPricelistImportDialogOpen] = useState(false);
 
   useEffect(() => {
     if (hasInitialData) return;
@@ -210,6 +212,15 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
       }
     }
     setEditingPricelist(null);
+  };
+
+  const handlePricelistImportSuccess = async () => {
+    setIsLoadingPricelists(true);
+    const result = await getServicePricelists(tokoId);
+    if (result.success && result.data) {
+      setPricelists(result.data);
+    }
+    setIsLoadingPricelists(false);
   };
 
   const handleDeletePricelistClick = (pricelist: ServicePricelist) => {
@@ -625,6 +636,15 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
               </ButtonGroup>
               {!readOnly && (
                 <Button
+                  variant="outline"
+                  onClick={() => setPricelistImportDialogOpen(true)}
+                >
+                  <RiUpload2Line className="h-4 w-4 mr-1.5" />
+                  Import Excel
+                </Button>
+              )}
+              {!readOnly && (
+                <Button
                   onClick={handleAddPricelist}
                   className="bg-gradient-to-r from-chart-1 to-chart-1/90 hover:from-chart-1/90 hover:to-chart-1/80 shadow-lg shadow-chart-1/20 transition-all duration-200 hover:shadow-xl hover:shadow-chart-1/30"
                 >
@@ -761,6 +781,15 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             pricelist={editingPricelist}
             tokoId={tokoId}
             onSuccess={handlePricelistSuccess}
+          />
+        )}
+
+        {!readOnly && (
+          <ServicePricelistImportDialog
+            open={pricelistImportDialogOpen}
+            onOpenChange={setPricelistImportDialogOpen}
+            tokoId={tokoId}
+            onSuccess={handlePricelistImportSuccess}
           />
         )}
 

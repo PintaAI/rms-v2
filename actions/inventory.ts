@@ -64,6 +64,19 @@ export type ImportSparepartsResult = {
   errors: Array<{ rowNumber: number; message: string }>
 }
 
+export type ImportServicePricelistInput = {
+  rowNumber: number
+  title: string
+  defaultPrice: number
+}
+
+export type ImportServicePricelistsResult = {
+  created: number
+  updated: number
+  failed: number
+  errors: Array<{ rowNumber: number; message: string }>
+}
+
 const createSparepartSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi"),
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
@@ -88,6 +101,17 @@ const importSparepartRowSchema = z.object({
 const importSparepartsSchema = z.object({
   tokoId: z.string(),
   rows: z.array(importSparepartRowSchema).min(1, "Tidak ada data untuk diimport").max(100, "Maksimal 100 baris per import"),
+})
+
+const importServicePricelistRowSchema = z.object({
+  rowNumber: z.number().int().min(2),
+  title: z.string().trim().min(1, "Judul wajib diisi"),
+  defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih"),
+})
+
+const importServicePricelistsSchema = z.object({
+  tokoId: z.string(),
+  rows: z.array(importServicePricelistRowSchema).min(1, "Tidak ada data untuk diimport").max(100, "Maksimal 100 baris per import"),
 })
 
 const updateSparepartSchema = z.object({
@@ -721,6 +745,90 @@ export async function getServicePricelists(tokoId: string): Promise<ActionResult
   } catch (error) {
     console.error("Error fetching service pricelists:", error)
     return { success: false, error: "Gagal mengambil daftar harga jasa" }
+  }
+}
+
+export async function importServicePricelists(data: z.infer<typeof importServicePricelistsSchema>): Promise<ActionResultWithData<ImportServicePricelistsResult>> {
+  try {
+    const validated = importServicePricelistsSchema.parse(data)
+    const access = await getInventoryUser(validated.tokoId, true)
+    if (!access.success) return access
+
+    const errors: ImportServicePricelistsResult["errors"] = []
+    const seenTitles = new Map<string, number>()
+    const validRows: Array<z.infer<typeof importServicePricelistRowSchema>> = []
+
+    for (const row of validated.rows) {
+      const title = row.title.trim()
+      const normalizedTitle = title.toLowerCase()
+      const duplicateRow = seenTitles.get(normalizedTitle)
+
+      if (duplicateRow) {
+        errors.push({
+          rowNumber: row.rowNumber,
+          message: `Judul duplikat dengan baris ${duplicateRow}`,
+        })
+        continue
+      }
+
+      seenTitles.set(normalizedTitle, row.rowNumber)
+      validRows.push({ ...row, title })
+    }
+
+    if (validRows.length === 0) {
+      return {
+        success: true,
+        data: { created: 0, updated: 0, failed: errors.length, errors },
+      }
+    }
+
+    const existingPricelists = await prisma.servicePricelist.findMany({
+      where: { tokoId: validated.tokoId },
+      select: { id: true, title: true },
+    })
+    const existingByTitle = new Map(existingPricelists.map((pricelist) => [pricelist.title.toLowerCase(), pricelist]))
+    let created = 0
+    let updated = 0
+
+    await prisma.$transaction(async (tx) => {
+      for (const row of validRows) {
+        const existing = existingByTitle.get(row.title.toLowerCase())
+
+        if (existing) {
+          await tx.servicePricelist.update({
+            where: { id: existing.id },
+            data: {
+              title: row.title,
+              defaultPrice: row.defaultPrice,
+            },
+          })
+          updated += 1
+          continue
+        }
+
+        await tx.servicePricelist.create({
+          data: {
+            title: row.title,
+            defaultPrice: row.defaultPrice,
+            tokoId: validated.tokoId,
+          },
+        })
+        created += 1
+      }
+    })
+
+    revalidateInventoryPaths()
+
+    return {
+      success: true,
+      data: { created, updated, failed: errors.length, errors },
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: error.issues[0].message }
+    }
+    console.error("Error importing service pricelists:", error)
+    return { success: false, error: "Gagal import jasa" }
   }
 }
 
