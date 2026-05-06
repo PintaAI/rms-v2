@@ -62,6 +62,7 @@ function SparepartFormContent({
   const [supplierName, setSupplierName] = useState(sparepart?.supplierName ?? "");
   const [categoryName, setCategoryName] = useState(sparepart?.category?.name ?? "");
   const [stock, setStock] = useState(sparepart ? sparepart.stock.toString() : "");
+  const [criticalStock, setCriticalStock] = useState(sparepart ? sparepart.criticalStock.toString() : "5");
   const [isUniversal, setIsUniversal] = useState(sparepart?.isUniversal ?? false);
   const [selectedDevices, setSelectedDevices] = useState<HpCatalogOption[]>(() => toDeviceOptions(sparepart));
   const sparepartRef = useRef(sparepart);
@@ -146,6 +147,12 @@ function SparepartFormContent({
       return;
     }
 
+    const criticalStockValue = parseInt(criticalStock, 10);
+    if (isNaN(criticalStockValue) || criticalStockValue < 0) {
+      setError("Stok kritis harus berupa angka yang valid");
+      return;
+    }
+
     const hpCatalogIds = selectedDevices.map((d) => d.id);
     const finalIsUniversal = hpCatalogIds.length === 0 ? true : isUniversal;
     const trimmedCategoryName = categoryName.trim();
@@ -167,6 +174,7 @@ function SparepartFormContent({
       supplierName: supplierName.trim() || null,
       categoryId: optimisticCategory?.id ?? null,
       stock: stockValue,
+      criticalStock: criticalStockValue,
       isUniversal: finalIsUniversal,
       tokoId,
       category: optimisticCategory,
@@ -202,6 +210,7 @@ function SparepartFormContent({
           supplierName: supplierName.trim() || null,
           categoryName: trimmedCategoryName || null,
           stock: stockValue,
+          criticalStock: criticalStockValue,
           isUniversal: finalIsUniversal,
           hpCatalogIds,
         })
@@ -212,6 +221,7 @@ function SparepartFormContent({
           supplierName: supplierName.trim() || null,
           categoryName: trimmedCategoryName || null,
           stock: stockValue,
+          criticalStock: criticalStockValue,
           isUniversal: finalIsUniversal,
           tokoId,
           hpCatalogIds,
@@ -321,6 +331,24 @@ function SparepartFormContent({
                   disabled={isLoading}
                   required
                 />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="criticalStock" className="flex items-center gap-1.5 text-sm">
+                  <RiStackLine className="size-3.5" />
+                  Stok Kritis
+                </Label>
+                <Input
+                  id="criticalStock"
+                  type="number"
+                  value={criticalStock}
+                  onChange={(e) => setCriticalStock(e.target.value)}
+                  placeholder="5"
+                  min="0"
+                  disabled={isLoading}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Sparepart dianggap kritis jika stok sama dengan atau di bawah angka ini.</p>
               </div>
 
               <div className="flex flex-col gap-2">

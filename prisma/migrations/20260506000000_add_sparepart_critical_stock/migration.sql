@@ -1,0 +1,1 @@
+ALTER TABLE "sparepart" ADD COLUMN "criticalStock" INTEGER NOT NULL DEFAULT 5;

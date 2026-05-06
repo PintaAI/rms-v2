@@ -18,6 +18,7 @@ export type Sparepart = {
   supplierName: string | null
   categoryId: string | null
   stock: number
+  criticalStock: number
   isUniversal: boolean
   tokoId: string
 }
@@ -63,6 +64,7 @@ export type ImportSparepartInput = {
   supplierName?: string | null
   categoryName?: string | null
   stock: number
+  criticalStock?: number | null
   isUniversal?: boolean
 }
 
@@ -93,6 +95,7 @@ const createSparepartSchema = z.object({
   supplierName: z.string().trim().nullable().optional(),
   categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
+  criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
   tokoId: z.string(),
   hpCatalogIds: z.array(z.string()).optional(),
@@ -106,6 +109,7 @@ const importSparepartRowSchema = z.object({
   supplierName: z.string().trim().nullable().optional(),
   categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih"),
+  criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").nullable().optional(),
   isUniversal: z.boolean().optional(),
 })
 
@@ -133,6 +137,7 @@ const updateSparepartSchema = z.object({
   supplierName: z.string().trim().nullable().optional(),
   categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
+  criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
   hpCatalogIds: z.array(z.string()).optional(),
 })
@@ -341,6 +346,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         supplierName: validated.supplierName || null,
         categoryId: category?.id ?? null,
         stock: validated.stock ?? 0,
+        criticalStock: validated.criticalStock ?? 5,
         isUniversal: validated.isUniversal ?? false,
         tokoId: validated.tokoId,
         compatibilities: validated.hpCatalogIds
@@ -374,6 +380,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         categoryId: sparepart.categoryId,
         categoryName: sparepart.category?.name,
         stock: sparepart.stock,
+        criticalStock: sparepart.criticalStock,
         isUniversal: sparepart.isUniversal,
       },
     })
@@ -428,6 +435,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         supplierName: validated.supplierName === undefined ? undefined : validated.supplierName || null,
         categoryId: validated.categoryName === undefined ? undefined : category?.id ?? null,
         stock: validated.stock,
+        criticalStock: validated.criticalStock,
         isUniversal: validated.isUniversal,
         ...(validated.hpCatalogIds && {
           compatibilities: {
@@ -462,6 +470,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         categoryId: updated.categoryId,
         categoryName: updated.category?.name,
         stock: updated.stock,
+        criticalStock: updated.criticalStock,
         isUniversal: updated.isUniversal,
       },
     })
@@ -549,6 +558,7 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
               supplierName: row.supplierName || null,
               categoryId: category?.id ?? null,
               stock: row.stock,
+              criticalStock: row.criticalStock ?? 5,
               isUniversal: row.isUniversal ?? true,
             },
           })
@@ -565,6 +575,7 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
             supplierName: row.supplierName || null,
             categoryId: category?.id ?? null,
             stock: row.stock,
+            criticalStock: row.criticalStock ?? 5,
             isUniversal: row.isUniversal ?? true,
             tokoId: validated.tokoId,
           },

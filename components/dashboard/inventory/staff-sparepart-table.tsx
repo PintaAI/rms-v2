@@ -186,7 +186,7 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
                             className={
                               sparepart.stock <= 0
                                 ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                                : sparepart.stock <= 5
+                                : sparepart.stock <= sparepart.criticalStock
                                 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
                                 : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
                             }

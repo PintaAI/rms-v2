@@ -48,6 +48,27 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 
 type ViewMode = "table" | "card";
+type StockFilter = "all" | "critical" | "out" | "safe";
+
+function getStockVariant(sparepart: SparepartWithCompatibilities) {
+  if (sparepart.stock <= 0) return "warning";
+  if (sparepart.stock <= sparepart.criticalStock) return "accent";
+  return "success";
+}
+
+function getStockBadgeClass(sparepart: SparepartWithCompatibilities) {
+  const stockVariant = getStockVariant(sparepart);
+  if (stockVariant === "warning") return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200";
+  if (stockVariant === "accent") return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200";
+  return "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200";
+}
+
+function getStockLabel(sparepart: SparepartWithCompatibilities) {
+  const stockVariant = getStockVariant(sparepart);
+  if (stockVariant === "warning") return "Habis";
+  if (stockVariant === "accent") return "Kritis";
+  return "Aman";
+}
 
 interface InventoryTabsProps {
   tokoId: string;
@@ -65,6 +86,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const [activeTab, setActiveTab] = useState<"sparepart" | "jasa">(initialTab);
   const [sparepartSearch, setSparepartSearch] = useState(initialTab === "sparepart" ? initialSearchQuery : "");
   const [sparepartCategoryFilter, setSparepartCategoryFilter] = useState("all");
+  const [sparepartStockFilter, setSparepartStockFilter] = useState<StockFilter>("all");
   const [pricelistSearch, setPricelistSearch] = useState(initialTab === "jasa" ? initialSearchQuery : "");
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(!hasInitialData);
   const [isLoadingPricelists, setIsLoadingPricelists] = useState(!hasInitialData);
@@ -132,6 +154,10 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const filteredSpareparts = spareparts.filter(
     (sp) =>
       (sparepartCategoryFilter === "all" || sp.categoryId === sparepartCategoryFilter) &&
+      (sparepartStockFilter === "all" ||
+        (sparepartStockFilter === "critical" && sp.stock > 0 && sp.stock <= sp.criticalStock) ||
+        (sparepartStockFilter === "out" && sp.stock <= 0) ||
+        (sparepartStockFilter === "safe" && sp.stock > sp.criticalStock)) &&
       (sp.name.toLowerCase().includes(normalizedSparepartSearch) ||
         sp.barcode.toLowerCase().includes(normalizedSparepartSearch) ||
         (sp.supplierName?.toLowerCase().includes(normalizedSparepartSearch) ?? false) ||
@@ -322,7 +348,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px_180px]">
             <div className="relative">
               <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -343,6 +369,17 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                 ))}
               </SelectContent>
             </Select>
+            <Select value={sparepartStockFilter} onValueChange={(value) => setSparepartStockFilter(value as StockFilter)}>
+              <SelectTrigger className="h-9 w-full">
+                <SelectValue placeholder="Filter stok" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua stok</SelectItem>
+                <SelectItem value="critical">Stok kritis</SelectItem>
+                <SelectItem value="out">Stok habis</SelectItem>
+                <SelectItem value="safe">Stok aman</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {isLoadingSpareparts ? (
@@ -359,7 +396,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredSpareparts.map((sparepart) => {
-                  const stockVariant = sparepart.stock <= 0 ? "warning" : sparepart.stock <= 5 ? "accent" : "success";
+                  const stockVariant = getStockVariant(sparepart);
                   const bgStyles: Record<string, string> = {
                     default: "bg-card",
                     success: "bg-gradient-to-br from-chart-1/5 via-card to-chart-1/[0.02]",
@@ -415,16 +452,14 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                             <span className="text-xs text-muted-foreground">Stok</span>
                             <Badge
                               variant="outline"
-                              className={
-                                sparepart.stock <= 0
-                                  ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                                  : sparepart.stock <= 5
-                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
-                                  : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
-                              }
+                              className={getStockBadgeClass(sparepart)}
                             >
-                              {sparepart.stock}
+                              {sparepart.stock} - {getStockLabel(sparepart)}
                             </Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Stok Kritis</span>
+                            <span className="font-semibold text-sm tabular-nums">{sparepart.criticalStock}</span>
                           </div>
                           <div className="pt-2">
                             <span className="text-xs text-muted-foreground">Kompatibilitas</span>
@@ -496,6 +531,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kategori</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Supplier</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok Kritis</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kompatibilitas</TableHead>
                         {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>}
                     </TableRow>
@@ -503,7 +539,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   <TableBody>
                     {filteredSpareparts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={readOnly ? 7 : 8} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={readOnly ? 8 : 9} className="h-24 text-center text-muted-foreground">
                           {sparepartSearch
                             ? "No spareparts found matching your search"
                             : "No spareparts yet. Click \"Add Sparepart\" to add one."}
@@ -520,17 +556,12 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className={
-                                sparepart.stock <= 0
-                                  ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                                  : sparepart.stock <= 5
-                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
-                                  : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
-                              }
+                              className={getStockBadgeClass(sparepart)}
                             >
-                              {sparepart.stock}
+                              {sparepart.stock} - {getStockLabel(sparepart)}
                             </Badge>
                           </TableCell>
+                          <TableCell>{sparepart.criticalStock}</TableCell>
                           <TableCell>
                             {sparepart.isUniversal ? (
                               <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">

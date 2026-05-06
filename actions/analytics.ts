@@ -130,13 +130,20 @@ export async function getAdminAnalytics(
         },
       }),
       prisma.sparepart.count({ where: { tokoId } }),
-      prisma.sparepart.count({ where: { tokoId, stock: { lte: 5 } } }),
+      prisma.$queryRaw<{ count: number }[]>`
+        SELECT COUNT(*)::int AS count
+        FROM "sparepart"
+        WHERE "tokoId" = ${tokoId}
+          AND "stock" <= "criticalStock"
+      `,
       prisma.sparepart.aggregate({ where: { tokoId }, _sum: { stock: true } }),
     ]);
 
     if (!toko) {
       throw new Error("Toko not found");
     }
+
+    const lowStockTotal = lowStockCount[0]?.count ?? 0;
 
     const trendMap = Object.fromEntries(
       buckets.map((bucket) => [
@@ -228,7 +235,7 @@ export async function getAdminAnalytics(
         totalServices,
         completionRate,
         totalSpareparts: sparepartCount,
-        lowStockCount,
+        lowStockCount: lowStockTotal,
         totalStock: stockAggregate._sum.stock ?? 0,
       },
       trend: buckets.map((bucket) => trendMap[bucket.key]),

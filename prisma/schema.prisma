@@ -497,6 +497,7 @@ model Sparepart {
   supplierName String?
   categoryId String?
   stock        Int     @default(0)
+  criticalStock Int    @default(5)
   isUniversal  Boolean @default(false)
   tokoId       String
 
