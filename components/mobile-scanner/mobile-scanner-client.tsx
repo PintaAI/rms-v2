@@ -44,6 +44,11 @@ interface RegisterDeviceResponse {
   token: string;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
 type PhoneScannerState = "idle" | "connecting" | "connected" | "disconnected" | "failed";
 type CameraState = "idle" | "starting" | "active" | "stopped" | "failed";
 
@@ -93,6 +98,8 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [decodeFeedback, setDecodeFeedback] = useState<string>("Tahan tombol untuk mulai.");
   const [lastScanned, setLastScanned] = useState<string | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isStandaloneScanner, setIsStandaloneScanner] = useState(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<RTCDataChannel | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -105,6 +112,32 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
   const sentInCurrentHoldRef = useRef<Set<string>>(new Set());
   const pairingRedirectingRef = useRef(false);
   const registeringDeviceRef = useRef(false);
+
+  useEffect(() => {
+    const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+    setIsStandaloneScanner(
+      window.matchMedia("(display-mode: standalone)").matches || navigatorWithStandalone.standalone === true
+    );
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+      setIsStandaloneScanner(true);
+      toast.success("RMS Scanner terinstall");
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
 
   const registerRememberedDevice = useCallback(async () => {
     if (!code || !token || registeringDeviceRef.current) return;
@@ -563,6 +596,17 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
     );
   };
 
+  const handleInstallScanner = async () => {
+    if (!installPrompt) return;
+
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+
+    if (choice.outcome === "accepted") {
+      setInstallPrompt(null);
+    }
+  };
+
   const isCameraOpening = cameraState === "starting";
   const isCameraActive = cameraState === "active";
   const isConnected = connectionState === "connected";
@@ -625,6 +669,20 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
         </section>
 
         <footer className="flex shrink-0 flex-col items-center gap-3 pb-2">
+          {!isStandaloneScanner && (
+            <div className="w-full rounded-2xl border bg-muted/40 px-4 py-3 text-center text-xs text-muted-foreground">
+              {installPrompt ? (
+                <div className="flex flex-col items-center gap-2">
+                  <span>Install RMS Scanner agar bisa dibuka langsung dari home screen.</span>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => void handleInstallScanner()}>
+                    Install Scanner
+                  </Button>
+                </div>
+              ) : (
+                <span>Untuk akses cepat, install dari menu browser atau pilih Add to Home Screen.</span>
+              )}
+            </div>
+          )}
           <Button
             type="button"
             size="icon"
