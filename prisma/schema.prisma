@@ -159,6 +159,7 @@ model Toko {
 
   userAssignments  UserToko[]
   spareparts       Sparepart[]
+  sparepartCategories SparepartCategory[]
   servicePricelists ServicePricelist[]
   services         Service[]
   activities       ActivityLog[]
@@ -494,11 +495,13 @@ model Sparepart {
   defaultPrice Int
   purchasePrice Int?
   supplierName String?
+  categoryId String?
   stock        Int     @default(0)
   isUniversal  Boolean @default(false)
   tokoId       String
 
   toko            Toko                     @relation(fields: [tokoId], references: [id])
+  category        SparepartCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   compatibilities SparepartCompatibility[]
   serviceItems    ServiceItem[]
   inventoryAuditItems InventoryAuditItem[]
@@ -506,7 +509,23 @@ model Sparepart {
   @@unique([tokoId, name])
   @@unique([tokoId, barcode])
   @@index([tokoId])
+  @@index([categoryId])
   @@map("sparepart")
+}
+
+model SparepartCategory {
+  id        String   @id @default(uuid())
+  name      String
+  tokoId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  toko       Toko        @relation(fields: [tokoId], references: [id])
+  spareparts Sparepart[]
+
+  @@unique([tokoId, name])
+  @@index([tokoId])
+  @@map("sparepart_category")
 }
 
 model SparepartCompatibility {

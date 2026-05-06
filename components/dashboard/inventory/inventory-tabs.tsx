@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -63,6 +64,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const [pricelists, setPricelists] = useState<ServicePricelist[]>(_initialPricelists ?? []);
   const [activeTab, setActiveTab] = useState<"sparepart" | "jasa">(initialTab);
   const [sparepartSearch, setSparepartSearch] = useState(initialTab === "sparepart" ? initialSearchQuery : "");
+  const [sparepartCategoryFilter, setSparepartCategoryFilter] = useState("all");
   const [pricelistSearch, setPricelistSearch] = useState(initialTab === "jasa" ? initialSearchQuery : "");
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(!hasInitialData);
   const [isLoadingPricelists, setIsLoadingPricelists] = useState(!hasInitialData);
@@ -120,11 +122,20 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   }, [tokoId, hasInitialData]);
 
   const normalizedSparepartSearch = sparepartSearch.toLowerCase();
+  const sparepartCategories = Array.from(
+    new Map(
+      spareparts
+        .filter((sparepart) => sparepart.category)
+        .map((sparepart) => [sparepart.category!.id, sparepart.category!])
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
   const filteredSpareparts = spareparts.filter(
     (sp) =>
-      sp.name.toLowerCase().includes(normalizedSparepartSearch) ||
-      sp.barcode.toLowerCase().includes(normalizedSparepartSearch) ||
-      (sp.supplierName?.toLowerCase().includes(normalizedSparepartSearch) ?? false)
+      (sparepartCategoryFilter === "all" || sp.categoryId === sparepartCategoryFilter) &&
+      (sp.name.toLowerCase().includes(normalizedSparepartSearch) ||
+        sp.barcode.toLowerCase().includes(normalizedSparepartSearch) ||
+        (sp.supplierName?.toLowerCase().includes(normalizedSparepartSearch) ?? false) ||
+        (sp.category?.name.toLowerCase().includes(normalizedSparepartSearch) ?? false))
   );
 
   const filteredPricelists = pricelists.filter((pl) =>
@@ -311,14 +322,27 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             </div>
           </div>
 
-          <div className="relative">
-            <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={sparepartSearch}
-              onChange={(e) => setSparepartSearch(e.target.value)}
-              placeholder="Cari sparepart..."
-              className="pl-9"
-            />
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="relative">
+              <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={sparepartSearch}
+                onChange={(e) => setSparepartSearch(e.target.value)}
+                placeholder="Cari sparepart..."
+                className="pl-9"
+              />
+            </div>
+            <Select value={sparepartCategoryFilter} onValueChange={setSparepartCategoryFilter}>
+              <SelectTrigger className="h-9 w-full">
+                <SelectValue placeholder="Filter kategori" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua kategori</SelectItem>
+                {sparepartCategories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {isLoadingSpareparts ? (
@@ -382,6 +406,10 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-xs text-muted-foreground">Supplier</span>
                             <span className="truncate text-sm font-medium">{sparepart.supplierName || "-"}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-muted-foreground">Kategori</span>
+                            <span className="truncate text-sm font-medium">{sparepart.category?.name || "-"}</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Stok</span>
@@ -465,6 +493,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga Beli</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga Jual</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kategori</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Supplier</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kompatibilitas</TableHead>
@@ -474,7 +503,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   <TableBody>
                     {filteredSpareparts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={readOnly ? 6 : 7} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={readOnly ? 7 : 8} className="h-24 text-center text-muted-foreground">
                           {sparepartSearch
                             ? "No spareparts found matching your search"
                             : "No spareparts yet. Click \"Add Sparepart\" to add one."}
@@ -486,6 +515,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                           <TableCell className="font-medium">{sparepart.name}</TableCell>
                           <TableCell>{sparepart.purchasePrice != null ? formatCurrency(sparepart.purchasePrice) : "-"}</TableCell>
                           <TableCell>{formatCurrency(sparepart.defaultPrice)}</TableCell>
+                          <TableCell>{sparepart.category?.name || "-"}</TableCell>
                           <TableCell>{sparepart.supplierName || "-"}</TableCell>
                           <TableCell>
                             <Badge

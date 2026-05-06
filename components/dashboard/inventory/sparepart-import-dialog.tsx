@@ -87,15 +87,17 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
       const rawPrice = getCell(row, ["Harga Jual", "Harga", "Harga Default", "Default Price", "defaultPrice"]);
       const rawPurchasePrice = getCell(row, ["Harga Beli", "Purchase Price", "purchasePrice"]);
       const rawSupplierName = getCell(row, ["Supplier", "Nama Supplier", "supplierName"]);
+      const rawCategoryName = getCell(row, ["Kategori", "Category", "categoryName"]);
       const rawStock = getCell(row, ["Stok", "Stock"]);
       const rawUniversal = getCell(row, ["Universal", "Is Universal", "isUniversal"]);
       const name = typeof rawName === "string" ? rawName.trim() : String(rawName ?? "").trim();
 
-      if (!name && rawPrice === undefined && rawPurchasePrice === undefined && rawSupplierName === undefined && rawStock === undefined) return null;
+      if (!name && rawPrice === undefined && rawPurchasePrice === undefined && rawSupplierName === undefined && rawCategoryName === undefined && rawStock === undefined) return null;
 
       const defaultPrice = parseNumber(rawPrice);
       const purchasePrice = rawPurchasePrice === undefined || rawPurchasePrice === "" ? null : parseNumber(rawPurchasePrice);
       const supplierName = typeof rawSupplierName === "string" ? rawSupplierName.trim() : String(rawSupplierName ?? "").trim();
+      const categoryName = typeof rawCategoryName === "string" ? rawCategoryName.trim() : String(rawCategoryName ?? "").trim();
       const stock = parseNumber(rawStock);
       const isUniversal = parseUniversal(rawUniversal);
       const normalizedName = name.toLowerCase();
@@ -116,6 +118,7 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
         defaultPrice: Number.isFinite(defaultPrice) ? defaultPrice : 0,
         purchasePrice: purchasePrice !== null && Number.isFinite(purchasePrice) ? purchasePrice : null,
         supplierName: supplierName || null,
+        categoryName: categoryName || null,
         stock: Number.isFinite(stock) ? stock : 0,
         isUniversal: isUniversal ?? true,
         error,
@@ -160,6 +163,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
             defaultPrice: 0,
             purchasePrice: null,
             supplierName: null,
+            categoryName: null,
             stock: 0,
             isUniversal: true,
             error: `Maksimal ${MAX_IMPORT_ROWS} baris per import`,
@@ -180,9 +184,9 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
 
   function handleDownloadTemplate() {
     const worksheet = XLSX.utils.aoa_to_sheet([
-      ["Nama", "Harga Beli", "Harga Jual", "Supplier", "Stok", "Universal"],
-      ["LCD iPhone 13", 350000, 450000, "Supplier A", 5, "ya"],
-      ["Baterai Samsung A12", 120000, 180000, "Supplier B", 10, "ya"],
+      ["Nama", "Kategori", "Harga Beli", "Harga Jual", "Supplier", "Stok", "Universal"],
+      ["LCD iPhone 13", "LCD", 350000, 450000, "Supplier A", 5, "ya"],
+      ["Baterai Samsung A12", "Baterai", 120000, 180000, "Supplier B", 10, "ya"],
     ]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sparepart");
@@ -201,6 +205,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
           defaultPrice: row.defaultPrice,
           purchasePrice: row.purchasePrice,
           supplierName: row.supplierName,
+          categoryName: row.categoryName,
           stock: row.stock,
         isUniversal: row.isUniversal,
       })),
@@ -238,7 +243,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
 
         <div className="space-y-4">
           <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-            Format kolom: <span className="font-medium text-foreground">Nama</span>, <span className="font-medium text-foreground">Harga Jual</span>, <span className="font-medium text-foreground">Harga Beli</span> optional, <span className="font-medium text-foreground">Supplier</span> optional, <span className="font-medium text-foreground">Stok</span>, dan <span className="font-medium text-foreground">Universal</span> optional berisi ya/tidak.
+            Format kolom: <span className="font-medium text-foreground">Nama</span>, <span className="font-medium text-foreground">Kategori</span> optional, <span className="font-medium text-foreground">Harga Jual</span>, <span className="font-medium text-foreground">Harga Beli</span> optional, <span className="font-medium text-foreground">Supplier</span> optional, <span className="font-medium text-foreground">Stok</span>, dan <span className="font-medium text-foreground">Universal</span> optional berisi ya/tidak.
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -277,6 +282,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
                   <TableRow className="bg-muted/50">
                     <TableHead className="w-16">Baris</TableHead>
                     <TableHead>Nama</TableHead>
+                    <TableHead>Kategori</TableHead>
                     <TableHead>Harga Beli</TableHead>
                     <TableHead>Harga Jual</TableHead>
                     <TableHead>Supplier</TableHead>
@@ -290,6 +296,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
                     <TableRow key={row.rowNumber}>
                       <TableCell>{row.rowNumber}</TableCell>
                       <TableCell className="font-medium">{row.name || "-"}</TableCell>
+                      <TableCell>{row.categoryName || "-"}</TableCell>
                       <TableCell>{row.purchasePrice ?? "-"}</TableCell>
                       <TableCell>{row.defaultPrice}</TableCell>
                       <TableCell>{row.supplierName || "-"}</TableCell>

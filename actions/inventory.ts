@@ -16,8 +16,15 @@ export type Sparepart = {
   defaultPrice: number
   purchasePrice: number | null
   supplierName: string | null
+  categoryId: string | null
   stock: number
   isUniversal: boolean
+  tokoId: string
+}
+
+export type SparepartCategory = {
+  id: string
+  name: string
   tokoId: string
 }
 
@@ -29,6 +36,7 @@ export type ServicePricelist = {
 }
 
 export type SparepartWithCompatibilities = Sparepart & {
+  category: SparepartCategory | null
   compatibilities: Array<{
     hpCatalogId: string
     hpCatalog: {
@@ -53,6 +61,7 @@ export type ImportSparepartInput = {
   defaultPrice: number
   purchasePrice?: number | null
   supplierName?: string | null
+  categoryName?: string | null
   stock: number
   isUniversal?: boolean
 }
@@ -82,6 +91,7 @@ const createSparepartSchema = z.object({
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
   purchasePrice: z.number().int().min(0, "Harga beli harus 0 atau lebih").nullable().optional(),
   supplierName: z.string().trim().nullable().optional(),
+  categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
   tokoId: z.string(),
@@ -94,6 +104,7 @@ const importSparepartRowSchema = z.object({
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
   purchasePrice: z.number().int().min(0, "Harga beli harus 0 atau lebih").nullable().optional(),
   supplierName: z.string().trim().nullable().optional(),
+  categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih"),
   isUniversal: z.boolean().optional(),
 })
@@ -120,6 +131,7 @@ const updateSparepartSchema = z.object({
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih").optional(),
   purchasePrice: z.number().int().min(0, "Harga beli harus 0 atau lebih").nullable().optional(),
   supplierName: z.string().trim().nullable().optional(),
+  categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
   hpCatalogIds: z.array(z.string()).optional(),
@@ -206,6 +218,40 @@ function assertWorkflowForInventory(scope: RequestScope) {
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 }
 
+async function findOrCreateSparepartCategory(tokoId: string, categoryName?: string | null) {
+  const name = categoryName?.trim()
+  if (!name) return null
+
+  const existing = await prisma.sparepartCategory.findFirst({
+    where: { tokoId, name: { equals: name, mode: "insensitive" } },
+    select: { id: true },
+  })
+  if (existing) return existing
+
+  return prisma.sparepartCategory.create({
+    data: { tokoId, name },
+    select: { id: true },
+  })
+}
+
+export async function getSparepartCategories(tokoId: string): Promise<ActionResultWithData<SparepartCategory[]>> {
+  try {
+    const access = await getInventoryUser(tokoId)
+    if (!access.success) return access
+
+    const categories = await prisma.sparepartCategory.findMany({
+      where: { tokoId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, tokoId: true },
+    })
+
+    return { success: true, data: categories }
+  } catch (error) {
+    console.error("Error fetching sparepart categories:", error)
+    return { success: false, error: "Gagal mengambil kategori sparepart" }
+  }
+}
+
 export async function getSpareparts(tokoId: string): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
   try {
     const access = await getInventoryUser(tokoId)
@@ -214,6 +260,7 @@ export async function getSpareparts(tokoId: string): Promise<ActionResultWithDat
     const spareparts = await prisma.sparepart.findMany({
       where: { tokoId },
       include: {
+        category: true,
         compatibilities: {
           include: {
             hpCatalog: {
@@ -283,6 +330,8 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
       return { success: false, error: "Sparepart dengan nama ini sudah ada" }
     }
 
+    const category = await findOrCreateSparepartCategory(validated.tokoId, validated.categoryName)
+
     const sparepart = await prisma.sparepart.create({
       data: {
         barcode: await generateSparepartBarcode(validated.tokoId),
@@ -290,6 +339,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         defaultPrice: validated.defaultPrice,
         purchasePrice: validated.purchasePrice ?? null,
         supplierName: validated.supplierName || null,
+        categoryId: category?.id ?? null,
         stock: validated.stock ?? 0,
         isUniversal: validated.isUniversal ?? false,
         tokoId: validated.tokoId,
@@ -298,6 +348,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
           : undefined,
       },
       include: {
+        category: true,
         compatibilities: {
           include: {
             hpCatalog: { include: { brand: { select: { name: true } } } },
@@ -320,6 +371,8 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         defaultPrice: sparepart.defaultPrice,
         purchasePrice: sparepart.purchasePrice,
         supplierName: sparepart.supplierName,
+        categoryId: sparepart.categoryId,
+        categoryName: sparepart.category?.name,
         stock: sparepart.stock,
         isUniversal: sparepart.isUniversal,
       },
@@ -364,6 +417,8 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
       }
     }
 
+    const category = await findOrCreateSparepartCategory(sparepart.tokoId, validated.categoryName)
+
     const updated = await prisma.sparepart.update({
       where: { id: validated.id },
       data: {
@@ -371,6 +426,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         defaultPrice: validated.defaultPrice,
         purchasePrice: validated.purchasePrice,
         supplierName: validated.supplierName === undefined ? undefined : validated.supplierName || null,
+        categoryId: validated.categoryName === undefined ? undefined : category?.id ?? null,
         stock: validated.stock,
         isUniversal: validated.isUniversal,
         ...(validated.hpCatalogIds && {
@@ -381,6 +437,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         }),
       },
       include: {
+        category: true,
         compatibilities: {
           include: {
             hpCatalog: { include: { brand: { select: { name: true } } } },
@@ -402,6 +459,8 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         defaultPrice: updated.defaultPrice,
         purchasePrice: updated.purchasePrice,
         supplierName: updated.supplierName,
+        categoryId: updated.categoryId,
+        categoryName: updated.category?.name,
         stock: updated.stock,
         isUniversal: updated.isUniversal,
       },
@@ -467,6 +526,19 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
     await prisma.$transaction(async (tx) => {
       for (const row of validRows) {
         const existing = existingByName.get(row.name)
+        const categoryName = row.categoryName?.trim()
+        const existingCategory = categoryName
+          ? await tx.sparepartCategory.findFirst({
+              where: { tokoId: validated.tokoId, name: { equals: categoryName, mode: "insensitive" } },
+              select: { id: true },
+            })
+          : null
+        const category = categoryName && !existingCategory
+          ? await tx.sparepartCategory.create({
+              data: { tokoId: validated.tokoId, name: categoryName },
+              select: { id: true },
+            })
+          : existingCategory
 
         if (existing) {
           await tx.sparepart.update({
@@ -475,6 +547,7 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
               defaultPrice: row.defaultPrice,
               purchasePrice: row.purchasePrice ?? null,
               supplierName: row.supplierName || null,
+              categoryId: category?.id ?? null,
               stock: row.stock,
               isUniversal: row.isUniversal ?? true,
             },
@@ -490,6 +563,7 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
             defaultPrice: row.defaultPrice,
             purchasePrice: row.purchasePrice ?? null,
             supplierName: row.supplierName || null,
+            categoryId: category?.id ?? null,
             stock: row.stock,
             isUniversal: row.isUniversal ?? true,
             tokoId: validated.tokoId,
@@ -552,6 +626,7 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
       where: { id: validated.id },
       data: { stock: { increment: validated.qty } },
       include: {
+        category: true,
         compatibilities: {
           include: {
             hpCatalog: { include: { brand: { select: { name: true } } } },
@@ -601,6 +676,7 @@ export async function searchSpareparts(tokoId: string, query: string): Promise<A
         ],
       },
       include: {
+        category: true,
         compatibilities: {
           include: {
             hpCatalog: { include: { brand: { select: { name: true } } } },
