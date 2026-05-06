@@ -492,6 +492,8 @@ model Sparepart {
   barcode      String
   name         String
   defaultPrice Int
+  purchasePrice Int?
+  supplierName String?
   stock        Int     @default(0)
   isUniversal  Boolean @default(false)
   tokoId       String

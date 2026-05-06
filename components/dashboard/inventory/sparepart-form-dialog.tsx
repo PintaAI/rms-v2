@@ -56,6 +56,8 @@ function SparepartFormContent({
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(sparepart?.name ?? "");
   const [defaultPrice, setDefaultPrice] = useState(sparepart ? sparepart.defaultPrice.toString() : "");
+  const [purchasePrice, setPurchasePrice] = useState(sparepart?.purchasePrice != null ? sparepart.purchasePrice.toString() : "");
+  const [supplierName, setSupplierName] = useState(sparepart?.supplierName ?? "");
   const [stock, setStock] = useState(sparepart ? sparepart.stock.toString() : "");
   const [isUniversal, setIsUniversal] = useState(sparepart?.isUniversal ?? false);
   const [selectedDevices, setSelectedDevices] = useState<HpCatalogOption[]>(() => toDeviceOptions(sparepart));
@@ -117,7 +119,13 @@ function SparepartFormContent({
 
     const price = parseInt(defaultPrice, 10);
     if (isNaN(price) || price < 0) {
-      setError("Harga harus berupa angka yang valid");
+      setError("Harga jual harus berupa angka yang valid");
+      return;
+    }
+
+    const parsedPurchasePrice = purchasePrice.trim() ? parseInt(purchasePrice, 10) : null;
+    if (parsedPurchasePrice !== null && (isNaN(parsedPurchasePrice) || parsedPurchasePrice < 0)) {
+      setError("Harga beli harus berupa angka yang valid");
       return;
     }
 
@@ -136,6 +144,8 @@ function SparepartFormContent({
       barcode: sparepart?.barcode ?? "membuat...",
       name,
       defaultPrice: price,
+      purchasePrice: parsedPurchasePrice,
+      supplierName: supplierName.trim() || null,
       stock: stockValue,
       isUniversal: finalIsUniversal,
       tokoId,
@@ -167,6 +177,8 @@ function SparepartFormContent({
           id: sparepartRef.current.id,
           name,
           defaultPrice: price,
+          purchasePrice: parsedPurchasePrice,
+          supplierName: supplierName.trim() || null,
           stock: stockValue,
           isUniversal: finalIsUniversal,
           hpCatalogIds,
@@ -174,6 +186,8 @@ function SparepartFormContent({
       : await createSparepart({
           name,
           defaultPrice: price,
+          purchasePrice: parsedPurchasePrice,
+          supplierName: supplierName.trim() || null,
           stock: stockValue,
           isUniversal: finalIsUniversal,
           tokoId,
@@ -234,7 +248,7 @@ function SparepartFormContent({
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="price" className="flex items-center gap-1.5 text-sm">
                     <RiPriceTag3Line className="size-3.5" />
-                    Harga Default
+                    Harga Jual
                   </Label>
                   <span className="text-sm leading-none text-destructive">*</span>
                 </div>
@@ -247,6 +261,22 @@ function SparepartFormContent({
                   min="0"
                   disabled={isLoading}
                   required
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="purchasePrice" className="flex items-center gap-1.5 text-sm">
+                  <RiPriceTag3Line className="size-3.5" />
+                  Harga Beli
+                </Label>
+                <Input
+                  id="purchasePrice"
+                  type="number"
+                  value={purchasePrice}
+                  onChange={(e) => setPurchasePrice(e.target.value)}
+                  placeholder="0"
+                  min="0"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -267,6 +297,17 @@ function SparepartFormContent({
                   min="0"
                   disabled={isLoading}
                   required
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="supplierName" className="text-sm">Nama Supplier</Label>
+                <Input
+                  id="supplierName"
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                  placeholder="Contoh: Toko Sparepart Jaya"
+                  disabled={isLoading}
                 />
               </div>
             </div>

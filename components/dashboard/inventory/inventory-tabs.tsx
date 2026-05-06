@@ -121,7 +121,8 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const filteredSpareparts = spareparts.filter(
     (sp) =>
       sp.name.toLowerCase().includes(normalizedSparepartSearch) ||
-      sp.barcode.toLowerCase().includes(normalizedSparepartSearch)
+      sp.barcode.toLowerCase().includes(normalizedSparepartSearch) ||
+      (sp.supplierName?.toLowerCase().includes(normalizedSparepartSearch) ?? false)
   );
 
   const filteredPricelists = pricelists.filter((pl) =>
@@ -358,8 +359,18 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                         <div className="mt-2 text-lg font-bold tracking-tight text-foreground truncate transition-transform duration-300 group-hover:scale-[1.02]">{sparepart.name}</div>
                         <div className="mt-3 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Harga</span>
+                            <span className="text-xs text-muted-foreground">Harga Beli</span>
+                            <span className="font-semibold text-sm tabular-nums">
+                              {sparepart.purchasePrice != null ? formatCurrency(sparepart.purchasePrice) : "-"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Harga Jual</span>
                             <span className="font-semibold text-sm tabular-nums">{formatCurrency(sparepart.defaultPrice)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-muted-foreground">Supplier</span>
+                            <span className="truncate text-sm font-medium">{sparepart.supplierName || "-"}</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Stok</span>
@@ -439,18 +450,20 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kompatibilitas</TableHead>
-                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>}
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga Beli</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga Jual</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Supplier</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok</TableHead>
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kompatibilitas</TableHead>
+                        {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredSpareparts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={readOnly ? 4 : 5} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={readOnly ? 6 : 7} className="h-24 text-center text-muted-foreground">
                           {sparepartSearch
                             ? "No spareparts found matching your search"
                             : "No spareparts yet. Click \"Add Sparepart\" to add one."}
@@ -460,7 +473,9 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                       filteredSpareparts.map((sparepart) => (
                         <TableRow key={sparepart.id} className="border-border/50">
                           <TableCell className="font-medium">{sparepart.name}</TableCell>
+                          <TableCell>{sparepart.purchasePrice != null ? formatCurrency(sparepart.purchasePrice) : "-"}</TableCell>
                           <TableCell>{formatCurrency(sparepart.defaultPrice)}</TableCell>
+                          <TableCell>{sparepart.supplierName || "-"}</TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"

@@ -84,14 +84,18 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
     .map<ParsedRow | null>((row, index) => {
       const rowNumber = index + 2;
       const rawName = getCell(row, ["Nama", "Name", "Nama Sparepart", "Sparepart"]);
-      const rawPrice = getCell(row, ["Harga", "Harga Default", "Default Price", "defaultPrice"]);
+      const rawPrice = getCell(row, ["Harga Jual", "Harga", "Harga Default", "Default Price", "defaultPrice"]);
+      const rawPurchasePrice = getCell(row, ["Harga Beli", "Purchase Price", "purchasePrice"]);
+      const rawSupplierName = getCell(row, ["Supplier", "Nama Supplier", "supplierName"]);
       const rawStock = getCell(row, ["Stok", "Stock"]);
       const rawUniversal = getCell(row, ["Universal", "Is Universal", "isUniversal"]);
       const name = typeof rawName === "string" ? rawName.trim() : String(rawName ?? "").trim();
 
-      if (!name && rawPrice === undefined && rawStock === undefined) return null;
+      if (!name && rawPrice === undefined && rawPurchasePrice === undefined && rawSupplierName === undefined && rawStock === undefined) return null;
 
       const defaultPrice = parseNumber(rawPrice);
+      const purchasePrice = rawPurchasePrice === undefined || rawPurchasePrice === "" ? null : parseNumber(rawPurchasePrice);
+      const supplierName = typeof rawSupplierName === "string" ? rawSupplierName.trim() : String(rawSupplierName ?? "").trim();
       const stock = parseNumber(rawStock);
       const isUniversal = parseUniversal(rawUniversal);
       const normalizedName = name.toLowerCase();
@@ -100,7 +104,8 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
 
       if (!name) error = "Nama wajib diisi";
       else if (duplicateRow) error = `Nama duplikat dengan baris ${duplicateRow}`;
-      else if (!Number.isInteger(defaultPrice) || defaultPrice < 0) error = "Harga harus angka 0 atau lebih";
+      else if (!Number.isInteger(defaultPrice) || defaultPrice < 0) error = "Harga jual harus angka 0 atau lebih";
+      else if (purchasePrice !== null && (!Number.isInteger(purchasePrice) || purchasePrice < 0)) error = "Harga beli harus angka 0 atau lebih";
       else if (!Number.isInteger(stock) || stock < 0) error = "Stok harus angka 0 atau lebih";
 
       if (name && !duplicateRow) seenNames.set(normalizedName, rowNumber);
@@ -109,6 +114,8 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
         rowNumber,
         name,
         defaultPrice: Number.isFinite(defaultPrice) ? defaultPrice : 0,
+        purchasePrice: purchasePrice !== null && Number.isFinite(purchasePrice) ? purchasePrice : null,
+        supplierName: supplierName || null,
         stock: Number.isFinite(stock) ? stock : 0,
         isUniversal: isUniversal ?? true,
         error,
@@ -151,6 +158,8 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
             rowNumber: MAX_IMPORT_ROWS + 2,
             name: "",
             defaultPrice: 0,
+            purchasePrice: null,
+            supplierName: null,
             stock: 0,
             isUniversal: true,
             error: `Maksimal ${MAX_IMPORT_ROWS} baris per import`,
@@ -171,9 +180,9 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
 
   function handleDownloadTemplate() {
     const worksheet = XLSX.utils.aoa_to_sheet([
-      ["Nama", "Harga", "Stok", "Universal"],
-      ["LCD iPhone 13", 450000, 5, "ya"],
-      ["Baterai Samsung A12", 180000, 10, "ya"],
+      ["Nama", "Harga Beli", "Harga Jual", "Supplier", "Stok", "Universal"],
+      ["LCD iPhone 13", 350000, 450000, "Supplier A", 5, "ya"],
+      ["Baterai Samsung A12", 120000, 180000, "Supplier B", 10, "ya"],
     ]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sparepart");
@@ -186,11 +195,13 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
     setIsImporting(true);
     const result = await importSpareparts({
       tokoId,
-      rows: validRows.map((row) => ({
-        rowNumber: row.rowNumber,
-        name: row.name,
-        defaultPrice: row.defaultPrice,
-        stock: row.stock,
+        rows: validRows.map((row) => ({
+          rowNumber: row.rowNumber,
+          name: row.name,
+          defaultPrice: row.defaultPrice,
+          purchasePrice: row.purchasePrice,
+          supplierName: row.supplierName,
+          stock: row.stock,
         isUniversal: row.isUniversal,
       })),
     });
@@ -221,13 +232,13 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
             Import Excel Sparepart
           </DialogTitle>
           <DialogDescription>
-            Import maksimal {MAX_IMPORT_ROWS} baris. Jika nama sparepart sudah ada, harga dan stok akan diupdate.
+            Import maksimal {MAX_IMPORT_ROWS} baris. Jika nama sparepart sudah ada, harga, supplier, dan stok akan diupdate.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-            Format kolom: <span className="font-medium text-foreground">Nama</span>, <span className="font-medium text-foreground">Harga</span>, <span className="font-medium text-foreground">Stok</span>, dan <span className="font-medium text-foreground">Universal</span> optional berisi ya/tidak.
+            Format kolom: <span className="font-medium text-foreground">Nama</span>, <span className="font-medium text-foreground">Harga Jual</span>, <span className="font-medium text-foreground">Harga Beli</span> optional, <span className="font-medium text-foreground">Supplier</span> optional, <span className="font-medium text-foreground">Stok</span>, dan <span className="font-medium text-foreground">Universal</span> optional berisi ya/tidak.
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -266,7 +277,9 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
                   <TableRow className="bg-muted/50">
                     <TableHead className="w-16">Baris</TableHead>
                     <TableHead>Nama</TableHead>
-                    <TableHead>Harga</TableHead>
+                    <TableHead>Harga Beli</TableHead>
+                    <TableHead>Harga Jual</TableHead>
+                    <TableHead>Supplier</TableHead>
                     <TableHead>Stok</TableHead>
                     <TableHead>Universal</TableHead>
                     <TableHead>Status</TableHead>
@@ -277,7 +290,9 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
                     <TableRow key={row.rowNumber}>
                       <TableCell>{row.rowNumber}</TableCell>
                       <TableCell className="font-medium">{row.name || "-"}</TableCell>
+                      <TableCell>{row.purchasePrice ?? "-"}</TableCell>
                       <TableCell>{row.defaultPrice}</TableCell>
+                      <TableCell>{row.supplierName || "-"}</TableCell>
                       <TableCell>{row.stock}</TableCell>
                       <TableCell>{row.isUniversal ? "Ya" : "Tidak"}</TableCell>
                       <TableCell>

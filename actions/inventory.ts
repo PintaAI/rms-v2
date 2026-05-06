@@ -14,6 +14,8 @@ export type Sparepart = {
   barcode: string
   name: string
   defaultPrice: number
+  purchasePrice: number | null
+  supplierName: string | null
   stock: number
   isUniversal: boolean
   tokoId: string
@@ -49,6 +51,8 @@ export type ImportSparepartInput = {
   rowNumber: number
   name: string
   defaultPrice: number
+  purchasePrice?: number | null
+  supplierName?: string | null
   stock: number
   isUniversal?: boolean
 }
@@ -62,7 +66,9 @@ export type ImportSparepartsResult = {
 
 const createSparepartSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi"),
-  defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih"),
+  defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
+  purchasePrice: z.number().int().min(0, "Harga beli harus 0 atau lebih").nullable().optional(),
+  supplierName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
   tokoId: z.string(),
@@ -72,7 +78,9 @@ const createSparepartSchema = z.object({
 const importSparepartRowSchema = z.object({
   rowNumber: z.number().int().min(2),
   name: z.string().trim().min(1, "Nama wajib diisi"),
-  defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih"),
+  defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
+  purchasePrice: z.number().int().min(0, "Harga beli harus 0 atau lebih").nullable().optional(),
+  supplierName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih"),
   isUniversal: z.boolean().optional(),
 })
@@ -85,7 +93,9 @@ const importSparepartsSchema = z.object({
 const updateSparepartSchema = z.object({
   id: z.string(),
   name: z.string().min(1, "Nama wajib diisi").optional(),
-  defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih").optional(),
+  defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih").optional(),
+  purchasePrice: z.number().int().min(0, "Harga beli harus 0 atau lebih").nullable().optional(),
+  supplierName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
   hpCatalogIds: z.array(z.string()).optional(),
@@ -254,6 +264,8 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         barcode: await generateSparepartBarcode(validated.tokoId),
         name: validated.name,
         defaultPrice: validated.defaultPrice,
+        purchasePrice: validated.purchasePrice ?? null,
+        supplierName: validated.supplierName || null,
         stock: validated.stock ?? 0,
         isUniversal: validated.isUniversal ?? false,
         tokoId: validated.tokoId,
@@ -282,6 +294,8 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         barcode: sparepart.barcode,
         name: sparepart.name,
         defaultPrice: sparepart.defaultPrice,
+        purchasePrice: sparepart.purchasePrice,
+        supplierName: sparepart.supplierName,
         stock: sparepart.stock,
         isUniversal: sparepart.isUniversal,
       },
@@ -331,6 +345,8 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
       data: {
         name: validated.name,
         defaultPrice: validated.defaultPrice,
+        purchasePrice: validated.purchasePrice,
+        supplierName: validated.supplierName === undefined ? undefined : validated.supplierName || null,
         stock: validated.stock,
         isUniversal: validated.isUniversal,
         ...(validated.hpCatalogIds && {
@@ -360,6 +376,8 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         sparepartId: updated.id,
         name: updated.name,
         defaultPrice: updated.defaultPrice,
+        purchasePrice: updated.purchasePrice,
+        supplierName: updated.supplierName,
         stock: updated.stock,
         isUniversal: updated.isUniversal,
       },
@@ -431,6 +449,8 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
             where: { id: existing.id },
             data: {
               defaultPrice: row.defaultPrice,
+              purchasePrice: row.purchasePrice ?? null,
+              supplierName: row.supplierName || null,
               stock: row.stock,
               isUniversal: row.isUniversal ?? true,
             },
@@ -444,6 +464,8 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
             barcode: barcodes[barcodeIndex],
             name: row.name,
             defaultPrice: row.defaultPrice,
+            purchasePrice: row.purchasePrice ?? null,
+            supplierName: row.supplierName || null,
             stock: row.stock,
             isUniversal: row.isUniversal ?? true,
             tokoId: validated.tokoId,
