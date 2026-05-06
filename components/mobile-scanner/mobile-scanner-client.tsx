@@ -7,6 +7,7 @@ import { DecodeHintType } from "@zxing/library";
 import { Button } from "@/components/ui/button";
 import { rtcConfig, waitForIceGatheringComplete, type MobileScannerMessage } from "@/lib/webrtc";
 import { RiCameraLine, RiLoader4Line, RiQrScan2Line } from "@remixicon/react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface MobileScannerClientProps {
@@ -376,7 +377,11 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
           input.onConnected?.();
           sendMessage({ type: "ready", at: Date.now() });
         };
-        channel.onclose = () => setConnectionState("disconnected");
+        channel.onclose = () => {
+          setConnectionState("disconnected");
+          setError("Koneksi ke desktop terputus");
+          toast.error("Koneksi terputus", { description: "Coba scan QR pairing lagi." });
+        };
         channel.onerror = () => {
           setConnectionState("failed");
           setError("Koneksi ke desktop bermasalah");
@@ -388,8 +393,11 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
           setConnectionState("connected");
         } else if (pc.connectionState === "disconnected") {
           setConnectionState("disconnected");
-        } else if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-          setConnectionState(pc.connectionState === "failed" ? "failed" : "disconnected");
+        } else if (pc.connectionState === "failed") {
+          setConnectionState("failed");
+          setError("Koneksi WebRTC gagal");
+        } else if (pc.connectionState === "closed") {
+          setConnectionState("disconnected");
         }
       };
 
@@ -613,13 +621,13 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
           </div>
 
           {(error || lastScanned || decodeFeedback) && (
-            <div className="min-h-6 text-center text-xs text-muted-foreground">
-              {error ? <span className="text-destructive">{error}</span> : <span>{lastScanned ? `Terakhir: ${lastScanned}` : decodeFeedback}</span>}
+            <div className={cn("min-h-6 text-center text-xs", error ? "text-destructive font-medium" : "text-muted-foreground")}>
+              {error ? <span>{error}</span> : <span>{lastScanned ? `Terakhir: ${lastScanned}` : decodeFeedback}</span>}
             </div>
           )}
         </section>
 
-        <footer className="flex shrink-0 flex-col items-center gap-3 pb-2">
+        <footer className="flex shrink-0 flex-col items-center gap-3 pb-2">            
           <Button
             type="button"
             size="icon"
@@ -657,6 +665,17 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
               }}
             >
               Lupakan HP ini
+            </Button>
+          )}
+          {(connectionState === "failed" || (!hasPairingToken && connectionState === "disconnected")) && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => window.location.reload()}
+            >
+              <RiLoader4Line className="size-3.5" />
+              Hubungkan Ulang
             </Button>
           )}
         </footer>
