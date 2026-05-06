@@ -1,9 +1,8 @@
-const CACHE_NAME = "rms-pwa-v2";
+const CACHE_NAME = "rms-pwa-v1";
 
 const PRECACHE_URLS = [
   "/offline",
   "/site.webmanifest",
-  "/scanner.webmanifest",
   "/favicon.svg",
   "/favicon-96x96.png",
   "/apple-touch-icon.png",
