@@ -33,6 +33,13 @@ export interface AdminAnalyticsTechnicianPoint {
   revenue: number;
 }
 
+export interface AdminAnalyticsTopSparepartPoint {
+  id: string;
+  name: string;
+  qty: number;
+  revenue: number;
+}
+
 export interface AdminAnalyticsData {
   toko: {
     id: string;
@@ -56,6 +63,7 @@ export interface AdminAnalyticsData {
   trend: AdminAnalyticsTrendPoint[];
   statusBreakdown: AdminAnalyticsStatusPoint[];
   topTechnicians: AdminAnalyticsTechnicianPoint[];
+  topSpareparts: AdminAnalyticsTopSparepartPoint[];
 }
 
 export interface AdminAnalyticsFilters {
@@ -127,6 +135,15 @@ export async function getAdminAnalytics(
           paymentStatus: true,
           createdAt: true,
           paidAt: true,
+          items: {
+            where: { type: "sparepart" },
+            select: {
+              referenceId: true,
+              name: true,
+              qty: true,
+              price: true,
+            },
+          },
         },
       }),
       prisma.sparepart.count({ where: { tokoId } }),
@@ -167,6 +184,7 @@ export async function getAdminAnalytics(
     };
 
     const technicianMap = new Map<string, AdminAnalyticsTechnicianPoint>();
+    const sparepartMap = new Map<string, AdminAnalyticsTopSparepartPoint>();
 
     for (const service of services) {
       statusCounts[service.status] += 1;
@@ -204,6 +222,19 @@ export async function getAdminAnalytics(
           paidRevenue += invoice.grandTotal;
           paidInvoices += 1;
           trendMap[bucketKey].revenue += invoice.grandTotal;
+
+          for (const item of invoice.items) {
+            const sparepartKey = item.referenceId ?? item.name;
+            const current = sparepartMap.get(sparepartKey) ?? {
+              id: sparepartKey,
+              name: item.name,
+              qty: 0,
+              revenue: 0,
+            };
+            current.qty += item.qty;
+            current.revenue += item.qty * item.price;
+            sparepartMap.set(sparepartKey, current);
+          }
         }
         continue;
       }
@@ -246,6 +277,9 @@ export async function getAdminAnalytics(
       })),
       topTechnicians: Array.from(technicianMap.values())
         .sort((a, b) => b.completedServices - a.completedServices || b.revenue - a.revenue)
+        .slice(0, 5),
+      topSpareparts: Array.from(sparepartMap.values())
+        .sort((a, b) => b.qty - a.qty || b.revenue - a.revenue)
         .slice(0, 5),
     };
   });

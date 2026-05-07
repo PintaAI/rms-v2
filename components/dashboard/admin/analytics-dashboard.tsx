@@ -216,7 +216,7 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
         </Card>
       </section>
 
-      <section className="grid gap-4 print:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)] print:gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
+      <section className="grid gap-4 print:grid-cols-3 print:gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.75fr)_minmax(20rem,0.75fr)]">
         <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
           <CardHeader>
             <CardTitle>Service Trend</CardTitle>
@@ -263,6 +263,41 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
                       Belum ada service selesai dengan teknisi.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
+          <CardHeader>
+            <CardTitle>Top Sparepart</CardTitle>
+            <CardDescription>Berdasarkan invoice paid periode ini.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sparepart</TableHead>
+                  <TableHead className="text-right">Terjual</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.topSpareparts.length > 0 ? (
+                  data.topSpareparts.map((sparepart) => (
+                    <TableRow key={sparepart.id}>
+                      <TableCell className="font-medium">{sparepart.name}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{sparepart.qty}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{formatCurrency(sparepart.revenue)}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                      Belum ada sparepart dari invoice paid.
                     </TableCell>
                   </TableRow>
                 )}
