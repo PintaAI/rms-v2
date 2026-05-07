@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { createDevice } from "@/actions";
+import { useCallback } from "react";
+import { useDeviceSearch } from "@/hooks/use-device-search";
 import { getBrandIcon } from "@/lib/brand-icons";
-import { upsertStoredDevice } from "@/lib/device-catalog-cache";
-import { fuzzyScore } from "@/lib/fuzzy-search";
 import { HpCatalogOption } from "@/components/shared/device-input";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -40,160 +38,50 @@ export function MultiDeviceInput({
   isLoadingDevices = false,
   onDeviceCreated,
 }: MultiDeviceInputProps) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<HpCatalogOption[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (highlightedIndex >= 0 && dropdownRef.current) {
-      const items = dropdownRef.current.querySelectorAll('button[type="button"]');
-      items[highlightedIndex]?.scrollIntoView({ block: 'nearest' });
-    }
-  }, [highlightedIndex]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
+  const handleSelect = useCallback(
+    (device: HpCatalogOption) => {
+      if (value.some((v) => v.id === device.id)) {
+        return;
       }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+      onChange([...value, device]);
+    },
+    [value, onChange]
+  );
 
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
+  const {
+    query,
+    setQuery,
+    results,
+    isCreating,
+    showDropdown,
+    setShowDropdown,
+    highlightedIndex,
+    setHighlightedIndex,
+    dropdownRef,
+    inputRef,
+    handleCreate,
+    handleKeyDown,
+    createLabel,
+  } = useDeviceSearch({
+    devices,
+    isLoadingDevices,
+    onDeviceCreated,
+    excludeIds: value.map((v) => v.id),
+    onSelect: handleSelect,
+  });
 
-    if (!query.trim()) {
-      queueMicrotask(() => {
-        setResults([]);
-        setShowDropdown(false);
-      });
-      return;
-    }
+  const handleRemove = useCallback(
+    (deviceId: string) => {
+      onChange(value.filter((d) => d.id !== deviceId));
+    },
+    [value, onChange]
+  );
 
-    let active = true;
-    queueMicrotask(() => {
+  const handleFocus = useCallback(() => {
+    if (query.trim()) {
       setShowDropdown(true);
-    });
-
-    searchTimeoutRef.current = setTimeout(() => {
-      if (!active) return;
-
-      const filtered = devices
-        .map((device) => ({
-          device,
-          score: fuzzyScore(query, `${device.brandName} ${device.modelName}`),
-        }))
-        .filter((item): item is { device: HpCatalogOption; score: number } => item.score !== null)
-        .sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score;
-          const brandCompare = a.device.brandName.localeCompare(b.device.brandName);
-          return brandCompare === 0
-            ? a.device.modelName.localeCompare(b.device.modelName)
-            : brandCompare;
-        })
-        .map((item) => item.device)
-        .filter((d) => !value.some((v) => v.id === d.id));
-
-      setResults(filtered.slice(0, 20));
-      setIsSearching(false);
-      setHighlightedIndex(-1);
-    }, 150);
-
-    return () => {
-      active = false;
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [query, value, devices]);
-
-  const handleSelect = useCallback((device: HpCatalogOption) => {
-    if (value.some((v) => v.id === device.id)) {
-      setShowDropdown(false);
-      return;
     }
-    onChange([...value, device]);
-    setQuery("");
-    setResults([]);
-    setShowDropdown(false);
-  }, [value, onChange]);
-
-  const handleRemove = useCallback((deviceId: string) => {
-    onChange(value.filter((d) => d.id !== deviceId));
-  }, [value, onChange]);
-
-  const handleCreate = useCallback(async () => {
-    if (!query.trim()) return;
-
-    setIsCreating(true);
-    const parts = query.trim().split(/\s+/);
-    const brandName = parts.length >= 2 ? parts[0] : "Unknown";
-    const modelName = parts.length >= 2 ? parts.slice(1).join(" ") : parts[0];
-
-    try {
-      const device = await createDevice({ brandName, modelName });
-      upsertStoredDevice(device);
-      onDeviceCreated?.(device);
-      handleSelect(device);
-    } catch {
-      // Silently fail - user can retry
-    } finally {
-      setIsCreating(false);
-    }
-  }, [query, handleSelect, onDeviceCreated]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown) return;
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlightedIndex((prev) => {
-        const maxIndex = results.length > 0 ? results.length - 1 : 0;
-        return prev < maxIndex ? prev + 1 : 0;
-      });
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightedIndex((prev) => {
-        const maxIndex = results.length > 0 ? results.length - 1 : 0;
-        return prev > 0 ? prev - 1 : maxIndex;
-      });
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (highlightedIndex >= 0 && results[highlightedIndex]) {
-        handleSelect(results[highlightedIndex]);
-      } else if (results.length === 0 && query.trim()) {
-        handleCreate();
-      }
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      setShowDropdown(false);
-      setHighlightedIndex(-1);
-    }
-  }, [showDropdown, results, highlightedIndex, handleSelect, handleCreate, query]);
-
-  const parseDeviceName = useCallback((deviceQuery: string) => {
-    const parts = deviceQuery.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return { brand: parts[0], model: parts.slice(1).join(" ") };
-    }
-    return { brand: "Unknown", model: parts[0] || deviceQuery };
-  }, []);
-
-  const displayQuery = useMemo(() => {
-    if (!query.trim()) return query;
-    const parsed = parseDeviceName(query);
-    return `${parsed.brand} ${parsed.model}`;
-  }, [query, parseDeviceName]);
+  }, [query, setShowDropdown]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -229,11 +117,7 @@ export function MultiDeviceInput({
           ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => {
-            if (query.trim()) {
-              setShowDropdown(true);
-            }
-          }}
+          onFocus={handleFocus}
           onKeyDown={handleKeyDown}
           placeholder="Cari atau ketik perangkat baru..."
           disabled={disabled || isCreating}
@@ -243,7 +127,7 @@ export function MultiDeviceInput({
 
         {showDropdown && (
           <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-input bg-background shadow-lg">
-            {isSearching || isLoadingDevices ? (
+            {isLoadingDevices ? (
               <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
                 <RiLoader4Line className="size-4 animate-spin" />
                 Mencari perangkat...
@@ -300,7 +184,7 @@ export function MultiDeviceInput({
                   ) : (
                     <>
                       <RiAddLine className="mr-2 size-4" />
-                      Buat &quot;{displayQuery}&quot;
+                      Buat &quot;{createLabel}&quot;
                     </>
                   )}
                 </Button>

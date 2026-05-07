@@ -102,6 +102,26 @@ export async function getTokoFeatureSettingsWithStatus(
   });
 }
 
+function revalidateFeaturePaths(tokoId: string) {
+  revalidatePath(`/${tokoId}/admin`);
+  revalidatePath(`/${tokoId}/admin/toko`);
+  revalidatePath(`/${tokoId}/staff`);
+  revalidatePath(`/${tokoId}/teknisi`);
+}
+
+async function upsertTokoFeatureSetting(
+  tokoId: string,
+  disabledFeatures: FeatureKey[]
+): Promise<TokoFeatureSettingsData> {
+  const setting = await prisma.tokoFeatureSetting.upsert({
+    where: { tokoId },
+    create: { tokoId, disabledFeatures: JSON.stringify(disabledFeatures) },
+    update: { disabledFeatures: JSON.stringify(disabledFeatures) },
+    select: { tokoId: true, disabledFeatures: true },
+  });
+  return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
+}
+
 export async function updateTokoFeatureSettings(
   tokoId: string,
   disabledFeatures: FeatureKey[]
@@ -109,7 +129,6 @@ export async function updateTokoFeatureSettings(
   return withScope(tokoId, { role: ["admin"] }, async (scope) => {
     for (const feature of disabledFeatures) {
       const metadata = FEATURE_REGISTRY[feature];
-
       if (!metadata) throw new Error(`Invalid feature: ${feature}`);
       if (!metadata.configurable) throw new Error(`${metadata.label} cannot be disabled`);
       if (!isPlanAtLeast(scope.plan, metadata.minimumPlan)) {
@@ -117,26 +136,11 @@ export async function updateTokoFeatureSettings(
       }
     }
 
-    const validFeatures = disabledFeatures.filter(isFeatureKey);
+    const result = await upsertTokoFeatureSetting(tokoId, disabledFeatures.filter(isFeatureKey));
 
-    const setting = await prisma.tokoFeatureSetting.upsert({
-      where: { tokoId },
-      create: {
-        tokoId,
-        disabledFeatures: JSON.stringify(validFeatures),
-      },
-      update: {
-        disabledFeatures: JSON.stringify(validFeatures),
-      },
-      select: { tokoId: true, disabledFeatures: true },
-    });
+    revalidateFeaturePaths(tokoId);
 
-    revalidatePath(`/${tokoId}/admin`);
-    revalidatePath(`/${tokoId}/admin/toko`);
-    revalidatePath(`/${tokoId}/staff`);
-    revalidatePath(`/${tokoId}/teknisi`);
-
-    return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
+    return result;
   });
 }
 
@@ -149,7 +153,6 @@ export async function setTokoFeatureEnabled(
     if (!isFeatureKey(feature)) throw new Error("Invalid feature");
 
     const metadata = FEATURE_REGISTRY[feature];
-
     if (!metadata.configurable) throw new Error(`${metadata.label} cannot be disabled`);
     if (!isPlanAtLeast(scope.plan, metadata.minimumPlan)) {
       throw new Error(`${metadata.label} requires ${metadata.minimumPlan} plan`);
@@ -167,24 +170,11 @@ export async function setTokoFeatureEnabled(
         ? currentDisabled
         : [...currentDisabled, feature];
 
-    const setting = await prisma.tokoFeatureSetting.upsert({
-      where: { tokoId },
-      create: {
-        tokoId,
-        disabledFeatures: JSON.stringify(newDisabled),
-      },
-      update: {
-        disabledFeatures: JSON.stringify(newDisabled),
-      },
-      select: { tokoId: true, disabledFeatures: true },
-    });
+    const result = await upsertTokoFeatureSetting(tokoId, newDisabled);
 
-    revalidatePath(`/${tokoId}/admin`);
-    revalidatePath(`/${tokoId}/admin/toko`);
-    revalidatePath(`/${tokoId}/staff`);
-    revalidatePath(`/${tokoId}/teknisi`);
+    revalidateFeaturePaths(tokoId);
 
-    return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
+    return result;
   });
 }
 

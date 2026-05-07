@@ -11,7 +11,6 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,6 +20,8 @@ import {
 } from "@/actions/inventory";
 import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
 import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/sparepart-label-print-dialog";
+import { SparepartStockBadge } from "@/components/dashboard/inventory/sparepart-stock-badge";
+import { SparepartCompatibilityCell } from "@/components/dashboard/inventory/sparepart-compatibility-cell";
 import {
   RiAddLine,
   RiEditLine,
@@ -181,40 +182,10 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
                         <TableCell className="font-medium">{sparepart.name}</TableCell>
                         <TableCell>{formatCurrency(sparepart.defaultPrice)}</TableCell>
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              sparepart.stock <= 0
-                                ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200"
-                                : sparepart.stock <= sparepart.criticalStock
-                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200"
-                                : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200"
-                            }
-                          >
-                            {sparepart.stock}
-                          </Badge>
+                          <SparepartStockBadge sparepart={sparepart} showLabel={false} />
                         </TableCell>
                         <TableCell>
-                          {sparepart.isUniversal ? (
-                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                              Universal
-                            </Badge>
-                          ) : sparepart.compatibilities.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {sparepart.compatibilities.slice(0, 3).map((c) => (
-                                <Badge key={c.hpCatalogId} variant="outline" className="text-xs">
-                                  {c.hpCatalog.brand.name} {c.hpCatalog.modelName}
-                                </Badge>
-                              ))}
-                              {sparepart.compatibilities.length > 3 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{sparepart.compatibilities.length - 3} lainnya
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
+                          <SparepartCompatibilityCell sparepart={sparepart} />
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">

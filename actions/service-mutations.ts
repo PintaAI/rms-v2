@@ -12,6 +12,7 @@ import { withScope } from "@/lib/auth/wrapper";
 import { assertFeature } from "@/lib/auth/request-scope";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 import type { SubscriptionPlan } from "@/lib/features";
+import type { Prisma } from "@/prisma/generated/prisma/client";
 import {
   getStatusActivityTitle,
   isCompletingStatus,
@@ -20,6 +21,32 @@ import {
   updateInvoiceTotal,
 } from "./service-shared";
 import type { ActionResult, ActionResultWithData } from "./service-types";
+
+async function promoteServiceOnFirstItem(
+  tx: Prisma.TransactionClient,
+  serviceId: string,
+  currentStatus: string,
+  currentTechnicianId: string | null,
+  userId: string,
+  tokoId: string,
+) {
+  if (currentStatus === "received") {
+    await tx.service.update({
+      where: { id: serviceId },
+      data: { status: "repairing", ...(currentTechnicianId !== userId ? { technicianId: userId, assignedAt: new Date() } : {}) },
+    });
+    await createActivityLog(tx, {
+      tokoId, userId, serviceId,
+      type: "service_status_changed", title: getStatusActivityTitle("repairing"),
+      payload: { previousStatus: "received", nextStatus: "repairing", reason: "First repair item added" },
+    });
+  } else if (currentTechnicianId !== userId) {
+    await tx.service.update({
+      where: { id: serviceId },
+      data: { technicianId: userId, assignedAt: new Date() },
+    });
+  }
+}
 
 const createServiceSchema = z.object({
   hpCatalogId: z.string().min(1),
@@ -587,31 +614,13 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           },
         });
 
-        if (service.status === "received") {
-          await tx.service.update({
-            where: { id: validated.data.serviceId },
-            data: { status: "repairing", ...(service.technicianId !== scope.user.id ? { technicianId: scope.user.id, assignedAt: new Date() } : {}) },
-          });
-        } else if (service.technicianId !== scope.user.id) {
-          await tx.service.update({
-            where: { id: validated.data.serviceId },
-            data: { technicianId: scope.user.id, assignedAt: new Date() },
-          });
-        }
+        await promoteServiceOnFirstItem(tx, validated.data.serviceId, service.status, service.technicianId, scope.user.id, scope.tokoId);
 
         await createActivityLog(tx, {
           tokoId: scope.tokoId, userId: scope.user.id, serviceId: validated.data.serviceId,
           type: "sparepart_stock_out", title: "Sparepart used in service",
           payload: { sparepartId: validated.data.sparepartId, sparepartName: sparepart.name, qty: validated.data.qty, price: sparepart.defaultPrice },
         });
-
-        if (service.status === "received") {
-          await createActivityLog(tx, {
-            tokoId: scope.tokoId, userId: scope.user.id, serviceId: validated.data.serviceId,
-            type: "service_status_changed", title: getStatusActivityTitle("repairing"),
-            payload: { previousStatus: "received", nextStatus: "repairing", reason: "First repair item added" },
-          });
-        }
       });
     } else {
       assertFeature(scope, "service.manualItems");
@@ -634,25 +643,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           data: { serviceId: validated.data.serviceId, type: validated.data.type, name: itemName, qty: validated.data.qty, price: itemPrice, referenceId: null },
         });
 
-        if (service.status === "received") {
-          await tx.service.update({
-            where: { id: validated.data.serviceId },
-            data: { status: "repairing", ...(service.technicianId !== scope.user.id ? { technicianId: scope.user.id, assignedAt: new Date() } : {}) },
-          });
-        } else if (service.technicianId !== scope.user.id) {
-          await tx.service.update({
-            where: { id: validated.data.serviceId },
-            data: { technicianId: scope.user.id, assignedAt: new Date() },
-          });
-        }
-
-        if (service.status === "received") {
-          await createActivityLog(tx, {
-            tokoId: scope.tokoId, userId: scope.user.id, serviceId: validated.data.serviceId,
-            type: "service_status_changed", title: getStatusActivityTitle("repairing"),
-            payload: { previousStatus: "received", nextStatus: "repairing", reason: "First repair item added" },
-          });
-        }
+        await promoteServiceOnFirstItem(tx, validated.data.serviceId, service.status, service.technicianId, scope.user.id, scope.tokoId);
       });
     }
 

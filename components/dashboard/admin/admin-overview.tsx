@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import {
@@ -7,6 +6,7 @@ import {
   OverviewSectionHeader,
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
+import { TokoHeader } from "@/components/dashboard/shared/toko-header";
 import type { AdminOverviewData } from "@/actions/overview";
 import {
   RiArchiveLine,
@@ -15,7 +15,6 @@ import {
   RiCloseLine,
   RiInboxLine,
   RiMoneyDollarCircleLine,
-  RiStore2Line,
   RiTimeLine,
   RiToolsLine,
 } from "@remixicon/react";
@@ -63,34 +62,13 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-            <h1 data-tour="overview-title" className="text-2xl font-black tracking-tight sm:text-3xl">
-              Admin Overview
-            </h1>
-            <div className="h-5 w-1 shrink-0 rounded-full bg-primary sm:h-6" />
-            <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 px-2 py-1 sm:bg-transparent sm:px-0 sm:py-0">
-              {currentToko?.logoUrl ? (
-                <Image
-                  src={currentToko.logoUrl}
-                  alt={currentToko.name}
-                  width={20}
-                  height={20}
-                  className="size-5 shrink-0 rounded-md object-cover"
-                />
-              ) : (
-                <div className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted">
-                  <RiStore2Line className="size-3 text-muted-foreground" />
-                </div>
-              )}
-              <span className="min-w-0 truncate text-sm font-medium text-muted-foreground">
-                {currentToko?.name || "Toko"}
-              </span>
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground/70">Ringkasan aktivitas toko secara real-time</p>
-        </div>
-
+        <TokoHeader
+          role="Admin"
+          tokoName={currentToko?.name}
+          tokoLogoUrl={currentToko?.logoUrl}
+          className="min-w-0"
+          titleDataTour="overview-title"
+        />
         <AdminOverviewActions tokoId={tokoId} />
       </div>
 

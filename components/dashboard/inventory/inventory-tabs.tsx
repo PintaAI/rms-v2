@@ -31,6 +31,8 @@ import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepa
 import { SparepartImportDialog } from "@/components/dashboard/inventory/sparepart-import-dialog";
 import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
 import { ServicePricelistImportDialog } from "@/components/dashboard/inventory/service-pricelist-import-dialog";
+import { SparepartStockBadge, getSparepartStockVariant, type StockVariant } from "@/components/dashboard/inventory/sparepart-stock-badge";
+import { SparepartCompatibilityCell } from "@/components/dashboard/inventory/sparepart-compatibility-cell";
 import {
   RiAddLine,
   RiEditLine,
@@ -49,26 +51,6 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 type ViewMode = "table" | "card";
 type StockFilter = "all" | "critical" | "out" | "safe";
-
-function getStockVariant(sparepart: SparepartWithCompatibilities) {
-  if (sparepart.stock <= 0) return "warning";
-  if (sparepart.stock <= sparepart.criticalStock) return "accent";
-  return "success";
-}
-
-function getStockBadgeClass(sparepart: SparepartWithCompatibilities) {
-  const stockVariant = getStockVariant(sparepart);
-  if (stockVariant === "warning") return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200";
-  if (stockVariant === "accent") return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300 border-yellow-200";
-  return "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 border-green-200";
-}
-
-function getStockLabel(sparepart: SparepartWithCompatibilities) {
-  const stockVariant = getStockVariant(sparepart);
-  if (stockVariant === "warning") return "Habis";
-  if (stockVariant === "accent") return "Kritis";
-  return "Aman";
-}
 
 interface InventoryTabsProps {
   tokoId: string;
@@ -396,24 +378,21 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredSpareparts.map((sparepart) => {
-                  const stockVariant = getStockVariant(sparepart);
-                  const bgStyles: Record<string, string> = {
-                    default: "bg-card",
-                    success: "bg-gradient-to-br from-chart-1/5 via-card to-chart-1/[0.02]",
-                    accent: "bg-gradient-to-br from-primary/5 via-card to-primary/[0.02]",
-                    warning: "bg-gradient-to-br from-destructive/5 via-card to-destructive/[0.02]",
+                  const stockVariant = getSparepartStockVariant(sparepart);
+                  const bgStyles: Record<StockVariant, string> = {
+                    out: "bg-gradient-to-br from-destructive/5 via-card to-destructive/[0.02]",
+                    critical: "bg-gradient-to-br from-primary/5 via-card to-primary/[0.02]",
+                    safe: "bg-gradient-to-br from-chart-1/5 via-card to-chart-1/[0.02]",
                   };
-                  const accentColors: Record<string, string> = {
-                    default: "bg-border",
-                    success: "bg-chart-1",
-                    accent: "bg-sky-500",
-                    warning: "bg-destructive",
+                  const accentColors: Record<StockVariant, string> = {
+                    out: "bg-destructive",
+                    critical: "bg-sky-500",
+                    safe: "bg-chart-1",
                   };
-                  const iconBgStyles: Record<string, string> = {
-                    default: "bg-muted",
-                    success: "bg-chart-1/10",
-                    accent: "bg-primary/10",
-                    warning: "bg-destructive/10",
+                  const iconBgStyles: Record<StockVariant, string> = {
+                    out: "bg-destructive/10",
+                    critical: "bg-primary/10",
+                    safe: "bg-chart-1/10",
                   };
 
                   return (
@@ -450,12 +429,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Stok</span>
-                            <Badge
-                              variant="outline"
-                              className={getStockBadgeClass(sparepart)}
-                            >
-                              {sparepart.stock} - {getStockLabel(sparepart)}
-                            </Badge>
+                            <SparepartStockBadge sparepart={sparepart} />
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Stok Kritis</span>
@@ -464,26 +438,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                           <div className="pt-2">
                             <span className="text-xs text-muted-foreground">Kompatibilitas</span>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {sparepart.isUniversal ? (
-                                <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-xs">
-                                  Universal
-                                </Badge>
-                              ) : sparepart.compatibilities.length > 0 ? (
-                                <>
-                                  {sparepart.compatibilities.slice(0, 2).map((c) => (
-                                    <Badge key={c.hpCatalogId} variant="outline" className="text-xs">
-                                      {c.hpCatalog.brand.name} {c.hpCatalog.modelName}
-                                    </Badge>
-                                  ))}
-                                  {sparepart.compatibilities.length > 2 && (
-                                    <Badge variant="outline" className="text-xs">
-                                      +{sparepart.compatibilities.length - 2}
-                                    </Badge>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">-</span>
-                              )}
+                              <SparepartCompatibilityCell sparepart={sparepart} maxVisible={2} />
                             </div>
                           </div>
                         </div>
@@ -554,35 +509,11 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                           <TableCell>{sparepart.category?.name || "-"}</TableCell>
                           <TableCell>{sparepart.supplierName || "-"}</TableCell>
                           <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={getStockBadgeClass(sparepart)}
-                            >
-                              {sparepart.stock} - {getStockLabel(sparepart)}
-                            </Badge>
+                            <SparepartStockBadge sparepart={sparepart} />
                           </TableCell>
                           <TableCell>{sparepart.criticalStock}</TableCell>
                           <TableCell>
-                            {sparepart.isUniversal ? (
-                              <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                                Universal
-                              </Badge>
-                            ) : sparepart.compatibilities.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {sparepart.compatibilities.slice(0, 3).map((c) => (
-                                  <Badge key={c.hpCatalogId} variant="outline" className="text-xs">
-                                    {c.hpCatalog.brand.name} {c.hpCatalog.modelName}
-                                  </Badge>
-                                ))}
-                                {sparepart.compatibilities.length > 3 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    +{sparepart.compatibilities.length - 3} lainnya
-                                  </Badge>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
+                            <SparepartCompatibilityCell sparepart={sparepart} />
                           </TableCell>
                           {!readOnly && (
                             <TableCell>
