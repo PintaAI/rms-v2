@@ -23,6 +23,7 @@ export type InventoryAuditItem = {
   differenceValue: number
   potentialLostValue: number
   snapshotPrice: number
+  snapshotPurchasePrice: number
   status: InventoryAuditItemStatus
   mismatchReason: InventoryAuditMismatchReason | null
   note: string | null

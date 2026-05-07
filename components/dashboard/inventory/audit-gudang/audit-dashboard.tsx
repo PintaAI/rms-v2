@@ -69,7 +69,7 @@ function getOptimisticAuditItem(
     missingQty,
     excessQty,
     differenceValue: Math.abs(difference) * item.snapshotPrice,
-    potentialLostValue: missingQty * item.snapshotPrice,
+    potentialLostValue: missingQty * item.snapshotPurchasePrice,
   }
 }
 

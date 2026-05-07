@@ -690,7 +690,8 @@ model InventoryAuditItem {
   sparepartName      String
   systemStock        Int
   physicalStock      Int?
-  snapshotPrice      Int
+  snapshotPrice         Int
+  snapshotPurchasePrice Int                            @default(0)
   status             InventoryAuditItemStatus       @default(pending)
   mismatchReason     InventoryAuditMismatchReason?
   note               String?

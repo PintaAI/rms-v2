@@ -43,6 +43,7 @@ export type InventoryAuditItemData = {
   systemStock: number;
   physicalStock: number | null;
   snapshotPrice: number;
+  snapshotPurchasePrice: number;
   status: "pending" | "matched" | "discrepancy";
   mismatchReason: InventoryAuditMismatchReason | null;
   note: string | null;
@@ -95,7 +96,12 @@ async function getInventoryAuditUser(tokoId: string, requireWriteAccess = false)
   }
 }
 
-function calculateItemValues(systemStock: number, physicalStock: number, snapshotPrice: number) {
+function calculateItemValues(
+  systemStock: number,
+  physicalStock: number,
+  snapshotPrice: number,
+  snapshotPurchasePrice: number
+) {
   const difference = physicalStock - systemStock;
   const missingQty = Math.max(-difference, 0);
   const excessQty = Math.max(difference, 0);
@@ -105,7 +111,7 @@ function calculateItemValues(systemStock: number, physicalStock: number, snapsho
     missingQty,
     excessQty,
     differenceValue: Math.abs(difference) * snapshotPrice,
-    potentialLostValue: missingQty * snapshotPrice,
+    potentialLostValue: missingQty * snapshotPurchasePrice,
     status: difference === 0 ? "matched" as const : "discrepancy" as const,
   };
 }
@@ -149,6 +155,7 @@ function mapSession(session: SessionWithItems): InventoryAuditSessionData {
     systemStock: item.systemStock,
     physicalStock: item.physicalStock,
     snapshotPrice: item.snapshotPrice,
+    snapshotPurchasePrice: item.snapshotPurchasePrice,
     status: item.status,
     mismatchReason: item.mismatchReason,
     note: item.note,
@@ -282,7 +289,13 @@ export async function startInventoryAudit(
         const spareparts = await tx.sparepart.findMany({
           where: { tokoId: validatedTokoId },
           orderBy: { name: "asc" },
-          select: { id: true, name: true, stock: true, defaultPrice: true },
+          select: {
+            id: true,
+            name: true,
+            stock: true,
+            defaultPrice: true,
+            purchasePrice: true,
+          },
         });
 
         const createdSession = await tx.inventoryAuditSession.create({
@@ -301,6 +314,7 @@ export async function startInventoryAudit(
               sparepartName: sparepart.name,
               systemStock: sparepart.stock,
               snapshotPrice: sparepart.defaultPrice,
+              snapshotPurchasePrice: sparepart.purchasePrice ?? 0,
             })),
           });
         }
@@ -375,7 +389,7 @@ export async function updateInventoryAuditItem(
           potentialLostValue: 0,
           status: "pending" as const,
         }
-      : calculateItemValues(item.systemStock, validated.physicalStock, item.snapshotPrice);
+      : calculateItemValues(item.systemStock, validated.physicalStock, item.snapshotPrice, item.snapshotPurchasePrice);
     const updated = await prisma.inventoryAuditItem.update({
       where: { id: item.id },
       data: {
@@ -403,6 +417,7 @@ export async function updateInventoryAuditItem(
         systemStock: updated.systemStock,
         physicalStock: updated.physicalStock,
         snapshotPrice: updated.snapshotPrice,
+        snapshotPurchasePrice: updated.snapshotPurchasePrice,
         status: updated.status,
         mismatchReason: updated.mismatchReason,
         note: updated.note,
@@ -469,7 +484,7 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
             potentialLostValue: 0,
             status: "pending" as const,
           }
-        : calculateItemValues(item.systemStock, submitted.physicalStock, item.snapshotPrice);
+        : calculateItemValues(item.systemStock, submitted.physicalStock, item.snapshotPrice, item.snapshotPurchasePrice);
 
       return {
         ...item,
