@@ -7,6 +7,7 @@ import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-s
 import type { RequestScope } from "@/lib/auth/request-scope"
 import { revalidateInventoryPaths } from "@/lib/revalidation"
 import type { FeatureKey } from "@/lib/features"
+import type { Prisma } from "@/prisma/generated/prisma/client"
 import { z } from "zod"
 
 export type Sparepart = {
@@ -223,12 +224,7 @@ function assertWorkflowForInventory(scope: RequestScope) {
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 }
 
-type SparepartCategoryClient = {
-  sparepartCategory: {
-    findFirst: typeof prisma.sparepartCategory.findFirst
-    create: typeof prisma.sparepartCategory.create
-  }
-}
+type SparepartCategoryClient = typeof prisma | Prisma.TransactionClient
 
 async function findOrCreateSparepartCategory(
   client: SparepartCategoryClient,
