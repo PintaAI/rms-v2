@@ -223,17 +223,28 @@ function assertWorkflowForInventory(scope: RequestScope) {
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 }
 
-async function findOrCreateSparepartCategory(tokoId: string, categoryName?: string | null) {
+type SparepartCategoryClient = {
+  sparepartCategory: {
+    findFirst: typeof prisma.sparepartCategory.findFirst
+    create: typeof prisma.sparepartCategory.create
+  }
+}
+
+async function findOrCreateSparepartCategory(
+  client: SparepartCategoryClient,
+  tokoId: string,
+  categoryName?: string | null
+) {
   const name = categoryName?.trim()
   if (!name) return null
 
-  const existing = await prisma.sparepartCategory.findFirst({
+  const existing = await client.sparepartCategory.findFirst({
     where: { tokoId, name: { equals: name, mode: "insensitive" } },
     select: { id: true },
   })
   if (existing) return existing
 
-  return prisma.sparepartCategory.create({
+  return client.sparepartCategory.create({
     data: { tokoId, name },
     select: { id: true },
   })
@@ -335,7 +346,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
       return { success: false, error: "Sparepart dengan nama ini sudah ada" }
     }
 
-    const category = await findOrCreateSparepartCategory(validated.tokoId, validated.categoryName)
+    const category = await findOrCreateSparepartCategory(prisma, validated.tokoId, validated.categoryName)
 
     const sparepart = await prisma.sparepart.create({
       data: {
@@ -424,7 +435,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
       }
     }
 
-    const category = await findOrCreateSparepartCategory(sparepart.tokoId, validated.categoryName)
+    const category = await findOrCreateSparepartCategory(prisma, sparepart.tokoId, validated.categoryName)
 
     const updated = await prisma.sparepart.update({
       where: { id: validated.id },
@@ -535,19 +546,7 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
     await prisma.$transaction(async (tx) => {
       for (const row of validRows) {
         const existing = existingByName.get(row.name)
-        const categoryName = row.categoryName?.trim()
-        const existingCategory = categoryName
-          ? await tx.sparepartCategory.findFirst({
-              where: { tokoId: validated.tokoId, name: { equals: categoryName, mode: "insensitive" } },
-              select: { id: true },
-            })
-          : null
-        const category = categoryName && !existingCategory
-          ? await tx.sparepartCategory.create({
-              data: { tokoId: validated.tokoId, name: categoryName },
-              select: { id: true },
-            })
-          : existingCategory
+        const category = await findOrCreateSparepartCategory(tx, validated.tokoId, row.categoryName)
 
         if (existing) {
           await tx.sparepart.update({
