@@ -12,6 +12,7 @@ export const serviceSelectBase = {
   customerName: true,
   noWa: true,
   complaint: true,
+  handlingNote: true,
   includedItems: true,
   status: true,
   isPickedUp: true,
@@ -72,6 +73,7 @@ export type ServiceWithSelectBase = {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  handlingNote: string | null;
   includedItems: JsonValue | null;
   status: ServiceStatus;
   isPickedUp: boolean;
@@ -119,6 +121,7 @@ export function mapServiceToListItem(service: ServiceWithSelectBase): ServiceLis
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
+    handlingNote: service.handlingNote,
     includedItems: service.includedItems as string[] | null,
     note: service.note,
     status: service.status,

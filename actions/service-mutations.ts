@@ -55,6 +55,7 @@ const createServiceSchema = z.object({
     message: "Format WhatsApp harus nomor Indonesia aktif, contoh 08123456789 atau 6281234567890",
   }),
   complaint: z.string().min(1),
+  handlingNote: z.string().optional(),
   includedItems: z.array(z.string()).optional(),
   passwordPattern: z.string().optional(),
   imei: z.string().optional(),
@@ -126,6 +127,7 @@ export async function createService(
           customerName: validated.data.customerName || null,
           noWa: validated.data.noWa,
           complaint: validated.data.complaint,
+          handlingNote: validated.data.handlingNote || null,
           includedItems: validated.data.includedItems || undefined,
           passwordPattern: validated.data.passwordPattern || null,
           imei: validated.data.imei || null,
@@ -165,6 +167,7 @@ export async function createService(
           customerName: validated.data.customerName || null,
           noWa: validated.data.noWa,
           complaint: validated.data.complaint,
+          handlingNote: validated.data.handlingNote || null,
           includedItems: validated.data.includedItems || undefined,
         },
       });
@@ -206,6 +209,7 @@ export async function updateService(
           customerName: validated.data.customerName || null,
           noWa: validated.data.noWa,
           complaint: validated.data.complaint,
+          handlingNote: validated.data.handlingNote || null,
           includedItems: validated.data.includedItems || undefined,
           passwordPattern: validated.data.passwordPattern || null,
           imei: validated.data.imei || null,
@@ -255,6 +259,7 @@ export async function updateService(
           customerName: validated.data.customerName || null,
           noWa: validated.data.noWa,
           complaint: validated.data.complaint,
+          handlingNote: validated.data.handlingNote || null,
           includedItems: validated.data.includedItems || undefined,
           imei: validated.data.imei || null,
           hasPasswordPattern: Boolean(validated.data.passwordPattern),
@@ -272,7 +277,7 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
   const service = await prisma.service.findUnique({
     where: { id: serviceId },
     select: {
-      id: true, tokoId: true, customerName: true, noWa: true, complaint: true, status: true, isPickedUp: true, imei: true, note: true,
+      id: true, tokoId: true, customerName: true, noWa: true, complaint: true, handlingNote: true, status: true, isPickedUp: true, imei: true, note: true,
       hpCatalog: { select: { id: true, modelName: true, brand: { select: { name: true } } } },
       invoice: { select: { paymentStatus: true } },
     },

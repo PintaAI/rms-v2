@@ -20,6 +20,7 @@ export interface ServiceTableItem {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  handlingNote?: string | null;
   includedItems?: string[] | null;
   note?: string | null;
   status: StatusKey | string;

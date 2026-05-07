@@ -167,6 +167,7 @@ export function TeknisiTaskManager({
         customerName: s.customerName,
         noWa: s.noWa,
         complaint: s.complaint,
+        handlingNote: s.handlingNote,
         includedItems: s.includedItems,
         note: s.note,
         status: s.status,

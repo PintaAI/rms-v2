@@ -6,6 +6,7 @@ export function getServiceSearchScore(query: string, service: ServiceListItem): 
     service.customerName,
     service.noWa,
     service.complaint,
+    service.handlingNote,
     service.imei,
     service.note,
     service.passwordPattern,

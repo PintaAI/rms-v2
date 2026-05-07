@@ -567,6 +567,7 @@ model Service {
   customerName    String?
   noWa            String
   complaint       String
+  handlingNote    String?
   includedItems   Json?
   passwordPattern String?
   note            String?

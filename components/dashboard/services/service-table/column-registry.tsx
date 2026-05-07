@@ -66,15 +66,25 @@ export const columnRegistry: Record<string, ColumnDef> = {
 
   complaint: {
     key: "complaint",
-    header: "Keluhan & Kelengkapan",
+    header: "Keluhan & Penanganan",
     render: (service) => (
-      <div className="flex flex-wrap items-start gap-1.5">
-        <Tooltip>
-          <TooltipTrigger className="block max-w-[500px] truncate text-left cursor-default">
-            {service.complaint}
-          </TooltipTrigger>
-          <TooltipContent className="max-w-sm">{service.complaint}</TooltipContent>
-        </Tooltip>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap items-start gap-1.5">
+          <Tooltip>
+            <TooltipTrigger className="block max-w-[500px] truncate text-left cursor-default">
+              {service.complaint}
+            </TooltipTrigger>
+            <TooltipContent className="max-w-sm">{service.complaint}</TooltipContent>
+          </Tooltip>
+          {service.handlingNote && (
+            <Tooltip>
+              <TooltipTrigger className="block max-w-[500px] truncate text-left text-xs text-muted-foreground cursor-default">
+                Penanganan: {service.handlingNote}
+              </TooltipTrigger>
+              <TooltipContent className="max-w-sm">{service.handlingNote}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
         {service.includedItems && service.includedItems.length > 0 && (
           <Tooltip>
             <TooltipTrigger className="flex flex-wrap gap-1 cursor-default">

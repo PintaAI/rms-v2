@@ -41,6 +41,7 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
+    handlingNote: null,
     note: null,
     status: service.status,
     checkinAt: service.checkinAt,

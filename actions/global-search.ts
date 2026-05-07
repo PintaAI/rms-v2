@@ -87,6 +87,7 @@ function mapServiceResult(tokoId: string, role: string, query: string, service: 
     keywords: [
       service.noWa,
       service.complaint,
+      service.handlingNote,
       service.imei,
       service.note,
       service.passwordPattern,
@@ -118,6 +119,7 @@ export async function searchDashboard(
             { customerName: { contains: trimmedQuery, mode: "insensitive" } },
             { noWa: { contains: trimmedQuery, mode: "insensitive" } },
             { complaint: { contains: trimmedQuery, mode: "insensitive" } },
+            { handlingNote: { contains: trimmedQuery, mode: "insensitive" } },
             { imei: { contains: trimmedQuery, mode: "insensitive" } },
             { note: { contains: trimmedQuery, mode: "insensitive" } },
             { passwordPattern: { contains: trimmedQuery, mode: "insensitive" } },
@@ -152,6 +154,7 @@ export async function searchDashboard(
                 { customerName: { contains: trimmedQuery, mode: "insensitive" } },
                 { noWa: { contains: trimmedQuery, mode: "insensitive" } },
                 { complaint: { contains: trimmedQuery, mode: "insensitive" } },
+                { handlingNote: { contains: trimmedQuery, mode: "insensitive" } },
                 { imei: { contains: trimmedQuery, mode: "insensitive" } },
                 { note: { contains: trimmedQuery, mode: "insensitive" } },
                 { hpCatalog: { modelName: { contains: trimmedQuery, mode: "insensitive" } } },

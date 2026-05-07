@@ -128,6 +128,7 @@ export interface ServiceDetailCardItem {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  handlingNote?: string | null;
   includedItems?: string[] | null;
   passwordPattern: string | null;
   imei: string | null;
@@ -373,6 +374,7 @@ export function ServiceDetailCard({
       customerName: localService.customerName,
       noWa: localService.noWa,
       complaint: localService.complaint,
+      handlingNote: localService.handlingNote,
       includedItems: localService.includedItems,
       status: localService.status,
       isPickedUp: localService.isPickedUp,
@@ -580,9 +582,16 @@ export function ServiceDetailCard({
         <CardContent>
           <div className="space-y-4">
             <div>
-              <Label className="text-muted-foreground">Complaint</Label>
+              <Label className="text-muted-foreground">Keluhan</Label>
               <p className="text-sm">{localService.complaint}</p>
             </div>
+
+            {localService.handlingNote && (
+              <div>
+                <Label className="text-muted-foreground">Penanganan</Label>
+                <p className="text-sm">{localService.handlingNote}</p>
+              </div>
+            )}
 
             {warrantyUntilDate && (
               <div className={cn(
@@ -603,7 +612,7 @@ export function ServiceDetailCard({
 
             {localService.includedItems && localService.includedItems.length > 0 && (
               <div>
-                <Label className="text-muted-foreground">Included Items</Label>
+                <Label className="text-muted-foreground">Kelengkapan</Label>
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {localService.includedItems.map((item, index) => (
                     <Badge key={index} variant="outline" className="text-xs">{item}</Badge>

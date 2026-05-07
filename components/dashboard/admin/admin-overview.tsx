@@ -44,6 +44,7 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
+    handlingNote: null,
     note: null,
     status: service.status,
     checkinAt: service.checkinAt,

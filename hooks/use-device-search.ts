@@ -22,11 +22,13 @@ interface UseDeviceSearchOptions {
   onSelect: (device: HpCatalogOption) => void;
 }
 
+const EMPTY_EXCLUDE_IDS: string[] = [];
+
 export function useDeviceSearch({
   devices,
   isLoadingDevices = false,
   onDeviceCreated,
-  excludeIds = [],
+  excludeIds = EMPTY_EXCLUDE_IDS,
   onSelect,
 }: UseDeviceSearchOptions) {
   const [query, setQuery] = useState("");
@@ -63,7 +65,7 @@ export function useDeviceSearch({
 
     if (!query.trim()) {
       queueMicrotask(() => {
-        setResults([]);
+        setResults((prev) => (prev.length === 0 ? prev : []));
         setShowDropdown(false);
       });
       return;

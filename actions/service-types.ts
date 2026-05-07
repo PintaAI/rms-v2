@@ -17,6 +17,7 @@ export interface ServiceListItem {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  handlingNote: string | null;
   includedItems?: string[] | null;
   note: string | null;
   status: ServiceStatus;

@@ -19,6 +19,7 @@ type DeletedServiceSnapshotInput = {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  handlingNote?: string | null;
   status: string;
   imei: string | null;
   note: string | null;
@@ -36,6 +37,7 @@ function buildDeletedServiceSnapshot(service: DeletedServiceSnapshotInput): Pris
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
+    handlingNote: service.handlingNote ?? null,
     status: service.status,
     imei: service.imei,
     note: service.note,

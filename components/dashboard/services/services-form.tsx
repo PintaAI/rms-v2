@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ interface ServiceFormData {
   customerName: string | null;
   noWa: string;
   complaint: string;
+  handlingNote?: string | null;
   includedItems?: string[];
   passwordPattern: string | null;
   imei: string | null;
@@ -50,12 +52,15 @@ interface ServicesFormProps {
   onRevertUpdate?: (originalService: ServiceListItemType) => void;
 }
 
+const INCLUDED_ITEM_PRESETS = ["1 HP", "Charger", "Kabel USB", "Adaptor", "Softcase", "SIM Card", "Memory Card", "Box"];
+
 type FormSnapshot = {
   isEditMode: boolean;
   selectedDevice: HpCatalogOption | null;
   customerName: string;
   noWa: string;
   complaint: string;
+  handlingNote: string;
   includedItems: string[];
   imei: string;
   passwordPatternText: string;
@@ -72,6 +77,7 @@ function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | 
       customerName: "",
       noWa: "",
       complaint: "",
+      handlingNote: "",
       includedItems: ["1 HP"],
       imei: "",
       passwordPatternText: "",
@@ -94,6 +100,7 @@ function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | 
     customerName: editData.customerName || "",
     noWa: editData.noWa || "",
     complaint: editData.complaint || "",
+    handlingNote: editData.handlingNote || "",
     includedItems: (editData as ServiceFormData).includedItems || [],
     imei: editData.imei || "",
     passwordPatternText: isPattern ? "" : passwordPattern,
@@ -126,6 +133,7 @@ function ServicesFormContent({
   const [customerName, setCustomerName] = useState(initialState.customerName);
   const [noWa, setNoWa] = useState(initialState.noWa);
   const [complaint, setComplaint] = useState(initialState.complaint);
+  const [handlingNote, setHandlingNote] = useState(initialState.handlingNote);
   const [includedItems, setIncludedItems] = useState<string[]>(initialState.includedItems);
   const [newItem, setNewItem] = useState("");
   const [imei, setImei] = useState(initialState.imei);
@@ -204,6 +212,13 @@ function ServicesFormContent({
     setIncludedItems((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const toggleIncludedItem = useCallback((item: string, checked: boolean) => {
+    setIncludedItems((prev) => {
+      if (checked) return prev.includes(item) ? prev : [...prev, item];
+      return prev.filter((value) => value !== item);
+    });
+  }, []);
+
   const handlePatternComplete = useCallback((newPattern: number[]) => {
     setPattern(newPattern);
     setPatternError(false);
@@ -239,6 +254,7 @@ function ServicesFormContent({
       customerName: customerName || undefined,
       noWa: noWa.trim(),
       complaint,
+      handlingNote: handlingNote.trim() || undefined,
       includedItems: includedItems.length > 0 ? includedItems : undefined,
       passwordPattern: passwordPatternValue || undefined,
       imei: imei || undefined,
@@ -255,6 +271,7 @@ function ServicesFormContent({
         customerName: customerName || null,
         noWa: noWa.trim(),
         complaint,
+        handlingNote: handlingNote.trim() || null,
         includedItems: includedItems.length > 0 ? includedItems : null,
         note: null,
         status: "received",
@@ -284,6 +301,7 @@ function ServicesFormContent({
         customerName: customerName || null,
         noWa: noWa.trim(),
         complaint,
+        handlingNote: handlingNote.trim() || null,
         includedItems: includedItems.length > 0 ? includedItems : null,
         note: existingData.note || null,
         status: existingData.status || "received",
@@ -389,23 +407,41 @@ function ServicesFormContent({
           </div>
 
           <div className="ml-4 flex flex-col gap-4 border-l border-border pl-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-1.5">
-                <Label htmlFor="complaint" className="flex items-center gap-1.5 text-sm">
-                  <RiMessage3Line className="size-3.5" />
-                  Keluhan
-                </Label>
-                <span className="text-sm leading-none text-destructive">*</span>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="complaint" className="flex items-center gap-1.5 text-sm">
+                    <RiMessage3Line className="size-3.5" />
+                    Keluhan
+                  </Label>
+                  <span className="text-sm leading-none text-destructive">*</span>
+                </div>
+                <textarea
+                  id="complaint"
+                  placeholder="Deskripsikan masalah pada perangkat..."
+                  disabled={isLoading}
+                  rows={3}
+                  value={complaint}
+                  onChange={(e) => setComplaint(e.target.value)}
+                  className="flex min-h-[80px] w-full rounded border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                />
               </div>
-              <textarea
-                id="complaint"
-                placeholder="Deskripsikan masalah pada perangkat..."
-                disabled={isLoading}
-                rows={3}
-                value={complaint}
-                onChange={(e) => setComplaint(e.target.value)}
-                className="flex min-h-[80px] w-full rounded border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="handlingNote" className="flex items-center gap-1.5 text-sm">
+                  <RiToolsLine className="size-3.5" />
+                  Penanganan
+                </Label>
+                <textarea
+                  id="handlingNote"
+                  placeholder="Rencana / tindakan penanganan..."
+                  disabled={isLoading}
+                  rows={3}
+                  value={handlingNote}
+                  onChange={(e) => setHandlingNote(e.target.value)}
+                  className="flex min-h-[80px] w-full rounded border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -413,9 +449,21 @@ function ServicesFormContent({
                 <RiBox3Line className="size-3.5" />
                 Kelengkapan
               </Label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {INCLUDED_ITEM_PRESETS.map((item) => (
+                  <label key={item} className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                    <Checkbox
+                      checked={includedItems.includes(item)}
+                      disabled={isLoading}
+                      onCheckedChange={(checked) => toggleIncludedItem(item, checked === true)}
+                    />
+                    <span>{item}</span>
+                  </label>
+                ))}
+              </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
-                  placeholder="Tambah barang (cth., charger, case)..."
+                  placeholder="Tambah barang lain..."
                   value={newItem}
                   onChange={(e) => setNewItem(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addItem())}
