@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useMobileScannerHost, type UseMobileScannerHostReturn } from "@/hooks/use-mobile-scanner-host";
-import type { MobileScannerConnectionState } from "@/lib/webrtc";
+import type { MobileScannerConnectionState } from "@/lib/realtime/scanner-realtime-types";
 import { RiDeleteBinLine, RiLoader4Line, RiRefreshLine, RiStopLine } from "@remixicon/react";
 import { RiQrScan2Line } from "@remixicon/react";
 import { cn } from "@/lib/utils";

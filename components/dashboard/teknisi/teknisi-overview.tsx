@@ -4,7 +4,6 @@ import { useCallback, useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
   SheetContent,
@@ -29,7 +28,6 @@ import {
   RiStore2Line,
   RiTaskLine,
   RiToolsLine,
-  RiPulseLine,
 } from "@remixicon/react";
 
 interface TeknisiOverviewProps {
@@ -67,8 +65,6 @@ export function TeknisiOverview({
 
     return () => clearInterval(pollingInterval);
   }, [shouldPoll, interval, router]);
-
-  const isPollingActive = shouldPoll;
 
   const submitTakeTask = useCallback(async (serviceId: string) => {
     setIsTakingTask(serviceId);
@@ -144,12 +140,6 @@ export function TeknisiOverview({
               )}
               <span className="text-sm font-medium text-muted-foreground">{currentToko?.name || "Toko"}</span>
             </div>
-            {isPollingActive && (
-              <Badge variant="success" className="gap-1.5">
-                <RiPulseLine className="h-3 w-3" />
-                Live {Math.round(interval / 1000)}d
-              </Badge>
-            )}
           </div>
           <p className="text-sm text-muted-foreground/70">Ringkasan task teknisi dan antrian servis saat ini</p>
         </div>

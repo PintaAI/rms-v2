@@ -3,18 +3,13 @@ import { cacheLife } from "next/cache";
 import Link from "next/link";
 import {
   RiArrowRightLine,
-  RiBarChartBoxLine,
   RiCheckDoubleLine,
-  RiCompass3Line,
   RiFlashlightLine,
   RiFoldersLine,
   RiPulseLine,
-  RiQrCodeLine,
   RiSmartphoneLine,
   RiStore2Line,
   RiTeamLine,
-  RiLinksLine,
-  RiUserAddLine,
 } from "@remixicon/react";
 import { ModeToggle } from "@/components/shared/theme-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -45,13 +40,6 @@ const features = [
     title: "Pembayaran dan pickup terpisah",
     description: "DP, paid, dan unit sudah diambil dibedakan agar kasir dan front desk tidak salah membaca status.",
   },
-];
-
-const highlights = [
-  "Tidak ada lagi status unit yang hanya diketahui satu orang",
-  "Pemakaian sparepart langsung tersambung ke invoice",
-  "Customer bisa diberi update WhatsApp saat servis selesai/gagal",
-  "Bisa mulai sederhana, lalu aktifkan fitur saat toko tumbuh",
 ];
 
 const painPoints = [
@@ -148,18 +136,6 @@ const affiliateHighlights = [
   "Komisi Rp 200.000 per konversi Enterprise",
   "Terbuka untuk siapa saja — tidak perlu akun RMS",
   "Dashboard tracking real-time",
-];
-
-const metrics = [
-  { label: "Unit aktif", value: "128", note: "Masuk sampai pickup" },
-  { label: "Task teknisi", value: "94%", note: "Terlihat statusnya" },
-  { label: "Invoice", value: "Rp18,4jt", note: "Dari item servis" },
-];
-
-const serviceQueue = [
-  ["Masuk", "32", "w-4/5"],
-  ["Proses", "57", "w-3/5"],
-  ["Selesai", "39", "w-2/5"],
 ];
 
 const fallbackCatalog = [

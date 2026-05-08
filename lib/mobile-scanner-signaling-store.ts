@@ -1,18 +1,18 @@
 import { createHash, randomBytes } from "crypto";
 import { kv } from "@vercel/kv";
 
-export const MOBILE_SCANNER_SESSION_TTL_SECONDS = 600;
+export const MOBILE_SCANNER_SESSION_TTL_SECONDS = 90;
 const MOBILE_SCANNER_PENDING_TTL_SECONDS = 90;
 
-export interface MobileScannerSignalSession {
+export interface MobileScannerSession {
   code: string;
+  token: string;
   tokenHash: string;
   tokoId: string;
   ownerUserId: string;
-  offer: string;
-  answer: string | null;
   createdAt: number;
   updatedAt: number;
+  expiresAt: number;
 }
 
 export interface MobileScannerDevice {
@@ -30,7 +30,6 @@ export interface MobileScannerDevice {
 interface CreateMobileScannerSessionInput {
   tokoId: string;
   ownerUserId: string;
-  offer: string;
 }
 
 function sessionKey(code: string) {
@@ -73,25 +72,37 @@ function isTokenValid(record: { tokenHash: string }, token: string) {
   return record.tokenHash === hashToken(token);
 }
 
+function publicMobileScannerSession(session: MobileScannerSession, token: string) {
+  return {
+    code: session.code,
+    token,
+    room: `scanner-${session.code}`,
+    tokoId: session.tokoId,
+    expiresAt: session.expiresAt,
+    expiresIn: MOBILE_SCANNER_SESSION_TTL_SECONDS,
+  };
+}
+
 export async function createMobileScannerSession(input: CreateMobileScannerSessionInput) {
   const token = createToken();
   const now = Date.now();
+  const expiresAt = now + MOBILE_SCANNER_SESSION_TTL_SECONDS * 1000;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const code = createPairCode();
-    const existing = await kv.get<MobileScannerSignalSession>(sessionKey(code));
+    const existing = await kv.get<MobileScannerSession>(sessionKey(code));
 
     if (existing) continue;
 
-    const session: MobileScannerSignalSession = {
+    const session: MobileScannerSession = {
       code,
+      token,
       tokenHash: hashToken(token),
       tokoId: input.tokoId,
       ownerUserId: input.ownerUserId,
-      offer: input.offer,
-      answer: null,
       createdAt: now,
       updatedAt: now,
+      expiresAt,
     };
 
     await Promise.all([
@@ -99,10 +110,30 @@ export async function createMobileScannerSession(input: CreateMobileScannerSessi
       kv.set(latestSessionKey(input.ownerUserId, input.tokoId), code, { ex: MOBILE_SCANNER_PENDING_TTL_SECONDS }),
     ]);
 
-    return { code, token, expiresIn: MOBILE_SCANNER_SESSION_TTL_SECONDS };
+    return publicMobileScannerSession(session, token);
   }
 
   throw new Error("Unable to create mobile scanner session");
+}
+
+export async function getMobileScannerSessionForHost(code: string, userId: string) {
+  const session = await kv.get<MobileScannerSession>(sessionKey(code));
+
+  if (!session || session.ownerUserId !== userId || session.expiresAt <= Date.now()) {
+    return null;
+  }
+
+  return session;
+}
+
+export async function getMobileScannerSessionForGuest(code: string, token: string) {
+  const session = await kv.get<MobileScannerSession>(sessionKey(code));
+
+  if (!session || session.expiresAt <= Date.now() || !isTokenValid(session, token)) {
+    return null;
+  }
+
+  return session;
 }
 
 export async function getLatestMobileScannerSessionForDevice(deviceId: string, token: string) {
@@ -115,91 +146,22 @@ export async function getLatestMobileScannerSessionForDevice(deviceId: string, t
   const code = await kv.get<string>(latestSessionKey(device.ownerUserId, device.tokoId));
 
   if (!code) {
-    return { device, session: null };
+    return { device, session: null, token: null };
   }
 
-  const session = await kv.get<MobileScannerSignalSession>(sessionKey(code));
+  const session = await kv.get<MobileScannerSession>(sessionKey(code));
 
-  if (!session || session.ownerUserId !== device.ownerUserId || session.tokoId !== device.tokoId || session.answer) {
-    return { device, session: null };
+  if (!session || session.ownerUserId !== device.ownerUserId || session.tokoId !== device.tokoId || session.expiresAt <= Date.now()) {
+    return { device, session: null, token: null };
   }
 
-  return { device, session };
+  await markMobileScannerDeviceSeen(device.id);
+
+  return { device, session, token: session.token };
 }
 
-export async function getMobileScannerSessionForHost(code: string, userId: string) {
-  const session = await kv.get<MobileScannerSignalSession>(sessionKey(code));
-
-  if (!session || session.ownerUserId !== userId) {
-    return null;
-  }
-
-  return session;
-}
-
-export async function getMobileScannerSessionForGuest(code: string, token: string) {
-  const session = await kv.get<MobileScannerSignalSession>(sessionKey(code));
-
-  if (!session || !isTokenValid(session, token)) {
-    return null;
-  }
-
-  return session;
-}
-
-export async function setMobileScannerAnswer(code: string, token: string, answer: string) {
-  const session = await getMobileScannerSessionForGuest(code, token);
-
-  if (!session || session.answer) {
-    return false;
-  }
-
-  await kv.set(
-    sessionKey(code),
-    { ...session, answer, updatedAt: Date.now() },
-    { ex: MOBILE_SCANNER_SESSION_TTL_SECONDS }
-  );
-
-  return true;
-}
-
-export async function setMobileScannerAnswerForDevice(code: string, deviceId: string, token: string, answer: string) {
-  const device = await getMobileScannerDeviceByToken(deviceId, token);
-  const session = await kv.get<MobileScannerSignalSession>(sessionKey(code));
-
-  if (!device || !session || session.answer) {
-    return false;
-  }
-
-  if (device.ownerUserId !== session.ownerUserId || device.tokoId !== session.tokoId) {
-    return false;
-  }
-
-  await Promise.all([
-    kv.set(
-      sessionKey(code),
-      { ...session, answer, updatedAt: Date.now() },
-      { ex: MOBILE_SCANNER_SESSION_TTL_SECONDS }
-    ),
-    markMobileScannerDeviceSeen(device.id),
-  ]);
-
-  return true;
-}
-
-export async function deleteMobileScannerSession(code: string, userId: string) {
-  const session = await getMobileScannerSessionForHost(code, userId);
-
-  if (!session) {
-    return false;
-  }
-
-  await kv.del(sessionKey(code));
-  return true;
-}
-
-export async function createMobileScannerDeviceFromSession(code: string, token: string, name: string) {
-  const session = await getMobileScannerSessionForGuest(code, token);
+export async function createMobileScannerDeviceFromSession(code: string, sessionToken: string, name: string) {
+  const session = await getMobileScannerSessionForGuest(code, sessionToken);
 
   if (!session) {
     return null;
@@ -245,6 +207,17 @@ async function markMobileScannerDeviceSeen(deviceId: string) {
 
   const now = Date.now();
   await kv.set(deviceKey(deviceId), { ...device, lastSeenAt: now, updatedAt: now });
+}
+
+export async function deleteMobileScannerSession(code: string, userId: string) {
+  const session = await getMobileScannerSessionForHost(code, userId);
+
+  if (!session) {
+    return false;
+  }
+
+  await kv.del(sessionKey(code));
+  return true;
 }
 
 export function publicMobileScannerDevice(device: MobileScannerDevice) {

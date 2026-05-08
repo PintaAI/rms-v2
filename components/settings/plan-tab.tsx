@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { BillingPlanSummary } from "@/actions";
-import type { SubscriptionPlan } from "@/lib/features";
 import { getWhatsAppEnterpriseUrl, getWhatsAppProBetaRequestUrl, planLabels } from "./helpers";
 import type { PlanTabProps } from "./types";
 

@@ -387,10 +387,15 @@ export async function updateStatus(
 ): Promise<ActionResult> {
   const service = await prisma.service.findUnique({
     where: { id: serviceId },
-    select: { tokoId: true, technicianId: true, status: true, isPickedUp: true },
+    select: { tokoId: true, technicianId: true, status: true, isPickedUp: true, invoice: { select: { paymentStatus: true } } },
   });
   if (!service) return { success: false, error: "Service not found" };
   if (service.isPickedUp) return { success: false, error: "Cannot update a service that has been picked up" };
+
+  const isUndoingCompletedStatus = isCompletingStatus(service.status) && !isCompletingStatus(status);
+  if (isUndoingCompletedStatus && service.invoice?.paymentStatus === "paid") {
+    return { success: false, error: "Cannot undo status for a paid invoice" };
+  }
 
   const warrantyDate = status === "done" && warrantyUntil ? new Date(warrantyUntil) : null;
   if (warrantyDate && Number.isNaN(warrantyDate.getTime())) {

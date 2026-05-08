@@ -1,15 +1,11 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
 import { motion, useScroll, useTransform, type MotionValue } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
   RiMoonLine,
   RiSearchLine,
-  RiMicLine,
-  RiVolumeUpLine,
-  RiVolumeDownLine,
-  RiVolumeMuteLine,
   RiArrowUpSLine,
   RiArrowDownSLine,
   RiArrowLeftSLine,
@@ -34,17 +30,10 @@ export const MacbookScroll = ({
     offset: ["start start", "end start"],
   });
 
-  const [isMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
-
-  const scaleX = useTransform(
-    scrollYProgress,
-    [0, 0.3],
-    [1.2, isMobile ? 1 : 1.5]
-  );
   const scaleY = useTransform(
     scrollYProgress,
     [0, 0.3],
-    [0.6, isMobile ? 1 : 1.5]
+    [0.6, 1]
   );
   const translate = useTransform(scrollYProgress, [0, 1], [0, 1500]);
   const rotate = useTransform(scrollYProgress, [0.1, 0.12, 0.3], [-28, -28, 0]);
@@ -54,7 +43,7 @@ export const MacbookScroll = ({
   return (
     <div
       ref={ref}
-      className="flex min-h-[200vh] shrink-0 scale-[0.35] transform flex-col items-center justify-start py-0 [perspective:800px] sm:scale-50 md:scale-100 md:py-80"
+      className="flex min-h-[200vh] shrink-0 scale-[0.5] transform flex-col items-center justify-start py-0 [perspective:800px] sm:scale-[0.65] md:scale-100 lg:scale-[1.3] md:py-80"
     >
       <motion.h2
         style={{
@@ -71,7 +60,6 @@ export const MacbookScroll = ({
       </motion.h2>
       <Lid
         src={src}
-        scaleX={scaleX}
         scaleY={scaleY}
         rotate={rotate}
         translate={translate}
@@ -103,13 +91,11 @@ export const MacbookScroll = ({
 };
 
 export const Lid = ({
-  scaleX,
   scaleY,
   rotate,
   translate,
   src,
 }: {
-  scaleX: MotionValue<number>;
   scaleY: MotionValue<number>;
   rotate: MotionValue<number>;
   translate: MotionValue<number>;
@@ -135,7 +121,7 @@ export const Lid = ({
     </div>
     <motion.div
       style={{
-        scaleX: scaleX,
+        scaleX: 1.2,
         scaleY: scaleY,
         rotateX: rotate,
         translateY: translate,
@@ -151,7 +137,7 @@ export const Lid = ({
           alt="RMS Dashboard"
           fill
           priority
-          sizes="(max-width: 768px) 80vw, 512px"
+          unoptimized
           className="rounded-lg object-cover object-left-top"
         />
       ) : (

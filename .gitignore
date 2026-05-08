@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# partykit local state
+/.partykit/
+
 # production
 /build
 

@@ -6,7 +6,7 @@
 
 ## Fungsi Utama
 
-Scanner HP dapat membaca label sparepart lalu mengirim hasil scan ke desktop melalui koneksi WebRTC.
+Scanner HP dapat membaca label sparepart lalu mengirim hasil scan ke desktop melalui koneksi realtime RMS.
 
 Saat ini scanner HP dipakai di:
 
@@ -45,14 +45,14 @@ Alur reconnect:
 1. Di HP yang sama, buka halaman `/scanner` pada RMS.
 2. Di desktop, buka fitur yang membutuhkan scanner.
 3. Klik `Scan via HP`.
-4. HP akan mencari desktop aktif dan otomatis terhubung.
+4. Di HP, tekan `Hubungkan ke Desktop`.
 5. Setelah status `Terhubung`, tahan tombol scan di HP untuk mulai scan barcode.
 
 Catatan penting:
 
 - HP hanya bisa reconnect saat desktop sedang membuka sesi `Scan via HP`.
 - Jika user login di browser lain tetapi tidak membuka `Scan via HP`, koneksi tidak terpengaruh.
-- Jika ada lebih dari satu desktop membuka scanner, sesi desktop terbaru yang akan ditemukan oleh HP.
+- Jika ada lebih dari satu desktop membuka scanner, sesi desktop terbaru yang akan ditemukan saat tombol `Hubungkan ke Desktop` ditekan.
 
 ---
 
@@ -101,7 +101,7 @@ Pairing tersimpan bekerja seperti izin perangkat scanner, bukan koneksi permanen
 
 Artinya:
 
-- koneksi WebRTC tetap dibuat ulang setiap kali dipakai
+- koneksi realtime scanner tetap dibuat ulang setiap kali dipakai
 - HP tidak bisa mengirim scan jika desktop tidak membuka sesi scanner aktif
 - server hanya menyimpan hash token perangkat, bukan token asli
 - perangkat tetap valid sampai dilupakan atau dicabut aksesnya
@@ -112,7 +112,7 @@ Jika HP hilang atau dipakai orang lain, buka daftar `HP tersimpan` lalu klik `Lu
 
 ## Batasan Dan Troubleshooting
 
-Scanner HP membutuhkan browser modern, izin kamera, dan koneksi jaringan yang mendukung WebRTC.
+Scanner HP membutuhkan browser modern, izin kamera, dan koneksi jaringan yang dapat mengakses server realtime RMS.
 
 Masalah umum:
 
@@ -122,6 +122,6 @@ Masalah umum:
 | QR pairing kedaluwarsa | Klik retry atau buka ulang `Scan via HP` |
 | HP tersimpan tidak reconnect | Pastikan desktop sedang membuka `Scan via HP` |
 | Barcode tidak terbaca | Perbaiki pencahayaan, jarak, dan posisi label |
-| Koneksi gagal di jaringan tertentu | Coba jaringan lain; WebRTC bisa diblokir jaringan ketat |
+| Koneksi gagal di jaringan tertentu | Coba jaringan lain dan pastikan server realtime RMS aktif |
 
 Jika reconnect tetap gagal, gunakan QR pairing baru dari desktop.

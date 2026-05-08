@@ -91,7 +91,7 @@ Alur scanner HP:
 2. klik `Scan via HP`
 3. sistem menampilkan QR pairing desktop
 4. buka scanner dari HP dengan memindai QR tersebut
-5. HP mengirim hasil barcode ke dialog restock melalui koneksi WebRTC
+5. HP mengirim hasil barcode ke dialog restock melalui koneksi realtime RMS
 
 Catatan penting:
 

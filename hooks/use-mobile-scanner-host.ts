@@ -1,26 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import PartySocket from "partysocket";
 import {
-  parseMobileScannerMessage,
-  rtcConfig,
-  waitForIceGatheringComplete,
+  parseScannerRealtimeServerMessage,
   type MobileScannerConnectionState,
-} from "@/lib/webrtc";
+} from "@/lib/realtime/scanner-realtime-types";
+
+const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST;
+const PAIRING_TIMEOUT_MS = 90_000;
+const PAIRING_TIMEOUT_MESSAGE = "Waktu pairing habis. Buat QR baru untuk mencoba lagi.";
 
 interface UseMobileScannerHostOptions {
   tokoId: string;
   onScan: (value: string) => void | Promise<void>;
 }
 
-interface CreateOfferResponse {
+interface CreateSessionResponse {
   code: string;
   token: string;
+  room: string;
+  expiresAt: number;
   expiresIn: number;
-}
-
-interface PollAnswerResponse {
-  answer: string | null;
 }
 
 export interface RememberedScannerDevice {
@@ -50,10 +51,6 @@ export interface UseMobileScannerHostReturn {
   clearError: () => void;
 }
 
-const PAIRING_TIMEOUT_MS = 60_000;
-const POLL_INTERVAL_MS = 1_000;
-const PAIRING_TIMEOUT_MESSAGE = "Waktu pairing habis. Buat QR baru untuk mencoba lagi.";
-
 export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOptions): UseMobileScannerHostReturn {
   const [state, setState] = useState<MobileScannerConnectionState>("idle");
   const [code, setCode] = useState<string | null>(null);
@@ -61,9 +58,7 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
   const [devices, setDevices] = useState<RememberedScannerDevice[]>([]);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const channelRef = useRef<RTCDataChannel | null>(null);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const socketRef = useRef<PartySocket | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const codeRef = useRef<string | null>(null);
@@ -91,27 +86,20 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
     }
   }, [tokoId]);
 
-  const revokeDevice = useCallback(
-    async (deviceId: string) => {
-      const response = await fetch(`/api/mobile-scanner/signal?deviceId=${encodeURIComponent(deviceId)}`, {
-        method: "DELETE",
-      });
+  const revokeDevice = useCallback(async (deviceId: string) => {
+    const response = await fetch(`/api/mobile-scanner/signal?deviceId=${encodeURIComponent(deviceId)}`, {
+      method: "DELETE",
+    });
 
-      if (!response.ok) {
-        setError("Gagal melupakan HP scanner");
-        return;
-      }
+    if (!response.ok) {
+      setError("Gagal melupakan HP scanner");
+      return;
+    }
 
-      setDevices((current) => current.filter((device) => device.id !== deviceId));
-    },
-    []
-  );
+    setDevices((current) => current.filter((device) => device.id !== deviceId));
+  }, []);
 
   const clearTimers = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
@@ -122,14 +110,26 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
     }
   }, []);
 
+  const startTimers = useCallback(() => {
+    setSecondsRemaining(Math.ceil(PAIRING_TIMEOUT_MS / 1000));
+    countdownIntervalRef.current = setInterval(() => {
+      setSecondsRemaining((current) => (current === null ? null : Math.max(0, current - 1)));
+    }, 1_000);
+
+    timeoutRef.current = setTimeout(() => {
+      clearTimers();
+      setSecondsRemaining(0);
+      setState("failed");
+      setError(PAIRING_TIMEOUT_MESSAGE);
+      socketRef.current?.close();
+      socketRef.current = null;
+    }, PAIRING_TIMEOUT_MS);
+  }, [clearTimers]);
+
   const disconnect = useCallback(() => {
     clearTimers();
-
-    channelRef.current?.close();
-    channelRef.current = null;
-
-    pcRef.current?.close();
-    pcRef.current = null;
+    socketRef.current?.close();
+    socketRef.current = null;
 
     const activeCode = codeRef.current;
     if (activeCode) {
@@ -143,142 +143,100 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
     setState("idle");
   }, [clearTimers]);
 
-  const pollForAnswer = useCallback(
-    (pc: RTCPeerConnection, sessionCode: string) => {
-      setSecondsRemaining(Math.ceil(PAIRING_TIMEOUT_MS / 1000));
-      countdownIntervalRef.current = setInterval(() => {
-        setSecondsRemaining((current) => (current === null ? null : Math.max(0, current - 1)));
-      }, 1_000);
-
-      pollIntervalRef.current = setInterval(async () => {
-        try {
-          const response = await fetch(
-            `/api/mobile-scanner/signal?code=${encodeURIComponent(sessionCode)}&role=host`,
-            { cache: "no-store" }
-          );
-
-          if (!response.ok) {
-            throw new Error("Gagal mengambil jawaban pairing");
-          }
-
-          const data = (await response.json()) as PollAnswerResponse;
-          if (!data.answer) return;
-
-          clearTimers();
-          setSecondsRemaining(null);
-          setState("connecting");
-          await pc.setRemoteDescription(JSON.parse(data.answer) as RTCSessionDescriptionInit);
-        } catch (err) {
-          clearTimers();
-          setSecondsRemaining(null);
-          setState("failed");
-          setError(err instanceof Error ? err.message : "Pairing gagal");
-        }
-      }, POLL_INTERVAL_MS);
-
-      timeoutRef.current = setTimeout(() => {
-        clearTimers();
-        setSecondsRemaining(0);
-        setState("failed");
-        setError(PAIRING_TIMEOUT_MESSAGE);
-      }, PAIRING_TIMEOUT_MS);
-    },
-    [clearTimers]
-  );
-
   const startPairing = useCallback(async () => {
     disconnect();
     setError(null);
     setState("pairing");
     void refreshDevices();
 
+    if (!PARTYKIT_HOST) {
+      setState("failed");
+      setError("Realtime scanner belum dikonfigurasi");
+      return;
+    }
+
     try {
-      const pc = new RTCPeerConnection(rtcConfig);
-      const channel = pc.createDataChannel("mobile-scanner");
-
-      pcRef.current = pc;
-      channelRef.current = channel;
-
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "connected") {
-          clearTimers();
-          setSecondsRemaining(null);
-          setState("connected");
-        } else if (pc.connectionState === "disconnected") {
-          setState("disconnected");
-        } else if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-          clearTimers();
-          setSecondsRemaining(null);
-          setState(pc.connectionState === "failed" ? "failed" : "disconnected");
-        }
-      };
-
-      channel.onopen = () => {
-        clearTimers();
-        setSecondsRemaining(null);
-        setState("connected");
-      };
-      channel.onclose = () => setState("disconnected");
-      channel.onerror = () => {
-        setState("failed");
-        setError("Koneksi scanner bermasalah");
-      };
-      channel.onmessage = (event) => {
-        if (typeof event.data !== "string") return;
-
-        const message = parseMobileScannerMessage(event.data);
-        if (!message) return;
-
-        if (message.type === "scan") {
-          void onScanRef.current(message.value);
-        } else if (message.type === "error") {
-          setError(message.message);
-        }
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await waitForIceGatheringComplete(pc);
-
-      if (!pc.localDescription) {
-        throw new Error("Gagal membuat offer WebRTC");
-      }
-
       const response = await fetch("/api/mobile-scanner/signal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "offer",
-          tokoId,
-          sdp: JSON.stringify(pc.localDescription),
-        }),
+        body: JSON.stringify({ type: "offer", tokoId }),
       });
 
       if (!response.ok) {
         throw new Error("Gagal membuat sesi scanner");
       }
 
-      const data = (await response.json()) as CreateOfferResponse;
+      const data = (await response.json()) as CreateSessionResponse;
       const url = new URL(`/scanner/${data.code}`, window.location.origin);
       url.searchParams.set("token", data.token);
 
+      const socket = new PartySocket({ host: PARTYKIT_HOST, room: data.room });
+      socketRef.current = socket;
       codeRef.current = data.code;
+
+      socket.addEventListener("open", () => {
+        setState("pairing");
+        socket.send(JSON.stringify({ type: "scanner.host-init", token: data.token, expiresAt: data.expiresAt }));
+      });
+
+      socket.addEventListener("message", (event) => {
+        if (typeof event.data !== "string") return;
+
+        const message = parseScannerRealtimeServerMessage(event.data);
+        if (!message) return;
+
+        if (message.type === "scanner.peer-ready" && message.role === "guest") {
+          clearTimers();
+          setSecondsRemaining(null);
+          setState("connected");
+          return;
+        }
+
+        if (message.type === "scanner.auth-error") {
+          clearTimers();
+          setState("failed");
+          setError(message.message);
+          return;
+        }
+
+        if (message.type === "scanner.peer-left") {
+          setState("disconnected");
+          setError("Koneksi scanner terputus");
+          return;
+        }
+
+        if (message.type === "scan") {
+          void onScanRef.current(message.value);
+        } else if (message.type === "error") {
+          setError(message.message);
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        setState((current) => (current === "idle" || current === "failed" ? current : "disconnected"));
+      });
+
+      socket.addEventListener("error", () => {
+        clearTimers();
+        setState("failed");
+        setError("Koneksi realtime scanner bermasalah");
+      });
+
       setCode(data.code);
       setInviteUrl(url.toString());
-      pollForAnswer(pc, data.code);
+      startTimers();
     } catch (err) {
       clearTimers();
-      setSecondsRemaining(null);
-      pcRef.current?.close();
-      pcRef.current = null;
-      channelRef.current = null;
+      socketRef.current?.close();
+      socketRef.current = null;
       codeRef.current = null;
       setCode(null);
       setInviteUrl(null);
+      setSecondsRemaining(null);
       setState("failed");
       setError(err instanceof Error ? err.message : "Scanner gagal dimulai");
     }
-  }, [clearTimers, disconnect, pollForAnswer, refreshDevices, tokoId]);
+  }, [clearTimers, disconnect, refreshDevices, startTimers, tokoId]);
 
   useEffect(() => disconnect, [disconnect]);
 

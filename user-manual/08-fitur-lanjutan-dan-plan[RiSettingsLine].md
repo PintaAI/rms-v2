@@ -117,7 +117,7 @@ Alur singkat:
 2. klik `Scan via HP`
 3. desktop menampilkan QR pairing
 4. HP membuka halaman scanner dari QR tersebut
-5. HP mengirim hasil scan ke desktop lewat WebRTC data channel
+5. HP mengirim hasil scan ke desktop lewat koneksi realtime RMS
 6. desktop memproses barcode untuk memilih sparepart restock
 
 Yang didukung saat ini:

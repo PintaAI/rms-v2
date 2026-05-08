@@ -53,6 +53,7 @@ import {
   payInvoice,
   pickupService,
 } from "@/actions";
+import type { ServiceListItem } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
 import { PaymentDialog } from "./payment-dialog";
 import { InvoiceDialog } from "@/components/dashboard/services/service-table/invoice-dialog";
@@ -61,9 +62,10 @@ import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope
 import { ActionTile } from "@/components/shared/action-tile";
 import { useOptimisticMutation } from "@/hooks/use-optimistic-mutation";
 import { type Role, roleToneClasses } from "@/lib/role-tone";
+import type { PublishServiceRealtimeEvent } from "@/lib/realtime/service-realtime-types";
+import { getServiceRealtimeMeta } from "@/lib/realtime/service-realtime-label";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   received: "secondary",
@@ -78,6 +80,8 @@ const statusLabels: Record<string, string> = {
   done: "Done",
   failed: "Failed",
 };
+
+const undoTargetStatus = "repairing" as const;
 
 const warrantyPresets = [
   { label: "1 Minggu", days: 7 },
@@ -130,6 +134,7 @@ export interface ServiceDetailCardItem {
   complaint: string;
   handlingNote?: string | null;
   includedItems?: string[] | null;
+  note?: string | null;
   passwordPattern: string | null;
   imei: string | null;
   status: string;
@@ -172,7 +177,11 @@ export interface ServiceDetailCardProps {
   onRemoveItem?: (itemId: string) => void;
   onRefresh?: () => void;
   onStatusChange?: (newStatus: string) => void;
-  onPickupSuccess?: () => void;
+  onOptimisticStatusChange?: (serviceId: string, patch: Partial<Omit<ServiceListItem, "id">>) => void;
+  onOptimisticStatusSuccess?: (serviceId: string, status: string) => void;
+  onOptimisticStatusError?: (serviceId: string) => void;
+  onPickupSuccess?: (serviceId: string) => void;
+  onRealtimeEvent?: (event: PublishServiceRealtimeEvent) => void;
 }
 
 export function ServiceDetailCard({
@@ -184,7 +193,11 @@ export function ServiceDetailCard({
   onRemoveItem,
   onRefresh,
   onStatusChange,
+  onOptimisticStatusChange,
+  onOptimisticStatusSuccess,
+  onOptimisticStatusError,
   onPickupSuccess,
+  onRealtimeEvent,
 }: ServiceDetailCardProps) {
   const isActive = variant === "active";
   const { inventoryEnabled, user: currentUser } = useDashboardScope();
@@ -231,7 +244,6 @@ export function ServiceDetailCard({
   const [animationKey, setAnimationKey] = useState(0);
 
   const [undoDialogOpen, setUndoDialogOpen] = useState(false);
-  const [undoStatus, setUndoStatus] = useState<string>("repairing");
   const [isUndoingStatus, setIsUndoingStatus] = useState(false);
 
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
@@ -273,20 +285,24 @@ export function ServiceDetailCard({
   }
 
   function openUndoDialog() {
-    setUndoStatus("repairing");
     setUndoDialogOpen(true);
   }
 
   const handleUndoStatus = useCallback(async () => {
-    if (!undoStatus) return;
+    const currentService = localServiceRef.current;
+    if (currentService.isPickedUp || currentService.invoice?.paymentStatus === "paid") return;
+
     setIsUndoingStatus(true);
+    const serviceId = currentService.id;
+    onOptimisticStatusChange?.(serviceId, { status: undoTargetStatus as ServiceListItem["status"], doneAt: null, warrantyUntil: null });
     await mutate({
-      optimistic: (prev) => ({ ...prev, status: undoStatus, doneAt: null, warrantyUntil: null }),
-      action: () => updateStatus(localServiceRef.current.id, undoStatus as "received" | "repairing"),
-      onSuccess: () => { setUndoDialogOpen(false); onRefresh?.(); },
+      optimistic: (prev) => ({ ...prev, status: undoTargetStatus, doneAt: null, warrantyUntil: null }),
+      action: () => updateStatus(localServiceRef.current.id, undoTargetStatus),
+      onSuccess: () => { onOptimisticStatusSuccess?.(serviceId, undoTargetStatus); setUndoDialogOpen(false); onRefresh?.(); },
+      onError: () => onOptimisticStatusError?.(serviceId),
     });
     setIsUndoingStatus(false);
-  }, [undoStatus, onRefresh, mutate]);
+  }, [onRefresh, mutate, onOptimisticStatusChange, onOptimisticStatusSuccess, onOptimisticStatusError]);
 
   const handleRemoveItem = useCallback(async (itemId: string) => {
     if (itemId.startsWith("temp-")) {
@@ -306,6 +322,7 @@ export function ServiceDetailCard({
         ...prev,
         items: prev.items.filter((item) => item.id !== itemId),
       }));
+      onRealtimeEvent?.({ action: "item_updated", serviceId: localServiceRef.current.id, ...getServiceRealtimeMeta(localServiceRef.current) });
       onRefresh?.();
     } catch (err) {
       console.error("Error removing item:", err);
@@ -317,7 +334,7 @@ export function ServiceDetailCard({
         return next;
       });
     }
-  }, [onRefresh]);
+  }, [onRefresh, onRealtimeEvent]);
 
   const handleOptimisticAddItem = useCallback(
     (newItem: { id: string; type: string; name: string; qty: number; price: number; isPending?: boolean }) => {
@@ -393,6 +410,7 @@ export function ServiceDetailCard({
   const hasCompletedStatus = localService.status === "done" || localService.status === "failed";
   const canPayInvoice = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.invoice?.paymentStatus === "unpaid" || localService.invoice?.paymentStatus === "dp");
   const canMarkPickedUp = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.status === "failed" || localService.invoice?.paymentStatus === "paid");
+  const canUndoCompletedStatus = hasCompletedStatus && !localService.isPickedUp && localService.invoice?.paymentStatus !== "paid";
   const canContactDuringRepair = (localService.status === "received" || localService.status === "repairing") && Boolean(localService.noWa);
   const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp || Boolean(localService.invoice));
   const warrantyUntilDate = localService.warrantyUntil ? new Date(localService.warrantyUntil) : null;
@@ -419,16 +437,26 @@ export function ServiceDetailCard({
     const warrantyUntil = parseDateInputValue(warrantyDate);
     const currentService = localServiceRef.current;
     const takeOwnership = viewerRole === "admin" && (!currentService.technician || currentService.technician.id !== currentUser.id);
+    const doneAt = new Date();
+    const patch: Partial<Omit<ServiceListItem, "id">> = {
+      status: "done" as ServiceListItem["status"],
+      doneAt,
+      warrantyUntil,
+      note: doneNoteValue || currentService.note,
+      technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : currentService.technician,
+    };
+    onOptimisticStatusChange?.(currentService.id, patch);
     await mutate({
       optimistic: (prev) => ({
         ...prev,
         status: "done",
-        doneAt: new Date(),
+        doneAt,
         warrantyUntil,
         technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : prev.technician,
       }),
       action: () => updateStatus(localServiceRef.current.id, "done", doneNoteValue || undefined, warrantyUntil, { takeOwnership }),
-      onSuccess: () => { setDoneDialogOpen(false); setShowDoneTakeoverWarning(false); onRefresh?.(); onStatusChange?.("done"); },
+      onSuccess: () => { onOptimisticStatusSuccess?.(currentService.id, "done"); setDoneDialogOpen(false); setShowDoneTakeoverWarning(false); onRefresh?.(); onStatusChange?.("done"); },
+      onError: () => onOptimisticStatusError?.(currentService.id),
     });
     setIsMarkingDone(false);
   }
@@ -444,16 +472,27 @@ export function ServiceDetailCard({
     setIsMarkingFailed(true);
     const failedNoteValue = failedNote.trim();
     const takeOwnership = adminCompletingUnassignedService && failedTakeOwnership;
+    const currentService = localServiceRef.current;
+    const doneAt = new Date();
+    const patch: Partial<Omit<ServiceListItem, "id">> = {
+      status: "failed" as ServiceListItem["status"],
+      doneAt,
+      warrantyUntil: null,
+      note: failedNoteValue,
+      technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : currentService.technician,
+    };
+    onOptimisticStatusChange?.(currentService.id, patch);
     await mutate({
       optimistic: (prev) => ({
         ...prev,
         status: "failed",
-        doneAt: new Date(),
+        doneAt,
         warrantyUntil: null,
         technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : prev.technician,
       }),
       action: () => updateStatus(localServiceRef.current.id, "failed", failedNoteValue || undefined, undefined, { takeOwnership }),
-      onSuccess: () => { setFailedDialogOpen(false); onRefresh?.(); onStatusChange?.("failed"); },
+      onSuccess: () => { onOptimisticStatusSuccess?.(currentService.id, "failed"); setFailedDialogOpen(false); onRefresh?.(); onStatusChange?.("failed"); },
+      onError: () => onOptimisticStatusError?.(currentService.id),
     });
     setIsMarkingFailed(false);
   }
@@ -477,7 +516,7 @@ export function ServiceDetailCard({
         invoice: { ...prev.invoice, paymentStatus: "paid", discountAmount: payment.discountAmount },
       } : prev,
       action: () => payInvoice(localServiceRef.current.invoice!.id, payment),
-      onSuccess: () => { toast.success("Invoice ditandai lunas"); onRefresh?.(); },
+      onSuccess: () => { toast.success("Invoice ditandai lunas"); onRealtimeEvent?.({ action: "payment_updated", serviceId: localServiceRef.current.id, ...getServiceRealtimeMeta(localServiceRef.current) }); onRefresh?.(); },
       onError: (error) => toast.error(error || "Gagal menandai invoice lunas"),
     });
     setIsPayingInvoice(false);
@@ -491,7 +530,7 @@ export function ServiceDetailCard({
     await mutate({
       optimistic: (prev) => ({ ...prev, isPickedUp: true, checkoutAt }),
       action: () => pickupService(localServiceRef.current.id),
-      onSuccess: () => { toast.success("Service ditandai sudah diambil"); onRefresh?.(); onPickupSuccess?.(); },
+      onSuccess: () => { toast.success("Service ditandai sudah diambil"); onRefresh?.(); onPickupSuccess?.(localServiceRef.current.id); },
       onError: (error) => toast.error(error || "Gagal menandai service diambil"),
     });
     setIsPickingUp(false);
@@ -566,7 +605,7 @@ export function ServiceDetailCard({
                   <span className="ml-1 hidden sm:inline">Tambah Sparepart & jasa</span>
                 </Button>
               )}
-              {!isActive && (localService.status === "done" || localService.status === "failed") && localService.invoice?.paymentStatus !== "paid" && (
+              {!isActive && canUndoCompletedStatus && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -835,36 +874,19 @@ export function ServiceDetailCard({
           <DialogHeader>
             <DialogTitle>Undo Completed Status</DialogTitle>
             <DialogDescription>
-              Change this service back to an active status if there was a mistake
+              Pindahkan service ini kembali ke status proses jika penyelesaian sebelumnya keliru.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div>
-              <Label>New Status</Label>
-              <Select
-                value={undoStatus}
-                onValueChange={(value) => value && setUndoStatus(value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="received">Received</SelectItem>
-                  <SelectItem value="repairing">In Progress</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              This will move the task back to the Active tab and clear the completion date.
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Status akan diubah ke <span className="font-medium text-foreground">In Progress</span>. Tanggal selesai dan garansi akan dikosongkan.
+          </p>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setUndoDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUndoStatus} disabled={isUndoingStatus}>
+            <Button onClick={handleUndoStatus} disabled={isUndoingStatus || !canUndoCompletedStatus}>
               {isUndoingStatus ? "Updating..." : "Confirm Undo"}
             </Button>
           </DialogFooter>
@@ -1037,6 +1059,7 @@ export function ServiceDetailCard({
         onSuccess={() => {
           setItemDialogOpen(false);
           handleAddItemSuccess();
+          onRealtimeEvent?.({ action: "item_updated", serviceId: localService.id, ...getServiceRealtimeMeta(localService) });
           onRefresh?.();
         }}
         onError={(err) => toast.error(err)}

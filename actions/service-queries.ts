@@ -22,7 +22,6 @@ import type {
   ServiceListItem,
   ServiceStats,
   TechnicianDashboardData,
-  TechnicianStats,
   TechnicianTaskStats,
   TimeFilter,
 } from "./service-types";
@@ -96,7 +95,8 @@ export async function getService(
 }
 
 export async function getAvailableTasks(
-  tokoId?: string
+  tokoId?: string,
+  limit: number = technicianTaskListLimit
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
   if (!tokoId) {
     const user = await getRequestUser();
@@ -106,17 +106,18 @@ export async function getAvailableTasks(
   }
 
   return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
-    const services = await getAvailableTaskRecords(tokoId, scope.user.id, technicianTaskListLimit);
+    const services = await getAvailableTaskRecords(tokoId, scope.user.id, limit);
     return services.map(mapServiceToListItem);
   });
 }
 
 export async function getMyTasks(
   tokoId: string,
-  statuses: ServiceStatus[] = technicianAvailableStatuses
+  statuses: ServiceStatus[] = technicianAvailableStatuses,
+  limit: number = technicianTaskListLimit
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
   return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
-    const services = await getMyTaskRecords(tokoId, scope.user.id, statuses, technicianTaskListLimit);
+    const services = await getMyTaskRecords(tokoId, scope.user.id, statuses, limit);
     return services.map(mapServiceToListItem);
   });
 }

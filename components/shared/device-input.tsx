@@ -42,7 +42,7 @@ export function DeviceInput({
   isLoadingDevices = false,
   onDeviceCreated,
 }: DeviceInputProps) {
-  const [showInput, setShowInput] = useState(true);
+  const [showInput, setShowInput] = useState(() => !value);
 
   const handleSelect = useCallback(
     (device: HpCatalogOption) => {

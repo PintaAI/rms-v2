@@ -4,7 +4,8 @@ import {
   RiCheckLine,
   RiCloseLine,
 } from "@remixicon/react";
-import type { StatusKey, PaymentStatusKey } from "./types";
+import type { ServiceListItem } from "@/actions";
+import type { StatusKey, PaymentStatusKey, ServiceTableItem } from "./types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export { formatCurrency, formatDate };
@@ -63,4 +64,33 @@ export function formatWhatsApp(phone: string): string {
     return cleaned;
   }
   return cleaned;
+}
+
+export function toServiceTableItem(service: ServiceListItem): ServiceTableItem {
+  return {
+    id: service.id,
+    hpCatalogId: service.hpCatalogId,
+    customerName: service.customerName,
+    noWa: service.noWa,
+    complaint: service.complaint,
+    handlingNote: service.handlingNote,
+    includedItems: service.includedItems,
+    note: service.note,
+    status: service.status,
+    isPickedUp: service.isPickedUp,
+    checkinAt: service.checkinAt,
+    doneAt: service.doneAt,
+    warrantyUntil: service.warrantyUntil,
+    checkoutAt: service.checkoutAt,
+    hpCatalog: service.hpCatalog,
+    technician: service.technician,
+    invoice: service.invoice,
+    createdBy: service.createdBy,
+    passwordPattern: service.passwordPattern,
+    imei: service.imei,
+  };
+}
+
+export function toServiceTableItems(services: ServiceListItem[]): ServiceTableItem[] {
+  return services.map(toServiceTableItem);
 }

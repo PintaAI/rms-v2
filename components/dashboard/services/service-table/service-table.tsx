@@ -31,7 +31,7 @@ import {
 } from "@remixicon/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InvoiceDialog, type InvoicePreviewService } from "./invoice-dialog";
-import { TechnicianDropdown } from "./technician-dropdown";
+import { TechnicianDropdown, type TechnicianAssignmentOption } from "./technician-dropdown";
 import { columnRegistry, type ColumnKey } from "./column-registry";
 import { resolveColumns, type RoleKey } from "./presets";
 import { getStatusColor } from "./utils";
@@ -140,7 +140,7 @@ export interface ServiceTableProps {
   emptyMessage?: string;
   onEdit?: (service: ServiceTableItem) => void;
   onDelete?: (service: ServiceTableItem) => void;
-  onAssignTech?: (service: ServiceTableItem) => void;
+  onAssignTech?: (service: ServiceTableItem, technician: TechnicianAssignmentOption | null) => Promise<boolean | void> | boolean | void;
   onTake?: (serviceId: string) => void;
   onRowClick?: (service: ServiceTableItem) => void;
   tokoId?: string;
@@ -263,7 +263,7 @@ export function ServiceTable({
           <TechnicianDropdown
             service={service}
             tokoId={tokoId}
-            onAssignmentChange={() => onAssignTech(service)}
+            onAssignmentChange={(technician) => onAssignTech(service, technician)}
           />
         );
       }

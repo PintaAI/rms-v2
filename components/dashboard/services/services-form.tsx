@@ -43,7 +43,7 @@ interface ServiceFormData {
 interface ServicesFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: (result?: { serviceId?: string; action: "created" | "updated"; serviceLabel?: string; serviceBrand?: string; reason?: string }) => void;
   editData?: ServiceFormData | ServiceListItemType | ServiceTableItem | null;
   tokoId?: string;
   onOptimisticCreate?: (tempService: ServiceListItemType) => void;
@@ -112,6 +112,46 @@ function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | 
 
 function formatRupiahAmount(value: string) {
   return value.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function getRealtimeLabel(customerName: string, device: HpCatalogOption) {
+  const deviceName = `${device.brandName} ${device.modelName}`;
+  const name = customerName.trim();
+  return name ? `${name} - ${deviceName}` : deviceName;
+}
+
+function normalizeItems(items: string[]) {
+  return items.map((item) => item.trim()).filter(Boolean).join("|");
+}
+
+function normalizeDpAmount(value: string) {
+  const amount = parseInt(value, 10);
+  return !isNaN(amount) && amount > 0 ? String(amount) : "";
+}
+
+function getEditReason(initialState: FormSnapshot, selectedDevice: HpCatalogOption, values: {
+  customerName: string;
+  noWa: string;
+  complaint: string;
+  handlingNote: string;
+  includedItems: string[];
+  imei: string;
+  passwordPattern: string;
+  dpAmount: string;
+}) {
+  const changedFields: string[] = [];
+
+  if (initialState.selectedDevice?.id !== selectedDevice.id) changedFields.push("perangkat");
+  if (initialState.customerName.trim() !== values.customerName.trim()) changedFields.push("nama");
+  if (initialState.noWa.trim() !== values.noWa.trim()) changedFields.push("no. WA");
+  if (initialState.complaint.trim() !== values.complaint.trim()) changedFields.push("keluhan");
+  if (initialState.handlingNote.trim() !== values.handlingNote.trim()) changedFields.push("catatan handling");
+  if (normalizeItems(initialState.includedItems) !== normalizeItems(values.includedItems)) changedFields.push("kelengkapan");
+  if (initialState.imei.trim() !== values.imei.trim()) changedFields.push("IMEI");
+  if ((initialState.showPatternLock ? initialState.pattern.join("-") : initialState.passwordPatternText).trim() !== values.passwordPattern.trim()) changedFields.push("password");
+  if (normalizeDpAmount(initialState.dpAmount) !== normalizeDpAmount(values.dpAmount)) changedFields.push("DP");
+
+  return changedFields.length > 0 ? changedFields.join(", ") : undefined;
 }
 
 function ServicesFormContent({
@@ -328,7 +368,25 @@ function ServicesFormContent({
     setIsLoading(false);
 
     if (result.success) {
-      onSuccess();
+      const serviceId = !initialState.isEditMode && "data" in result
+        ? (result.data as { id?: string } | undefined)?.id
+        : editData?.id;
+      onSuccess({
+        serviceId,
+        action: initialState.isEditMode ? "updated" : "created",
+        serviceLabel: getRealtimeLabel(customerName, selectedDevice),
+        serviceBrand: selectedDevice.brandName,
+        reason: initialState.isEditMode ? getEditReason(initialState, selectedDevice, {
+          customerName,
+          noWa,
+          complaint,
+          handlingNote,
+          includedItems,
+          imei,
+          passwordPattern: passwordPatternValue,
+          dpAmount,
+        }) : undefined,
+      });
       return;
     }
 

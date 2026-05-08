@@ -6,11 +6,8 @@ import {
   deleteMobileScannerSession,
   getLatestMobileScannerSessionForDevice,
   getMobileScannerSessionForGuest,
-  getMobileScannerSessionForHost,
   listMobileScannerDevicesForUser,
   revokeMobileScannerDevice,
-  setMobileScannerAnswer,
-  setMobileScannerAnswerForDevice,
 } from "@/lib/mobile-scanner-signaling-store";
 
 function badRequest(message: string) {
@@ -59,65 +56,12 @@ export async function POST(request: Request) {
       return forbidden();
     }
 
-    if (typeof payload.sdp !== "string" || payload.sdp.length === 0) {
-      return badRequest("sdp is required");
-    }
-
     const session = await createMobileScannerSession({
       tokoId: payload.tokoId,
       ownerUserId: user.id,
-      offer: payload.sdp,
     });
 
     return NextResponse.json(session);
-  }
-
-  if (payload.type === "answer") {
-    if (typeof payload.code !== "string" || payload.code.length === 0) {
-      return badRequest("code is required");
-    }
-
-    if (typeof payload.token !== "string" || payload.token.length === 0) {
-      return badRequest("token is required");
-    }
-
-    if (typeof payload.sdp !== "string" || payload.sdp.length === 0) {
-      return badRequest("sdp is required");
-    }
-
-    const ok = await setMobileScannerAnswer(payload.code, payload.token, payload.sdp);
-
-    if (!ok) {
-      return notFound();
-    }
-
-    return NextResponse.json({ ok: true });
-  }
-
-  if (payload.type === "saved-answer") {
-    if (typeof payload.code !== "string" || payload.code.length === 0) {
-      return badRequest("code is required");
-    }
-
-    if (typeof payload.deviceId !== "string" || payload.deviceId.length === 0) {
-      return badRequest("deviceId is required");
-    }
-
-    if (typeof payload.deviceToken !== "string" || payload.deviceToken.length === 0) {
-      return badRequest("deviceToken is required");
-    }
-
-    if (typeof payload.sdp !== "string" || payload.sdp.length === 0) {
-      return badRequest("sdp is required");
-    }
-
-    const ok = await setMobileScannerAnswerForDevice(payload.code, payload.deviceId, payload.deviceToken, payload.sdp);
-
-    if (!ok) {
-      return notFound();
-    }
-
-    return NextResponse.json({ ok: true });
   }
 
   if (payload.type === "register-device") {
@@ -144,27 +88,6 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const code = searchParams.get("code");
-
-  if (searchParams.get("role") === "host") {
-    const user = await getRequestUser();
-
-    if (!code) {
-      return badRequest("code is required");
-    }
-
-    if (!user) {
-      return unauthorized();
-    }
-
-    const session = await getMobileScannerSessionForHost(code, user.id);
-
-    if (!session) {
-      return notFound();
-    }
-
-    return NextResponse.json({ answer: session.answer });
-  }
 
   if (searchParams.get("role") === "devices") {
     const user = await getRequestUser();
@@ -213,13 +136,16 @@ export async function GET(request: Request) {
       session: result.session
         ? {
             code: result.session.code,
-            offer: result.session.offer,
+            token: result.token,
+            room: `scanner-${result.session.code}`,
             tokoId: result.session.tokoId,
+            expiresAt: result.session.expiresAt,
           }
         : null,
     });
   }
 
+  const code = searchParams.get("code");
   const token = searchParams.get("token");
 
   if (!code) {
@@ -236,7 +162,7 @@ export async function GET(request: Request) {
     return notFound();
   }
 
-  return NextResponse.json({ offer: session.offer, tokoId: session.tokoId });
+  return NextResponse.json({ code: session.code, room: `scanner-${session.code}`, tokoId: session.tokoId, expiresAt: session.expiresAt });
 }
 
 export async function DELETE(request: Request) {

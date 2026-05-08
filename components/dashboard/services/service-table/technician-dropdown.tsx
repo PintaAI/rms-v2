@@ -21,7 +21,7 @@ import {
 import { getTechniciansByToko, assignTechnician } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 
-interface Technician {
+export interface TechnicianAssignmentOption {
   id: string;
   name: string;
   email: string;
@@ -30,7 +30,7 @@ interface Technician {
 interface TechnicianDropdownProps {
   service: ServiceTableItem;
   tokoId: string;
-  onAssignmentChange?: () => void;
+  onAssignmentChange?: (technician: TechnicianAssignmentOption | null) => Promise<boolean | void> | boolean | void;
   disabled?: boolean;
 }
 
@@ -40,7 +40,7 @@ export function TechnicianDropdown({
   onAssignmentChange,
   disabled,
 }: TechnicianDropdownProps) {
-  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [technicians, setTechnicians] = useState<TechnicianAssignmentOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [open, setOpen] = useState(false);
@@ -67,17 +67,18 @@ export function TechnicianDropdown({
     };
   }, [open, tokoId]);
 
-  const handleAssign = async (technicianId: string | null) => {
+  const handleAssign = async (technician: TechnicianAssignmentOption | null) => {
     setIsUpdating(true);
-    const result = await assignTechnician(service.id, technicianId);
+    const hasParentHandler = Boolean(onAssignmentChange);
+    const result = onAssignmentChange
+      ? await onAssignmentChange(technician)
+      : await assignTechnician(service.id, technician?.id ?? null).then((value) => value.success);
     setIsUpdating(false);
 
-    if (result.success) {
+    if (result !== false) {
       setOpen(false);
-      onAssignmentChange?.();
-    } else {
-      console.error("Failed to assign technician:", result.error);
-      alert(result.error || "Failed to assign technician");
+    } else if (!hasParentHandler) {
+      alert("Failed to assign technician");
     }
   };
 
@@ -142,7 +143,7 @@ const isDisabled = disabled;
             {technicians.map((tech) => (
               <DropdownMenuItem
                 key={tech.id}
-                onClick={() => handleAssign(tech.id)}
+                onClick={() => handleAssign(tech)}
                 className="flex items-center gap-3"
               >
                 <div className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${

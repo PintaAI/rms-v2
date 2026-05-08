@@ -136,6 +136,10 @@ export const MOCK_ANALYTICS_DATA: AdminAnalyticsData = {
     { id: "mock-tech-1", name: "Ahmad Rizki", completedServices: 52, revenue: 7800000 },
     { id: "mock-tech-2", name: "Sari Dewi", completedServices: 38, revenue: 5900000 },
   ],
+  topSpareparts: [
+    { id: "mock-sp-1", name: "LCD iPhone 11", qty: 18, revenue: 6300000 },
+    { id: "mock-sp-2", name: "Battery Samsung A50", qty: 14, revenue: 2100000 },
+  ],
 };
 
 export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {

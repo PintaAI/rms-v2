@@ -1,0 +1,5 @@
+{
+  "name": "rms-v2-realtime",
+  "main": "party/service-room.ts",
+  "compatibilityDate": "2026-05-08"
+}

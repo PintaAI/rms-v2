@@ -64,11 +64,16 @@ export function useDeviceSearch({
     }
 
     if (!query.trim()) {
+      let active = true;
       queueMicrotask(() => {
-        setResults((prev) => (prev.length === 0 ? prev : []));
+        if (!active) return;
+        setResults((prev) => (prev.length > 0 ? [] : prev));
         setShowDropdown(false);
+        setHighlightedIndex(-1);
       });
-      return;
+      return () => {
+        active = false;
+      };
     }
 
     let active = true;

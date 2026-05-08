@@ -16,11 +16,16 @@ import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
-import { deleteService, getService } from "@/actions";
+import { assignTechnician, deleteService, getService } from "@/actions";
 import type { ServiceDetail, ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
+import { toServiceTableItems } from "@/components/dashboard/services/service-table/utils";
 import { getServiceSearchScore } from "@/lib/service-search";
+import { useServiceOptimisticStore } from "@/lib/realtime/service-optimistic-store";
+import { useDashboardRealtime } from "@/components/dashboard/layout/dashboard-realtime-provider";
+import { getServiceRealtimeLabel, getServiceRealtimeMeta } from "@/lib/realtime/service-realtime-label";
 import { RiAddLine, RiSearchLine } from "@remixicon/react";
+import { toast } from "sonner";
 
 interface StaffManageServiceProps {
   allServices: ServiceListItem[];
@@ -43,7 +48,20 @@ export function StaffManageService({
   const { featureAccess } = useDashboardScope();
   const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
 
-  const [services, setServices] = useState<ServiceListItem[]>(allServices);
+  const storeTokoId = useServiceOptimisticStore((state) => state.tokoId);
+  const storeServices = useServiceOptimisticStore((state) => state.services);
+  const isStoreHydrated = useServiceOptimisticStore((state) => state.isHydrated);
+  const hydrateServices = useServiceOptimisticStore((state) => state.hydrateServices);
+  const optimisticCreate = useServiceOptimisticStore((state) => state.optimisticCreate);
+  const rollbackCreate = useServiceOptimisticStore((state) => state.rollbackCreate);
+  const optimisticUpdate = useServiceOptimisticStore((state) => state.optimisticUpdate);
+  const optimisticPatch = useServiceOptimisticStore((state) => state.optimisticPatch);
+  const rollbackUpdate = useServiceOptimisticStore((state) => state.rollbackUpdate);
+  const optimisticDelete = useServiceOptimisticStore((state) => state.optimisticDelete);
+  const rollbackDelete = useServiceOptimisticStore((state) => state.rollbackDelete);
+  const settleMutation = useServiceOptimisticStore((state) => state.settleMutation);
+  const services = storeTokoId === tokoId && isStoreHydrated ? storeServices : allServices;
+  const { publish } = useDashboardRealtime();
   const [currentPage, setCurrentPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [editData, setEditData] = useState<ServiceListItem | null>(null);
@@ -54,15 +72,12 @@ export function StaffManageService({
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
-
-  const pendingMutationsRef = useRef(0);
+  const statusSnapshotsRef = useRef(new Map<string, ServiceListItem>());
+  const pendingPatchesRef = useRef(new Map<string, Partial<Omit<ServiceListItem, "id">>>());
 
   useEffect(() => {
-    if (pendingMutationsRef.current === 0) {
-      setServices(allServices);
-      setCurrentPage(1);
-    }
-  }, [allServices]);
+    hydrateServices(tokoId, allServices);
+  }, [allServices, hydrateServices, tokoId]);
 
   const filteredServices = useMemo(() => {
     const statusFilteredServices = (() => {
@@ -99,57 +114,64 @@ export function StaffManageService({
     return Math.ceil(filteredServices.length / pageSize);
   }, [filteredServices.length, pageSize]);
 
-  const tableServices: ServiceTableItem[] = paginatedServices.map((s) => ({
-    id: s.id,
-    hpCatalogId: s.hpCatalogId,
-    customerName: s.customerName,
-    noWa: s.noWa,
-    complaint: s.complaint,
-    handlingNote: s.handlingNote,
-    includedItems: s.includedItems,
-    note: s.note,
-    status: s.status,
-    isPickedUp: s.isPickedUp,
-    checkinAt: s.checkinAt,
-    doneAt: s.doneAt,
-    warrantyUntil: s.warrantyUntil,
-    checkoutAt: s.checkoutAt,
-    hpCatalog: s.hpCatalog,
-    technician: s.technician,
-    invoice: s.invoice,
-    createdBy: s.createdBy,
-    passwordPattern: s.passwordPattern,
-    imei: s.imei,
-  }));
+  const tableServices: ServiceTableItem[] = toServiceTableItems(paginatedServices);
+
+  const patchSelectedService = useCallback((serviceId: string, patch: Partial<ServiceListItem>) => {
+    setSelectedService((prev) => (prev?.id === serviceId ? { ...prev, ...patch } : prev));
+  }, []);
+
+  const handleOptimisticStatusChange = useCallback((serviceId: string, patch: Partial<Omit<ServiceListItem, "id">>) => {
+    const originalService = services.find((service) => service.id === serviceId);
+    if (!originalService) return;
+
+    if (!statusSnapshotsRef.current.has(serviceId)) {
+      statusSnapshotsRef.current.set(serviceId, originalService);
+    }
+
+    pendingPatchesRef.current.set(serviceId, patch);
+    optimisticPatch(serviceId, patch);
+    patchSelectedService(serviceId, patch);
+  }, [optimisticPatch, patchSelectedService, services]);
+
+  const handleOptimisticStatusSuccess = useCallback((serviceId: string, status: string) => {
+    const service = services.find((item) => item.id === serviceId);
+    statusSnapshotsRef.current.delete(serviceId);
+    pendingPatchesRef.current.delete(serviceId);
+    settleMutation();
+    publish({ action: "status_changed", serviceId, ...getServiceRealtimeMeta(service), reason: status });
+  }, [publish, services, settleMutation]);
+
+  const handleOptimisticStatusError = useCallback((serviceId: string) => {
+    const originalService = statusSnapshotsRef.current.get(serviceId);
+    pendingPatchesRef.current.delete(serviceId);
+    if (!originalService) return;
+
+    statusSnapshotsRef.current.delete(serviceId);
+    rollbackUpdate(originalService);
+    patchSelectedService(serviceId, originalService);
+  }, [patchSelectedService, rollbackUpdate]);
 
   const handleOptimisticCreate = useCallback((tempService: ServiceListItem) => {
-    pendingMutationsRef.current++;
-    setServices((prev) => [tempService, ...prev]);
-  }, []);
+    optimisticCreate(tempService);
+  }, [optimisticCreate]);
 
   const handleRevertCreate = useCallback((tempId: string) => {
-    pendingMutationsRef.current--;
-    setServices((prev) => prev.filter((s) => s.id !== tempId));
-  }, []);
+    rollbackCreate(tempId);
+  }, [rollbackCreate]);
 
   const handleOptimisticUpdate = useCallback((updatedService: ServiceListItem) => {
-    pendingMutationsRef.current++;
-    setServices((prev) =>
-      prev.map((s) => (s.id === updatedService.id ? updatedService : s))
-    );
-  }, []);
+    optimisticUpdate(updatedService);
+  }, [optimisticUpdate]);
 
   const handleRevertUpdate = useCallback((originalService: ServiceListItem) => {
-    pendingMutationsRef.current--;
-    setServices((prev) =>
-      prev.map((s) => (s.id === originalService.id ? originalService : s))
-    );
-  }, []);
+    rollbackUpdate(originalService);
+  }, [rollbackUpdate]);
 
-  const handleCreateSuccess = useCallback(() => {
-    pendingMutationsRef.current--;
+  const handleCreateSuccess = useCallback((result?: { serviceId?: string; action: "created" | "updated"; serviceLabel?: string; serviceBrand?: string; reason?: string }) => {
+    settleMutation();
+    publish({ action: result?.action ?? (editData ? "updated" : "created"), serviceId: result?.serviceId ?? editData?.id ?? "new-service", ...(editData ? getServiceRealtimeMeta(editData as ServiceListItem) : { serviceLabel: "Service baru" }), serviceLabel: result?.serviceLabel ?? (editData ? getServiceRealtimeLabel(editData as ServiceListItem) : "Service baru"), serviceBrand: result?.serviceBrand ?? (editData as ServiceListItem | null)?.hpCatalog?.brand.name, reason: result?.reason });
     router.refresh();
-  }, [router]);
+  }, [editData, publish, router, settleMutation]);
 
   const handleEdit = useCallback((service: ServiceTableItem) => {
     const fullService = services.find((s) => s.id === service.id);
@@ -175,7 +197,7 @@ export function StaffManageService({
     const deletedService = deleteTarget;
     const tempId = deletedService.id;
 
-    setServices((prev) => prev.filter((s) => s.id !== tempId));
+    optimisticDelete(tempId);
 
     setDeleteDialogOpen(false);
     setDeleteTarget(null);
@@ -183,17 +205,17 @@ export function StaffManageService({
     const result = await deleteService(tempId);
 
     if (!result.success) {
-      setServices((prev) => {
-        const restored = [...prev, deletedService].sort(
-          (a, b) => new Date(b.checkinAt).getTime() - new Date(a.checkinAt).getTime()
-        );
-        return restored;
-      });
+      rollbackDelete(deletedService);
+      setIsDeleting(false);
+      router.refresh();
+      return;
     }
 
+    settleMutation();
+    publish({ action: "deleted", serviceId: tempId, ...getServiceRealtimeMeta(deletedService) });
     setIsDeleting(false);
     router.refresh();
-  }, [deleteTarget, router]);
+  }, [deleteTarget, optimisticDelete, publish, rollbackDelete, router, settleMutation]);
 
   const handleRowClick = useCallback(async (service: ServiceTableItem) => {
     setIsLoadingDetail(true);
@@ -221,9 +243,38 @@ export function StaffManageService({
     setCurrentPage(newPage);
   }, []);
 
-  const handleAssignTech = useCallback(() => {
+  const handleAssignTech = useCallback(async (
+    service: ServiceTableItem,
+    technician: { id: string; name: string } | null
+  ) => {
+    const fullService = services.find((item) => item.id === service.id);
+    if (!fullService) return false;
+
+    const patch: Partial<Omit<ServiceListItem, "id">> = {
+      technician: technician ? { id: technician.id, name: technician.name } : null,
+    };
+
+    if (technician && fullService.status === "received") {
+      patch.status = "repairing" as ServiceListItem["status"];
+    }
+
+    optimisticPatch(fullService.id, patch);
+    patchSelectedService(fullService.id, patch);
+
+    const result = await assignTechnician(fullService.id, technician?.id ?? null);
+
+    if (!result.success) {
+      rollbackUpdate(fullService);
+      patchSelectedService(fullService.id, fullService);
+      toast.error(result.error || "Gagal mengubah teknisi");
+      return false;
+    }
+
+    settleMutation();
+    publish({ action: "assigned", serviceId: fullService.id, ...getServiceRealtimeMeta(fullService) });
     router.refresh();
-  }, [router]);
+    return true;
+  }, [optimisticPatch, patchSelectedService, publish, rollbackUpdate, router, services, settleMutation]);
 
   const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}`);
   useEffect(() => {
@@ -380,14 +431,19 @@ export function StaffManageService({
                 viewerRole="staff"
                 showActions={false}
                 onRefresh={handleRefreshDetail}
+                onOptimisticStatusChange={handleOptimisticStatusChange}
+                onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
+                onOptimisticStatusError={handleOptimisticStatusError}
                 onStatusChange={() => {
                   setDetailDialogOpen(false);
                   router.refresh();
                 }}
                 onPickupSuccess={() => {
                   setDetailDialogOpen(false);
+                  publish({ action: "picked_up", serviceId: selectedService.id, ...getServiceRealtimeMeta(selectedService) });
                   router.refresh();
                 }}
+                onRealtimeEvent={publish}
               />
             </div>
           )}

@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -20,12 +19,21 @@ import { getService, takeService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
+import { toServiceTableItems } from "@/components/dashboard/services/service-table/utils";
 import {
   OverviewSectionHeader,
   OverviewStatsCard,
 } from "@/components/dashboard/shared/overview-cards";
-import { useRealtimePolling } from "@/lib/use-idle-detection";
 import { getServiceSearchScore } from "@/lib/service-search";
+import { useServiceOptimisticStore } from "@/lib/realtime/service-optimistic-store";
+import { useDashboardRealtime } from "@/components/dashboard/layout/dashboard-realtime-provider";
+import { getServiceRealtimeMeta } from "@/lib/realtime/service-realtime-label";
+import {
+  deriveTechnicianTaskLists,
+  deriveTechnicianTaskStats,
+  mergeUniqueServices,
+} from "@/lib/realtime/technician-service-selectors";
+import { toast } from "sonner";
 import {
   RiTaskLine,
   RiCheckLine,
@@ -36,18 +44,9 @@ import {
   RiArrowRightLine,
   RiLoader4Line,
   RiStore2Line,
-  RiPulseLine,
   RiSearchLine,
 } from "@remixicon/react";
-
-interface TechnicianTaskStats {
-  tersedia: number;
-  repairing: number;
-  selesai: number;
-  gagal: number;
-  history: number;
-  total: number;
-}
+import type { TechnicianTaskStats } from "@/actions/service";
 
 interface TeknisiTaskManagerProps {
   myTasks: ServiceListItem[];
@@ -74,8 +73,15 @@ export function TeknisiTaskManager({
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const status = searchParams.get("status");
+  const storeTokoId = useServiceOptimisticStore((state) => state.tokoId);
+  const storeServices = useServiceOptimisticStore((state) => state.services);
+  const isStoreHydrated = useServiceOptimisticStore((state) => state.isHydrated);
+  const hydrateServices = useServiceOptimisticStore((state) => state.hydrateServices);
+  const optimisticPatch = useServiceOptimisticStore((state) => state.optimisticPatch);
+  const rollbackUpdate = useServiceOptimisticStore((state) => state.rollbackUpdate);
+  const settleMutation = useServiceOptimisticStore((state) => state.settleMutation);
+  const { publish } = useDashboardRealtime();
 
-  const [stats, setStats] = useState<TechnicianTaskStats>(initialStats);
   const [isTakingTask, setIsTakingTask] = useState<string | null>(null);
   const [pendingTakeoverTask, setPendingTakeoverTask] = useState<ServiceListItem | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
@@ -83,50 +89,76 @@ export function TeknisiTaskManager({
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
 
-  const pendingMutationsRef = useRef(0);
+  const statusSnapshotsRef = useRef(new Map<string, ServiceListItem>());
+  const pendingPatchesRef = useRef(new Map<string, Partial<Omit<ServiceListItem, "id">>>());
   const userId = user?.id;
-
-  const { shouldPoll, interval } = useRealtimePolling({
-    interval: 15000,
-  });
-
-  useEffect(() => {
-    if (!shouldPoll) return;
-
-    const pollingInterval = setInterval(() => {
-      router.refresh();
-    }, interval);
-
-    return () => clearInterval(pollingInterval);
-  }, [shouldPoll, interval, router]);
-
-  const isPollingActive = shouldPoll;
-
-  useEffect(() => {
-    if (pendingMutationsRef.current === 0) {
-      setStats(initialStats);
+  const initialServices = useMemo(
+    () => mergeUniqueServices([...myTasks, ...availableTasks]),
+    [myTasks, availableTasks]
+  );
+  const isUsingStore = storeTokoId === tokoId && isStoreHydrated && Boolean(userId);
+  const sourceServices = isUsingStore ? storeServices : initialServices;
+  const derivedTaskLists = useMemo(() => {
+    if (!isUsingStore) {
+      return { availableTasks, myTasks };
     }
-  }, [initialStats]);
+
+    return deriveTechnicianTaskLists(sourceServices, userId);
+  }, [availableTasks, isUsingStore, myTasks, sourceServices, userId]);
+  const derivedAvailableTasks = derivedTaskLists.availableTasks;
+  const derivedMyTasks = derivedTaskLists.myTasks;
+  const stats = useMemo(() => {
+    if (!isUsingStore) return initialStats;
+    return deriveTechnicianTaskStats(derivedAvailableTasks, derivedMyTasks);
+  }, [derivedAvailableTasks, derivedMyTasks, initialStats, isUsingStore]);
+
+  useEffect(() => {
+    hydrateServices(tokoId, initialServices);
+  }, [hydrateServices, initialServices, tokoId]);
+
+  const patchSelectedTask = useCallback((serviceId: string, patch: Partial<ServiceListItem>) => {
+    setSelectedTask((prev) => (prev?.id === serviceId ? { ...prev, ...patch } : prev));
+  }, []);
 
   const submitTakeTask = useCallback(async (serviceId: string) => {
+    const originalTask = sourceServices.find((service) => service.id === serviceId);
+    const shouldPatch = Boolean(originalTask && user);
+    const patch: Partial<Omit<ServiceListItem, "id">> = {
+      ...(user ? { technician: { id: user.id, name: user.name } } : {}),
+      ...(originalTask?.status === "received" ? { status: "repairing" as ServiceListItem["status"] } : {}),
+    };
+
     setIsTakingTask(serviceId);
+    if (originalTask && shouldPatch) {
+      optimisticPatch(serviceId, patch);
+      patchSelectedTask(serviceId, patch);
+    }
+
     const result = await takeService(serviceId);
     if (result.success) {
+      if (shouldPatch) {
+        settleMutation();
+      }
+      publish({ action: "taken", serviceId, ...getServiceRealtimeMeta(originalTask) });
       router.refresh();
+    } else if (originalTask && shouldPatch) {
+      rollbackUpdate(originalTask);
+      patchSelectedTask(serviceId, originalTask);
+      toast.error(result.error || "Gagal mengambil task");
     }
     setIsTakingTask(null);
     return result;
-  }, [router]);
+  }, [optimisticPatch, patchSelectedTask, publish, rollbackUpdate, router, settleMutation, sourceServices, user]);
 
   const handleTakeTask = useCallback((serviceId: string) => {
-    const task = availableTasks.find((item) => item.id === serviceId);
+    const task = derivedAvailableTasks.find((item) => item.id === serviceId);
     if (task?.technician && task.technician.id !== userId) {
       setPendingTakeoverTask(task);
       return;
     }
 
     void submitTakeTask(serviceId);
-  }, [availableTasks, submitTakeTask, userId]);
+  }, [derivedAvailableTasks, submitTakeTask, userId]);
 
   const handleConfirmTakeover = useCallback(async () => {
     if (!pendingTakeoverTask) {
@@ -160,30 +192,38 @@ export function TeknisiTaskManager({
     router.refresh();
   }, [selectedTask, router]);
 
-  const tableItems: ServiceTableItem[] = useMemo(() => {
-    const toTableItems = (tasks: ServiceListItem[]) => tasks.map((s) => ({
-        id: s.id,
-        hpCatalogId: s.hpCatalogId,
-        customerName: s.customerName,
-        noWa: s.noWa,
-        complaint: s.complaint,
-        handlingNote: s.handlingNote,
-        includedItems: s.includedItems,
-        note: s.note,
-        status: s.status,
-        isPickedUp: s.isPickedUp,
-        checkinAt: s.checkinAt,
-        doneAt: s.doneAt,
-        warrantyUntil: s.warrantyUntil,
-        checkoutAt: s.checkoutAt,
-        hpCatalog: s.hpCatalog,
-        technician: s.technician,
-        invoice: s.invoice,
-        createdBy: s.createdBy,
-        passwordPattern: s.passwordPattern,
-        imei: s.imei,
-      }));
+  const handleOptimisticStatusChange = useCallback((serviceId: string, patch: Partial<Omit<ServiceListItem, "id">>) => {
+    const originalService = sourceServices.find((service) => service.id === serviceId);
+    if (!originalService) return;
 
+    if (!statusSnapshotsRef.current.has(serviceId)) {
+      statusSnapshotsRef.current.set(serviceId, originalService);
+    }
+
+    pendingPatchesRef.current.set(serviceId, patch);
+    optimisticPatch(serviceId, patch);
+    patchSelectedTask(serviceId, patch);
+  }, [optimisticPatch, patchSelectedTask, sourceServices]);
+
+  const handleOptimisticStatusSuccess = useCallback((serviceId: string, status: string) => {
+    const service = sourceServices.find((item) => item.id === serviceId);
+    statusSnapshotsRef.current.delete(serviceId);
+    pendingPatchesRef.current.delete(serviceId);
+    settleMutation();
+    publish({ action: "status_changed", serviceId, ...getServiceRealtimeMeta(service), reason: status });
+  }, [publish, settleMutation, sourceServices]);
+
+  const handleOptimisticStatusError = useCallback((serviceId: string) => {
+    const originalService = statusSnapshotsRef.current.get(serviceId);
+    pendingPatchesRef.current.delete(serviceId);
+    if (!originalService) return;
+
+    statusSnapshotsRef.current.delete(serviceId);
+    rollbackUpdate(originalService);
+    patchSelectedTask(serviceId, originalService);
+  }, [patchSelectedTask, rollbackUpdate]);
+
+  const tableItems: ServiceTableItem[] = useMemo(() => {
     const searchTasks = (tasks: ServiceListItem[]) => {
       const trimmedQuery = searchQuery.trim();
       if (!trimmedQuery) return tasks;
@@ -199,7 +239,7 @@ export function TeknisiTaskManager({
     };
 
     if (status === "tersedia") {
-      return toTableItems(searchTasks(availableTasks));
+      return toServiceTableItems(searchTasks(derivedAvailableTasks));
     }
     
     const statusFilter = status === "repairing"
@@ -213,11 +253,11 @@ export function TeknisiTaskManager({
             : null;
     
     const filteredTasks = statusFilter
-      ? myTasks.filter((t) => statusFilter.includes(t.status))
-      : myTasks;
+      ? derivedMyTasks.filter((t) => statusFilter.includes(t.status))
+      : derivedMyTasks;
     
-    return toTableItems(searchTasks(filteredTasks));
-  }, [status, myTasks, availableTasks, searchQuery]);
+    return toServiceTableItems(searchTasks(filteredTasks));
+  }, [status, derivedMyTasks, derivedAvailableTasks, searchQuery]);
 
   const getPageTitle = () => {
     if (!status) return "Semua Task";
@@ -252,12 +292,6 @@ export function TeknisiTaskManager({
               )}
               <span className="text-sm font-medium text-muted-foreground">{currentToko?.name || "Toko"}</span>
             </div>
-            {isPollingActive && (
-              <Badge variant="success" className="gap-1.5">
-                <RiPulseLine className="h-3 w-3" />
-                Live {Math.round(interval / 1000)}d
-              </Badge>
-            )}
           </div>
           <p className="text-sm text-muted-foreground/70">
             {tableItems.length} task{status ? ` dengan status ${status}` : ""}
@@ -379,10 +413,14 @@ export function TeknisiTaskManager({
                 }
                 viewerRole="technician"
                 onRefresh={handleRefreshDetail}
+                onOptimisticStatusChange={handleOptimisticStatusChange}
+                onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
+                onOptimisticStatusError={handleOptimisticStatusError}
                 onStatusChange={() => {
                   setDetailDialogOpen(false);
                   router.refresh();
                 }}
+                onRealtimeEvent={publish}
               />
             </div>
           )}

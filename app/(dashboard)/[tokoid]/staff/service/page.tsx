@@ -1,9 +1,9 @@
 import { getServiceList, getServiceStats } from "@/actions/service";
 import { StaffManageService } from "@/components/dashboard/services/staff-manage-service";
-import { OverviewStatsCard } from "@/components/dashboard/shared/overview-cards";
+import { StaffServiceOverviewStats } from "@/components/dashboard/services/service-overview-stats";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
-import { RiStore2Line, RiInboxLine, RiToolsLine, RiCheckLine, RiLogoutBoxLine } from "@remixicon/react";
+import { RiStore2Line } from "@remixicon/react";
 
 export default async function StaffServicePage({
   params,
@@ -89,15 +89,7 @@ export default async function StaffServicePage({
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola semua service di toko</p>
       </div>
-      <section className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <OverviewStatsCard title="Masuk" value={stats.received} icon={<RiInboxLine className="h-4 w-4" />} description="menunggu teknisi" variant="primary" />
-          <OverviewStatsCard title="Proses" value={stats.repairing} icon={<RiToolsLine className="h-4 w-4" />} description="sedang diperbaiki" variant="accent" />
-          <OverviewStatsCard title="Selesai" value={stats.done} icon={<RiCheckLine className="h-4 w-4" />} description={`${stats.done} selesai`} variant="success" />
-          <OverviewStatsCard title="Diambil" value={stats.pickedUp} icon={<RiLogoutBoxLine className="h-4 w-4" />} description="sudah selesai" />
-          <OverviewStatsCard title="Total" value={stats.total} icon={<RiInboxLine className="h-4 w-4" />} description="semua service" />
-        </div>
-      </section>
+      <StaffServiceOverviewStats tokoId={tokoid} stats={stats} />
 
       <StaffManageService
         key={initialSearchQuery}

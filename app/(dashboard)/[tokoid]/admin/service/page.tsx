@@ -1,11 +1,11 @@
 import { getServiceList, getServiceStats } from "@/actions/service";
 import { getRequestScope } from "@/lib/auth/request-scope";
 import { ManageService } from "@/components/dashboard/services/manage-service";
-import { OverviewStatsCard } from "@/components/dashboard/shared/overview-cards";
+import { AdminServiceOverviewStats } from "@/components/dashboard/services/service-overview-stats";
 import prisma from "@/lib/prisma";
 import { canUseFeature } from "@/lib/features";
 import Image from "next/image";
-import { RiStore2Line, RiInboxLine, RiToolsLine, RiCheckDoubleLine, RiLogoutBoxLine } from "@remixicon/react";
+import { RiStore2Line } from "@remixicon/react";
 
 interface AdminServicePageProps {
   params: Promise<{ tokoid: string }>;
@@ -98,15 +98,7 @@ export default async function AdminServicePage({ params, searchParams }: AdminSe
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola semua service di toko</p>
       </div>
-      <section className={`space-y-4 ${isAllMenu ? "" : "hidden md:block"}`}>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <OverviewStatsCard title="Masuk" value={stats.received} icon={<RiInboxLine className="h-4 w-4" />} description="menunggu teknisi" variant="primary" />
-          <OverviewStatsCard title="Proses" value={stats.repairing} icon={<RiToolsLine className="h-4 w-4" />} description="sedang diperbaiki" variant="accent" />
-          <OverviewStatsCard title="Selesai & Gagal" value={stats.done + stats.failed} icon={<RiCheckDoubleLine className="h-4 w-4" />} description={`${stats.done} selesai, ${stats.failed} gagal`} variant={stats.failed > 0 ? "warning" : "success"} />
-          <OverviewStatsCard title="Diambil" value={stats.pickedUp} icon={<RiLogoutBoxLine className="h-4 w-4" />} description="sudah selesai" />
-          <OverviewStatsCard title="Total" value={stats.total} icon={<RiInboxLine className="h-4 w-4" />} description="semua service" />
-        </div>
-      </section>
+      <AdminServiceOverviewStats tokoId={tokoid} stats={stats} className={`space-y-4 ${isAllMenu ? "" : "hidden md:block"}`} />
 
       <ManageService
         key={initialSearchQuery}

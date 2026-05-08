@@ -84,7 +84,7 @@ export async function getAdminAnalytics(
   tokoId: string,
   filters?: AdminAnalyticsFilterInput
 ): Promise<ActionResultWithData<AdminAnalyticsData>> {
-  return withScope(tokoId, { role: ["admin"], feature: "analytics.revenue" }, async (scope): Promise<AdminAnalyticsData> => {
+  return withScope(tokoId, { role: ["admin"], feature: "analytics.revenue" }, async (): Promise<AdminAnalyticsData> => {
 
     const normalizedFilters = normalizeFilters(filters);
     const allTimeStart = normalizedFilters.allTime ? await getAllTimeStart(tokoId) : null;

@@ -7,12 +7,7 @@ import { PLAN_REGISTRY, type SubscriptionPlan } from "@/lib/plans";
 import { getFeaturesForPlan, FEATURE_REGISTRY, type FeatureKey } from "@/lib/features";
 import { getReferralLink, DEFAULT_PREMIUM_COMMISSION, DEFAULT_ENTERPRISE_COMMISSION } from "@/lib/affiliate";
 import {
-  RiSmartphoneLine,
-  RiFoldersLine,
-  RiTeamLine,
-  RiPulseLine,
   RiCheckDoubleLine,
-  RiFlashlightLine,
   RiBarChartBoxLine,
   RiQrCodeLine,
   RiWhatsappLine,
@@ -25,6 +20,7 @@ import {
   RiUserSearchLine,
   RiCustomerService2Line,
   RiLinksLine,
+  RiTeamLine,
   RiUserAddLine,
 } from "@remixicon/react";
 import Link from "next/link";
