@@ -277,6 +277,12 @@ function InvoicePreviewCard({
                 {service.hpCatalog.brand.name} {service.hpCatalog.modelName}
               </span>
             </div>
+            <div className="flex items-center justify-between gap-4">
+              <span>Teknisi</span>
+              <span className="font-semibold text-right text-slate-900">
+                {service.technician?.name || "Belum ditugaskan"}
+              </span>
+            </div>
           </div>
         </div>
       </div>

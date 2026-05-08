@@ -159,13 +159,23 @@ export interface ServiceDetailCardItem {
     price: number;
     isPending?: boolean;
   }>;
-    invoice: {
-      id: string;
-      grandTotal: number;
-      paymentStatus: string;
-      dpAmount?: number;
-      discountAmount?: number;
-    } | null;
+  invoice: {
+    id: string;
+    grandTotal: number;
+    paymentStatus: string;
+    dpAmount?: number;
+    discountAmount?: number;
+    invoiceNumber?: string | null;
+    createdAt?: Date | string | null;
+    paidAt?: Date | string | null;
+    items?: Array<{
+      id?: string;
+      type?: string | null;
+      name: string;
+      qty: number;
+      price: number;
+    }> | null;
+  } | null;
 }
 
 export interface ServiceDetailCardProps {
@@ -227,10 +237,11 @@ export function ServiceDetailCard({
       isPickedUp: service.isPickedUp,
       checkoutAt: service.checkoutAt,
       items: service.items,
+      invoice: service.invoice,
       doneAt: service.doneAt,
       warrantyUntil: service.warrantyUntil,
     }),
-    [service.id, service.status, service.isPickedUp, service.checkoutAt, service.items, service.doneAt, service.warrantyUntil]
+    [service.id, service.status, service.isPickedUp, service.checkoutAt, service.items, service.invoice, service.doneAt, service.warrantyUntil]
   );
 
   useEffect(() => {
@@ -510,10 +521,16 @@ export function ServiceDetailCard({
   async function handlePayInvoice(payment: { discountAmount: number }) {
     if (!localService.invoice || !canPayInvoice) return false;
     setIsPayingInvoice(true);
+    const paidAt = new Date();
     const ok = await mutate({
       optimistic: (prev) => prev.invoice ? {
         ...prev,
-        invoice: { ...prev.invoice, paymentStatus: "paid", discountAmount: payment.discountAmount },
+        invoice: {
+          ...prev.invoice,
+          paymentStatus: "paid",
+          discountAmount: payment.discountAmount,
+          paidAt,
+        },
       } : prev,
       action: () => payInvoice(localServiceRef.current.invoice!.id, payment),
       onSuccess: () => { toast.success("Invoice ditandai lunas"); onRealtimeEvent?.({ action: "payment_updated", serviceId: localServiceRef.current.id, ...getServiceRealtimeMeta(localServiceRef.current) }); onRefresh?.(); },
