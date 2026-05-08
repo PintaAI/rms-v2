@@ -18,9 +18,11 @@ import {
 import { TaskList } from "@/components/dashboard/teknisi/task-list";
 import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
+import { useDashboardRealtime } from "@/components/dashboard/layout/dashboard-realtime-provider";
 import { getService, takeService } from "@/actions";
 import type { ServiceDetail, ServiceListItem, TechnicianStats } from "@/actions/service";
 import { useRealtimePolling } from "@/lib/use-idle-detection";
+import { getServiceRealtimeMeta } from "@/lib/realtime/service-realtime-label";
 import {
   RiArrowRightLine,
   RiCheckLine,
@@ -45,6 +47,7 @@ export function TeknisiOverview({
 }: TeknisiOverviewProps) {
   const router = useRouter();
   const { tokoList, user } = useAuth();
+  const { publish } = useDashboardRealtime();
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
@@ -67,14 +70,17 @@ export function TeknisiOverview({
   }, [shouldPoll, interval, router]);
 
   const submitTakeTask = useCallback(async (serviceId: string) => {
+    const service = availableServices.find((item) => item.id === serviceId) ?? myTasks.find((item) => item.id === serviceId);
+
     setIsTakingTask(serviceId);
     const result = await takeService(serviceId);
     setIsTakingTask(null);
     if (result.success) {
+      publish({ action: "taken", serviceId, ...getServiceRealtimeMeta(service) });
       router.refresh();
     }
     return result;
-  }, [router]);
+  }, [availableServices, myTasks, publish, router]);
 
   const handleTakeTask = useCallback((service: ServiceListItem) => {
     if (service.technician && service.technician.id !== user?.id) {

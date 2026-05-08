@@ -201,6 +201,10 @@ export function DashboardRealtimeIndicator() {
   }, []);
 
   const closeHistory = useCallback(() => {
+    if (closeHistoryTimerRef.current) {
+      window.clearTimeout(closeHistoryTimerRef.current);
+    }
+
     closeHistoryTimerRef.current = window.setTimeout(() => {
       setHistoryOpen(false);
       closeHistoryTimerRef.current = null;
@@ -241,8 +245,6 @@ export function DashboardRealtimeIndicator() {
       <PopoverContent
         align="start"
         className="w-[28rem] max-w-[calc(100vw-2rem)] gap-2 p-3"
-        onMouseEnter={openHistory}
-        onMouseLeave={closeHistory}
       >
         <div className="flex items-center gap-2 border-b border-border/60 pb-2 text-xs font-medium text-foreground">
           <RiHistoryLine className="size-4 text-muted-foreground" />
