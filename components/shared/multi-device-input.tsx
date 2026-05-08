@@ -61,6 +61,7 @@ export function MultiDeviceInput({
     inputRef,
     handleCreate,
     handleKeyDown,
+    selectDevice,
     createLabel,
   } = useDeviceSearch({
     devices,
@@ -145,7 +146,7 @@ export function MultiDeviceInput({
                       "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors",
                       highlightedIndex === index ? "bg-accent" : "hover:bg-accent"
                     )}
-                    onClick={() => handleSelect(device)}
+                    onClick={() => selectDevice(device)}
                     onMouseEnter={() => setHighlightedIndex(index)}
                   >
                     <div className="flex size-8 items-center justify-center rounded-md bg-muted/50">

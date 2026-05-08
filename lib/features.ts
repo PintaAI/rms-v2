@@ -8,6 +8,7 @@ export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "
 export type FeatureKey =
   | "service.manualItems"
   | "inventory.management"
+  | "inventory.staffCreateSparepart"
   | "karyawan.management"
   | "staff.workflow"
   | "technician.workflow"
@@ -53,6 +54,15 @@ export const FEATURE_REGISTRY = {
     description: "Kelola sparepart, jasa, stok, dan daftar harga.",
     category: "inventory",
     allowedRoles: ["admin", "staff", "technician"],
+    minimumPlan: "premium",
+    configurable: true,
+  },
+  "inventory.staffCreateSparepart": {
+    key: "inventory.staffCreateSparepart",
+    label: "Staff Tambah Sparepart",
+    description: "Izinkan staff membuat sparepart baru dari workflow service.",
+    category: "inventory",
+    allowedRoles: ["admin", "staff"],
     minimumPlan: "premium",
     configurable: true,
   },

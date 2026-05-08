@@ -112,6 +112,17 @@ export function useDeviceSearch({
     };
   }, [query, devices, excludeSet]);
 
+  const selectDevice = useCallback(
+    (device: HpCatalogOption) => {
+      onSelect(device);
+      setQuery("");
+      setResults([]);
+      setShowDropdown(false);
+      setHighlightedIndex(-1);
+    },
+    [onSelect]
+  );
+
   const handleCreate = useCallback(async () => {
     if (!query.trim()) return;
 
@@ -122,13 +133,13 @@ export function useDeviceSearch({
       const device = await createDevice({ brandName: brand, modelName: model });
       upsertStoredDevice(device);
       onDeviceCreated?.(device);
-      onSelect(device);
+      selectDevice(device);
     } catch {
       // Silently fail - user can retry
     } finally {
       setIsCreating(false);
     }
-  }, [query, onSelect, onDeviceCreated]);
+  }, [query, selectDevice, onDeviceCreated]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -149,7 +160,7 @@ export function useDeviceSearch({
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (highlightedIndex >= 0 && results[highlightedIndex]) {
-          onSelect(results[highlightedIndex]);
+          selectDevice(results[highlightedIndex]);
         } else if (results.length === 0 && query.trim()) {
           handleCreate();
         }
@@ -159,7 +170,7 @@ export function useDeviceSearch({
         setHighlightedIndex(-1);
       }
     },
-    [showDropdown, results, highlightedIndex, handleCreate, query, onSelect]
+    [showDropdown, results, highlightedIndex, handleCreate, query, selectDevice]
   );
 
   const createLabel = useMemo(() => {
@@ -181,6 +192,7 @@ export function useDeviceSearch({
     inputRef,
     handleCreate,
     handleKeyDown,
+    selectDevice,
     createLabel,
     isLoadingDevices,
   };

@@ -35,6 +35,7 @@ export interface OnboardingPlanRecommendation {
 const optionalFeatureKeys: FeatureKey[] = [
   "service.manualItems",
   "inventory.management",
+  "inventory.staffCreateSparepart",
   "karyawan.management",
   "staff.workflow",
   "technician.workflow",
@@ -88,6 +89,7 @@ export function getOnboardingPlanRecommendation(
 
   if (answers.usesInventory) {
     neededFeatures.add("inventory.management");
+    if (answers.staffCount > 0) neededFeatures.add("inventory.staffCreateSparepart");
     requirePlan("premium", "Manajemen inventory/sparepart membutuhkan Pro.");
   } else {
     neededFeatures.add("service.manualItems");

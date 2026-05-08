@@ -243,7 +243,7 @@ function SparepartFormContent({
   }
 
   return (
-    <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-2xl">
+    <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-visible sm:max-w-2xl">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-xl">
           <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">

@@ -219,6 +219,24 @@ async function getInventoryUser(
   }
 }
 
+async function getCreateSparepartUser(tokoId: string) {
+  try {
+    const scope = await getRequestScope(tokoId)
+    assertFeature(scope, "inventory.management")
+    assertWorkflowForInventory(scope)
+
+    if (scope.user.role === "staff") {
+      assertFeature(scope, "inventory.staffCreateSparepart")
+    } else {
+      assertRole(scope, ["admin"])
+    }
+
+    return { success: true as const, user: scope.user, scope }
+  } catch (error) {
+    return actionError(error) as { success: false; error: string }
+  }
+}
+
 function assertWorkflowForInventory(scope: RequestScope) {
   if (scope.user.role === "staff") assertFeature(scope, "staff.workflow")
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
@@ -331,7 +349,7 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
 export async function createSparepart(data: z.infer<typeof createSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
   try {
     const validated = createSparepartSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, true)
+    const access = await getCreateSparepartUser(validated.tokoId)
     if (!access.success) return access
 
     const existing = await prisma.sparepart.findFirst({

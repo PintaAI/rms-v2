@@ -123,7 +123,8 @@ export function AddRepairItemForm({
     }
   }, [spareparts]);
 
-  const { manualItemsEnabled } = useDashboardScope();
+  const { user, manualItemsEnabled, staffCreateSparepartEnabled } = useDashboardScope();
+  const canCreateSparepart = user.role !== "staff" || staffCreateSparepartEnabled;
   const scanner = useScannerPairing({ tokoId, onScan: handleMobileScan });
 
   function resetForm() {
@@ -374,15 +375,17 @@ export function AddRepairItemForm({
                           onToggle={() => scanner.setIsOpen((open) => !open)}
                           state={scanner.state}
                         />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSparepartFormOpen(true)}
-                        >
-                          <RiAddLine className="size-3.5" />
-                          Sparepart Baru
-                        </Button>
+                        {canCreateSparepart && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSparepartFormOpen(true)}
+                          >
+                            <RiAddLine className="size-3.5" />
+                            Sparepart Baru
+                          </Button>
+                        )}
                       </div>
                     </div>
 

@@ -20,6 +20,7 @@ export interface DashboardScopeContextValue {
   disabledFeatures: FeatureKey[];
   inventoryEnabled: boolean;
   manualItemsEnabled: boolean;
+  staffCreateSparepartEnabled: boolean;
 }
 
 const DashboardScopeContext = createContext<DashboardScopeContextValue | null>(null);
@@ -34,7 +35,7 @@ export function useDashboardScope(): DashboardScopeContextValue {
 
 interface DashboardScopeProviderProps {
   children: ReactNode;
-  value: Omit<DashboardScopeContextValue, "inventoryEnabled" | "manualItemsEnabled">;
+  value: Omit<DashboardScopeContextValue, "inventoryEnabled" | "manualItemsEnabled" | "staffCreateSparepartEnabled">;
 }
 
 export function DashboardScopeProvider({ children, value }: DashboardScopeProviderProps) {
@@ -42,6 +43,7 @@ export function DashboardScopeProvider({ children, value }: DashboardScopeProvid
     ...value,
     inventoryEnabled: value.featureAccess["inventory.management"] ?? false,
     manualItemsEnabled: value.featureAccess["service.manualItems"] ?? false,
+    staffCreateSparepartEnabled: value.featureAccess["inventory.staffCreateSparepart"] ?? false,
   };
 
   return (
