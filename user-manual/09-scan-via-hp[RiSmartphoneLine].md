@@ -20,9 +20,9 @@ Format barcode yang didukung:
 
 ---
 
-## Pairing Pertama Kali
+## Pairing Scanner
 
-Gunakan alur ini saat HP belum pernah dipasangkan dengan desktop RMS.
+Gunakan alur ini setiap kali ingin memakai HP sebagai scanner RMS.
 
 1. Buka fitur yang memiliki tombol `Scan via HP`.
 2. Klik `Scan via HP` di desktop.
@@ -32,27 +32,7 @@ Gunakan alur ini saat HP belum pernah dipasangkan dengan desktop RMS.
 6. Jika browser meminta izin kamera, pilih `Allow` atau `Izinkan`.
 7. Setelah status menjadi `Terhubung`, tahan tombol scan di HP lalu arahkan ke label sparepart.
 
-Setelah pairing pertama berhasil, HP akan disimpan sebagai perangkat scanner terpercaya.
-
----
-
-## Reconnect Tanpa Scan QR
-
-Jika HP sudah pernah dipasangkan, QR tidak perlu discan ulang.
-
-Alur reconnect:
-
-1. Di HP yang sama, buka halaman `/scanner` pada RMS.
-2. Di desktop, buka fitur yang membutuhkan scanner.
-3. Klik `Scan via HP`.
-4. Di HP, tekan `Hubungkan ke Desktop`.
-5. Setelah status `Terhubung`, tahan tombol scan di HP untuk mulai scan barcode.
-
-Catatan penting:
-
-- HP hanya bisa reconnect saat desktop sedang membuka sesi `Scan via HP`.
-- Jika user login di browser lain tetapi tidak membuka `Scan via HP`, koneksi tidak terpengaruh.
-- Jika ada lebih dari satu desktop membuka scanner, sesi desktop terbaru yang akan ditemukan saat tombol `Hubungkan ke Desktop` ditekan.
+Pairing dibuat sebagai sesi sementara. Jika sesi berhenti atau QR kedaluwarsa, buka `Scan via HP` lagi dan scan QR baru.
 
 ---
 
@@ -76,37 +56,16 @@ Tips scan:
 
 ---
 
-## Mengelola HP Tersimpan
-
-Desktop akan menampilkan daftar `HP tersimpan` saat scanner dibuka.
-
-Yang bisa dilakukan:
-
-- melihat nama HP yang pernah dipasangkan
-- melihat waktu terakhir HP digunakan
-- klik `Lupakan` untuk mencabut akses HP tersebut
-
-Hak akses:
-
-- pemilik pairing bisa melupakan HP miliknya
-- Admin toko bisa melupakan HP scanner yang terdaftar pada toko tersebut
-
-Di HP, tombol `Lupakan HP ini` menghapus token scanner dari browser HP tersebut. Setelah dilupakan, HP harus pairing ulang melalui QR.
-
----
-
 ## Keamanan Pairing
 
-Pairing tersimpan bekerja seperti izin perangkat scanner, bukan koneksi permanen.
+Pairing bekerja sebagai sesi sementara, bukan izin perangkat permanen.
 
 Artinya:
 
 - koneksi realtime scanner tetap dibuat ulang setiap kali dipakai
 - HP tidak bisa mengirim scan jika desktop tidak membuka sesi scanner aktif
-- server hanya menyimpan hash token perangkat, bukan token asli
-- perangkat tetap valid sampai dilupakan atau dicabut aksesnya
-
-Jika HP hilang atau dipakai orang lain, buka daftar `HP tersimpan` lalu klik `Lupakan`.
+- token pairing hanya berlaku untuk sesi QR tersebut
+- tidak ada data HP yang disimpan untuk reconnect otomatis
 
 ---
 
@@ -120,8 +79,5 @@ Masalah umum:
 |---|---|
 | Kamera tidak terbuka | Pastikan browser mengizinkan akses kamera |
 | QR pairing kedaluwarsa | Klik retry atau buka ulang `Scan via HP` |
-| HP tersimpan tidak reconnect | Pastikan desktop sedang membuka `Scan via HP` |
 | Barcode tidak terbaca | Perbaiki pencahayaan, jarak, dan posisi label |
 | Koneksi gagal di jaringan tertentu | Coba jaringan lain dan pastikan server realtime RMS aktif |
-
-Jika reconnect tetap gagal, gunakan QR pairing baru dari desktop.

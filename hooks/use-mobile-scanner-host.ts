@@ -21,32 +21,15 @@ interface CreateSessionResponse {
   token: string;
   room: string;
   expiresAt: number;
-  expiresIn: number;
-}
-
-export interface RememberedScannerDevice {
-  id: string;
-  tokoId: string;
-  ownerUserId: string;
-  name: string;
-  createdAt: number;
-  lastSeenAt: number | null;
-}
-
-interface ListDevicesResponse {
-  devices: RememberedScannerDevice[];
 }
 
 export interface UseMobileScannerHostReturn {
   state: MobileScannerConnectionState;
   code: string | null;
   inviteUrl: string | null;
-  devices: RememberedScannerDevice[];
   secondsRemaining: number | null;
   error: string | null;
   startPairing: () => Promise<void>;
-  refreshDevices: () => Promise<void>;
-  revokeDevice: (deviceId: string) => Promise<void>;
   disconnect: () => void;
   clearError: () => void;
 }
@@ -55,7 +38,6 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
   const [state, setState] = useState<MobileScannerConnectionState>("idle");
   const [code, setCode] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
-  const [devices, setDevices] = useState<RememberedScannerDevice[]>([]);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<PartySocket | null>(null);
@@ -67,37 +49,6 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
   useEffect(() => {
     onScanRef.current = onScan;
   }, [onScan]);
-
-  const refreshDevices = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `/api/mobile-scanner/signal?role=devices&tokoId=${encodeURIComponent(tokoId)}`,
-        { cache: "no-store" }
-      );
-
-      if (!response.ok) {
-        throw new Error("Gagal mengambil daftar HP tersimpan");
-      }
-
-      const data = (await response.json()) as ListDevicesResponse;
-      setDevices(data.devices);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengambil daftar HP tersimpan");
-    }
-  }, [tokoId]);
-
-  const revokeDevice = useCallback(async (deviceId: string) => {
-    const response = await fetch(`/api/mobile-scanner/signal?deviceId=${encodeURIComponent(deviceId)}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      setError("Gagal melupakan HP scanner");
-      return;
-    }
-
-    setDevices((current) => current.filter((device) => device.id !== deviceId));
-  }, []);
 
   const clearTimers = useCallback(() => {
     if (countdownIntervalRef.current) {
@@ -147,7 +98,6 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
     disconnect();
     setError(null);
     setState("pairing");
-    void refreshDevices();
 
     if (!PARTYKIT_HOST) {
       setState("failed");
@@ -207,8 +157,6 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
 
         if (message.type === "scan") {
           void onScanRef.current(message.value);
-        } else if (message.type === "error") {
-          setError(message.message);
         }
       });
 
@@ -236,7 +184,7 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
       setState("failed");
       setError(err instanceof Error ? err.message : "Scanner gagal dimulai");
     }
-  }, [clearTimers, disconnect, refreshDevices, startTimers, tokoId]);
+  }, [clearTimers, disconnect, startTimers, tokoId]);
 
   useEffect(() => disconnect, [disconnect]);
 
@@ -244,12 +192,9 @@ export function useMobileScannerHost({ tokoId, onScan }: UseMobileScannerHostOpt
     state,
     code,
     inviteUrl,
-    devices,
     secondsRemaining,
     error,
     startPairing,
-    refreshDevices,
-    revokeDevice,
     disconnect,
     clearError: () => setError(null),
   };

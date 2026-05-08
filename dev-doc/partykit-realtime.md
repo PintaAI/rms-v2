@@ -62,6 +62,6 @@ Prisma remains the source of truth. PartyKit is only a fan-out transport for ref
 
 ## Mobile Scanner Rooms
 
-Phone scanner pairing uses PartyKit rooms named `scanner-<code>`. The desktop creates a short-lived scanner session through `/api/mobile-scanner/signal`, then joins the room as `scanner.host-init`. The phone joins from the QR link or saved-device poll as `scanner.guest-init`.
+Phone scanner pairing uses PartyKit rooms named `scanner-<code>`. The desktop creates a short-lived scanner session through `/api/mobile-scanner/signal`, then joins the room as `scanner.host-init`. The phone joins from the QR link as `scanner.guest-init`.
 
-Scanner rooms route messages only between the authenticated host and guest connection IDs. The phone still performs camera access and barcode decoding locally; PartyKit only carries small JSON messages like `ready`, `scan`, and `error`.
+Scanner rooms route messages only between the authenticated host and guest connection IDs. The phone still performs camera access and barcode decoding locally; PartyKit only carries pairing messages and `scan` payloads.

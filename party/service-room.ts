@@ -12,6 +12,7 @@ export default class ServiceRoom implements Party.Server {
   private scannerExpiresAt = 0;
   private scannerHostId: string | null = null;
   private scannerGuestId: string | null = null;
+  private scannerGuestToken: string | null = null;
 
   constructor(readonly room: Party.Room) {}
 
@@ -37,6 +38,7 @@ export default class ServiceRoom implements Party.Server {
 
     if (connection.id === this.scannerGuestId) {
       this.scannerGuestId = null;
+      this.scannerGuestToken = null;
       this.sendToHost({ type: "scanner.peer-left", role: "guest", at: Date.now() });
     }
   }
@@ -108,21 +110,34 @@ export default class ServiceRoom implements Party.Server {
       this.scannerToken = token;
       this.scannerExpiresAt = typeof expiresAt === "number" ? expiresAt : Date.now() + 90_000;
       this.scannerHostId = connection.id;
-      this.sendToHost({ type: "scanner.peer-ready", role: "host", at: Date.now() });
 
       if (this.scannerGuestId) {
-        this.sendToGuest({ type: "scanner.peer-ready", role: "host", at: Date.now() });
+        this.completeGuestPairing();
       }
 
       return;
     }
 
-    if (!this.scannerToken || this.scannerToken !== token || this.scannerExpiresAt <= Date.now()) {
-      connection.send(JSON.stringify({ type: "scanner.auth-error", message: "Pairing scanner sudah kedaluwarsa", at: Date.now() }));
+    this.scannerGuestId = connection.id;
+    this.scannerGuestToken = token;
+
+    if (!this.scannerToken) {
       return;
     }
 
-    this.scannerGuestId = connection.id;
+    this.completeGuestPairing();
+  }
+
+  private completeGuestPairing() {
+    if (!this.scannerGuestId || !this.scannerGuestToken) return;
+
+    if (this.scannerToken !== this.scannerGuestToken || this.scannerExpiresAt <= Date.now()) {
+      this.sendToGuest({ type: "scanner.auth-error", message: "Pairing scanner sudah kedaluwarsa", at: Date.now() });
+      this.scannerGuestId = null;
+      this.scannerGuestToken = null;
+      return;
+    }
+
     this.sendToGuest({ type: "scanner.peer-ready", role: "guest", at: Date.now() });
     this.sendToHost({ type: "scanner.peer-ready", role: "guest", at: Date.now() });
   }
