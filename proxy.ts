@@ -5,6 +5,7 @@ import { getSessionCookie } from "better-auth/cookies";
 const publicRoutes = ["/", "/auth"];
 const authApiRoutes = "/api/auth";
 const userManualRoute = "/user-manual";
+const scannerRoute = "/scanner";
 const protectedRoutePrefixes = ["/dashboard", "/onboard", "/superuser"];
 
 export function proxy(request: NextRequest) {
@@ -16,8 +17,9 @@ export function proxy(request: NextRequest) {
 
   const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith("/auth"));
   const isUserManualRoute = pathname.startsWith(userManualRoute);
+  const isScannerRoute = pathname === scannerRoute || pathname.startsWith(`${scannerRoute}/`);
   const isDashboardRoute = /^\/[^/]+\/(admin|staff|teknisi)/.test(pathname);
-  const isTokoRootRoute = /^\/[^/]+$/.test(pathname) && !isPublicRoute && !pathname.startsWith(userManualRoute);
+  const isTokoRootRoute = /^\/[^/]+$/.test(pathname) && !isPublicRoute && !isScannerRoute && !pathname.startsWith(userManualRoute);
   const isProtectedRoute =
     protectedRoutePrefixes.some((route) => pathname.startsWith(route)) ||
     isDashboardRoute ||
@@ -25,7 +27,7 @@ export function proxy(request: NextRequest) {
 
   const sessionToken = getSessionCookie(request);
 
-  if (isUserManualRoute) {
+  if (isUserManualRoute || isScannerRoute) {
     return NextResponse.next();
   }
 

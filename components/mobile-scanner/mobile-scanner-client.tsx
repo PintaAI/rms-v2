@@ -24,6 +24,7 @@ const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   },
   audio: false,
 };
+const SAVED_DEVICE_STORAGE_KEY = "rms.mobileScannerDevice";
 
 interface MobileScannerClientProps {
   code?: string;
@@ -31,6 +32,42 @@ interface MobileScannerClientProps {
 
 type PhoneScannerState = "idle" | "connecting" | "connected" | "disconnected" | "failed";
 type CameraState = "idle" | "starting" | "active" | "stopped" | "failed";
+
+interface SavedDeviceCredentials {
+  deviceId: string;
+  token: string;
+}
+
+interface SavedSessionResponse {
+  session: {
+    code: string;
+    token: string;
+    room: string;
+    expiresAt: number;
+  } | null;
+}
+
+function readSavedDeviceCredentials(): SavedDeviceCredentials | null {
+  try {
+    const raw = window.localStorage.getItem(SAVED_DEVICE_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<SavedDeviceCredentials>;
+    if (typeof parsed.deviceId !== "string" || typeof parsed.token !== "string") return null;
+
+    return { deviceId: parsed.deviceId, token: parsed.token };
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedDeviceCredentials(credentials: SavedDeviceCredentials) {
+  window.localStorage.setItem(SAVED_DEVICE_STORAGE_KEY, JSON.stringify(credentials));
+}
+
+function clearSavedDeviceCredentials() {
+  window.localStorage.removeItem(SAVED_DEVICE_STORAGE_KEY);
+}
 
 export function MobileScannerClient({ code }: MobileScannerClientProps) {
   const searchParams = useSearchParams();
@@ -42,6 +79,9 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [decodeFeedback, setDecodeFeedback] = useState<string>("Tahan tombol untuk mulai.");
   const [lastScanned, setLastScanned] = useState<string | null>(null);
+  const [savedDevice, setSavedDevice] = useState<SavedDeviceCredentials | null>(null);
+  const activePairingRef = useRef<{ code: string; token: string } | null>(null);
+  const registeringDeviceRef = useRef(false);
   const socketRef = useRef<PartySocket | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -74,6 +114,39 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
       oscillator.addEventListener("ended", () => void audioContext.close());
     } catch {
       // Beep feedback is optional; some browsers block Web Audio until user interaction.
+    }
+  }, []);
+
+  const rememberCurrentDevice = useCallback(async () => {
+    const saved = readSavedDeviceCredentials();
+    if (saved) {
+      setSavedDevice(saved);
+      return;
+    }
+
+    const activePairing = activePairingRef.current;
+    if (!activePairing || registeringDeviceRef.current) return;
+
+    registeringDeviceRef.current = true;
+
+    try {
+      const response = await fetch("/api/mobile-scanner/signal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "register-device", code: activePairing.code, token: activePairing.token }),
+      });
+
+      if (!response.ok) {
+        registeringDeviceRef.current = false;
+        return;
+      }
+
+      const data = (await response.json()) as SavedDeviceCredentials;
+      writeSavedDeviceCredentials(data);
+      setSavedDevice(data);
+    } catch {
+      registeringDeviceRef.current = false;
+      // Remembering the phone is optional; the active scanner session still works.
     }
   }, []);
 
@@ -287,20 +360,32 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
         if (message.type === "scanner.peer-ready" && message.role === "guest") {
           setConnectionState("connected");
           setDecodeFeedback("Terhubung. Tahan tombol untuk scan label sparepart.");
+          void rememberCurrentDevice();
           return;
         }
 
         if (message.type === "scanner.auth-error") {
+          if (readSavedDeviceCredentials()) {
+            window.location.replace("/scanner");
+            return;
+          }
+
           setConnectionState("failed");
           setError(message.message);
-          setDecodeFeedback("Pairing gagal. Scan QR pairing baru dari desktop.");
+          setDecodeFeedback("Sesi lama tidak aktif. Buka Scan via HP di desktop, lalu hubungkan lagi.");
           return;
         }
 
         if (message.type === "scanner.peer-left") {
+          if (readSavedDeviceCredentials()) {
+            window.location.replace("/scanner");
+            return;
+          }
+
           setConnectionState("disconnected");
           setError("Koneksi ke desktop terputus");
-          toast.error("Koneksi terputus", { description: "Coba scan QR pairing lagi." });
+          setDecodeFeedback("Buka Scan via HP di desktop, lalu hubungkan lagi.");
+          toast.error("Koneksi terputus", { description: "Buka Scan via HP di desktop, lalu hubungkan lagi." });
         }
       });
 
@@ -313,17 +398,20 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
         setError("Koneksi realtime scanner bermasalah");
       });
     },
-    []
+    [rememberCurrentDevice]
   );
 
   useEffect(() => {
     if (!hasPairingToken || !code || !token) {
+      const storedDevice = readSavedDeviceCredentials();
+      setSavedDevice(storedDevice);
       setConnectionState("idle");
       setError(null);
-      setDecodeFeedback("Scan QR pairing dari desktop.");
+      setDecodeFeedback(storedDevice ? "Buka Scan via HP di desktop, lalu hubungkan." : "Scan QR pairing dari desktop.");
       return;
     }
 
+    activePairingRef.current = { code, token };
     setDecodeFeedback("Menghubungkan ke desktop...");
     connectToRoom(`scanner-${code}`, token);
 
@@ -333,6 +421,46 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
       socketRef.current = null;
     };
   }, [closeCamera, code, connectToRoom, hasPairingToken, token]);
+
+  const connectSavedDevice = useCallback(async () => {
+    if (!savedDevice) return;
+
+    setConnectionState("connecting");
+    setError(null);
+    setDecodeFeedback("Mencari desktop aktif...");
+
+    try {
+      const response = await fetch(
+        `/api/mobile-scanner/signal?deviceId=${encodeURIComponent(savedDevice.deviceId)}&deviceToken=${encodeURIComponent(savedDevice.token)}`,
+        { cache: "no-store" }
+      );
+
+      if (response.status === 404) {
+        clearSavedDeviceCredentials();
+        setSavedDevice(null);
+        setConnectionState("failed");
+        setDecodeFeedback("Pairing tersimpan tidak valid. Scan QR baru dari desktop.");
+        return;
+      }
+
+      if (!response.ok) throw new Error("Gagal mencari desktop aktif");
+
+      const data = (await response.json()) as SavedSessionResponse;
+      if (!data.session) {
+        setConnectionState("idle");
+        setDecodeFeedback("Desktop belum membuka Scan via HP.");
+        return;
+      }
+
+      activePairingRef.current = null;
+      setDecodeFeedback("Desktop ditemukan. Menghubungkan...");
+      connectToRoom(data.session.room, data.session.token);
+    } catch (err) {
+      setConnectionState("failed");
+      setError(err instanceof Error ? err.message : "Reconnect gagal");
+      setDecodeFeedback("Gagal reconnect. Pastikan desktop sudah membuka Scan via HP.");
+    }
+  }, [connectToRoom, savedDevice]);
 
   const handleHoldScanStart = async () => {
     holdScanningRef.current = true;
@@ -371,7 +499,9 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
     ? "Kamera tetap aktif sebagai viewfinder. Tahan tombol hanya saat ingin scan."
     : hasPairingToken
       ? "Kamera tetap aktif sebagai viewfinder. Tahan tombol untuk pairing."
-      : "Scan QR pairing dari desktop untuk menghubungkan HP ini.";
+      : savedDevice
+        ? "Buka Scan via HP di desktop, lalu hubungkan HP ini."
+        : "Scan QR pairing dari desktop untuk menghubungkan HP ini.";
 
   return (
     <main className="flex h-dvh overflow-hidden bg-background text-foreground">
@@ -437,8 +567,14 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
             {isCameraOpening ? <RiLoader4Line className="size-8 animate-spin" /> : <RiCameraLine className="size-8" />}
           </Button>
           <div className="text-center text-xs font-medium text-muted-foreground">
-            {isScanning ? "Lepas untuk jeda scan" : isConnected ? "Tahan untuk scan" : "Tahan untuk pairing"}
+            {isScanning ? "Lepas untuk jeda scan" : isConnected ? "Tahan untuk scan" : savedDevice && !hasPairingToken ? "Hubungkan saat desktop siap" : "Tahan untuk pairing"}
           </div>
+          {savedDevice && !hasPairingToken && !isConnected && (
+            <Button type="button" variant="secondary" size="sm" onClick={() => void connectSavedDevice()} disabled={connectionState === "connecting"}>
+              {connectionState === "connecting" ? <RiLoader4Line className="size-3.5 animate-spin" /> : null}
+              Hubungkan ke Desktop
+            </Button>
+          )}
           {(connectionState === "failed" || connectionState === "disconnected") && hasPairingToken && (
             <Button
               type="button"

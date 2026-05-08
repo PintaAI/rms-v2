@@ -22,7 +22,7 @@ Format barcode yang didukung:
 
 ## Pairing Scanner
 
-Gunakan alur ini setiap kali ingin memakai HP sebagai scanner RMS.
+Gunakan alur ini saat HP belum pernah dipakai sebagai scanner RMS, atau saat pairing tersimpan sudah tidak valid.
 
 1. Buka fitur yang memiliki tombol `Scan via HP`.
 2. Klik `Scan via HP` di desktop.
@@ -32,7 +32,21 @@ Gunakan alur ini setiap kali ingin memakai HP sebagai scanner RMS.
 6. Jika browser meminta izin kamera, pilih `Allow` atau `Izinkan`.
 7. Setelah status menjadi `Terhubung`, tahan tombol scan di HP lalu arahkan ke label sparepart.
 
-Pairing dibuat sebagai sesi sementara. Jika sesi berhenti atau QR kedaluwarsa, buka `Scan via HP` lagi dan scan QR baru.
+Setelah berhasil terhubung, browser HP menyimpan token perangkat agar bisa reconnect tanpa scan QR di sesi berikutnya.
+
+---
+
+## Reconnect HP Tersimpan
+
+Jika HP sudah pernah berhasil pairing:
+
+1. Di desktop, buka fitur yang memiliki tombol `Scan via HP`.
+2. Klik `Scan via HP`.
+3. Di HP yang sama, buka halaman `/scanner`.
+4. Tekan `Hubungkan ke Desktop`.
+5. Setelah status `Terhubung`, tahan tombol scan di HP lalu arahkan ke label sparepart.
+
+Reconnect hanya bekerja saat desktop sedang membuka sesi `Scan via HP` aktif.
 
 ---
 
@@ -58,14 +72,15 @@ Tips scan:
 
 ## Keamanan Pairing
 
-Pairing bekerja sebagai sesi sementara, bukan izin perangkat permanen.
+Pairing bekerja sebagai izin perangkat sederhana untuk browser HP tersebut.
 
 Artinya:
 
 - koneksi realtime scanner tetap dibuat ulang setiap kali dipakai
 - HP tidak bisa mengirim scan jika desktop tidak membuka sesi scanner aktif
 - token pairing hanya berlaku untuk sesi QR tersebut
-- tidak ada data HP yang disimpan untuk reconnect otomatis
+- token perangkat disimpan di browser HP dan hash-nya disimpan di server
+- tidak ada daftar HP tersimpan di desktop
 
 ---
 
@@ -79,5 +94,6 @@ Masalah umum:
 |---|---|
 | Kamera tidak terbuka | Pastikan browser mengizinkan akses kamera |
 | QR pairing kedaluwarsa | Klik retry atau buka ulang `Scan via HP` |
+| HP tersimpan tidak reconnect | Pastikan desktop sedang membuka `Scan via HP` |
 | Barcode tidak terbaca | Perbaiki pencahayaan, jarak, dan posisi label |
 | Koneksi gagal di jaringan tertentu | Coba jaringan lain dan pastikan server realtime RMS aktif |
