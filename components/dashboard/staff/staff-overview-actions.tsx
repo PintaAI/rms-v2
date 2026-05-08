@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
+import { useDashboardRealtime } from "@/components/dashboard/layout/dashboard-realtime-provider";
 import { RiAddLine } from "@remixicon/react";
 
 interface StaffOverviewActionsProps {
@@ -10,7 +12,21 @@ interface StaffOverviewActionsProps {
 }
 
 export function StaffOverviewActions({ tokoId }: StaffOverviewActionsProps) {
+  const router = useRouter();
+  const { publish } = useDashboardRealtime();
   const [servicesFormOpen, setServicesFormOpen] = useState(false);
+
+  const handleServiceSuccess = useCallback((result?: { serviceId?: string; action: "created" | "updated"; serviceLabel?: string; serviceBrand?: string; reason?: string }) => {
+    setServicesFormOpen(false);
+    publish({
+      action: result?.action ?? "created",
+      serviceId: result?.serviceId ?? "new-service",
+      serviceLabel: result?.serviceLabel ?? "Service baru",
+      serviceBrand: result?.serviceBrand,
+      reason: result?.reason,
+    });
+    router.refresh();
+  }, [publish, router]);
 
   return (
     <>
@@ -24,7 +40,7 @@ export function StaffOverviewActions({ tokoId }: StaffOverviewActionsProps) {
       <ServicesForm
         open={servicesFormOpen}
         onOpenChange={setServicesFormOpen}
-        onSuccess={() => setServicesFormOpen(false)}
+        onSuccess={handleServiceSuccess}
         tokoId={tokoId}
       />
     </>

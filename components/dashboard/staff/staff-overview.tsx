@@ -1,7 +1,12 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { assignTechnician } from "@/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
+import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
+import type { TechnicianAssignmentOption } from "@/components/dashboard/services/service-table/technician-dropdown";
 import {
   OverviewPeriodCard,
   OverviewSectionHeader,
@@ -17,6 +22,7 @@ import {
   RiToolsLine,
 } from "@remixicon/react";
 import { StaffOverviewActions } from "./staff-overview-actions";
+import { toast } from "sonner";
 
 interface CurrentToko {
   id: string;
@@ -30,12 +36,8 @@ interface StaffOverviewProps {
   currentToko?: CurrentToko;
 }
 
-export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps) {
-  const { stats, recentServices } = data;
-  const { featureAccess } = useDashboardScope();
-  const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
-
-  const tableServices = recentServices.map((service) => ({
+function mapRecentServiceToTableItem(service: StaffOverviewData["recentServices"][number]): ServiceTableItem {
+  return {
     id: service.id,
     hpCatalogId: service.hpCatalog.id,
     customerName: service.customerName,
@@ -55,7 +57,53 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
     passwordPattern: null,
     imei: null,
     isPickedUp: service.isPickedUp,
-  }));
+  };
+}
+
+export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps) {
+  const { stats, recentServices } = data;
+  const router = useRouter();
+  const { featureAccess } = useDashboardScope();
+  const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
+
+  const [tableServices, setTableServices] = useState<ServiceTableItem[]>(() => recentServices.map(mapRecentServiceToTableItem));
+
+  useEffect(() => {
+    setTableServices(recentServices.map(mapRecentServiceToTableItem));
+  }, [recentServices]);
+
+  const handleAssignTech = useCallback(async (
+    service: ServiceTableItem,
+    technician: TechnicianAssignmentOption | null
+  ) => {
+    const previousService = tableServices.find((item) => item.id === service.id);
+    if (!previousService) return false;
+
+    const patch: Partial<ServiceTableItem> = {
+      technician: technician ? { id: technician.id, name: technician.name } : null,
+    };
+
+    if (technician && previousService.status === "received") {
+      patch.status = "repairing";
+    }
+
+    setTableServices((current) => current.map((item) => (
+      item.id === service.id ? { ...item, ...patch } : item
+    )));
+
+    const result = await assignTechnician(service.id, technician?.id ?? null);
+
+    if (!result.success) {
+      setTableServices((current) => current.map((item) => (
+        item.id === previousService.id ? previousService : item
+      )));
+      toast.error(result.error || "Gagal mengubah teknisi");
+      return false;
+    }
+
+    router.refresh();
+    return true;
+  }, [router, tableServices]);
 
   return (
     <div className="space-y-8">
@@ -113,6 +161,7 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
               emptyMessage="Tidak ada service"
               tokoId={tokoId}
               hideTechnicianColumn={!technicianWorkflowEnabled}
+              onAssignTech={technicianWorkflowEnabled ? handleAssignTech : undefined}
             />
           </CardContent>
         </Card>

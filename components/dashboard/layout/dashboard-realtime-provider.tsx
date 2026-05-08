@@ -211,20 +211,21 @@ export function DashboardRealtimeIndicator() {
     }, 120);
   }, []);
 
+  const handleHistoryOpenChange = useCallback((open: boolean) => {
+    if (!open) setHistoryOpen(false);
+  }, []);
+
   useEffect(() => () => {
     if (closeHistoryTimerRef.current) window.clearTimeout(closeHistoryTimerRef.current);
   }, []);
 
   return (
-    <Popover open={historyOpen && hasHistory}>
+    <Popover open={historyOpen && hasHistory} onOpenChange={handleHistoryOpenChange}>
       <PopoverTrigger asChild>
         <div
           className="hidden min-w-0 w-full items-center gap-2 rounded-full border border-border/60 bg-muted/35 px-2.5 py-1.5 text-xs text-muted-foreground lg:flex"
-          onBlur={closeHistory}
-          onFocus={openHistory}
           onMouseEnter={openHistory}
           onMouseLeave={closeHistory}
-          tabIndex={hasHistory ? 0 : -1}
         >
           {isWorking ? (
             <RiLoader4Line className="size-3.5 shrink-0 animate-spin text-primary" />
@@ -245,6 +246,10 @@ export function DashboardRealtimeIndicator() {
       <PopoverContent
         align="start"
         className="w-[28rem] max-w-[calc(100vw-2rem)] gap-2 p-3"
+        onMouseEnter={openHistory}
+        onMouseLeave={closeHistory}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
       >
         <div className="flex items-center gap-2 border-b border-border/60 pb-2 text-xs font-medium text-foreground">
           <RiHistoryLine className="size-4 text-muted-foreground" />
