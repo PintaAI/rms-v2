@@ -33,12 +33,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCurrency } from "@/lib/utils";
 
 const revenueChartConfig = {
-  revenue: { label: "Paid", color: "var(--chart-1)" },
-  pending: { label: "Pending", color: "var(--chart-2)" },
+  revenue: { label: "Lunas", color: "var(--chart-1)" },
+  pending: { label: "Menunggu", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
 const serviceChartConfig = {
-  services: { label: "Service", color: "var(--chart-3)" },
+  services: { label: "Servis", color: "var(--chart-3)" },
   completed: { label: "Selesai", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
@@ -65,7 +65,7 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-black tracking-tight print:text-xl sm:text-3xl">Analytics</h1>
+            <h1 className="text-2xl font-black tracking-tight print:text-xl sm:text-3xl">Analitik</h1>
             <div className="h-5 w-1 shrink-0 rounded-full bg-primary sm:h-6" />
             <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 px-2 py-1 sm:bg-transparent sm:px-0 sm:py-0">
               {data.toko.logoUrl ? (
@@ -85,13 +85,13 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
             </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground/70">
-            <span>Insight performa toko untuk periode</span>
+            <span>Wawasan performa toko untuk periode</span>
             <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary shadow-sm shadow-primary/5">
               {data.periodLabel}
             </span>
             {data.filters.allTime && (
               <span className="rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-xs font-medium text-foreground">
-                All time
+                Semua waktu
               </span>
             )}
             {data.filters.status && (
@@ -105,39 +105,39 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
           <AnalyticsFilter filters={data.filters} />
           <Button variant="outline" size="sm" onClick={handlePrintReport}>
             <RiPrinterLine data-icon="inline-start" />
-            Print Laporan
+            Cetak Laporan
           </Button>
           <Badge variant="warning" className="w-fit gap-1">
             <RiBarChartBoxLine className="size-3" />
-            Enterprise Analytics
+            Analitik Lanjutan
           </Badge>
         </div>
       </div>
 
       <section className="grid gap-3 print:grid-cols-4 sm:grid-cols-2 xl:grid-cols-4">
         <AnalyticsMetricCard
-          title="Paid Revenue"
+          title="Pendapatan Lunas"
           value={formatCurrency(data.summary.paidRevenue)}
-          description={`${data.summary.paidInvoices} invoice paid`}
+          description={`${data.summary.paidInvoices} invoice lunas`}
           icon={<RiMoneyDollarCircleLine className="size-4" />}
           variant="success"
         />
         <AnalyticsMetricCard
-          title="Pending Revenue"
+          title="Pendapatan Tertunda"
           value={formatCurrency(data.summary.pendingRevenue)}
-          description="Sisa tagihan unpaid / DP"
+          description="Sisa tagihan belum lunas / DP"
           icon={<RiTimeLine className="size-4" />}
           variant="warning"
         />
         <AnalyticsMetricCard
-          title="Completion Rate"
+          title="Tingkat Penyelesaian"
           value={`${data.summary.completionRate}%`}
-          description={`${data.summary.totalServices} service periode ini`}
+          description={`${data.summary.totalServices} servis periode ini`}
           icon={<RiCheckDoubleLine className="size-4" />}
           variant="primary"
         />
         <AnalyticsMetricCard
-          title="Inventory Health"
+          title="Kesehatan Inventaris"
           value={`${data.summary.lowStockCount}`}
           description={`${data.summary.totalSpareparts} item, ${data.summary.totalStock} stok total`}
           icon={<RiArchiveLine className="size-4" />}
@@ -148,9 +148,9 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
       <section className="grid gap-4 print:grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] print:gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
         <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
           <CardHeader>
-            <CardTitle>Revenue Trend</CardTitle>
+            <CardTitle>Tren Pendapatan</CardTitle>
             <CardDescription>
-              Paid dan pending revenue per {data.bucketMode === "month" ? "bulan" : "hari"} dalam periode terpilih.
+              Pendapatan lunas dan tertunda per {data.bucketMode === "month" ? "bulan" : "hari"} dalam periode terpilih.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -187,8 +187,8 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
 
         <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
           <CardHeader>
-            <CardTitle>Status Service</CardTitle>
-            <CardDescription>Distribusi status service periode ini.</CardDescription>
+            <CardTitle>Status Servis</CardTitle>
+            <CardDescription>Distribusi status servis periode ini.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={statusChartConfig} className="mx-auto h-[260px] w-full max-w-sm print:h-[145px]">
@@ -219,8 +219,8 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
       <section className="grid gap-4 print:grid-cols-3 print:gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.75fr)_minmax(20rem,0.75fr)]">
         <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
           <CardHeader>
-            <CardTitle>Service Trend</CardTitle>
-            <CardDescription>Service masuk dibanding service selesai.</CardDescription>
+            <CardTitle>Tren Servis</CardTitle>
+            <CardDescription>Servis masuk dibanding servis selesai.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={serviceChartConfig} className="h-[260px] w-full print:h-[145px]">
@@ -238,8 +238,8 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
 
         <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
           <CardHeader>
-            <CardTitle>Top Teknisi</CardTitle>
-            <CardDescription>Berdasarkan service selesai periode ini.</CardDescription>
+            <CardTitle>Teknisi Terbaik</CardTitle>
+            <CardDescription>Berdasarkan servis selesai periode ini.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -247,7 +247,7 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
                 <TableRow>
                   <TableHead>Teknisi</TableHead>
                   <TableHead className="text-right">Selesai</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead className="text-right">Pendapatan</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -262,7 +262,7 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
                 ) : (
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                      Belum ada service selesai dengan teknisi.
+                      Belum ada servis selesai dengan teknisi.
                     </TableCell>
                   </TableRow>
                 )}
@@ -273,8 +273,8 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
 
         <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
           <CardHeader>
-            <CardTitle>Top Sparepart</CardTitle>
-            <CardDescription>Berdasarkan invoice paid periode ini.</CardDescription>
+            <CardTitle>Sparepart Terlaris</CardTitle>
+            <CardDescription>Berdasarkan invoice lunas periode ini.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -282,7 +282,7 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
                 <TableRow>
                   <TableHead>Sparepart</TableHead>
                   <TableHead className="text-right">Terjual</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead className="text-right">Pendapatan</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -297,7 +297,7 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
                 ) : (
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                      Belum ada sparepart dari invoice paid.
+                      Belum ada sparepart dari invoice lunas.
                     </TableCell>
                   </TableRow>
                 )}
