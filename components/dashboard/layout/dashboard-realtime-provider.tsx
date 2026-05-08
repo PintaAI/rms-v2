@@ -191,6 +191,7 @@ export function DashboardRealtimeIndicator() {
   const connected = status === "connected";
   const isWorking = status === "connecting" || isRefreshing;
   const hasHistory = eventHistory.length > 0;
+  const lastEventKey = lastEvent ? `${lastEvent.sentAt}-${lastEvent.serviceId}-${lastEvent.action}` : null;
 
   const openHistory = useCallback(() => {
     if (closeHistoryTimerRef.current) {
@@ -236,11 +237,18 @@ export function DashboardRealtimeIndicator() {
           )}
           <Badge
             variant={connected ? "success" : status === "disabled" ? "outline" : "warning"}
-            className={cn("h-5 px-1.5", isRefreshing && "bg-primary/10 text-primary")}
+            className={cn("h-5 px-1.5", isRefreshing && "animate-pulse bg-primary/10 text-primary")}
           >
             {isRefreshing ? "Syncing" : statusLabels[status]}
           </Badge>
-          {lastEvent ? <RealtimeEventMessage event={lastEvent} /> : null}
+          {lastEvent ? (
+            <span
+              key={lastEventKey}
+              className="min-w-0 rounded-full bg-primary/10 px-2 py-0.5 ring-1 ring-primary/20 animate-in fade-in-0 slide-in-from-top-4 zoom-in-95 duration-300"
+            >
+              <RealtimeEventMessage event={lastEvent} />
+            </span>
+          ) : null}
         </div>
       </PopoverTrigger>
       <PopoverContent

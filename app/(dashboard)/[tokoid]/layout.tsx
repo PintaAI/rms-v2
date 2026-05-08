@@ -79,8 +79,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
           <SidebarInset>
             <header className="flex min-h-16 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-3 py-2 sm:flex-nowrap sm:px-4 sm:py-3">
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <SidebarTrigger data-tour="sidebar-trigger" />
-                <Separator orientation="vertical" className="h-6 shrink-0" />
+                <SidebarTrigger data-tour="sidebar-trigger" />            
                 <DashboardRealtimeIndicator />
               </div>
               <div className="flex min-w-0 items-center gap-2 sm:gap-4">
