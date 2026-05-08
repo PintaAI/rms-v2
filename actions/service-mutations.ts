@@ -288,13 +288,21 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
     return { success: false, error: "Cannot delete a service with a paid invoice" };
   }
 
-  return withScope(service.tokoId, { role: ["admin", "staff"] }, async () => {
+  return withScope(service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
     const serviceItems = await prisma.serviceItem.findMany({
       where: { serviceId },
       select: { id: true, type: true, qty: true, referenceId: true },
     });
 
     await prisma.$transaction(async (tx) => {
+      await createActivityLog(tx, {
+        tokoId: service.tokoId,
+        userId: scope.user.id,
+        serviceId,
+        type: "service_deleted",
+        title: "Service deleted",
+      });
+
       await preserveDeletedServiceActivityLogs(tx, serviceId, service);
 
       for (const item of serviceItems) {

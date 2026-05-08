@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/layout/app-sidebar";
-import { Separator } from "@/components/ui/separator";
 import { UserInfo } from "@/components/shared/user-info";
 import { LiveClock } from "@/components/shared/live-clock";
 import { SettingsButton } from "@/components/shared/settings-button";

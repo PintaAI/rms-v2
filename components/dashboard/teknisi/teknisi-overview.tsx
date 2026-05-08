@@ -19,6 +19,7 @@ import { TaskList } from "@/components/dashboard/teknisi/task-list";
 import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
 import { useDashboardRealtime } from "@/components/dashboard/layout/dashboard-realtime-provider";
+import type { PublishServiceRealtimeEvent } from "@/lib/realtime/service-realtime-types";
 import { getService, takeService } from "@/actions";
 import type { ServiceDetail, ServiceListItem, TechnicianStats } from "@/actions/service";
 import { useRealtimePolling } from "@/lib/use-idle-detection";
@@ -122,6 +123,17 @@ export function TeknisiOverview({
     }
     router.refresh();
   }, [selectedTask, router]);
+
+  const handleOptimisticStatusSuccess = useCallback((serviceId: string, status: string) => {
+    const service = selectedTask;
+    if (!service) return;
+    publish({ action: "status_changed", serviceId, ...getServiceRealtimeMeta(service), reason: status });
+    router.refresh();
+  }, [publish, router, selectedTask]);
+
+  const handleRealtimeEvent = useCallback((event: PublishServiceRealtimeEvent) => {
+    publish(event);
+  }, [publish]);
 
   return (
     <div className="space-y-8">
@@ -229,7 +241,9 @@ export function TeknisiOverview({
                 }
                 viewerRole="technician"
                 onRefresh={handleRefreshDetail}
+                onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
                 onStatusChange={() => router.refresh()}
+                onRealtimeEvent={handleRealtimeEvent}
               />
             </div>
           )}

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
+import { useDashboardRealtime } from "@/components/dashboard/layout/dashboard-realtime-provider";
 import { useTour } from "@/lib/tour-context";
 import { TourGuide } from "@/components/shared/tour-guide";
 import { adminTourSteps } from "@/lib/tour-steps";
@@ -13,6 +15,8 @@ interface AdminOverviewActionsProps {
 }
 
 export function AdminOverviewActions({ tokoId }: AdminOverviewActionsProps) {
+  const router = useRouter();
+  const { publish } = useDashboardRealtime();
   const { tourRunning, startTour, stopTour } = useTour();
   const [servicesFormOpen, setServicesFormOpen] = useState(false);
 
@@ -38,7 +42,17 @@ export function AdminOverviewActions({ tokoId }: AdminOverviewActionsProps) {
       <ServicesForm
         open={servicesFormOpen}
         onOpenChange={setServicesFormOpen}
-        onSuccess={() => setServicesFormOpen(false)}
+        onSuccess={(result) => {
+          setServicesFormOpen(false);
+          publish({
+            action: result?.action ?? "created",
+            serviceId: result?.serviceId ?? "new-service",
+            serviceLabel: result?.serviceLabel ?? "Service baru",
+            serviceBrand: result?.serviceBrand,
+            reason: result?.reason,
+          });
+          router.refresh();
+        }}
         tokoId={tokoId}
       />
     </>

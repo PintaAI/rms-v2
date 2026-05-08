@@ -74,6 +74,10 @@ export interface AdminOverviewActivityItem {
   service: {
     id: string;
     customerName: string | null;
+    hpCatalog: {
+      modelName: string;
+      brand: { name: string };
+    };
   } | null;
 }
 
@@ -141,6 +145,12 @@ const activityLogSelect = {
     select: {
       id: true,
       customerName: true,
+      hpCatalog: {
+        select: {
+          modelName: true,
+          brand: { select: { name: true } },
+        },
+      },
     },
   },
 };

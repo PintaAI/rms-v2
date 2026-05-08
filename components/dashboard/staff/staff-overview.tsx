@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { assignTechnician } from "@/actions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,10 +67,6 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
   const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
 
   const [tableServices, setTableServices] = useState<ServiceTableItem[]>(() => recentServices.map(mapRecentServiceToTableItem));
-
-  useEffect(() => {
-    setTableServices(recentServices.map(mapRecentServiceToTableItem));
-  }, [recentServices]);
 
   const handleAssignTech = useCallback(async (
     service: ServiceTableItem,

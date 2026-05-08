@@ -79,6 +79,7 @@ enum ItemType {
 enum ActivityType {
   service_created
   service_updated
+  service_deleted
   service_status_changed
   service_assigned
   service_taken_over

@@ -73,13 +73,19 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const hasPairingToken = Boolean(code && token);
-  const [connectionState, setConnectionState] = useState<PhoneScannerState>("idle");
+  const [connectionState, setConnectionState] = useState<PhoneScannerState>(() => 
+    code && token ? "connecting" : "idle"
+  );
   const [cameraState, setCameraState] = useState<CameraState>("idle");
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [decodeFeedback, setDecodeFeedback] = useState<string>("Tahan tombol untuk mulai.");
+  const [decodeFeedback, setDecodeFeedback] = useState<string>(() => {
+    if (code && token) return "Menghubungkan ke desktop...";
+    const d = readSavedDeviceCredentials();
+    return d ? "Buka Scan via HP di desktop, lalu hubungkan." : "Scan QR pairing dari desktop.";
+  });
   const [lastScanned, setLastScanned] = useState<string | null>(null);
-  const [savedDevice, setSavedDevice] = useState<SavedDeviceCredentials | null>(null);
+  const [savedDevice, setSavedDevice] = useState<SavedDeviceCredentials | null>(() => readSavedDeviceCredentials());
   const activePairingRef = useRef<{ code: string; token: string } | null>(null);
   const registeringDeviceRef = useRef(false);
   const socketRef = useRef<PartySocket | null>(null);
@@ -333,18 +339,9 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
 
   const connectToRoom = useCallback(
     (room: string, token: string) => {
-      if (!PARTYKIT_HOST) {
-        setConnectionState("failed");
-        setError("Realtime scanner belum dikonfigurasi");
-        setDecodeFeedback("Realtime scanner belum dikonfigurasi.");
-        return;
-      }
-
       socketRef.current?.close();
-      setConnectionState("connecting");
-      setError(null);
 
-      const socket = new PartySocket({ host: PARTYKIT_HOST, room });
+      const socket = new PartySocket({ host: PARTYKIT_HOST!, room });
       socketRef.current = socket;
 
       socket.addEventListener("open", () => {
@@ -402,17 +399,11 @@ export function MobileScannerClient({ code }: MobileScannerClientProps) {
   );
 
   useEffect(() => {
-    if (!hasPairingToken || !code || !token) {
-      const storedDevice = readSavedDeviceCredentials();
-      setSavedDevice(storedDevice);
-      setConnectionState("idle");
-      setError(null);
-      setDecodeFeedback(storedDevice ? "Buka Scan via HP di desktop, lalu hubungkan." : "Scan QR pairing dari desktop.");
+    if (!hasPairingToken || !code || !token || !PARTYKIT_HOST) {
       return;
     }
 
     activePairingRef.current = { code, token };
-    setDecodeFeedback("Menghubungkan ke desktop...");
     connectToRoom(`scanner-${code}`, token);
 
     return () => {
