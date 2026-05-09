@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useMobileScannerHost, type UseMobileScannerHostReturn } from "@/hooks/use-mobile-scanner-host";
+import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import type { MobileScannerConnectionState } from "@/lib/realtime/scanner-realtime-types";
 import { RiLoader4Line, RiRefreshLine, RiStopLine } from "@remixicon/react";
 import { RiQrScan2Line } from "@remixicon/react";
@@ -17,17 +18,18 @@ export function getScannerStatusVariant(state: MobileScannerConnectionState) {
 }
 
 export function useScannerPairing({ tokoId, onScan }: { tokoId: string; onScan: (value: string) => void | Promise<void> }) {
+  const { realtimeMobileScannerEnabled } = useDashboardScope();
   const [isOpen, setIsOpen] = useState(false);
   const host = useMobileScannerHost({ tokoId, onScan });
   const { state, startPairing } = host;
 
   useEffect(() => {
-    if (isOpen && (state === "idle" || state === "disconnected")) {
+    if (isOpen && realtimeMobileScannerEnabled && (state === "idle" || state === "disconnected")) {
       void startPairing();
     }
-  }, [isOpen, state, startPairing]);
+  }, [isOpen, realtimeMobileScannerEnabled, state, startPairing]);
 
-  return { ...host, isOpen, setIsOpen };
+  return { ...host, enabled: realtimeMobileScannerEnabled, isOpen, setIsOpen };
 }
 
 interface ScannerPairingPanelProps {

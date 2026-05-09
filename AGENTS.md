@@ -38,3 +38,13 @@ Registered in `lib/features.ts` — add a key to `FeatureKey` union + entry in `
 - UI: shadcn `radix-mira` preset, Tailwind v4, `@remixicon/react` icons. Follow `components.json`. Never introduce `lucide-react`.
 - User manual: `user-manual/*.md` parsed by `lib/markdown.ts`, exposed by `app/api/user-manual/route.ts`. Filenames encode order + icon (e.g. `01-overview[RiBook2Line].md`). Markdown `:::demo ComponentName` blocks wired through `components/user-manual/demo-components`.
 - Dev docs live in `dev-doc/` — read relevant ones before touching auth, feature gates, or WhatsApp.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
+- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

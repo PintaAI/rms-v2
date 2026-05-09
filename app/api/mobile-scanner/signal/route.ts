@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { AuthError } from "@/lib/auth/authorization";
+import { assertFeature, getRequestScope } from "@/lib/auth/request-scope";
 import { getRequestUser } from "@/lib/auth/request-user";
 import {
   createMobileScannerDeviceFromSession,
@@ -23,6 +25,12 @@ function notFound() {
   return NextResponse.json({ error: "Session not found or expired" }, { status: 404 });
 }
 
+function authErrorResponse(error: AuthError) {
+  if (error.code === "unauthorized") return unauthorized();
+  if (error.code === "feature_locked") return NextResponse.json({ error: error.message }, { status: 403 });
+  return forbidden();
+}
+
 export async function POST(request: Request) {
   let body: unknown;
 
@@ -39,23 +47,24 @@ export async function POST(request: Request) {
   const payload = body as Record<string, unknown>;
 
   if (payload.type === "offer") {
-    const user = await getRequestUser();
-
-    if (!user) {
-      return unauthorized();
-    }
-
     if (typeof payload.tokoId !== "string" || payload.tokoId.length === 0) {
       return badRequest("tokoId is required");
     }
 
-    if (!user.tokoIds.includes(payload.tokoId)) {
-      return forbidden();
+    let scope: Awaited<ReturnType<typeof getRequestScope>>;
+
+    try {
+      scope = await getRequestScope(payload.tokoId);
+      assertFeature(scope, "realtime.updates");
+      assertFeature(scope, "realtime.mobileScanner");
+    } catch (error) {
+      if (error instanceof AuthError) return authErrorResponse(error);
+      throw error;
     }
 
     const session = await createMobileScannerSession({
       tokoId: payload.tokoId,
-      ownerUserId: user.id,
+      ownerUserId: scope.user.id,
     });
 
     return NextResponse.json(session);

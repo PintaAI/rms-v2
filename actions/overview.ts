@@ -56,7 +56,7 @@ export interface AdminOverviewData {
   recentServices: AdminOverviewRecentService[];
   recentActivities: AdminOverviewActivityItem[];
   featureAccess: {
-    activityLog: boolean;
+    realtimeUpdates: boolean;
     revenueAnalytics: boolean;
     technicianWorkflow: boolean;
   };
@@ -250,7 +250,7 @@ export async function getAdminOverview(
 
     const { dailyStart, monthlyStart, statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
-    const canViewActivityLog = scope.featureAccess["activityLog.view"] ?? false;
+    const canUseRealtimeUpdates = scope.featureAccess["realtime.updates"] ?? false;
     const canViewRevenueAnalytics = scope.featureAccess["analytics.revenue"] ?? false;
 
     const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, recentActivities] = await Promise.all([
@@ -263,7 +263,7 @@ export async function getAdminOverview(
       canViewRevenueAnalytics
         ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: "paid", paidAt: { gte: dailyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
-      canViewActivityLog
+      canUseRealtimeUpdates
         ? prisma.activityLog.findMany({ where: { tokoId }, orderBy: { createdAt: "desc" }, take: 6, select: activityLogSelect })
         : Promise.resolve([]),
     ]);
@@ -277,7 +277,7 @@ export async function getAdminOverview(
       recentServices,
       recentActivities,
       featureAccess: {
-        activityLog: canViewActivityLog,
+        realtimeUpdates: canUseRealtimeUpdates,
         revenueAnalytics: canViewRevenueAnalytics,
         technicianWorkflow: scope.featureAccess["technician.workflow"] ?? false,
       },

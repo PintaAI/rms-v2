@@ -21,6 +21,8 @@ export interface DashboardScopeContextValue {
   inventoryEnabled: boolean;
   manualItemsEnabled: boolean;
   staffCreateSparepartEnabled: boolean;
+  realtimeUpdatesEnabled: boolean;
+  realtimeMobileScannerEnabled: boolean;
 }
 
 const DashboardScopeContext = createContext<DashboardScopeContextValue | null>(null);
@@ -35,7 +37,10 @@ export function useDashboardScope(): DashboardScopeContextValue {
 
 interface DashboardScopeProviderProps {
   children: ReactNode;
-  value: Omit<DashboardScopeContextValue, "inventoryEnabled" | "manualItemsEnabled" | "staffCreateSparepartEnabled">;
+  value: Omit<
+    DashboardScopeContextValue,
+    "inventoryEnabled" | "manualItemsEnabled" | "staffCreateSparepartEnabled" | "realtimeUpdatesEnabled" | "realtimeMobileScannerEnabled"
+  >;
 }
 
 export function DashboardScopeProvider({ children, value }: DashboardScopeProviderProps) {
@@ -44,6 +49,8 @@ export function DashboardScopeProvider({ children, value }: DashboardScopeProvid
     inventoryEnabled: value.featureAccess["inventory.management"] ?? false,
     manualItemsEnabled: value.featureAccess["service.manualItems"] ?? false,
     staffCreateSparepartEnabled: value.featureAccess["inventory.staffCreateSparepart"] ?? false,
+    realtimeUpdatesEnabled: value.featureAccess["realtime.updates"] ?? false,
+    realtimeMobileScannerEnabled: Boolean(value.featureAccess["realtime.updates"] && value.featureAccess["realtime.mobileScanner"] && value.featureAccess["inventory.management"]),
   };
 
   return (

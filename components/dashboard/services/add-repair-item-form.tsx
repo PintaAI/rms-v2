@@ -370,11 +370,13 @@ export function AddRepairItemForm({
                         </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <ScannerToggleButton
-                          isOpen={scanner.isOpen}
-                          onToggle={() => scanner.setIsOpen((open) => !open)}
-                          state={scanner.state}
-                        />
+                        {scanner.enabled && (
+                          <ScannerToggleButton
+                            isOpen={scanner.isOpen}
+                            onToggle={() => scanner.setIsOpen((open) => !open)}
+                            state={scanner.state}
+                          />
+                        )}
                         {canCreateSparepart && (
                           <Button
                             type="button"
@@ -409,7 +411,7 @@ export function AddRepairItemForm({
                       )}
                     </div>
 
-                    {scanner.isOpen && scanner.state !== "connected" && (
+                    {scanner.enabled && scanner.isOpen && scanner.state !== "connected" && (
                       <ScannerPairingPanel host={scanner} onClose={() => scanner.setIsOpen(false)} />
                     )}
 

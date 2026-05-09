@@ -39,7 +39,8 @@ const optionalFeatureKeys: FeatureKey[] = [
   "karyawan.management",
   "staff.workflow",
   "technician.workflow",
-  "activityLog.view",
+  "realtime.updates",
+  "realtime.mobileScanner",
   "analytics.revenue",
   "inventory.audit",
 ];
@@ -101,9 +102,9 @@ export function getOnboardingPlanRecommendation(
   }
 
   if (answers.needsAnalyticsAndLogs) {
-    neededFeatures.add("activityLog.view");
+    neededFeatures.add("realtime.updates");
     neededFeatures.add("analytics.revenue");
-    requirePlan("premium", "Statistik dan pantauan proses membutuhkan fitur analytics dan activity log Pro.");
+    requirePlan("premium", "Statistik dan pantauan proses membutuhkan fitur analytics dan realtime update Pro.");
   }
 
   if (reasons.length === 0) {

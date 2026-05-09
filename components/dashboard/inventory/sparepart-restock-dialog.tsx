@@ -342,14 +342,16 @@ function SparepartRestockDialogContent({
                 Cari Sparepart
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <ScannerToggleButton
-                isOpen={scanner.isOpen}
-                onToggle={() => scanner.setIsOpen((open) => !open)}
-                state={scanner.state}
-                disabled={isLoading}
-              />
-            </div>
+            {scanner.enabled && (
+              <div className="flex items-center gap-2">
+                <ScannerToggleButton
+                  isOpen={scanner.isOpen}
+                  onToggle={() => scanner.setIsOpen((open) => !open)}
+                  state={scanner.state}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
@@ -398,7 +400,7 @@ function SparepartRestockDialogContent({
               </div>
             </div>
 
-            {scanner.isOpen && scanner.state !== "connected" && (
+            {scanner.enabled && scanner.isOpen && scanner.state !== "connected" && (
               <ScannerPairingPanel host={scanner} onClose={() => scanner.setIsOpen(false)} className="mt-1" />
             )}
           </div>

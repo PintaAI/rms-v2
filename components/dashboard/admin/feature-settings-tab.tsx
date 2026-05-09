@@ -28,6 +28,7 @@ const categoryLabels: Record<string, string> = {
   inventory: "Inventory",
   team: "Team",
   analytics: "Analytics",
+  realtime: "Realtime",
   appearance: "Appearance",
 };
 

@@ -46,7 +46,8 @@ export type FeatureKey =
   | "karyawan.management"
   | "staff.workflow"
   | "technician.workflow"
-  | "activityLog.view"
+  | "realtime.updates"
+  | "realtime.mobileScanner"
   | "analytics.revenue"
   | "inventory.audit"
   | "whatsapp.integration";
@@ -75,7 +76,7 @@ Field reference:
 | `key` | Must match a `FeatureKey` union member |
 | `label` | User-facing name in settings, locked states, and previews |
 | `description` | User-facing explanation in settings and locked UI |
-| `category` | Groups rows in Pengaturan Fitur: `dashboard`, `toko`, `service`, `inventory`, `team`, `analytics` |
+| `category` | Groups rows in Pengaturan Fitur: `dashboard`, `toko`, `service`, `inventory`, `team`, `analytics`, `realtime` |
 | `allowedRoles` | Roles allowed to use the feature, independent of plan |
 | `minimumPlan` | Minimum plan required: `free`, `premium`, or `enterprise` |
 | `configurable` | Whether admin can disable it per toko |

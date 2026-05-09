@@ -50,9 +50,9 @@ export function useDashboardRealtime() {
 
 export function DashboardRealtimeProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { tokoId, user } = useDashboardScope();
+  const { tokoId, user, realtimeUpdatesEnabled } = useDashboardScope();
   const socketRef = useRef<PartySocket | null>(null);
-  const [status, setStatus] = useState<RealtimeConnectionStatus>(PARTYKIT_HOST ? "connecting" : "disabled");
+  const [status, setStatus] = useState<RealtimeConnectionStatus>(PARTYKIT_HOST && realtimeUpdatesEnabled ? "connecting" : "disabled");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastEvent, setLastEvent] = useState<ServiceRealtimeEvent | null>(null);
   const [eventHistory, setEventHistory] = useState<ServiceRealtimeEvent[]>([]);
@@ -77,7 +77,7 @@ export function DashboardRealtimeProvider({ children }: { children: ReactNode })
   }, [isRefreshing, lastEvent]);
 
   useEffect(() => {
-    if (!PARTYKIT_HOST || !tokoId) {
+    if (!PARTYKIT_HOST || !tokoId || !realtimeUpdatesEnabled) {
       return;
     }
 
@@ -115,9 +115,11 @@ export function DashboardRealtimeProvider({ children }: { children: ReactNode })
       socket.close();
       if (socketRef.current === socket) socketRef.current = null;
     };
-  }, [recordEvent, refreshFromServer, tokoId]);
+  }, [realtimeUpdatesEnabled, recordEvent, refreshFromServer, tokoId]);
 
   const publish = useCallback((event: PublishServiceRealtimeEvent) => {
+    if (!realtimeUpdatesEnabled) return;
+
     const payload: ServiceRealtimeEvent = {
       type: "service.changed",
       tokoId,
@@ -135,7 +137,7 @@ export function DashboardRealtimeProvider({ children }: { children: ReactNode })
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
     socket.send(JSON.stringify(payload));
-  }, [recordEvent, tokoId, user.id, user.name, user.role]);
+  }, [realtimeUpdatesEnabled, recordEvent, tokoId, user.id, user.name, user.role]);
 
   const value = useMemo<DashboardRealtimeContextValue>(() => ({
     status,
@@ -186,6 +188,7 @@ const statusLabels: Record<RealtimeConnectionStatus, string> = {
 
 export function DashboardRealtimeIndicator() {
   const { status, isRefreshing, lastEvent, eventHistory } = useDashboardRealtime();
+  const { realtimeUpdatesEnabled } = useDashboardScope();
   const [historyOpen, setHistoryOpen] = useState(false);
   const closeHistoryTimerRef = useRef<number | null>(null);
   const connected = status === "connected";
@@ -219,6 +222,8 @@ export function DashboardRealtimeIndicator() {
   useEffect(() => () => {
     if (closeHistoryTimerRef.current) window.clearTimeout(closeHistoryTimerRef.current);
   }, []);
+
+  if (!realtimeUpdatesEnabled) return null;
 
   return (
     <Popover open={historyOpen && hasHistory} onOpenChange={handleHistoryOpenChange}>

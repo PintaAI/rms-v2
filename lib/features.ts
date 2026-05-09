@@ -3,7 +3,7 @@ export type UserRole = "admin" | "staff" | "technician" | "superuser";
 import type { SubscriptionPlan, PlanLimitKey } from "@/lib/plans";
 export type { SubscriptionPlan, PlanLimitKey };
 
-export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "team" | "analytics";
+export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "team" | "analytics" | "realtime";
 
 export type FeatureKey =
   | "service.manualItems"
@@ -12,7 +12,8 @@ export type FeatureKey =
   | "karyawan.management"
   | "staff.workflow"
   | "technician.workflow"
-  | "activityLog.view"
+  | "realtime.updates"
+  | "realtime.mobileScanner"
   | "whatsapp.integration"
   | "analytics.revenue"
   | "inventory.audit";
@@ -93,12 +94,21 @@ export const FEATURE_REGISTRY = {
     minimumPlan: "premium",
     configurable: true,
   },
-  "activityLog.view": {
-    key: "activityLog.view",
-    label: "Activity Log",
-    description: "Lihat riwayat aktivitas operasional toko.",
-    category: "analytics",
-    allowedRoles: ["admin"],
+  "realtime.updates": {
+    key: "realtime.updates",
+    label: "Realtime Update",
+    description: "Sinkronisasi dashboard, activity log, dan status service secara realtime.",
+    category: "realtime",
+    allowedRoles: ["admin", "staff", "technician"],
+    minimumPlan: "premium",
+    configurable: true,
+  },
+  "realtime.mobileScanner": {
+    key: "realtime.mobileScanner",
+    label: "Scan via HP",
+    description: "Hubungkan kamera HP ke desktop untuk scan barcode sparepart secara realtime.",
+    category: "realtime",
+    allowedRoles: ["admin", "staff", "technician"],
     minimumPlan: "premium",
     configurable: true,
   },

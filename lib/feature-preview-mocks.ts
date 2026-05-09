@@ -290,4 +290,26 @@ export const FEATURE_PREVIEW_INFO: Partial<
     ],
     previewType: "audit",
   },
+  "realtime.updates": {
+    title: "Realtime Update",
+    description: "Dashboard, activity log, dan status service tersinkron otomatis antar perangkat.",
+    benefits: [
+      "Update service langsung terlihat di perangkat lain",
+      "Activity log terbaru ikut refresh otomatis",
+      "Mengurangi refresh manual saat operasional ramai",
+      "Status koneksi realtime terlihat di header dashboard",
+    ],
+    previewType: "revenue",
+  },
+  "realtime.mobileScanner": {
+    title: "Scan via HP",
+    description: "Gunakan kamera HP sebagai scanner barcode sparepart yang terhubung ke desktop.",
+    benefits: [
+      "Pairing cepat lewat QR code",
+      "Scan barcode sparepart tanpa scanner fisik",
+      "Cocok untuk input item service dan restock inventory",
+      "Bisa dimatikan dari pengaturan fitur toko",
+    ],
+    previewType: "sparepart",
+  },
 };

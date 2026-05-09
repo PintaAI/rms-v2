@@ -2,19 +2,5 @@
   "$schema": "https://opencode.ai/config.json",
   "permission": {
     "websearch": "allow"
-  },
-  "mcp": {
-    "notion": {
-      "type": "remote",
-      "url": "https://mcp.notion.com/mcp"
-    },
-    "browser-remote": {
-      "type": "remote",
-      "transport": "sse",
-      "url": "http://100.108.102.102:3000/sse",
-      "headers": {
-        "Authorization": "Bearer 811712cd239c95bbc27983c6e487cace03f1ed07c9ca54bdeed5f85345916dfb"
-      }
-    }
   }
 }

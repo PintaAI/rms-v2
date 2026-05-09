@@ -262,7 +262,7 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
         </Card>
       </section>
 
-      {featureAccess.activityLog && (
+      {featureAccess.realtimeUpdates && (
         <section>
           <ActivityLog activities={recentActivities} />
         </section>
