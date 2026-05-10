@@ -129,6 +129,49 @@ export type RestockHistoryResult = {
   totalPages: number
 }
 
+export type InventoryReportStockStatus = "all" | "safe" | "critical" | "out"
+
+export type InventoryReportFilters = {
+  q?: string
+  categoryId?: string
+  status?: InventoryReportStockStatus
+}
+
+export type InventoryReportItem = {
+  id: string
+  barcode: string
+  name: string
+  categoryId: string | null
+  categoryName: string | null
+  supplierName: string | null
+  stock: number
+  criticalStock: number
+  purchasePrice: number
+  defaultPrice: number
+  capitalValue: number
+  sellingValue: number
+  potentialMargin: number
+  status: Exclude<InventoryReportStockStatus, "all">
+}
+
+export type InventoryReportCategory = {
+  id: string
+  name: string
+}
+
+export type InventoryReportResult = {
+  items: InventoryReportItem[]
+  categories: InventoryReportCategory[]
+  totalSpareparts: number
+  totalStockUnits: number
+  totalCapitalValue: number
+  totalSellingValue: number
+  potentialMargin: number
+  outOfStockCount: number
+  criticalStockCount: number
+  safeStockCount: number
+}
+
 const createSparepartSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi"),
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
@@ -940,6 +983,92 @@ export async function getRestockHistory(
   } catch (error) {
     console.error("Error fetching restock history:", error)
     return { success: false, error: "Gagal mengambil riwayat restock" }
+  }
+}
+
+export async function getInventoryReport(
+  tokoId: string,
+  filters: InventoryReportFilters = {}
+): Promise<ActionResultWithData<InventoryReportResult>> {
+  try {
+    const access = await getInventoryUser(tokoId)
+    if (!access.success) return access
+
+    const spareparts = await prisma.sparepart.findMany({
+      where: { tokoId },
+      include: { category: true },
+      orderBy: { name: "asc" },
+    })
+
+    const categories = Array.from(
+      new Map(
+        spareparts
+          .filter((sparepart) => sparepart.category)
+          .map((sparepart) => [
+            sparepart.category!.id,
+            { id: sparepart.category!.id, name: sparepart.category!.name },
+          ])
+      ).values()
+    ).sort((a, b) => a.name.localeCompare(b.name))
+
+    const reportItems = spareparts.map((sparepart) => {
+      const purchasePrice = sparepart.purchasePrice ?? 0
+      const capitalValue = sparepart.stock * purchasePrice
+      const sellingValue = sparepart.stock * sparepart.defaultPrice
+      const status: Exclude<InventoryReportStockStatus, "all"> = sparepart.stock <= 0
+        ? "out"
+        : sparepart.stock <= sparepart.criticalStock
+          ? "critical"
+          : "safe"
+
+      return {
+        id: sparepart.id,
+        barcode: sparepart.barcode,
+        name: sparepart.name,
+        categoryId: sparepart.categoryId,
+        categoryName: sparepart.category?.name ?? null,
+        supplierName: sparepart.supplierName,
+        stock: sparepart.stock,
+        criticalStock: sparepart.criticalStock,
+        purchasePrice,
+        defaultPrice: sparepart.defaultPrice,
+        capitalValue,
+        sellingValue,
+        potentialMargin: sellingValue - capitalValue,
+        status,
+      }
+    })
+
+    const normalizedQuery = filters.q?.trim().toLowerCase() ?? ""
+    const statusFilter = filters.status ?? "all"
+    const filteredItems = reportItems.filter((item) =>
+      (!normalizedQuery ||
+        item.name.toLowerCase().includes(normalizedQuery) ||
+        item.barcode.toLowerCase().includes(normalizedQuery) ||
+        (item.supplierName?.toLowerCase().includes(normalizedQuery) ?? false) ||
+        (item.categoryName?.toLowerCase().includes(normalizedQuery) ?? false)) &&
+      (!filters.categoryId || item.categoryId === filters.categoryId) &&
+      (statusFilter === "all" || item.status === statusFilter)
+    )
+
+    return {
+      success: true,
+      data: {
+        items: filteredItems,
+        categories,
+        totalSpareparts: filteredItems.length,
+        totalStockUnits: filteredItems.reduce((total, item) => total + item.stock, 0),
+        totalCapitalValue: filteredItems.reduce((total, item) => total + item.capitalValue, 0),
+        totalSellingValue: filteredItems.reduce((total, item) => total + item.sellingValue, 0),
+        potentialMargin: filteredItems.reduce((total, item) => total + item.potentialMargin, 0),
+        outOfStockCount: filteredItems.filter((item) => item.status === "out").length,
+        criticalStockCount: filteredItems.filter((item) => item.status === "critical").length,
+        safeStockCount: filteredItems.filter((item) => item.status === "safe").length,
+      },
+    }
+  } catch (error) {
+    console.error("Error fetching inventory report:", error)
+    return { success: false, error: "Gagal mengambil laporan inventory" }
   }
 }
 

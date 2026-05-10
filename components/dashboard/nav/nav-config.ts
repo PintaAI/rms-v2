@@ -220,12 +220,26 @@ export function buildAdminNav({
   const inventoryItems: NavGroupItem[] = [];
 
   if (!isFeatureDisabled("inventory.management")) {
-    inventoryItems.push({
-      href: `/${tokoid}/admin/inventory`,
-      icon: "tools",
-      label: "Sparepart & Jasa",
-      isLocked: !inventoryEnabled,
-    });
+    inventoryItems.push(
+      {
+        href: `/${tokoid}/admin/inventory`,
+        icon: "tools",
+        label: "Sparepart & Jasa",
+        isLocked: !inventoryEnabled,
+      },
+      {
+        href: `/${tokoid}/admin/inventory/restock-history`,
+        icon: "history",
+        label: "Riwayat Restock",
+        isLocked: !inventoryEnabled,
+      },
+      {
+        href: `/${tokoid}/admin/inventory/reports`,
+        icon: "chart",
+        label: "Laporan Inventory",
+        isLocked: !inventoryEnabled,
+      }
+    );
   }
 
   if (!isFeatureDisabled("inventory.audit")) {
