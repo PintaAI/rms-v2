@@ -300,7 +300,7 @@ function HeroSection({
               Software operasional untuk toko servis HP
             </span>
             <span className="block text-3xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-              Berhenti mengelola servis
+              Stop Nyatet Manual
             </span>
             <span className="block text-2xl font-semibold tracking-tight text-muted-foreground sm:text-4xl lg:text-5xl">
               dari chat, ingatan, dan catatan terpisah.
