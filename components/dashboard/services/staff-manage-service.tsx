@@ -6,6 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -32,6 +39,12 @@ interface StaffManageServiceProps {
   tokoId: string;
   pageSize: number;
   initialSearchQuery?: string;
+}
+
+function matchesPaymentStatus(service: ServiceListItem, paymentStatusFilter: string): boolean {
+  if (paymentStatusFilter === "paid") return service.invoice?.paymentStatus === "paid";
+  if (paymentStatusFilter === "unpaid") return service.invoice?.paymentStatus === "unpaid" || service.invoice?.paymentStatus === "dp";
+  return true;
 }
 
 export function StaffManageService({
@@ -72,6 +85,7 @@ export function StaffManageService({
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
   const statusSnapshotsRef = useRef(new Map<string, ServiceListItem>());
   const pendingPatchesRef = useRef(new Map<string, Partial<Omit<ServiceListItem, "id">>>());
 
@@ -89,10 +103,12 @@ export function StaffManageService({
       return services.filter((s) => filterStatuses.includes(s.status) && !s.isPickedUp);
     })();
 
-    const trimmedQuery = searchQuery.trim();
-    if (!trimmedQuery) return statusFilteredServices;
+    const paymentFilteredServices = statusFilteredServices.filter((service) => matchesPaymentStatus(service, paymentStatusFilter));
 
-    return statusFilteredServices
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) return paymentFilteredServices;
+
+    return paymentFilteredServices
       .map((service) => ({
         service,
         score: getServiceSearchScore(trimmedQuery, service),
@@ -103,7 +119,7 @@ export function StaffManageService({
         return new Date(b.service.checkinAt).getTime() - new Date(a.service.checkinAt).getTime();
       })
       .map((item) => item.service);
-  }, [services, statusFilter, pickedUpFilter, searchQuery]);
+  }, [services, statusFilter, pickedUpFilter, paymentStatusFilter, searchQuery]);
 
   const paginatedServices = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -276,14 +292,14 @@ export function StaffManageService({
     return true;
   }, [optimisticPatch, patchSelectedService, publish, rollbackUpdate, router, services, settleMutation]);
 
-  const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}`);
+  const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}|${paymentStatusFilter}`);
   useEffect(() => {
-    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}`;
+    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}|${paymentStatusFilter}`;
     if (prevFilterRef.current !== nextFilterKey) {
       prevFilterRef.current = nextFilterKey;
       setCurrentPage(1);
     }
-  }, [statusFilter, pickedUpFilter, searchQuery]);
+  }, [statusFilter, pickedUpFilter, searchQuery, paymentStatusFilter]);
 
   const getPageTitle = () => {
     if (pickedUpFilter) return "Service Diambil";
@@ -296,6 +312,7 @@ export function StaffManageService({
 
   const getEmptyMessage = () => {
     if (searchQuery.trim()) return "Tidak ada service yang cocok dengan pencarian";
+    if (paymentStatusFilter !== "all") return "Tidak ada service yang cocok dengan filter pembayaran";
     if (pickedUpFilter) return "Tidak ada service yang sudah diambil";
     if (statusFilter === "done,failed" || statusFilter === "failed,done") {
       return "Tidak ada service selesai atau gagal yang belum diambil";
@@ -306,14 +323,26 @@ export function StaffManageService({
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-sm">
-          <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Cari service..."
-            className="pl-9"
-          />
+        <div className="grid w-full gap-3 sm:max-w-xl sm:grid-cols-[minmax(0,1fr)_180px]">
+          <div className="relative">
+            <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Cari service..."
+              className="pl-9"
+            />
+          </div>
+          <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Pembayaran" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua pembayaran</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="unpaid">Unpaid / DP</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <Button
           onClick={() => { setEditData(null); setFormOpen(true); }}

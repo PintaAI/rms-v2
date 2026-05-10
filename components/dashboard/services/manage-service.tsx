@@ -76,6 +76,12 @@ function formatFilterDate(date: Date | null): string {
   }).format(date);
 }
 
+function matchesPaymentStatus(service: ServiceListItem, paymentStatusFilter: string): boolean {
+  if (paymentStatusFilter === "paid") return service.invoice?.paymentStatus === "paid";
+  if (paymentStatusFilter === "unpaid") return service.invoice?.paymentStatus === "unpaid" || service.invoice?.paymentStatus === "dp";
+  return true;
+}
+
 export function ManageService({
   allServices,
   tokoId,
@@ -114,6 +120,7 @@ export function ManageService({
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [createdByFilter, setCreatedByFilter] = useState("all");
   const [technicianFilter, setTechnicianFilter] = useState("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
   const [checkinDateFilter, setCheckinDateFilter] = useState<Date | null>(null);
   const [checkoutDateFilter, setCheckoutDateFilter] = useState<Date | null>(null);
   const statusSnapshotsRef = useRef(new Map<string, ServiceListItem>());
@@ -159,11 +166,12 @@ export function ManageService({
     return statusFilteredServices.filter((service) => {
       if (createdByFilter !== "all" && service.createdBy?.name !== createdByFilter) return false;
       if (technicianFilter !== "all" && service.technician?.name !== technicianFilter) return false;
+      if (!matchesPaymentStatus(service, paymentStatusFilter)) return false;
       if (!isSameDate(service.checkinAt, checkinDateFilter)) return false;
       if (!isSameDate(service.checkoutAt, checkoutDateFilter)) return false;
       return true;
     });
-  }, [services, statusFilter, pickedUpFilter, createdByFilter, technicianFilter, checkinDateFilter, checkoutDateFilter]);
+  }, [services, statusFilter, pickedUpFilter, createdByFilter, technicianFilter, paymentStatusFilter, checkinDateFilter, checkoutDateFilter]);
 
   const filteredServices = useMemo(() => {
     const trimmedQuery = searchQuery.trim();
@@ -184,12 +192,14 @@ export function ManageService({
 
   const hasAdvancedFilters = createdByFilter !== "all"
     || technicianFilter !== "all"
+    || paymentStatusFilter !== "all"
     || checkinDateFilter !== null
     || checkoutDateFilter !== null;
 
   const activeFilterCount = [
     createdByFilter !== "all",
     technicianFilter !== "all",
+    paymentStatusFilter !== "all",
     checkinDateFilter !== null,
     checkoutDateFilter !== null,
   ].filter(Boolean).length;
@@ -197,6 +207,7 @@ export function ManageService({
   const resetAdvancedFilters = useCallback(() => {
     setCreatedByFilter("all");
     setTechnicianFilter("all");
+    setPaymentStatusFilter("all");
     setCheckinDateFilter(null);
     setCheckoutDateFilter(null);
   }, []);
@@ -393,12 +404,12 @@ export function ManageService({
   // Reset to page 1 when filter changes
   const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}`);
   useEffect(() => {
-    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}|${createdByFilter}|${technicianFilter}|${checkinDateFilter?.toISOString() ?? ""}|${checkoutDateFilter?.toISOString() ?? ""}`;
+    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}|${createdByFilter}|${technicianFilter}|${paymentStatusFilter}|${checkinDateFilter?.toISOString() ?? ""}|${checkoutDateFilter?.toISOString() ?? ""}`;
     if (prevFilterRef.current !== nextFilterKey) {
       prevFilterRef.current = nextFilterKey;
       setCurrentPage(1);
     }
-  }, [statusFilter, pickedUpFilter, searchQuery, createdByFilter, technicianFilter, checkinDateFilter, checkoutDateFilter]);
+  }, [statusFilter, pickedUpFilter, searchQuery, createdByFilter, technicianFilter, paymentStatusFilter, checkinDateFilter, checkoutDateFilter]);
 
   const getPageTitle = () => {
     if (pickedUpFilter) return "Service Diambil";
@@ -442,6 +453,17 @@ export function ManageService({
           {technicianOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
           ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Pembayaran" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua pembayaran</SelectItem>
+          <SelectItem value="paid">Paid</SelectItem>
+          <SelectItem value="unpaid">Unpaid / DP</SelectItem>
         </SelectContent>
       </Select>
 
@@ -497,7 +519,7 @@ export function ManageService({
     <div className="space-y-8">
       <div className="rounded-2xl border border-border/60 bg-card/70 p-3 shadow-sm md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="grid w-full gap-3 md:grid-cols-2 lg:max-w-5xl lg:grid-cols-5">
+          <div className="grid w-full gap-3 md:grid-cols-2 lg:max-w-6xl lg:grid-cols-6">
             <div className="relative md:col-span-2 lg:col-span-1">
               <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
