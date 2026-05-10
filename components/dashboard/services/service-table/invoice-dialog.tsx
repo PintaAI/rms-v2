@@ -253,6 +253,12 @@ function InvoicePreviewCard({
               <span>Dibuat</span>
               <span className="font-semibold text-slate-900">{formatInvoiceDate(service.invoice?.createdAt ?? service.checkinAt)}</span>
             </div>
+            {service.checkoutAt && (
+              <div className="flex items-center justify-between gap-4">
+                <span>Checkout</span>
+                <span className="font-semibold text-slate-900">{formatInvoiceDate(service.checkoutAt)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-4">
               <span>Ticket</span>
               <span className="font-semibold text-slate-900">{service.id.slice(0, 8).toUpperCase()}</span>

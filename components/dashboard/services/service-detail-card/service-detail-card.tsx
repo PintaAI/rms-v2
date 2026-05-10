@@ -431,6 +431,11 @@ export function ServiceDetailCard({
   const adminCompletingAssignedToOther = viewerRole === "admin" && Boolean(localService.technician) && localService.technician?.id !== currentUser.id;
 
   function openDoneDialog() {
+    if (localService.items.length === 0) {
+      toast.error("Wajib menambahkan sparepart atau jasa sebelum menyelesaikan service.");
+      return;
+    }
+
     setDoneNote("");
     setWarrantyDate(getPresetWarrantyDate(warrantyPresets[1]));
     setShowDoneTakeoverWarning(false);
@@ -518,13 +523,15 @@ export function ServiceDetailCard({
     setInvoiceDialogOpen(true);
   }
 
-  async function handlePayInvoice(payment: { discountAmount: number }) {
+  async function handlePayInvoice(payment: { discountAmount: number; paymentMethod: "cash" | "transfer" | "qris" | "debit" }) {
     if (!localService.invoice || !canPayInvoice) return false;
     setIsPayingInvoice(true);
     const paidAt = new Date();
+    const shouldCheckoutOnPayment = payment.paymentMethod === "cash" || payment.paymentMethod === "qris";
     const ok = await mutate({
       optimistic: (prev) => prev.invoice ? {
         ...prev,
+        checkoutAt: shouldCheckoutOnPayment ? paidAt : prev.checkoutAt,
         invoice: {
           ...prev.invoice,
           paymentStatus: "paid",

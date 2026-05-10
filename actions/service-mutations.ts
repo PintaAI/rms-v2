@@ -76,6 +76,7 @@ const addItemSchema = z.object({
 
 const payInvoiceSchema = z.object({
   discountAmount: z.number().int().min(0).optional(),
+  paymentMethod: z.enum(["cash", "transfer", "qris", "debit"]).optional(),
 });
 
 async function updateInvoiceIfAllowed(user: { plan: SubscriptionPlan; id: string }, serviceId: string, tokoId: string): Promise<void> {
@@ -732,6 +733,8 @@ export async function payInvoice(invoiceId: string, data: z.infer<typeof payInvo
   if (invoice.service.isPickedUp) return { success: false, error: "Service has already been picked up" };
 
   const discountAmount = validated.data.discountAmount ?? 0;
+  const paymentMethod = validated.data.paymentMethod;
+  const shouldCheckoutOnPayment = paymentMethod === "cash" || paymentMethod === "qris";
   const maxDiscount = Math.max(invoice.grandTotal - invoice.dpAmount, 0);
   if (discountAmount > maxDiscount) return { success: false, error: "Discount cannot exceed remaining invoice total" };
 
@@ -744,10 +747,17 @@ export async function payInvoice(invoiceId: string, data: z.infer<typeof payInvo
         data: { paymentStatus: "paid", paidAt, discountAmount },
       });
 
+      if (shouldCheckoutOnPayment) {
+        await tx.service.update({
+          where: { id: invoice.service.id },
+          data: { checkoutAt: paidAt },
+        });
+      }
+
       await createActivityLog(tx, {
         tokoId: scope.tokoId, userId: scope.user.id, serviceId: invoice.service.id,
         type: "invoice_paid", title: "Invoice marked as paid",
-        payload: { invoiceId, discountAmount, paidAt: paidAt.toISOString() },
+        payload: { invoiceId, discountAmount, paymentMethod, paidAt: paidAt.toISOString() },
       });
     });
 
