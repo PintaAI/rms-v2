@@ -250,7 +250,7 @@ function SparepartRestockDialogContent({
     });
     setRestockItems([]);
     onOpenChange(false);
-  }, [loadHistory, onOpenChange, onSuccess, restockItems, totalRestockPrice]);
+  }, [itemLabel, loadHistory, onOpenChange, onSuccess, restockItems, totalRestockPrice]);
 
   const processScannerValue = useCallback(async (rawValue: string) => {
     if (isProcessingScannerRef.current) return;

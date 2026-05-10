@@ -16,12 +16,14 @@ import { RiAddLine, RiDeleteBinLine, RiEditLine, RiLoader4Line, RiSearchLine, Ri
 interface RetailItemTableProps {
   tokoId: string;
   initialSearchQuery?: string;
+  initialItems?: SparepartWithCompatibilities[];
+  readOnly?: boolean;
 }
 
-export function RetailItemTable({ tokoId, initialSearchQuery = "" }: RetailItemTableProps) {
-  const [items, setItems] = useState<SparepartWithCompatibilities[]>([]);
+export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems, readOnly = false }: RetailItemTableProps) {
+  const [items, setItems] = useState<SparepartWithCompatibilities[]>(initialItems ?? []);
   const [search, setSearch] = useState(initialSearchQuery);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialItems);
   const [formOpen, setFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<SparepartWithCompatibilities | null>(null);
   const [restockOpen, setRestockOpen] = useState(false);
@@ -30,6 +32,8 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "" }: RetailItemT
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
+    if (initialItems) return;
+
     let active = true;
 
     const load = async () => {
@@ -44,7 +48,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "" }: RetailItemT
     return () => {
       active = false;
     };
-  }, [tokoId]);
+  }, [initialItems, tokoId]);
 
   const normalizedSearch = search.toLowerCase();
   const filteredItems = items.filter(
@@ -81,7 +85,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "" }: RetailItemT
           <div className="h-5 w-1 rounded-full bg-primary" />
           <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Barang Retail</h2>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {!readOnly ? <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => setRestockOpen(true)}>
             <RiStackLine className="mr-1.5 size-4" />
             Restock
@@ -96,7 +100,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "" }: RetailItemT
             <RiAddLine className="mr-1.5 size-4" />
             Tambah Barang Retail
           </Button>
-        </div>
+        </div> : null}
       </div>
 
       <div className="relative">
@@ -146,6 +150,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "" }: RetailItemT
                           <Button
                             variant="ghost"
                             size="icon-sm"
+                            disabled={readOnly}
                             onClick={() => {
                               setEditingItem(item);
                               setFormOpen(true);
@@ -156,6 +161,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "" }: RetailItemT
                           <Button
                             variant="ghost"
                             size="icon-sm"
+                            disabled={readOnly}
                             onClick={() => {
                               setDeletingItem(item);
                               setDeleteOpen(true);
