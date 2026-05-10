@@ -58,7 +58,7 @@ export interface AdminOverviewData {
   featureAccess: {
     realtimeUpdates: boolean;
     revenueAnalytics: boolean;
-    technicianWorkflow: boolean;
+    technicianAssignment: boolean;
   };
 }
 
@@ -279,7 +279,7 @@ export async function getAdminOverview(
       featureAccess: {
         realtimeUpdates: canUseRealtimeUpdates,
         revenueAnalytics: canViewRevenueAnalytics,
-        technicianWorkflow: scope.featureAccess["technician.workflow"] ?? false,
+        technicianAssignment: scope.featureAccess["service.technicianAssignment"] ?? false,
       },
     };
   });

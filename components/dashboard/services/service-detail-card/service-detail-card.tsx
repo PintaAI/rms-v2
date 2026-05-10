@@ -183,6 +183,8 @@ export interface ServiceDetailCardProps {
   variant?: "active" | "completed";
   viewerRole?: Role;
   showActions?: boolean;
+  showRepairItemActions?: boolean;
+  showCompletionActions?: boolean;
   onAddItem?: (service: ServiceDetailCardItem) => void;
   onRemoveItem?: (itemId: string) => void;
   onRefresh?: () => void;
@@ -199,6 +201,8 @@ export function ServiceDetailCard({
   variant = "active",
   viewerRole = "technician",
   showActions = true,
+  showRepairItemActions = showActions,
+  showCompletionActions = showActions,
   onAddItem,
   onRemoveItem,
   onRefresh,
@@ -210,7 +214,8 @@ export function ServiceDetailCard({
   onRealtimeEvent,
 }: ServiceDetailCardProps) {
   const isActive = variant === "active";
-  const { inventoryEnabled, user: currentUser } = useDashboardScope();
+  const { featureAccess, inventoryEnabled, user: currentUser } = useDashboardScope();
+  const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
   const canHandleCustomerHandoff = viewerRole === "admin" || viewerRole === "staff";
   const roleTone = roleToneClasses[viewerRole];
 
@@ -426,9 +431,9 @@ export function ServiceDetailCard({
   const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp || Boolean(localService.invoice));
   const warrantyUntilDate = localService.warrantyUntil ? new Date(localService.warrantyUntil) : null;
   const warrantyExpired = warrantyUntilDate ? warrantyUntilDate < new Date() : false;
-  const adminCompletingUnassignedService = viewerRole === "admin" && !localService.technician;
-  const adminCompletingAssignedService = viewerRole === "admin" && Boolean(localService.technician);
-  const adminCompletingAssignedToOther = viewerRole === "admin" && Boolean(localService.technician) && localService.technician?.id !== currentUser.id;
+  const adminCompletingUnassignedService = technicianWorkflowEnabled && viewerRole === "admin" && !localService.technician;
+  const adminCompletingAssignedService = technicianWorkflowEnabled && viewerRole === "admin" && Boolean(localService.technician);
+  const adminCompletingAssignedToOther = technicianWorkflowEnabled && viewerRole === "admin" && Boolean(localService.technician) && localService.technician?.id !== currentUser.id;
 
   function openDoneDialog() {
     if (localService.items.length === 0) {
@@ -452,7 +457,9 @@ export function ServiceDetailCard({
     const doneNoteValue = doneNote.trim();
     const warrantyUntil = parseDateInputValue(warrantyDate);
     const currentService = localServiceRef.current;
-    const takeOwnership = viewerRole === "admin" && (!currentService.technician || currentService.technician.id !== currentUser.id);
+    const takeOwnership = technicianWorkflowEnabled
+      && viewerRole === "admin"
+      && (!currentService.technician || currentService.technician.id !== currentUser.id);
     const doneAt = new Date();
     const patch: Partial<Omit<ServiceListItem, "id">> = {
       status: "done" as ServiceListItem["status"],
@@ -614,7 +621,7 @@ export function ServiceDetailCard({
               </div>
             </div>
             <div className="flex gap-2 shrink-0">
-              {isActive && showActions && localService.invoice?.paymentStatus !== "paid" && (
+              {isActive && showRepairItemActions && localService.invoice?.paymentStatus !== "paid" && (
                 <Button
                   size="sm"
                   onClick={() => {
@@ -629,7 +636,7 @@ export function ServiceDetailCard({
                   <span className="ml-1 hidden sm:inline">Tambah Sparepart & jasa</span>
                 </Button>
               )}
-              {!isActive && canUndoCompletedStatus && (
+              {!isActive && showCompletionActions && canUndoCompletedStatus && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -795,7 +802,7 @@ export function ServiceDetailCard({
               </div>
             )}
 
-            {isActive && showActions && (
+            {isActive && showCompletionActions && (
               <div className="pt-4 mt-4">
                 <p className={cn("text-sm font-medium text-center mb-3", roleTone.label)}>
                   Service completion

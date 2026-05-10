@@ -165,13 +165,13 @@ export function ManageService({
 
     return statusFilteredServices.filter((service) => {
       if (createdByFilter !== "all" && service.createdBy?.name !== createdByFilter) return false;
-      if (technicianFilter !== "all" && service.technician?.name !== technicianFilter) return false;
+      if (!hideTechnicianColumn && technicianFilter !== "all" && service.technician?.name !== technicianFilter) return false;
       if (!matchesPaymentStatus(service, paymentStatusFilter)) return false;
       if (!isSameDate(service.checkinAt, checkinDateFilter)) return false;
       if (!isSameDate(service.checkoutAt, checkoutDateFilter)) return false;
       return true;
     });
-  }, [services, statusFilter, pickedUpFilter, createdByFilter, technicianFilter, paymentStatusFilter, checkinDateFilter, checkoutDateFilter]);
+  }, [services, statusFilter, pickedUpFilter, createdByFilter, technicianFilter, paymentStatusFilter, checkinDateFilter, checkoutDateFilter, hideTechnicianColumn]);
 
   const filteredServices = useMemo(() => {
     const trimmedQuery = searchQuery.trim();
@@ -191,14 +191,14 @@ export function ManageService({
   }, [servicesFilteredWithoutSearch, searchQuery]);
 
   const hasAdvancedFilters = createdByFilter !== "all"
-    || technicianFilter !== "all"
+    || (!hideTechnicianColumn && technicianFilter !== "all")
     || paymentStatusFilter !== "all"
     || checkinDateFilter !== null
     || checkoutDateFilter !== null;
 
   const activeFilterCount = [
     createdByFilter !== "all",
-    technicianFilter !== "all",
+    !hideTechnicianColumn && technicianFilter !== "all",
     paymentStatusFilter !== "all",
     checkinDateFilter !== null,
     checkoutDateFilter !== null,
@@ -444,17 +444,19 @@ export function ManageService({
         </SelectContent>
       </Select>
 
-      <Select value={technicianFilter} onValueChange={setTechnicianFilter}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Teknisi" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Semua teknisi</SelectItem>
-          {technicianOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {!hideTechnicianColumn && (
+        <Select value={technicianFilter} onValueChange={setTechnicianFilter}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Teknisi" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua teknisi</SelectItem>
+            {technicianOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
         <SelectTrigger className="w-full">

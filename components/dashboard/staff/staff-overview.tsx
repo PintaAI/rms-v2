@@ -64,7 +64,7 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
   const { stats, recentServices } = data;
   const router = useRouter();
   const { featureAccess } = useDashboardScope();
-  const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
+  const technicianAssignmentEnabled = featureAccess["service.technicianAssignment"] ?? false;
 
   const [tableServices, setTableServices] = useState<ServiceTableItem[]>(() => recentServices.map(mapRecentServiceToTableItem));
 
@@ -156,8 +156,8 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
               headerBadge={tableServices.length}
               emptyMessage="Tidak ada service"
               tokoId={tokoId}
-              hideTechnicianColumn={!technicianWorkflowEnabled}
-              onAssignTech={technicianWorkflowEnabled ? handleAssignTech : undefined}
+              hideTechnicianColumn={!technicianAssignmentEnabled}
+              onAssignTech={technicianAssignmentEnabled ? handleAssignTech : undefined}
             />
           </CardContent>
         </Card>

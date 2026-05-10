@@ -59,7 +59,7 @@ export function StaffManageService({
   const pickedUpFilter = searchParams.get("pickedup") === "true";
 
   const { featureAccess } = useDashboardScope();
-  const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
+  const technicianAssignmentEnabled = featureAccess["service.technicianAssignment"] ?? false;
 
   const storeTokoId = useServiceOptimisticStore((state) => state.tokoId);
   const storeServices = useServiceOptimisticStore((state) => state.services);
@@ -368,8 +368,8 @@ export function StaffManageService({
               onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
               onRowClick={handleRowClick}
               tokoId={tokoId}
-              hideTechnicianColumn={!technicianWorkflowEnabled}
-              onAssignTech={technicianWorkflowEnabled ? handleAssignTech : undefined}
+              hideTechnicianColumn={!technicianAssignmentEnabled}
+              onAssignTech={technicianAssignmentEnabled ? handleAssignTech : undefined}
             />
 
             {totalPages > 1 && (
@@ -459,6 +459,8 @@ export function StaffManageService({
                 variant={["done", "failed"].includes(selectedService.status) ? "completed" : "active"}
                 viewerRole="staff"
                 showActions={false}
+                showRepairItemActions
+                showCompletionActions
                 onRefresh={handleRefreshDetail}
                 onOptimisticStatusChange={handleOptimisticStatusChange}
                 onOptimisticStatusSuccess={handleOptimisticStatusSuccess}

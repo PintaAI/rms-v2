@@ -34,6 +34,7 @@ export interface OnboardingPlanRecommendation {
 
 const optionalFeatureKeys: FeatureKey[] = [
   "service.manualItems",
+  "service.technicianAssignment",
   "inventory.management",
   "inventory.staffCreateSparepart",
   "karyawan.management",
@@ -78,7 +79,10 @@ export function getOnboardingPlanRecommendation(
   }
 
   if (answers.technicianCount > 0) {
-    neededFeatures.add("technician.workflow");
+    neededFeatures.add("service.technicianAssignment");
+    if (answers.teamAccess === "technicianOnly" || answers.teamAccess === "staffAndTechnician") {
+      neededFeatures.add("technician.workflow");
+    }
   }
 
   const premiumStaffLimit = getPlanLimit("premium", "maxStaff") ?? Number.POSITIVE_INFINITY;

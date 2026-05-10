@@ -29,7 +29,7 @@ export default async function AdminServicePage({ params, searchParams }: AdminSe
   const scope = await getRequestScope(tokoid);
   const { user, plan, disabledFeatures } = scope;
 
-  const technicianWorkflowEnabled = canUseFeature({ plan, role: user.role, feature: "technician.workflow", disabledFeatures });
+  const technicianAssignmentEnabled = canUseFeature({ plan, role: user.role, feature: "service.technicianAssignment", disabledFeatures });
 
   const [servicesResult, statsResult] = await Promise.all([
     getServiceList(tokoid, undefined, 1, 1000),
@@ -105,7 +105,7 @@ export default async function AdminServicePage({ params, searchParams }: AdminSe
         allServices={servicesResult.data.data}
         tokoId={tokoid}
         pageSize={pageSize}
-        hideTechnicianColumn={!technicianWorkflowEnabled}
+        hideTechnicianColumn={!technicianAssignmentEnabled}
         initialSearchQuery={initialSearchQuery}
       />
     </div>

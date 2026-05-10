@@ -37,6 +37,7 @@ const planKeys: SubscriptionPlan[] = ["free", "premium", "enterprise"];
 
 const featureIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   "service.manualItems": RiSettingsLine,
+  "service.technicianAssignment": RiUserSearchLine,
   "inventory.management": RiArchiveLine,
   "karyawan.management": RiTeamLine,
   "staff.workflow": RiUserSearchLine,

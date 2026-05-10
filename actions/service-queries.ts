@@ -164,7 +164,7 @@ export async function getTechnicianDashboard(
 export async function getTechniciansByToko(
   tokoId: string
 ): Promise<ActionResultWithData<{ id: string; name: string; email: string }[]>> {
-  return withScope(tokoId, { role: ["admin", "staff"], feature: "technician.workflow" }, async () => {
+  return withScope(tokoId, { role: ["admin", "staff"], feature: "service.technicianAssignment" }, async () => {
     const technicians = await prisma.userToko.findMany({
       where: { tokoId, user: { role: "technician" } },
       select: { user: { select: { id: true, name: true, email: true } } },

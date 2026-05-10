@@ -28,22 +28,26 @@ async function promoteServiceOnFirstItem(
   currentStatus: string,
   currentTechnicianId: string | null,
   userId: string,
+  actorTechnicianId: string | null,
   tokoId: string,
 ) {
   if (currentStatus === "received") {
     await tx.service.update({
       where: { id: serviceId },
-      data: { status: "repairing", ...(currentTechnicianId !== userId ? { technicianId: userId, assignedAt: new Date() } : {}) },
+      data: {
+        status: "repairing",
+        ...(actorTechnicianId && currentTechnicianId !== actorTechnicianId ? { technicianId: actorTechnicianId, assignedAt: new Date() } : {}),
+      },
     });
     await createActivityLog(tx, {
       tokoId, userId, serviceId,
       type: "service_status_changed", title: getStatusActivityTitle("repairing"),
       payload: { previousStatus: "received", nextStatus: "repairing", reason: "First repair item added" },
     });
-  } else if (currentTechnicianId !== userId) {
+  } else if (actorTechnicianId && currentTechnicianId !== actorTechnicianId) {
     await tx.service.update({
       where: { id: serviceId },
-      data: { technicianId: userId, assignedAt: new Date() },
+      data: { technicianId: actorTechnicianId, assignedAt: new Date() },
     });
   }
 }
@@ -411,7 +415,10 @@ export async function updateStatus(
     return { success: false, error: "Invalid warranty date" };
   }
 
-  return withScope(service.tokoId, { role: ["admin", "technician"] }, async (scope) => {
+  return withScope(service.tokoId, { role: ["admin", "staff", "technician"] }, async (scope) => {
+    if (scope.user.role === "staff") assertFeature(scope, "staff.workflow");
+    if (isTechnicianRole(scope.user.role)) assertFeature(scope, "technician.workflow");
+
     if (isTechnicianRole(scope.user.role) && service.technicianId !== scope.user.id) {
       throw new Error("Access denied");
     }
@@ -526,7 +533,7 @@ export async function assignTechnician(
   if (!service) return { success: false, error: "Service not found" };
   if (service.isPickedUp) return { success: false, error: "Cannot update a service that has been picked up" };
 
-  return withScope(service.tokoId, { role: ["admin", "staff"], feature: "technician.workflow" }, async (scope) => {
+  return withScope(service.tokoId, { role: ["admin", "staff"], feature: "service.technicianAssignment" }, async (scope) => {
     if (technicianId) {
       const technician = await prisma.user.findUnique({
         where: { id: technicianId },
@@ -594,8 +601,12 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
     return { success: false, error: "Service item cannot use a sparepart" };
   }
 
-  return withScope(service.tokoId, { role: ["admin", "technician"] }, async (scope) => {
+  return withScope(service.tokoId, { role: ["admin", "staff", "technician"] }, async (scope) => {
+    if (scope.user.role === "staff") assertFeature(scope, "staff.workflow");
+    if (isTechnicianRole(scope.user.role)) assertFeature(scope, "technician.workflow");
+
     let createdItem: { id: string; type: string; name: string; qty: number; price: number } | null = null;
+    const actorTechnicianId = isTechnicianRole(scope.user.role) ? scope.user.id : null;
 
     if (validated.data.type === "sparepart" && validated.data.sparepartId) {
       assertFeature(scope, "inventory.management");
@@ -633,7 +644,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           },
         });
 
-        await promoteServiceOnFirstItem(tx, validated.data.serviceId, service.status, service.technicianId, scope.user.id, scope.tokoId);
+        await promoteServiceOnFirstItem(tx, validated.data.serviceId, service.status, service.technicianId, scope.user.id, actorTechnicianId, scope.tokoId);
 
         await createActivityLog(tx, {
           tokoId: scope.tokoId, userId: scope.user.id, serviceId: validated.data.serviceId,
@@ -662,7 +673,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           data: { serviceId: validated.data.serviceId, type: validated.data.type, name: itemName, qty: validated.data.qty, price: itemPrice, referenceId: null },
         });
 
-        await promoteServiceOnFirstItem(tx, validated.data.serviceId, service.status, service.technicianId, scope.user.id, scope.tokoId);
+        await promoteServiceOnFirstItem(tx, validated.data.serviceId, service.status, service.technicianId, scope.user.id, actorTechnicianId, scope.tokoId);
       });
     }
 

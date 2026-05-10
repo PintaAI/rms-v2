@@ -7,6 +7,7 @@ export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "
 
 export type FeatureKey =
   | "service.manualItems"
+  | "service.technicianAssignment"
   | "inventory.management"
   | "inventory.staffCreateSparepart"
   | "karyawan.management"
@@ -47,6 +48,15 @@ export const FEATURE_REGISTRY = {
     category: "service",
     allowedRoles: ["admin", "staff", "technician"],
     minimumPlan: "free",
+    configurable: true,
+  },
+  "service.technicianAssignment": {
+    key: "service.technicianAssignment",
+    label: "Assign Teknisi Service",
+    description: "Pilih teknisi penanggung jawab tanpa mengaktifkan dashboard teknisi.",
+    category: "service",
+    allowedRoles: ["admin", "staff"],
+    minimumPlan: "premium",
     configurable: true,
   },
   "inventory.management": {
