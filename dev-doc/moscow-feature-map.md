@@ -4,7 +4,7 @@ This map prioritizes the current RMS feature set using the `app/` graph and the 
 
 ## Basis
 
-- Route graph: `graphify-out/GRAPH_REPORT.md` for visible feature surfaces.
+- Route structure: `app/` for visible feature surfaces.
 - Feature gates: `lib/features.ts` for product packaging and access control.
 - Plan logic: `lib/plans.ts` and `lib/onboarding-recommendation.ts` for commercial priority.
 - Business actions: `actions/` for operational workflows.
@@ -63,7 +63,7 @@ These should not drive near-term scope unless a release goal explicitly requires
 | Feature | Why | Evidence |
 | --- | --- | --- |
 | Cache experiment pages | These are technical experiments, not product workflows. | `app/experiment/*`, `app/api/cache-demo/route.ts` |
-| Public landing copy refinement | The graph shows isolated marketing blocks with weak system connections, so they should not compete with operational work. | `app/page.tsx`, `graphify-out/GRAPH_REPORT.md` isolated `features`, `painPoints`, `differentiators` |
+| Public landing copy refinement | Marketing blocks are weakly connected to core operational workflows, so they should not compete with operational work. | `app/page.tsx` `features`, `painPoints`, `differentiators` |
 | Expanded affiliate payout operations | The data model supports commissions, but this can wait until referral volume exists. | `actions/affiliate.ts`, `prisma/schema.prisma` `AffiliateCommission` |
 | Advanced audit/accounting exports | No current first-class export model was identified in the inspected surfaces. | Current `actions/` and `prisma/schema.prisma` |
 

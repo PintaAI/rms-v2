@@ -102,29 +102,37 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PwaProvider />
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <Suspense
-            fallback={
-              <div className="min-h-full flex flex-1 items-center justify-center">
-                <RiLoader2Fill className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            }
-          >
-            <AuthProvider>
-              <TourProvider>
-                {children}
-                <DevTools />
-                <Toaster />
-              </TourProvider>
-            </AuthProvider>
-          </Suspense>
-        </ThemeProvider>
+        <RootProviders>{children}</RootProviders>
       </body>
     </html>
+  );
+}
+
+function RootProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <Suspense fallback={<RootLoadingFallback />}>
+        <AuthProvider>
+          <TourProvider>
+            {children}
+            <DevTools />
+            <Toaster />
+          </TourProvider>
+        </AuthProvider>
+      </Suspense>
+    </ThemeProvider>
+  );
+}
+
+function RootLoadingFallback() {
+  return (
+    <div className="min-h-full flex flex-1 items-center justify-center">
+      <RiLoader2Fill className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
   );
 }
