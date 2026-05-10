@@ -614,7 +614,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
       const sparepart = await prisma.sparepart.findUnique({
         where: { id: validated.data.sparepartId },
         select: {
-          stock: true, name: true, defaultPrice: true, tokoId: true, isUniversal: true,
+          stock: true, name: true, defaultPrice: true, tokoId: true, isUniversal: true, kind: true,
           compatibilities: {
             where: { hpCatalogId: service.hpCatalogId },
             select: { hpCatalogId: true },
@@ -622,6 +622,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
         },
       });
       if (!sparepart || sparepart.tokoId !== service.tokoId) throw new Error("Sparepart not found");
+      if (sparepart.kind !== "sparepart") throw new Error("Barang retail tidak bisa dipakai sebagai sparepart service");
       if (!sparepart.isUniversal && sparepart.compatibilities.length === 0) {
         throw new Error("Sparepart is not compatible with this device");
       }

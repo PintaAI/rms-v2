@@ -287,7 +287,7 @@ export async function startInventoryAudit(
         }
 
         const spareparts = await tx.sparepart.findMany({
-          where: { tokoId: validatedTokoId },
+          where: { tokoId: validatedTokoId, kind: "sparepart" },
           orderBy: { name: "asc" },
           select: {
             id: true,

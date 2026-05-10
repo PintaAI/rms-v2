@@ -1,0 +1,204 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { deleteSparepart, getSpareparts, type SparepartWithCompatibilities } from "@/actions/inventory";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { DeleteDialog } from "@/components/ui/delete-dialog";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { InventoryItemFormDialog } from "@/components/dashboard/inventory/inventory-item-form-dialog";
+import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepart-restock-dialog";
+import { SparepartStockBadge } from "@/components/dashboard/inventory/sparepart-stock-badge";
+import { formatCurrency } from "@/lib/utils";
+import { RiAddLine, RiDeleteBinLine, RiEditLine, RiLoader4Line, RiSearchLine, RiStackLine } from "@remixicon/react";
+
+interface RetailItemTableProps {
+  tokoId: string;
+  initialSearchQuery?: string;
+}
+
+export function RetailItemTable({ tokoId, initialSearchQuery = "" }: RetailItemTableProps) {
+  const [items, setItems] = useState<SparepartWithCompatibilities[]>([]);
+  const [search, setSearch] = useState(initialSearchQuery);
+  const [isLoading, setIsLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<SparepartWithCompatibilities | null>(null);
+  const [restockOpen, setRestockOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingItem, setDeletingItem] = useState<SparepartWithCompatibilities | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      setIsLoading(true);
+      const result = await getSpareparts(tokoId, "retail_item");
+      if (!active) return;
+      if (result.success && result.data) setItems(result.data);
+      setIsLoading(false);
+    };
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [tokoId]);
+
+  const normalizedSearch = search.toLowerCase();
+  const filteredItems = items.filter(
+    (item) =>
+      item.name.toLowerCase().includes(normalizedSearch) ||
+      item.barcode.toLowerCase().includes(normalizedSearch) ||
+      (item.category?.name.toLowerCase().includes(normalizedSearch) ?? false) ||
+      (item.supplierName?.toLowerCase().includes(normalizedSearch) ?? false)
+  );
+
+  const handleSuccess = (item?: SparepartWithCompatibilities) => {
+    if (!item) return;
+    setItems((prev) => {
+      const exists = prev.some((existing) => existing.id === item.id);
+      return exists ? prev.map((existing) => (existing.id === item.id ? item : existing)) : [...prev, item];
+    });
+    setEditingItem(null);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingItem) return;
+    setIsDeleting(true);
+    const result = await deleteSparepart(deletingItem.id);
+    setIsDeleting(false);
+    if (result.success) setItems((prev) => prev.filter((item) => item.id !== deletingItem.id));
+    setDeleteOpen(false);
+    setDeletingItem(null);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-5 w-1 rounded-full bg-primary" />
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Barang Retail</h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setRestockOpen(true)}>
+            <RiStackLine className="mr-1.5 size-4" />
+            Restock
+          </Button>
+          <Button
+            onClick={() => {
+              setEditingItem(null);
+              setFormOpen(true);
+            }}
+            className="bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30"
+          >
+            <RiAddLine className="mr-1.5 size-4" />
+            Tambah Barang Retail
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative">
+        <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari barang retail..." className="pl-9" />
+      </div>
+
+      <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <RiLoader4Line className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader className="bg-muted/30">
+                <TableRow>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Kategori</TableHead>
+                  <TableHead>Supplier</TableHead>
+                  <TableHead>Harga Beli</TableHead>
+                  <TableHead>Harga Jual</TableHead>
+                  <TableHead>Stok</TableHead>
+                  <TableHead className="w-[88px]">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      {search ? "Tidak ditemukan barang retail sesuai pencarian" : "Belum ada barang retail. Klik \"Tambah Barang Retail\" untuk menambahkan."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredItems.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>{item.category?.name || "-"}</TableCell>
+                      <TableCell>{item.supplierName || "-"}</TableCell>
+                      <TableCell>{item.purchasePrice != null ? formatCurrency(item.purchasePrice) : "-"}</TableCell>
+                      <TableCell>{formatCurrency(item.defaultPrice)}</TableCell>
+                      <TableCell>
+                        <SparepartStockBadge sparepart={item} />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => {
+                              setEditingItem(item);
+                              setFormOpen(true);
+                            }}
+                          >
+                            <RiEditLine className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => {
+                              setDeletingItem(item);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            <RiDeleteBinLine className="size-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <InventoryItemFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        sparepart={editingItem}
+        tokoId={tokoId}
+        mode="retail_item"
+        onSuccess={handleSuccess}
+      />
+
+      <SparepartRestockDialog
+        open={restockOpen}
+        onOpenChange={setRestockOpen}
+        tokoId={tokoId}
+        itemKind="retail_item"
+        onSuccess={handleSuccess}
+      />
+
+      <DeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Hapus Barang Retail"
+        description={`Apakah Anda yakin ingin menghapus "${deletingItem?.name}"? Tindakan ini tidak dapat dibatalkan.`}
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+      />
+    </div>
+  );
+}

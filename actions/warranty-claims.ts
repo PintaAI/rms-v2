@@ -135,6 +135,7 @@ export async function resolveWarrantyClaim(
               stock: true,
               defaultPrice: true,
               isUniversal: true,
+              kind: true,
               compatibilities: {
                 where: { hpCatalogId: claim.service.hpCatalogId },
                 select: { hpCatalogId: true },
@@ -142,6 +143,7 @@ export async function resolveWarrantyClaim(
             },
           });
           if (!sparepart || sparepart.tokoId !== claim.tokoId) throw new Error("Sparepart tidak ditemukan");
+          if (sparepart.kind !== "sparepart") throw new Error("Barang retail tidak bisa dipakai sebagai sparepart garansi");
           if (!sparepart.isUniversal && sparepart.compatibilities.length === 0) {
             throw new Error(`Sparepart ${sparepart.name} tidak kompatibel dengan device ini`);
           }
