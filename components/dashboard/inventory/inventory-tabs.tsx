@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,6 +46,7 @@ import {
   RiPrinterLine,
   RiStackLine,
   RiUpload2Line,
+  RiHistoryLine,
 } from "@remixicon/react";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -299,6 +301,14 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   <RiGridFill className="h-3.5 w-3.5" />
                 </Button>
               </ButtonGroup>
+              {!readOnly && (
+                <Button asChild variant="outline">
+                  <Link href={`/${tokoId}/admin/inventory/restock-history`}>
+                    <RiHistoryLine className="h-4 w-4 mr-1.5" />
+                    Riwayat Restock
+                  </Link>
+                </Button>
+              )}
               {!readOnly && (
                 <Button
                   variant="outline"

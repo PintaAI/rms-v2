@@ -28,6 +28,7 @@ import {
   RiUserLine,
   RiBarcodeLine,
   RiNumbersLine,
+  RiDeleteBinLine,
 } from "@remixicon/react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -52,7 +53,15 @@ interface StockHistoryItem {
   userName: string;
 }
 
+interface RestockItem {
+  sparepart: SparepartWithCompatibilities;
+  qty: number;
+}
+
 const SCANNER_INPUT_THRESHOLD_MS = 30;
+
+const getRestockPrice = (sparepart: SparepartWithCompatibilities) =>
+  sparepart.purchasePrice ?? 0;
 
 function SparepartRestockDialogContent({
   tokoId,
@@ -67,6 +76,7 @@ function SparepartRestockDialogContent({
   const [foundSparepart, setFoundSparepart] = useState<SparepartWithCompatibilities | null>(null);
   const [searchResults, setSearchResults] = useState<SparepartWithCompatibilities[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [restockItems, setRestockItems] = useState<RestockItem[]>([]);
   const [history, setHistory] = useState<StockHistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -75,6 +85,10 @@ function SparepartRestockDialogContent({
   const isProcessingScannerRef = useRef(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDev = process.env.NODE_ENV === "development";
+  const totalRestockPrice = restockItems.reduce(
+    (total, item) => total + getRestockPrice(item.sparepart) * item.qty,
+    0
+  );
 
   const resetState = useCallback(() => {
     if (searchTimeoutRef.current) {
@@ -174,38 +188,64 @@ function SparepartRestockDialogContent({
     }
   };
 
-  const performRestock = useCallback(async (sparepartId: string, qtyValue: number) => {
-    setIsLoading(true);
-    setError(null);
+  const addRestockItem = useCallback((sparepart: SparepartWithCompatibilities, qtyValue: number) => {
+    setRestockItems((items) => {
+      const existingItem = items.find((item) => item.sparepart.id === sparepart.id);
+      if (existingItem) {
+        return items.map((item) =>
+          item.sparepart.id === sparepart.id ? { ...item, qty: item.qty + qtyValue } : item
+        );
+      }
 
-    const result = await restockSparepart({ id: sparepartId, qty: qtyValue });
+      return [...items, { sparepart, qty: qtyValue }];
+    });
 
-    setIsLoading(false);
+    toast.success(`${sparepart.name} ditambahkan ke daftar restock +${qtyValue}`, {
+      description: `Subtotal: ${formatCurrency(getRestockPrice(sparepart) * qtyValue)}`,
+    });
 
-    if (!result.success) {
-      toast.error(result.error || "Gagal menambah stok");
+    resetState();
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }, [resetState]);
+
+  const submitRestockItems = useCallback(async () => {
+    if (restockItems.length === 0) {
+      setError("Tambahkan minimal 1 sparepart ke daftar restock");
       return;
     }
 
-    if (result.data) {
-      onSuccess(result.data);
-      void loadHistory();
-      toast.success(`Stok ${result.data.name} berhasil ditambah +${qtyValue}`, {
-        description: `Total stok: ${result.data.stock}`,
-      });
-      
-      if (isScannerInputRef.current) {
-        setTimeout(() => {
-          resetState();
-          if (inputRef.current) {
-            inputRef.current.focus();
-          }
-        }, 500);
-      } else {
-        onOpenChange(false);
+    setIsLoading(true);
+    setError(null);
+
+    const updatedSpareparts: SparepartWithCompatibilities[] = [];
+
+    for (const item of restockItems) {
+      const result = await restockSparepart({ id: item.sparepart.id, qty: item.qty });
+
+      if (!result.success) {
+        setIsLoading(false);
+        toast.error(result.error || `Gagal menambah stok ${item.sparepart.name}`);
+        return;
+      }
+
+      if (result.data) {
+        updatedSpareparts.push(result.data);
       }
     }
-  }, [loadHistory, onOpenChange, onSuccess, resetState]);
+
+    setIsLoading(false);
+
+    for (const updatedSparepart of updatedSpareparts) {
+      onSuccess(updatedSparepart);
+    }
+
+    void loadHistory();
+    toast.success(`${restockItems.length} sparepart berhasil direstock`, {
+      description: `Total harga: ${formatCurrency(totalRestockPrice)}`,
+    });
+    setRestockItems([]);
+    onOpenChange(false);
+  }, [loadHistory, onOpenChange, onSuccess, restockItems, totalRestockPrice]);
 
   const processScannerValue = useCallback(async (rawValue: string) => {
     if (isProcessingScannerRef.current) return;
@@ -231,7 +271,7 @@ function SparepartRestockDialogContent({
       }
 
       if (foundSparepart && !isScannerInputRef.current) {
-        await performRestock(foundSparepart.id, qtyValue);
+        addRestockItem(foundSparepart, qtyValue);
         return;
       }
 
@@ -247,7 +287,7 @@ function SparepartRestockDialogContent({
         if (exactIdentifierMatch && (isScannerInputRef.current || trimmedValue.match(/^[\w-]{6,}$/))) {
           setSearchResults([]);
           setShowResults(false);
-          await performRestock(exactIdentifierMatch.id, qtyValue);
+          addRestockItem(exactIdentifierMatch, qtyValue);
         } else if (result.data.length === 1) {
           setFoundSparepart(result.data[0]);
           setSearchResults([]);
@@ -265,7 +305,7 @@ function SparepartRestockDialogContent({
     } finally {
       isProcessingScannerRef.current = false;
     }
-  }, [foundSparepart, performRestock, qty, tokoId]);
+  }, [addRestockItem, foundSparepart, qty, tokoId]);
 
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -300,7 +340,7 @@ function SparepartRestockDialogContent({
       return;
     }
 
-    await performRestock(foundSparepart.id, qtyValue);
+    addRestockItem(foundSparepart, qtyValue);
   };
 
   const simulateScannerInput = async () => {
@@ -388,15 +428,27 @@ function SparepartRestockDialogContent({
                   </Label>
                   <span className="text-sm leading-none text-destructive">*</span>
                 </div>
-                <Input
-                  id="qty"
-                  type="number"
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                  placeholder="1"
-                  min="1"
-                  disabled={isLoading}
-                />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    id="qty"
+                    type="number"
+                    value={qty}
+                    onChange={(e) => setQty(e.target.value)}
+                    placeholder="1"
+                    min="1"
+                    disabled={isLoading}
+                    className="sm:flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleRestockClick}
+                    disabled={isLoading || !foundSparepart}
+                    className="sm:shrink-0"
+                  >
+                    Tambah ke Daftar
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -429,7 +481,7 @@ function SparepartRestockDialogContent({
                       >
                         <div className="font-medium text-sm">{sp.name}</div>
                         <div className="mt-0.5 break-all text-xs text-muted-foreground sm:break-normal">
-                          {sp.barcode} | Stok: {sp.stock} | {formatCurrency(sp.defaultPrice)}
+                          {sp.barcode} | Stok: {sp.stock} | Harga beli: {formatCurrency(getRestockPrice(sp))}
                         </div>
                       </button>
                     ))}
@@ -489,7 +541,65 @@ function SparepartRestockDialogContent({
                       {foundSparepart.stock}
                     </Badge>
                     <span className="text-muted-foreground">|</span>
-                    <span className="text-muted-foreground">{formatCurrency(foundSparepart.defaultPrice)}</span>
+                    <span className="text-muted-foreground">Harga beli: {formatCurrency(getRestockPrice(foundSparepart))}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {restockItems.length > 0 && (
+          <>
+            <div className="border-t pt-2" />
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-1">
+                <div className="h-5 w-1 rounded-full bg-primary" />
+                <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                  <RiStackLine className="size-4" />
+                  Daftar Restock
+                </span>
+              </div>
+              <div className="border-l border-border pl-3 sm:ml-4 sm:pl-4">
+                <div className="overflow-hidden rounded-lg border bg-muted/20">
+                  <div className="divide-y">
+                    {restockItems.map((item) => {
+                      const price = getRestockPrice(item.sparepart);
+                      return (
+                        <div key={item.sparepart.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="break-words text-sm font-medium">{item.sparepart.name}</div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                              <span>Harga beli: {formatCurrency(price)}</span>
+                              <span>|</span>
+                              <span>Qty: {item.qty}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 sm:justify-end">
+                            <div className="text-sm font-semibold tabular-nums">
+                              {formatCurrency(price * item.qty)}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() =>
+                                setRestockItems((items) =>
+                                  items.filter((currentItem) => currentItem.sparepart.id !== item.sparepart.id)
+                                )
+                              }
+                              disabled={isLoading}
+                            >
+                              <RiDeleteBinLine className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center justify-between border-t bg-background/70 px-3 py-2 text-sm">
+                    <span className="font-medium text-muted-foreground">Total harga</span>
+                    <span className="font-bold tabular-nums">{formatCurrency(totalRestockPrice)}</span>
                   </div>
                 </div>
               </div>
@@ -570,8 +680,8 @@ function SparepartRestockDialogContent({
           </Button>
           <Button
             type="button"
-            onClick={handleRestockClick}
-            disabled={isLoading || !foundSparepart}
+            onClick={submitRestockItems}
+            disabled={isLoading || restockItems.length === 0}
             className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
           >
             {isLoading ? (
@@ -579,7 +689,7 @@ function SparepartRestockDialogContent({
             ) : (
               <RiStackLine className="mr-1.5 size-4" />
             )}
-            Tambah Stok
+            Simpan Restock
           </Button>
         </div>
       </div>

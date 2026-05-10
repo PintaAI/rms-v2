@@ -89,6 +89,46 @@ export type ImportServicePricelistsResult = {
   errors: Array<{ rowNumber: number; message: string }>
 }
 
+export type RestockHistoryItem = {
+  id: string
+  createdAt: Date
+  sparepartId: string
+  sparepartBarcode: string
+  sparepartName: string
+  previousStock: number
+  addedQty: number
+  newStock: number
+  purchasePrice: number
+  totalPrice: number
+  userId: string
+  userName: string
+}
+
+export type RestockHistoryUser = {
+  id: string
+  name: string
+}
+
+export type RestockHistoryFilters = {
+  q?: string
+  userId?: string
+  from?: string
+  to?: string
+  page?: number
+  pageSize?: number
+}
+
+export type RestockHistoryResult = {
+  items: RestockHistoryItem[]
+  users: RestockHistoryUser[]
+  totalItems: number
+  totalQty: number
+  totalPrice: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
 const createSparepartSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi"),
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
@@ -636,7 +676,7 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
 
     const sparepart = await prisma.sparepart.findUnique({
       where: { id: validated.id },
-      select: { tokoId: true, name: true, stock: true },
+      select: { tokoId: true, barcode: true, name: true, stock: true, purchasePrice: true },
     })
 
     if (!sparepart) {
@@ -668,10 +708,13 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
       title: "Sparepart restocked",
       payload: {
         sparepartId: validated.id,
+        sparepartBarcode: sparepart.barcode,
         sparepartName: sparepart.name,
         previousStock: sparepart.stock,
         addedQty: validated.qty,
         newStock: updated.stock,
+        purchasePrice: sparepart.purchasePrice ?? 0,
+        totalPrice: (sparepart.purchasePrice ?? 0) * validated.qty,
       },
     })
 
@@ -774,6 +817,129 @@ export async function getStockInHistory(tokoId: string, limit: number = 20): Pro
   } catch (error) {
     console.error("Error fetching stock history:", error)
     return { success: false, error: "Gagal mengambil history stok" }
+  }
+}
+
+export async function getRestockHistory(
+  tokoId: string,
+  filters: RestockHistoryFilters = {}
+): Promise<ActionResultWithData<RestockHistoryResult>> {
+  try {
+    const access = await getInventoryUser(tokoId)
+    if (!access.success) return access
+
+    const pageSize = Math.min(Math.max(filters.pageSize ?? 20, 1), 100)
+    const page = Math.max(filters.page ?? 1, 1)
+    const createdAt: Prisma.DateTimeFilter = {}
+
+    if (filters.from) {
+      const fromDate = new Date(`${filters.from}T00:00:00.000`)
+      if (!Number.isNaN(fromDate.getTime())) createdAt.gte = fromDate
+    }
+
+    if (filters.to) {
+      const toDate = new Date(`${filters.to}T23:59:59.999`)
+      if (!Number.isNaN(toDate.getTime())) createdAt.lte = toDate
+    }
+
+    const activities = await prisma.activityLog.findMany({
+      where: {
+        tokoId,
+        type: "sparepart_stock_in",
+        title: "Sparepart restocked",
+        ...(filters.userId ? { userId: filters.userId } : {}),
+        ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        createdAt: true,
+        payload: true,
+        userId: true,
+        user: { select: { id: true, name: true } },
+      },
+    })
+
+    const userActivities = await prisma.activityLog.findMany({
+      where: {
+        tokoId,
+        type: "sparepart_stock_in",
+        title: "Sparepart restocked",
+      },
+      distinct: ["userId"],
+      select: {
+        user: { select: { id: true, name: true } },
+      },
+    })
+
+    const mappedItems = activities.map((log) => {
+      const payload = log.payload as {
+        sparepartId?: string
+        sparepartBarcode?: string
+        sparepartName?: string
+        previousStock?: number
+        addedQty?: number
+        newStock?: number
+        purchasePrice?: number
+        totalPrice?: number
+      } | null
+      const addedQty = payload?.addedQty ?? 0
+      const purchasePrice = payload?.purchasePrice ?? 0
+
+      return {
+        id: log.id,
+        createdAt: log.createdAt,
+        sparepartId: payload?.sparepartId ?? "",
+        sparepartBarcode: payload?.sparepartBarcode ?? "",
+        sparepartName: payload?.sparepartName ?? "",
+        previousStock: payload?.previousStock ?? 0,
+        addedQty,
+        newStock: payload?.newStock ?? 0,
+        purchasePrice,
+        totalPrice: payload?.totalPrice ?? purchasePrice * addedQty,
+        userId: log.userId,
+        userName: log.user.name,
+      }
+    })
+
+    const normalizedQuery = filters.q?.trim().toLowerCase() ?? ""
+    const filteredItems = normalizedQuery
+      ? mappedItems.filter((item) =>
+          item.sparepartName.toLowerCase().includes(normalizedQuery) ||
+          item.sparepartBarcode.toLowerCase().includes(normalizedQuery) ||
+          item.sparepartId.toLowerCase().includes(normalizedQuery) ||
+          item.userName.toLowerCase().includes(normalizedQuery)
+        )
+      : mappedItems
+
+    const totalItems = filteredItems.length
+    const totalQty = filteredItems.reduce((total, item) => total + item.addedQty, 0)
+    const totalPrice = filteredItems.reduce((total, item) => total + item.totalPrice, 0)
+    const totalPages = Math.max(Math.ceil(totalItems / pageSize), 1)
+    const normalizedPage = Math.min(page, totalPages)
+    const items = filteredItems.slice((normalizedPage - 1) * pageSize, normalizedPage * pageSize)
+    const users = Array.from(
+      new Map(
+        userActivities.map((activity) => [activity.user.id, { id: activity.user.id, name: activity.user.name }])
+      ).values()
+    ).sort((a, b) => a.name.localeCompare(b.name))
+
+    return {
+      success: true,
+      data: {
+        items,
+        users,
+        totalItems,
+        totalQty,
+        totalPrice,
+        page: normalizedPage,
+        pageSize,
+        totalPages,
+      },
+    }
+  } catch (error) {
+    console.error("Error fetching restock history:", error)
+    return { success: false, error: "Gagal mengambil riwayat restock" }
   }
 }
 
