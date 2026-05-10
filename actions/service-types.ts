@@ -1,4 +1,4 @@
-import type { ItemType, PaymentStatus, ServiceStatus } from "@/prisma/generated/prisma/enums";
+import type { ItemType, PaymentStatus, ServiceStatus, WarrantyClaimResolution, WarrantyClaimStatus } from "@/prisma/generated/prisma/enums";
 
 export type TimeFilter = "daily" | "weekly" | "monthly" | "all";
 
@@ -45,6 +45,7 @@ export interface ServiceListItem {
     createdAt: Date;
     items: InvoiceItem[];
   } | null;
+  warrantyClaims?: WarrantyClaim[];
 }
 
 export interface ServiceDetail extends ServiceListItem {
@@ -67,6 +68,30 @@ export interface InvoiceItem {
   name: string;
   qty: number;
   price: number;
+}
+
+export interface WarrantyClaimItem {
+  id: string;
+  sparepartId: string | null;
+  name: string;
+  qty: number;
+  price: number;
+}
+
+export interface WarrantyClaim {
+  id: string;
+  status: WarrantyClaimStatus;
+  resolution: WarrantyClaimResolution | null;
+  reason: string;
+  customerNote: string | null;
+  technicianNote: string | null;
+  refundAmount: number;
+  resolvedNote: string | null;
+  createdAt: Date;
+  resolvedAt: Date | null;
+  createdBy: { name: string };
+  resolvedBy: { name: string } | null;
+  items: WarrantyClaimItem[];
 }
 
 export interface ServiceStats {

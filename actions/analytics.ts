@@ -100,7 +100,7 @@ export async function getAdminAnalytics(
       ...(normalizedFilters.status ? { status: normalizedFilters.status } : {}),
     };
 
-    const [toko, services, invoices, sparepartCount, lowStockCount, stockAggregate] = await Promise.all([
+    const [toko, services, invoices, refundClaims, sparepartCount, lowStockCount, stockAggregate] = await Promise.all([
       prisma.toko.findUnique({
         where: { id: tokoId },
         select: { id: true, name: true, logoUrl: true },
@@ -144,6 +144,18 @@ export async function getAdminAnalytics(
               price: true,
             },
           },
+        },
+      }),
+      prisma.warrantyClaim.findMany({
+        where: {
+          tokoId,
+          status: "resolved",
+          refundAmount: { gt: 0 },
+          resolvedAt: { gte: periodStart, lt: periodEnd },
+        },
+        select: {
+          refundAmount: true,
+          resolvedAt: true,
         },
       }),
       prisma.sparepart.count({ where: { tokoId } }),
@@ -247,6 +259,17 @@ export async function getAdminAnalytics(
         trendMap[bucketKey].pending += pendingAmount;
       }
     }
+
+    for (const claim of refundClaims) {
+      if (!claim.resolvedAt) continue;
+      const bucketKey = getBucketKey(claim.resolvedAt, bucketMode);
+      paidRevenue -= claim.refundAmount;
+      if (trendMap[bucketKey]) {
+        trendMap[bucketKey].revenue -= claim.refundAmount;
+      }
+    }
+
+    paidRevenue = Math.max(paidRevenue, 0);
 
     const totalServices = services.length;
     const completionRate = totalServices > 0 ? Math.round((statusCounts.done / totalServices) * 100) : 0;

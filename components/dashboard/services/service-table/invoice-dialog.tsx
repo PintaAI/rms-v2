@@ -51,6 +51,14 @@ const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
   invoiceWarranty: "Garansi berlaku sesuai jenis kerusakan dan tidak berlaku untuk kerusakan fisik/cairan.",
 };
 
+const claimResolutionLabels: Record<string, string> = {
+  free_repair: "Servis ulang gratis",
+  replace_part: "Ganti sparepart",
+  cash_refund: "Refund uang",
+  partial_refund: "Refund sebagian",
+  no_action: "Klaim ditolak",
+};
+
 export function isPaidInvoiceService(service: ServiceTableItem): service is PaidInvoiceService {
   return Boolean(service.invoice && (service.invoice.paymentStatus === "paid" || service.invoice.paymentStatus === "dp"));
 }
@@ -137,6 +145,14 @@ function getInvoiceItems(service: InvoicePreviewService) {
   ];
 }
 
+function getResolvedClaims(service: InvoicePreviewService) {
+  return (service.warrantyClaims ?? []).filter((claim) => claim.status === "resolved" || claim.status === "rejected");
+}
+
+function getRefundClaims(service: InvoicePreviewService) {
+  return getResolvedClaims(service).filter((claim) => claim.refundAmount > 0);
+}
+
 async function renderInvoiceToPng(invoiceCard: HTMLDivElement) {
   return toPng(invoiceCard, {
     cacheBust: true,
@@ -165,6 +181,10 @@ function InvoicePreviewCard({
   const dpAmount = service.invoice?.dpAmount || 0;
   const discountAmount = service.invoice?.discountAmount || 0;
   const finalTotal = Math.max(0, grandTotal - dpAmount - discountAmount);
+  const resolvedClaims = getResolvedClaims(service);
+  const refundClaims = getRefundClaims(service);
+  const totalRefund = refundClaims.reduce((sum, claim) => sum + claim.refundAmount, 0);
+  const netTotal = Math.max(0, finalTotal - totalRefund);
   const warrantyUntil = service.warrantyUntil ? new Date(service.warrantyUntil) : null;
 
   return (
@@ -226,7 +246,7 @@ function InvoicePreviewCard({
               Lunas
             </div>
             <p className="mt-1 text-xs font-medium text-slate-700">
-              Dibayar pada {formatInvoiceDate(service.invoice?.paidAt ?? service.checkoutAt)}
+              {totalRefund > 0 ? `Net ${formatCurrency(netTotal)}` : `Dibayar pada ${formatInvoiceDate(service.invoice?.paidAt ?? service.checkoutAt)}`}
             </p>
           </div>
         ) : (
@@ -334,6 +354,55 @@ function InvoicePreviewCard({
         </div>
       )}
 
+      {resolvedClaims.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">Klaim & Refund</p>
+              <p className="mt-1 text-xs leading-5 text-slate-700">
+                Riwayat klaim setelah invoice asli dibuat. Total invoice asli tidak diubah.
+              </p>
+            </div>
+            {totalRefund > 0 && (
+              <Badge className="border border-slate-300 bg-white px-3 py-1 text-slate-900 hover:bg-white">
+                Refund {formatCurrency(totalRefund)}
+              </Badge>
+            )}
+          </div>
+          <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold">Tanggal</th>
+                  <th className="px-3 py-2 text-left font-semibold">Solusi</th>
+                  <th className="px-3 py-2 text-left font-semibold">Alasan</th>
+                  <th className="px-3 py-2 text-right font-semibold">Refund</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resolvedClaims.map((claim) => (
+                  <tr key={claim.id} className="border-t border-slate-200">
+                    <td className="px-3 py-2 text-slate-700">{formatInvoiceDate(claim.resolvedAt ?? claim.createdAt)}</td>
+                    <td className="px-3 py-2 font-medium text-slate-900">
+                      {claimResolutionLabels[claim.resolution ?? ""] || claim.resolution || "Klaim"}
+                      {claim.items.length > 0 && (
+                        <span className="block text-[11px] font-normal text-slate-600">
+                          {claim.items.map((item) => `${item.name} x${item.qty}`).join(", ")}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">{claim.reason}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-slate-900">
+                      {claim.refundAmount > 0 ? `- ${formatCurrency(claim.refundAmount)}` : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 flex flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-md space-y-2 text-sm text-slate-700">
           <p className="font-semibold text-slate-900">Catatan Servis</p>
@@ -360,10 +429,16 @@ function InvoicePreviewCard({
                     <span className="font-semibold tabular-nums text-slate-950">- {formatCurrency(discountAmount)}</span>
                   </div>
                 )}
+                {totalRefund > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Refund klaim</span>
+                    <span className="font-semibold tabular-nums text-slate-950">- {formatCurrency(totalRefund)}</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-end justify-between gap-4 border-t border-slate-300 pt-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">{mode === "pickup-note" ? "Total Tagihan" : "Total Bayar"}</p>
-                <p className="text-2xl font-black tracking-tight">{formatCurrency(finalTotal)}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-700">{totalRefund > 0 ? "Net Setelah Refund" : mode === "pickup-note" ? "Total Tagihan" : "Total Bayar"}</p>
+                <p className="text-2xl font-black tracking-tight">{formatCurrency(netTotal)}</p>
               </div>
             </div>
             <Badge className="border border-slate-300 bg-white px-3 py-1 text-slate-900 hover:bg-white">{!hasInvoice ? "Nota" : isPaid ? "Lunas" : isDp ? "DP" : "Pengambilan"}</Badge>

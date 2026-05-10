@@ -86,6 +86,8 @@ enum ActivityType {
   invoice_created
   invoice_paid
   invoice_dp
+  warranty_claim_created
+  warranty_claim_resolved
   sparepart_created
   sparepart_updated
   sparepart_deleted
@@ -123,6 +125,20 @@ enum PaymentStatus {
   unpaid
   dp
   paid
+}
+
+enum WarrantyClaimStatus {
+  open
+  resolved
+  rejected
+}
+
+enum WarrantyClaimResolution {
+  free_repair
+  replace_part
+  cash_refund
+  partial_refund
+  no_action
 }
 
 enum AffiliatorStatus {
@@ -163,6 +179,7 @@ model Toko {
   sparepartCategories SparepartCategory[]
   servicePricelists ServicePricelist[]
   services         Service[]
+  warrantyClaims   WarrantyClaim[]
   activities       ActivityLog[]
   inventoryAuditSessions InventoryAuditSession[]
   featureSetting   TokoFeatureSetting?
@@ -223,6 +240,8 @@ model User {
   reviewedSubscriptionPayments SubscriptionPayment[] @relation("SubscriptionPaymentReviewedBy")
   createdServices  Service[]    @relation("ServiceCreatedBy")
   assignedServices Service[]    @relation("ServiceTechnician")
+  createdWarrantyClaims WarrantyClaim[] @relation("WarrantyClaimCreatedBy")
+  resolvedWarrantyClaims WarrantyClaim[] @relation("WarrantyClaimResolvedBy")
   activities      ActivityLog[]
   createdInventoryAuditSessions InventoryAuditSession[] @relation("InventoryAuditCreatedBy")
   affiliatorProfile Affiliator?
@@ -506,6 +525,7 @@ model Sparepart {
   category        SparepartCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   compatibilities SparepartCompatibility[]
   serviceItems    ServiceItem[]
+  warrantyClaimItems WarrantyClaimItem[]
   inventoryAuditItems InventoryAuditItem[]
 
   @@unique([tokoId, name])
@@ -593,6 +613,7 @@ model Service {
 
   items   ServiceItem[]
   invoice Invoice?
+  warrantyClaims WarrantyClaim[]
 
   activities ActivityLog[]
 
@@ -659,6 +680,55 @@ model InvoiceItem {
   @@index([invoiceId])
   @@index([serviceItemId])
   @@map("invoice_item")
+}
+
+model WarrantyClaim {
+  id        String @id @default(uuid())
+  tokoId    String
+  serviceId String
+
+  status     WarrantyClaimStatus     @default(open)
+  resolution WarrantyClaimResolution?
+
+  reason       String
+  customerNote String?
+  technicianNote String?
+  refundAmount Int @default(0)
+  resolvedNote String?
+
+  createdById  String
+  resolvedById String?
+  createdAt    DateTime @default(now())
+  resolvedAt   DateTime?
+
+  toko       Toko    @relation(fields: [tokoId], references: [id])
+  service    Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdBy  User    @relation("WarrantyClaimCreatedBy", fields: [createdById], references: [id])
+  resolvedBy User?   @relation("WarrantyClaimResolvedBy", fields: [resolvedById], references: [id])
+  items      WarrantyClaimItem[]
+
+  @@index([tokoId])
+  @@index([serviceId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("warranty_claim")
+}
+
+model WarrantyClaimItem {
+  id              String @id @default(uuid())
+  warrantyClaimId String
+  sparepartId     String?
+
+  name  String
+  qty   Int @default(1)
+  price Int @default(0)
+
+  warrantyClaim WarrantyClaim @relation(fields: [warrantyClaimId], references: [id], onDelete: Cascade)
+  sparepart     Sparepart?    @relation(fields: [sparepartId], references: [id], onDelete: SetNull)
+
+  @@index([warrantyClaimId])
+  @@index([sparepartId])
+  @@map("warranty_claim_item")
 }
 
 model InventoryAuditSession {

@@ -253,7 +253,7 @@ export async function getAdminOverview(
     const canUseRealtimeUpdates = scope.featureAccess["realtime.updates"] ?? false;
     const canViewRevenueAnalytics = scope.featureAccess["analytics.revenue"] ?? false;
 
-    const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, recentActivities] = await Promise.all([
+    const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, monthlyRefunds, dailyRefunds, recentActivities] = await Promise.all([
       canViewRevenueAnalytics
         ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
@@ -263,15 +263,24 @@ export async function getAdminOverview(
       canViewRevenueAnalytics
         ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: "paid", paidAt: { gte: dailyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
+      canViewRevenueAnalytics
+        ? prisma.warrantyClaim.aggregate({ where: { tokoId, status: "resolved", refundAmount: { gt: 0 }, resolvedAt: { gte: monthlyStart } }, _sum: { refundAmount: true } })
+        : Promise.resolve({ _sum: { refundAmount: 0 } }),
+      canViewRevenueAnalytics
+        ? prisma.warrantyClaim.aggregate({ where: { tokoId, status: "resolved", refundAmount: { gt: 0 }, resolvedAt: { gte: dailyStart } }, _sum: { refundAmount: true } })
+        : Promise.resolve({ _sum: { refundAmount: 0 } }),
       canUseRealtimeUpdates
         ? prisma.activityLog.findMany({ where: { tokoId }, orderBy: { createdAt: "desc" }, take: 6, select: activityLogSelect })
         : Promise.resolve([]),
     ]);
 
+    const monthlyPaidNet = Math.max((monthlyPaidRevenue._sum.grandTotal || 0) - (monthlyRefunds._sum.refundAmount || 0), 0);
+    const dailyRevenueNet = Math.max((dailyRevenue._sum.grandTotal || 0) - (dailyRefunds._sum.refundAmount || 0), 0);
+
     return {
       stats: {
         services: { total, repairing: statusMap["repairing"] || 0, done: statusMap["done"] || 0, failed: statusMap["failed"] || 0, daily: dailyCount, weekly: weeklyCount },
-        revenue: { monthlyPaid: monthlyPaidRevenue._sum.grandTotal || 0, monthlyPending: monthlyPendingRevenue._sum.grandTotal || 0, dailyRevenue: dailyRevenue._sum.grandTotal || 0 },
+        revenue: { monthlyPaid: monthlyPaidNet, monthlyPending: monthlyPendingRevenue._sum.grandTotal || 0, dailyRevenue: dailyRevenueNet },
         inventory: { lowStockCount },
       },
       recentServices,

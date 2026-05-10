@@ -57,6 +57,32 @@ export const serviceSelectBase = {
       },
     },
   },
+  warrantyClaims: {
+    select: {
+      id: true,
+      status: true,
+      resolution: true,
+      reason: true,
+      customerNote: true,
+      technicianNote: true,
+      refundAmount: true,
+      resolvedNote: true,
+      createdAt: true,
+      resolvedAt: true,
+      createdBy: { select: { name: true } },
+      resolvedBy: { select: { name: true } },
+      items: {
+        select: {
+          id: true,
+          sparepartId: true,
+          name: true,
+          qty: true,
+          price: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  },
 } satisfies Prisma.ServiceSelect;
 
 export const serviceItemSelect = {
@@ -107,6 +133,7 @@ export type ServiceWithSelectBase = {
       price: number;
     }>;
   } | null;
+  warrantyClaims: ServiceListItem["warrantyClaims"];
 };
 
 export type ServiceWithItems = ServiceWithSelectBase & {
@@ -140,6 +167,7 @@ export function mapServiceToListItem(service: ServiceWithSelectBase): ServiceLis
     technician: service.technician,
     createdBy: service.createdBy ?? undefined,
     invoice: service.invoice,
+    warrantyClaims: service.warrantyClaims,
   };
 }
 

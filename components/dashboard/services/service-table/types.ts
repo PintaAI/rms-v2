@@ -51,6 +51,27 @@ export interface ServiceTableItem {
       price: number;
     }> | null;
   } | null;
+  warrantyClaims?: Array<{
+    id: string;
+    status: string;
+    resolution: string | null;
+    reason: string;
+    customerNote: string | null;
+    technicianNote: string | null;
+    refundAmount: number;
+    resolvedNote: string | null;
+    createdAt: Date | string;
+    resolvedAt: Date | string | null;
+    createdBy: { name: string };
+    resolvedBy: { name: string } | null;
+    items: Array<{
+      id: string;
+      sparepartId: string | null;
+      name: string;
+      qty: number;
+      price: number;
+    }>;
+  }>;
   createdBy?: { name: string };
   passwordPattern?: string | null;
   imei?: string | null;

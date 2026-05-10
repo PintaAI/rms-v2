@@ -13,6 +13,15 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableHeader,
@@ -52,8 +61,10 @@ import {
   getServicePricelists,
   payInvoice,
   pickupService,
+  createWarrantyClaim,
+  resolveWarrantyClaim,
 } from "@/actions";
-import type { ServiceListItem } from "@/actions";
+import type { ServiceListItem, WarrantyClaim } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
 import { PaymentDialog } from "./payment-dialog";
 import { InvoiceDialog } from "@/components/dashboard/services/service-table/invoice-dialog";
@@ -79,6 +90,20 @@ const statusLabels: Record<string, string> = {
   repairing: "In Progress",
   done: "Done",
   failed: "Failed",
+};
+
+const claimStatusLabels: Record<string, string> = {
+  open: "Terbuka",
+  resolved: "Selesai",
+  rejected: "Ditolak",
+};
+
+const claimResolutionLabels: Record<string, string> = {
+  free_repair: "Servis ulang gratis",
+  replace_part: "Ganti sparepart",
+  cash_refund: "Refund uang",
+  partial_refund: "Refund sebagian",
+  no_action: "Tolak klaim",
 };
 
 const undoTargetStatus = "repairing" as const;
@@ -176,6 +201,7 @@ export interface ServiceDetailCardItem {
       price: number;
     }> | null;
   } | null;
+  warrantyClaims?: WarrantyClaim[];
 }
 
 export interface ServiceDetailCardProps {
@@ -217,6 +243,7 @@ export function ServiceDetailCard({
   const { featureAccess, inventoryEnabled, user: currentUser } = useDashboardScope();
   const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
   const canHandleCustomerHandoff = viewerRole === "admin" || viewerRole === "staff";
+  const canManageWarrantyClaims = canHandleCustomerHandoff;
   const roleTone = roleToneClasses[viewerRole];
 
   const [localService, setLocalService] = useState<ServiceDetailCardItem>(service);
@@ -245,8 +272,9 @@ export function ServiceDetailCard({
       invoice: service.invoice,
       doneAt: service.doneAt,
       warrantyUntil: service.warrantyUntil,
+      warrantyClaims: service.warrantyClaims,
     }),
-    [service.id, service.status, service.isPickedUp, service.checkoutAt, service.items, service.invoice, service.doneAt, service.warrantyUntil]
+    [service.id, service.status, service.isPickedUp, service.checkoutAt, service.items, service.invoice, service.doneAt, service.warrantyUntil, service.warrantyClaims]
   );
 
   useEffect(() => {
@@ -272,7 +300,7 @@ export function ServiceDetailCard({
   const [removingItemIds, setRemovingItemIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!isActive || !inventoryEnabled) return;
+    if ((!isActive && !canManageWarrantyClaims) || !inventoryEnabled) return;
     async function fetchData() {
       try {
         const [sparepartsResult, pricelistsResult] = await Promise.all([
@@ -290,7 +318,7 @@ export function ServiceDetailCard({
       }
     }
     fetchData();
-  }, [isActive, inventoryEnabled, localService.tokoId, localService.hpCatalog.id]);
+  }, [isActive, canManageWarrantyClaims, inventoryEnabled, localService.tokoId, localService.hpCatalog.id]);
 
   function openAddItemDialog() {
     setItemDialogOpen(true);
@@ -398,6 +426,18 @@ export function ServiceDetailCard({
   const [isPayingInvoice, setIsPayingInvoice] = useState(false);
   const [isPickingUp, setIsPickingUp] = useState(false);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
+  const [claimReason, setClaimReason] = useState("");
+  const [claimCustomerNote, setClaimCustomerNote] = useState("");
+  const [isCreatingClaim, setIsCreatingClaim] = useState(false);
+  const [resolveClaimId, setResolveClaimId] = useState<string | null>(null);
+  const [claimResolution, setClaimResolution] = useState("free_repair");
+  const [claimRefundAmount, setClaimRefundAmount] = useState("");
+  const [claimTechnicianNote, setClaimTechnicianNote] = useState("");
+  const [claimResolvedNote, setClaimResolvedNote] = useState("");
+  const [claimSparepartId, setClaimSparepartId] = useState("");
+  const [claimSparepartQty, setClaimSparepartQty] = useState(1);
+  const [isResolvingClaim, setIsResolvingClaim] = useState(false);
 
   const viewInvoiceService = useMemo(() => {
     if (!localService.invoice) return null;
@@ -418,6 +458,7 @@ export function ServiceDetailCard({
       hpCatalog: localService.hpCatalog,
       technician: localService.technician,
       invoice: localService.invoice,
+      warrantyClaims: localService.warrantyClaims,
       passwordPattern: localService.passwordPattern,
       imei: localService.imei,
     } satisfies InvoicePreviewService;
@@ -434,6 +475,9 @@ export function ServiceDetailCard({
   const adminCompletingUnassignedService = technicianWorkflowEnabled && viewerRole === "admin" && !localService.technician;
   const adminCompletingAssignedService = technicianWorkflowEnabled && viewerRole === "admin" && Boolean(localService.technician);
   const adminCompletingAssignedToOther = technicianWorkflowEnabled && viewerRole === "admin" && Boolean(localService.technician) && localService.technician?.id !== currentUser.id;
+  const warrantyClaims = localService.warrantyClaims ?? [];
+  const openWarrantyClaim = warrantyClaims.find((claim) => claim.status === "open");
+  const canCreateWarrantyClaim = canManageWarrantyClaims && Boolean(localService.isPickedUp) && !openWarrantyClaim;
 
   function openDoneDialog() {
     if (localService.items.length === 0) {
@@ -567,6 +611,67 @@ export function ServiceDetailCard({
     setIsPickingUp(false);
   }
 
+  function openClaimDialog() {
+    setClaimReason("");
+    setClaimCustomerNote("");
+    setClaimDialogOpen(true);
+  }
+
+  async function handleCreateWarrantyClaim() {
+    if (!claimReason.trim()) return;
+    setIsCreatingClaim(true);
+    const result = await createWarrantyClaim({
+      serviceId: localServiceRef.current.id,
+      reason: claimReason.trim(),
+      customerNote: claimCustomerNote.trim() || undefined,
+    });
+    setIsCreatingClaim(false);
+
+    if (!result.success) {
+      toast.error(result.error || "Gagal membuat klaim garansi");
+      return;
+    }
+
+    toast.success("Klaim garansi dibuat");
+    setClaimDialogOpen(false);
+    onRefresh?.();
+  }
+
+  function openResolveClaimDialog(claimId: string) {
+    setResolveClaimId(claimId);
+    setClaimResolution("free_repair");
+    setClaimRefundAmount("");
+    setClaimTechnicianNote("");
+    setClaimResolvedNote("");
+    setClaimSparepartId("");
+    setClaimSparepartQty(1);
+  }
+
+  async function handleResolveWarrantyClaim() {
+    if (!resolveClaimId) return;
+    setIsResolvingClaim(true);
+    const result = await resolveWarrantyClaim({
+      claimId: resolveClaimId,
+      resolution: claimResolution as "free_repair" | "replace_part" | "cash_refund" | "partial_refund" | "no_action",
+      refundAmount: (claimResolution === "cash_refund" || claimResolution === "partial_refund") && claimRefundAmount ? Number(claimRefundAmount) : undefined,
+      technicianNote: claimTechnicianNote.trim() || undefined,
+      resolvedNote: claimResolvedNote.trim() || undefined,
+      items: claimResolution === "replace_part" && claimSparepartId
+        ? [{ sparepartId: claimSparepartId, qty: claimSparepartQty }]
+        : undefined,
+    });
+    setIsResolvingClaim(false);
+
+    if (!result.success) {
+      toast.error(result.error || "Gagal menyelesaikan klaim");
+      return;
+    }
+
+    toast.success(claimResolution === "no_action" ? "Klaim ditolak" : "Klaim diselesaikan");
+    setResolveClaimId(null);
+    onRefresh?.();
+  }
+
   return (
     <>
       <Card className={cn("relative overflow-hidden", roleTone.card)}>
@@ -677,6 +782,73 @@ export function ServiceDetailCard({
                     {warrantyExpired ? "Garansi berakhir pada" : "Garansi berlaku sampai"} {formatWarrantyDate(warrantyUntilDate)}
                   </p>
                 </div>
+              </div>
+            )}
+
+            {(localService.isPickedUp || warrantyClaims.length > 0) && (
+              <div className="rounded-lg border p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <Label className="text-muted-foreground">Garansi & Klaim</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Catat refund, ganti sparepart, servis ulang, atau klaim yang ditolak tanpa mengubah invoice lama.
+                    </p>
+                  </div>
+                  {canCreateWarrantyClaim && (
+                    <Button size="sm" variant="outline" onClick={openClaimDialog}>
+                      <RiShieldCheckLine className="h-4 w-4" />
+                      <span className="ml-1">Buat Klaim</span>
+                    </Button>
+                  )}
+                </div>
+
+                {warrantyClaims.length > 0 ? (
+                  <div className="mt-3 flex flex-col gap-3">
+                    {warrantyClaims.map((claim) => (
+                      <div key={claim.id} className="rounded-md border bg-muted/20 p-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge variant={claim.status === "open" ? "accent" : claim.status === "rejected" ? "destructive" : "success"}>
+                                {claimStatusLabels[claim.status] || claim.status}
+                              </Badge>
+                              {claim.resolution && (
+                                <Badge variant="outline">{claimResolutionLabels[claim.resolution] || claim.resolution}</Badge>
+                              )}
+                              {claim.refundAmount > 0 && (
+                                <Badge variant="outline">Refund {formatCurrency(claim.refundAmount)}</Badge>
+                              )}
+                            </div>
+                            <p className="mt-2 text-sm font-medium">{claim.reason}</p>
+                            {claim.customerNote && <p className="text-sm text-muted-foreground">Customer: {claim.customerNote}</p>}
+                            {claim.technicianNote && <p className="text-sm text-muted-foreground">Teknisi: {claim.technicianNote}</p>}
+                            {claim.resolvedNote && <p className="text-sm text-muted-foreground">Catatan: {claim.resolvedNote}</p>}
+                            {claim.items.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {claim.items.map((item) => (
+                                  <Badge key={item.id} variant="secondary" className="text-xs font-normal">
+                                    {item.name} x{item.qty}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Dibuat {formatDate(claim.createdAt)} oleh {claim.createdBy.name}
+                              {claim.resolvedAt && claim.resolvedBy ? ` • Ditutup ${formatDate(claim.resolvedAt)} oleh ${claim.resolvedBy.name}` : ""}
+                            </p>
+                          </div>
+                          {canManageWarrantyClaims && claim.status === "open" && (
+                            <Button size="sm" onClick={() => openResolveClaimDialog(claim.id)}>
+                              Tutup Klaim
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-muted-foreground">Belum ada klaim untuk service ini.</p>
+                )}
               </div>
             )}
 
@@ -1074,6 +1246,149 @@ export function ServiceDetailCard({
               disabled={isMarkingFailed || !failedNote.trim() || (adminCompletingUnassignedService && !failedTakeOwnership)}
             >
               {isMarkingFailed ? "Marking Failed..." : "Confirm Failed"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Buat Klaim Garansi</DialogTitle>
+            <DialogDescription>
+              Klaim ini tersimpan terpisah dari invoice service lama.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="claim-reason">Alasan klaim</Label>
+              <Textarea
+                id="claim-reason"
+                value={claimReason}
+                onChange={(event) => setClaimReason(event.target.value)}
+                placeholder="Contoh: layar kembali bergaris setelah 3 hari"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="claim-customer-note">Catatan customer (optional)</Label>
+              <Textarea
+                id="claim-customer-note"
+                value={claimCustomerNote}
+                onChange={(event) => setClaimCustomerNote(event.target.value)}
+                placeholder="Keluhan tambahan atau kondisi unit saat dibawa kembali"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClaimDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateWarrantyClaim} disabled={isCreatingClaim || !claimReason.trim()}>
+              {isCreatingClaim ? "Menyimpan..." : "Buat Klaim"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(resolveClaimId)} onOpenChange={(open) => { if (!open) setResolveClaimId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tutup Klaim Garansi</DialogTitle>
+            <DialogDescription>
+              Pilih penyelesaian klaim. Refund dicatat sebagai pengurang laporan, bukan mengubah invoice lama.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label>Solusi</Label>
+              <Select value={claimResolution} onValueChange={setClaimResolution}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Pilih solusi" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {Object.entries(claimResolutionLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(claimResolution === "cash_refund" || claimResolution === "partial_refund") && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="claim-refund">Nominal refund</Label>
+                <Input
+                  id="claim-refund"
+                  type="number"
+                  min={0}
+                  value={claimRefundAmount}
+                  onChange={(event) => setClaimRefundAmount(event.target.value)}
+                  placeholder="0"
+                />
+              </div>
+            )}
+
+            {claimResolution === "replace_part" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
+                <div className="flex flex-col gap-1.5">
+                  <Label>Sparepart pengganti</Label>
+                  <Select value={claimSparepartId} onValueChange={setClaimSparepartId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Pilih sparepart" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {spareparts.map((sparepart) => (
+                          <SelectItem key={sparepart.id} value={sparepart.id}>
+                            {sparepart.name} • stok {sparepart.stock}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="claim-sparepart-qty">Qty</Label>
+                  <Input
+                    id="claim-sparepart-qty"
+                    type="number"
+                    min={1}
+                    value={claimSparepartQty}
+                    onChange={(event) => setClaimSparepartQty(Math.max(1, Number(event.target.value) || 1))}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="claim-technician-note">Catatan teknisi (optional)</Label>
+              <Textarea
+                id="claim-technician-note"
+                value={claimTechnicianNote}
+                onChange={(event) => setClaimTechnicianNote(event.target.value)}
+                placeholder="Hasil pengecekan atau tindakan teknisi"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="claim-resolved-note">Catatan penyelesaian (optional)</Label>
+              <Textarea
+                id="claim-resolved-note"
+                value={claimResolvedNote}
+                onChange={(event) => setClaimResolvedNote(event.target.value)}
+                placeholder="Contoh: customer setuju refund sebagian"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResolveClaimId(null)}>Cancel</Button>
+            <Button
+              onClick={handleResolveWarrantyClaim}
+              disabled={
+                isResolvingClaim
+                || ((claimResolution === "cash_refund" || claimResolution === "partial_refund") && Number(claimRefundAmount) <= 0)
+                || (claimResolution === "replace_part" && !claimSparepartId)
+              }
+            >
+              {isResolvingClaim ? "Menyimpan..." : "Tutup Klaim"}
             </Button>
           </DialogFooter>
         </DialogContent>
