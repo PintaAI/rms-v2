@@ -70,14 +70,6 @@ export interface InvoiceItem {
   price: number;
 }
 
-export interface WarrantyClaimItem {
-  id: string;
-  sparepartId: string | null;
-  name: string;
-  qty: number;
-  price: number;
-}
-
 export interface WarrantyClaim {
   id: string;
   status: WarrantyClaimStatus;
@@ -91,7 +83,6 @@ export interface WarrantyClaim {
   resolvedAt: Date | null;
   createdBy: { name: string };
   resolvedBy: { name: string } | null;
-  items: WarrantyClaimItem[];
 }
 
 export interface ServiceStats {

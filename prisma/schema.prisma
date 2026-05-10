@@ -135,9 +135,7 @@ enum WarrantyClaimStatus {
 
 enum WarrantyClaimResolution {
   free_repair
-  replace_part
   cash_refund
-  partial_refund
   no_action
 }
 
@@ -525,7 +523,6 @@ model Sparepart {
   category        SparepartCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   compatibilities SparepartCompatibility[]
   serviceItems    ServiceItem[]
-  warrantyClaimItems WarrantyClaimItem[]
   inventoryAuditItems InventoryAuditItem[]
 
   @@unique([tokoId, name])
@@ -705,30 +702,12 @@ model WarrantyClaim {
   service    Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   createdBy  User    @relation("WarrantyClaimCreatedBy", fields: [createdById], references: [id])
   resolvedBy User?   @relation("WarrantyClaimResolvedBy", fields: [resolvedById], references: [id])
-  items      WarrantyClaimItem[]
 
   @@index([tokoId])
   @@index([serviceId])
   @@index([status])
   @@index([createdAt])
   @@map("warranty_claim")
-}
-
-model WarrantyClaimItem {
-  id              String @id @default(uuid())
-  warrantyClaimId String
-  sparepartId     String?
-
-  name  String
-  qty   Int @default(1)
-  price Int @default(0)
-
-  warrantyClaim WarrantyClaim @relation(fields: [warrantyClaimId], references: [id], onDelete: Cascade)
-  sparepart     Sparepart?    @relation(fields: [sparepartId], references: [id], onDelete: SetNull)
-
-  @@index([warrantyClaimId])
-  @@index([sparepartId])
-  @@map("warranty_claim_item")
 }
 
 model InventoryAuditSession {

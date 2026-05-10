@@ -64,13 +64,6 @@ export interface ServiceTableItem {
     resolvedAt: Date | string | null;
     createdBy: { name: string };
     resolvedBy: { name: string } | null;
-    items: Array<{
-      id: string;
-      sparepartId: string | null;
-      name: string;
-      qty: number;
-      price: number;
-    }>;
   }>;
   createdBy?: { name: string };
   passwordPattern?: string | null;
