@@ -16,6 +16,7 @@ import {
   restockSparepart,
   searchSpareparts,
   getStockInHistory,
+  type InventoryItemKind,
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
 import {
@@ -39,6 +40,7 @@ interface SparepartRestockDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tokoId: string;
+  itemKind?: InventoryItemKind;
   onSuccess: (updatedSparepart: SparepartWithCompatibilities) => void;
 }
 
@@ -65,6 +67,7 @@ const getRestockPrice = (sparepart: SparepartWithCompatibilities) =>
 
 function SparepartRestockDialogContent({
   tokoId,
+  itemKind = "sparepart",
   onOpenChange,
   onSuccess,
 }: Omit<SparepartRestockDialogProps, "open">) {
@@ -85,6 +88,8 @@ function SparepartRestockDialogContent({
   const isProcessingScannerRef = useRef(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDev = process.env.NODE_ENV === "development";
+  const itemLabel = itemKind === "retail_item" ? "barang retail" : "sparepart";
+  const titleLabel = itemKind === "retail_item" ? "Barang Retail" : "Sparepart";
   const totalRestockPrice = restockItems.reduce(
     (total, item) => total + getRestockPrice(item.sparepart) * item.qty,
     0
@@ -166,7 +171,7 @@ function SparepartRestockDialogContent({
       setIsSearching(true);
 
       searchTimeoutRef.current = setTimeout(async () => {
-        const result = await searchSpareparts(tokoId, value);
+        const result = await searchSpareparts(tokoId, value, itemKind);
         setIsSearching(false);
 
         if (result.success && result.data) {
@@ -210,7 +215,7 @@ function SparepartRestockDialogContent({
 
   const submitRestockItems = useCallback(async () => {
     if (restockItems.length === 0) {
-      setError("Tambahkan minimal 1 sparepart ke daftar restock");
+      setError(`Tambahkan minimal 1 ${itemLabel} ke daftar restock`);
       return;
     }
 
@@ -240,7 +245,7 @@ function SparepartRestockDialogContent({
     }
 
     void loadHistory();
-    toast.success(`${restockItems.length} sparepart berhasil direstock`, {
+    toast.success(`${restockItems.length} ${itemLabel} berhasil direstock`, {
       description: `Total harga: ${formatCurrency(totalRestockPrice)}`,
     });
     setRestockItems([]);
@@ -260,7 +265,7 @@ function SparepartRestockDialogContent({
       const trimmedValue = rawValue.trim();
       setInputValue(trimmedValue);
       if (trimmedValue.length === 0) {
-        setError("Masukkan barcode atau nama sparepart");
+        setError(`Masukkan barcode atau nama ${itemLabel}`);
         return;
       }
 
@@ -276,7 +281,7 @@ function SparepartRestockDialogContent({
       }
 
       setIsSearching(true);
-      const result = await searchSpareparts(tokoId, trimmedValue);
+      const result = await searchSpareparts(tokoId, trimmedValue, itemKind);
       setIsSearching(false);
 
       if (result.success && result.data && result.data.length > 0) {
@@ -298,14 +303,14 @@ function SparepartRestockDialogContent({
           setError(null);
         }
       } else {
-        setError("Sparepart tidak ditemukan. Periksa barcode atau nama.");
+        setError(`${titleLabel} tidak ditemukan. Periksa barcode atau nama.`);
         setSearchResults([]);
         setShowResults(false);
       }
     } finally {
       isProcessingScannerRef.current = false;
     }
-  }, [addRestockItem, foundSparepart, qty, tokoId]);
+  }, [addRestockItem, foundSparepart, itemKind, itemLabel, qty, titleLabel, tokoId]);
 
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -330,7 +335,7 @@ function SparepartRestockDialogContent({
 
   const handleRestockClick = async () => {
     if (!foundSparepart) {
-      setError("Pilih sparepart terlebih dahulu");
+      setError(`Pilih ${itemLabel} terlebih dahulu`);
       return;
     }
 
@@ -359,7 +364,7 @@ function SparepartRestockDialogContent({
           <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
             <RiStackLine className="size-4" />
           </span>
-          Restock Sparepart
+          Restock {titleLabel}
         </DialogTitle>
       </DialogHeader>
 
@@ -379,7 +384,7 @@ function SparepartRestockDialogContent({
               <div className="h-5 w-1 rounded-full bg-primary" />
               <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
                 <RiSearchLine className="size-4" />
-                Cari Sparepart
+                Cari {titleLabel}
               </span>
             </div>
             {scanner.enabled && (
@@ -411,7 +416,7 @@ function SparepartRestockDialogContent({
                     value={inputValue}
                     onChange={(e) => handleInputChange(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Scan barcode atau ketik nama sparepart..."
+                    placeholder={`Scan barcode atau ketik nama ${itemLabel}...`}
                     disabled={isLoading}
                   />
                   {isSearching && (
@@ -506,7 +511,7 @@ function SparepartRestockDialogContent({
                 <div className="h-5 w-1 rounded-full bg-primary" />
                 <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
                   <RiArchiveLine className="size-4" />
-                  Sparepart Dipilih
+                  {titleLabel} Dipilih
                 </span>
               </div>
               <div className="border-l border-border pl-3 sm:ml-4 sm:pl-4">
@@ -634,7 +639,7 @@ function SparepartRestockDialogContent({
                   {history.map((item) => (
                     <div key={item.id} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{item.sparepartName || "Sparepart"}</div>
+                        <div className="truncate text-sm font-medium">{item.sparepartName || titleLabel}</div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                           <RiUserLine className="size-3" />
                           <span>{item.userName}</span>

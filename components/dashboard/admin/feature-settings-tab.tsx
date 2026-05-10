@@ -26,6 +26,7 @@ const categoryLabels: Record<string, string> = {
   toko: "Toko",
   service: "Service",
   inventory: "Inventory",
+  retail: "Retail",
   team: "Team",
   analytics: "Analytics",
   realtime: "Realtime",

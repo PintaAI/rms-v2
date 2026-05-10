@@ -21,8 +21,11 @@ export type Sparepart = {
   stock: number
   criticalStock: number
   isUniversal: boolean
+  kind: InventoryItemKind
   tokoId: string
 }
+
+export type InventoryItemKind = "sparepart" | "retail_item"
 
 export type SparepartCategory = {
   id: string
@@ -55,6 +58,7 @@ export type SparepartListItem = {
   barcode: string
   defaultPrice: number
   stock: number
+  kind: InventoryItemKind
 }
 
 export type ImportSparepartInput = {
@@ -67,6 +71,7 @@ export type ImportSparepartInput = {
   stock: number
   criticalStock?: number | null
   isUniversal?: boolean
+  kind?: InventoryItemKind
 }
 
 export type ImportSparepartsResult = {
@@ -135,6 +140,7 @@ export type InventoryReportFilters = {
   q?: string
   categoryId?: string
   status?: InventoryReportStockStatus
+  kind?: InventoryItemKind
 }
 
 export type InventoryReportItem = {
@@ -148,6 +154,7 @@ export type InventoryReportItem = {
   criticalStock: number
   purchasePrice: number
   defaultPrice: number
+  kind: InventoryItemKind
   capitalValue: number
   sellingValue: number
   potentialMargin: number
@@ -181,6 +188,7 @@ const createSparepartSchema = z.object({
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
+  kind: z.enum(["sparepart", "retail_item"]).optional(),
   tokoId: z.string(),
   hpCatalogIds: z.array(z.string()).optional(),
 })
@@ -195,6 +203,7 @@ const importSparepartRowSchema = z.object({
   stock: z.number().int().min(0, "Stok harus 0 atau lebih"),
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").nullable().optional(),
   isUniversal: z.boolean().optional(),
+  kind: z.enum(["sparepart", "retail_item"]).optional(),
 })
 
 const importSparepartsSchema = z.object({
@@ -223,6 +232,7 @@ const updateSparepartSchema = z.object({
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").optional(),
   isUniversal: z.boolean().optional(),
+  kind: z.enum(["sparepart", "retail_item"]).optional(),
   hpCatalogIds: z.array(z.string()).optional(),
 })
 
@@ -365,13 +375,13 @@ export async function getSparepartCategories(tokoId: string): Promise<ActionResu
   }
 }
 
-export async function getSpareparts(tokoId: string): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
+export async function getSpareparts(tokoId: string, kind: InventoryItemKind = "sparepart"): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
   try {
     const access = await getInventoryUser(tokoId)
     if (!access.success) return access
 
     const spareparts = await prisma.sparepart.findMany({
-      where: { tokoId },
+      where: { tokoId, kind },
       include: {
         category: true,
         compatibilities: {
@@ -400,8 +410,9 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
 
     const whereClause: {
       tokoId: string
+      kind: InventoryItemKind
       OR?: Array<{ isUniversal: boolean } | { compatibilities: { some: { hpCatalogId: string } } }>
-    } = { tokoId }
+    } = { tokoId, kind: "sparepart" }
 
     if (hpCatalogId) {
       whereClause.OR = [
@@ -419,6 +430,7 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
         barcode: true,
         defaultPrice: true,
         stock: true,
+        kind: true,
       },
     })
 
@@ -444,6 +456,8 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
     }
 
     const category = await findOrCreateSparepartCategory(prisma, validated.tokoId, validated.categoryName)
+    const kind = validated.kind ?? "sparepart"
+    const isRetailItem = kind === "retail_item"
 
     const sparepart = await prisma.sparepart.create({
       data: {
@@ -455,9 +469,10 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         categoryId: category?.id ?? null,
         stock: validated.stock ?? 0,
         criticalStock: validated.criticalStock ?? 5,
-        isUniversal: validated.isUniversal ?? false,
+        isUniversal: isRetailItem ? true : validated.isUniversal ?? false,
+        kind,
         tokoId: validated.tokoId,
-        compatibilities: validated.hpCatalogIds
+        compatibilities: !isRetailItem && validated.hpCatalogIds
           ? { create: validated.hpCatalogIds.map((id) => ({ hpCatalogId: id })) }
           : undefined,
       },
@@ -490,6 +505,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         stock: sparepart.stock,
         criticalStock: sparepart.criticalStock,
         isUniversal: sparepart.isUniversal,
+        kind: sparepart.kind,
       },
     })
 
@@ -509,7 +525,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
 
     const sparepart = await prisma.sparepart.findUnique({
       where: { id: validated.id },
-      select: { tokoId: true },
+      select: { tokoId: true, kind: true },
     })
 
     if (!sparepart) {
@@ -533,6 +549,8 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
     }
 
     const category = await findOrCreateSparepartCategory(prisma, sparepart.tokoId, validated.categoryName)
+    const kind = validated.kind ?? sparepart.kind
+    const isRetailItem = kind === "retail_item"
 
     const updated = await prisma.sparepart.update({
       where: { id: validated.id },
@@ -544,13 +562,13 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         categoryId: validated.categoryName === undefined ? undefined : category?.id ?? null,
         stock: validated.stock,
         criticalStock: validated.criticalStock,
-        isUniversal: validated.isUniversal,
-        ...(validated.hpCatalogIds && {
-          compatibilities: {
-            deleteMany: {},
-            create: validated.hpCatalogIds.map((id) => ({ hpCatalogId: id })),
-          },
-        }),
+        isUniversal: isRetailItem ? true : validated.isUniversal,
+        kind: validated.kind,
+        ...(isRetailItem
+          ? { compatibilities: { deleteMany: {} } }
+          : validated.hpCatalogIds
+            ? { compatibilities: { deleteMany: {}, create: validated.hpCatalogIds.map((id) => ({ hpCatalogId: id })) } }
+            : {}),
       },
       include: {
         category: true,
@@ -580,6 +598,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         stock: updated.stock,
         criticalStock: updated.criticalStock,
         isUniversal: updated.isUniversal,
+        kind: updated.kind,
       },
     })
 
@@ -655,7 +674,9 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
               categoryId: category?.id ?? null,
               stock: row.stock,
               criticalStock: row.criticalStock ?? 5,
-              isUniversal: row.isUniversal ?? true,
+              isUniversal: row.kind === "retail_item" ? true : row.isUniversal ?? true,
+              kind: row.kind ?? "sparepart",
+              ...(row.kind === "retail_item" ? { compatibilities: { deleteMany: {} } } : {}),
             },
           })
           updated += 1
@@ -672,7 +693,8 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
             categoryId: category?.id ?? null,
             stock: row.stock,
             criticalStock: row.criticalStock ?? 5,
-            isUniversal: row.isUniversal ?? true,
+            isUniversal: row.kind === "retail_item" ? true : row.isUniversal ?? true,
+            kind: row.kind ?? "sparepart",
             tokoId: validated.tokoId,
           },
         })
@@ -719,7 +741,7 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
 
     const sparepart = await prisma.sparepart.findUnique({
       where: { id: validated.id },
-      select: { tokoId: true, barcode: true, name: true, stock: true, purchasePrice: true },
+      select: { tokoId: true, barcode: true, name: true, stock: true, purchasePrice: true, kind: true },
     })
 
     if (!sparepart) {
@@ -756,6 +778,7 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
         previousStock: sparepart.stock,
         addedQty: validated.qty,
         newStock: updated.stock,
+        kind: sparepart.kind,
         purchasePrice: sparepart.purchasePrice ?? 0,
         totalPrice: (sparepart.purchasePrice ?? 0) * validated.qty,
       },
@@ -771,7 +794,7 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
   }
 }
 
-export async function searchSpareparts(tokoId: string, query: string): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
+export async function searchSpareparts(tokoId: string, query: string, kind: InventoryItemKind = "sparepart"): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
   try {
     const access = await getInventoryUser(tokoId)
     if (!access.success) return access
@@ -779,6 +802,7 @@ export async function searchSpareparts(tokoId: string, query: string): Promise<A
     const spareparts = await prisma.sparepart.findMany({
       where: {
         tokoId,
+        kind,
         OR: [
           { barcode: { equals: query, mode: "insensitive" } },
           { id: { startsWith: query } },
@@ -995,7 +1019,7 @@ export async function getInventoryReport(
     if (!access.success) return access
 
     const spareparts = await prisma.sparepart.findMany({
-      where: { tokoId },
+      where: { tokoId, ...(filters.kind ? { kind: filters.kind } : {}) },
       include: { category: true },
       orderBy: { name: "asc" },
     })
@@ -1032,6 +1056,7 @@ export async function getInventoryReport(
         criticalStock: sparepart.criticalStock,
         purchasePrice,
         defaultPrice: sparepart.defaultPrice,
+        kind: sparepart.kind,
         capitalValue,
         sellingValue,
         potentialMargin: sellingValue - capitalValue,

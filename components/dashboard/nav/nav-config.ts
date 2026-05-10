@@ -228,6 +228,12 @@ export function buildAdminNav({
         isLocked: !inventoryEnabled,
       },
       {
+        href: `/${tokoid}/admin/inventory/retail`,
+        icon: "store",
+        label: "Barang Retail",
+        isLocked: !inventoryEnabled,
+      },
+      {
         href: `/${tokoid}/admin/inventory/restock-history`,
         icon: "history",
         label: "Riwayat Restock",

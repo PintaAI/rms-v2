@@ -3,13 +3,14 @@ export type UserRole = "admin" | "staff" | "technician" | "superuser";
 import type { SubscriptionPlan, PlanLimitKey } from "@/lib/plans";
 export type { SubscriptionPlan, PlanLimitKey };
 
-export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "team" | "analytics" | "realtime";
+export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "retail" | "team" | "analytics" | "realtime";
 
 export type FeatureKey =
   | "service.manualItems"
   | "service.technicianAssignment"
   | "inventory.management"
   | "inventory.staffCreateSparepart"
+  | "retail.sales"
   | "karyawan.management"
   | "staff.workflow"
   | "technician.workflow"
@@ -73,6 +74,15 @@ export const FEATURE_REGISTRY = {
     label: "Staff Tambah Sparepart",
     description: "Izinkan staff membuat sparepart baru dari workflow service.",
     category: "inventory",
+    allowedRoles: ["admin", "staff"],
+    minimumPlan: "premium",
+    configurable: true,
+  },
+  "retail.sales": {
+    key: "retail.sales",
+    label: "Retail Sales",
+    description: "Jual sparepart dan barang retail langsung dari inventory toko.",
+    category: "retail",
     allowedRoles: ["admin", "staff"],
     minimumPlan: "premium",
     configurable: true,

@@ -15,6 +15,7 @@ import {
   createSparepart,
   getSparepartCategories,
   updateSparepart,
+  type InventoryItemKind,
   type SparepartCategory,
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
@@ -34,6 +35,12 @@ interface SparepartFormProps {
   onSuccess: (newSparepart?: SparepartWithCompatibilities) => void;
 }
 
+type InventoryItemFormMode = InventoryItemKind;
+
+interface InventoryItemFormDialogProps extends SparepartFormProps {
+  mode: InventoryItemFormMode;
+}
+
 function toDeviceOptions(sparepart?: SparepartWithCompatibilities | null): HpCatalogOption[] {
   return (
     sparepart?.compatibilities.map((c) => ({
@@ -45,6 +52,7 @@ function toDeviceOptions(sparepart?: SparepartWithCompatibilities | null): HpCat
 }
 
 function SparepartFormContent({
+  mode,
   sparepart,
   tokoId,
   onOpenChange,
@@ -53,7 +61,7 @@ function SparepartFormContent({
   onRevertCreate,
   onRevertUpdate,
   onSuccess,
-}: Omit<SparepartFormProps, "open">) {
+}: Omit<InventoryItemFormDialogProps, "open">) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(sparepart?.name ?? "");
@@ -69,6 +77,8 @@ function SparepartFormContent({
   const [categories, setCategories] = useState<SparepartCategory[]>([]);
   const [devices, setDevices] = useState<HpCatalogOption[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(true);
+  const isRetailItem = mode === "retail_item";
+  const itemLabel = isRetailItem ? "Barang Retail" : "Sparepart";
 
   useEffect(() => {
     let active = true;
@@ -153,8 +163,8 @@ function SparepartFormContent({
       return;
     }
 
-    const hpCatalogIds = selectedDevices.map((d) => d.id);
-    const finalIsUniversal = hpCatalogIds.length === 0 ? true : isUniversal;
+    const hpCatalogIds = isRetailItem ? [] : selectedDevices.map((d) => d.id);
+    const finalIsUniversal = isRetailItem || hpCatalogIds.length === 0 ? true : isUniversal;
     const trimmedCategoryName = categoryName.trim();
     const optimisticCategory = trimmedCategoryName
       ? categories.find((category) => category.name.toLowerCase() === trimmedCategoryName.toLowerCase()) ?? {
@@ -176,9 +186,10 @@ function SparepartFormContent({
       stock: stockValue,
       criticalStock: criticalStockValue,
       isUniversal: finalIsUniversal,
+      kind: mode,
       tokoId,
       category: optimisticCategory,
-      compatibilities: selectedDevices.map((d) => ({
+      compatibilities: isRetailItem ? [] : selectedDevices.map((d) => ({
         hpCatalogId: d.id,
         sparepartId: tempId,
         hpCatalog: {
@@ -212,6 +223,7 @@ function SparepartFormContent({
           stock: stockValue,
           criticalStock: criticalStockValue,
           isUniversal: finalIsUniversal,
+          kind: mode,
           hpCatalogIds,
         })
       : await createSparepart({
@@ -223,6 +235,7 @@ function SparepartFormContent({
           stock: stockValue,
           criticalStock: criticalStockValue,
           isUniversal: finalIsUniversal,
+          kind: mode,
           tokoId,
           hpCatalogIds,
         });
@@ -249,7 +262,7 @@ function SparepartFormContent({
           <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
             <RiBox3Line className="size-4" />
           </span>
-          {sparepart ? "Edit Sparepart" : "Tambah Sparepart"}
+          {sparepart ? `Edit ${itemLabel}` : `Tambah ${itemLabel}`}
         </DialogTitle>
       </DialogHeader>
 
@@ -265,12 +278,12 @@ function SparepartFormContent({
 
           <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name" className="text-sm">Nama Sparepart</Label>
+              <Label htmlFor="name" className="text-sm">Nama {itemLabel}</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Contoh: LCD iPhone 13"
+                placeholder={isRetailItem ? "Contoh: Charger USB-C 20W" : "Contoh: LCD iPhone 13"}
                 disabled={isLoading}
                 required
               />
@@ -348,7 +361,7 @@ function SparepartFormContent({
                   disabled={isLoading}
                   required
                 />
-                <p className="text-xs text-muted-foreground">Sparepart dianggap kritis jika stok sama dengan atau di bawah angka ini.</p>
+                <p className="text-xs text-muted-foreground">Barang dianggap kritis jika stok sama dengan atau di bawah angka ini.</p>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -357,7 +370,7 @@ function SparepartFormContent({
                   id="supplierName"
                   value={supplierName}
                   onChange={(e) => setSupplierName(e.target.value)}
-                  placeholder="Contoh: Toko Sparepart Jaya"
+                  placeholder="Contoh: Toko Supplier Jaya"
                   disabled={isLoading}
                 />
               </div>
@@ -369,7 +382,7 @@ function SparepartFormContent({
                   list="sparepart-category-options"
                   value={categoryName}
                   onChange={(e) => setCategoryName(e.target.value)}
-                  placeholder="Contoh: LCD, Baterai, Konektor"
+                  placeholder={isRetailItem ? "Contoh: Aksesoris, HP Second, Charger" : "Contoh: LCD, Baterai, Konektor"}
                   disabled={isLoading}
                 />
                 <datalist id="sparepart-category-options">
@@ -383,50 +396,52 @@ function SparepartFormContent({
           </div>
         </div>
 
-        <div className="border-t pt-2" />
+        {!isRetailItem && <div className="border-t pt-2" />}
 
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-1">
-            <div className="h-5 w-1 rounded-full bg-primary" />
-            <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
-              <RiDeviceLine className="size-4" />
-              Kompatibilitas
-            </span>
+        {!isRetailItem && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-1">
+              <div className="h-5 w-1 rounded-full bg-primary" />
+              <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+                <RiDeviceLine className="size-4" />
+                Kompatibilitas
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
+              {selectedDevices.length === 0 && (
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="isUniversal"
+                    checked={isUniversal}
+                    onCheckedChange={(checked) => setIsUniversal(checked === true)}
+                    disabled={isLoading}
+                  />
+                  <Label htmlFor="isUniversal" className="text-sm leading-relaxed">Universal (dapat digunakan di perangkat apapun)</Label>
+                </div>
+              )}
+
+              {!isUniversal && (
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm">Perangkat Kompatibel</Label>
+                  <MultiDeviceInput
+                    value={selectedDevices}
+                    onChange={(devices) => {
+                      setSelectedDevices(devices);
+                      if (devices.length > 0) {
+                        setIsUniversal(false);
+                      }
+                    }}
+                    disabled={isLoading}
+                    devices={devices}
+                    isLoadingDevices={isLoadingDevices}
+                    onDeviceCreated={handleDeviceCreated}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-
-          <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
-            {selectedDevices.length === 0 && (
-              <div className="flex items-start gap-2">
-                <Checkbox
-                  id="isUniversal"
-                  checked={isUniversal}
-                  onCheckedChange={(checked) => setIsUniversal(checked === true)}
-                  disabled={isLoading}
-                />
-                <Label htmlFor="isUniversal" className="text-sm leading-relaxed">Universal (dapat digunakan di perangkat apapun)</Label>
-              </div>
-            )}
-
-            {!isUniversal && (
-              <div className="flex flex-col gap-2">
-                <Label className="text-sm">Perangkat Kompatibel</Label>
-                <MultiDeviceInput
-                  value={selectedDevices}
-                  onChange={(devices) => {
-                    setSelectedDevices(devices);
-                    if (devices.length > 0) {
-                      setIsUniversal(false);
-                    }
-                  }}
-                  disabled={isLoading}
-                  devices={devices}
-                  isLoadingDevices={isLoadingDevices}
-                  onDeviceCreated={handleDeviceCreated}
-                />
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
         <p className="text-xs text-muted-foreground">
           <span className="text-destructive">*</span> Menandakan kolom yang wajib diisi
@@ -459,9 +474,13 @@ function SparepartFormContent({
 }
 
 export function SparepartFormDialog(props: SparepartFormProps) {
+  return <InventoryItemFormDialog {...props} mode="sparepart" />;
+}
+
+export function InventoryItemFormDialog(props: InventoryItemFormDialogProps) {
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      {props.open ? <SparepartFormContent key={props.sparepart?.id ?? "new-sparepart"} {...props} /> : null}
+      {props.open ? <SparepartFormContent key={props.sparepart?.id ?? `new-${props.mode}`} {...props} /> : null}
     </Dialog>
   );
 }

@@ -202,6 +202,7 @@ export async function searchDashboard(
       const spareparts = await prisma.sparepart.findMany({
         where: {
           tokoId,
+          kind: "sparepart",
           OR: [
             { name: { contains: trimmedQuery, mode: "insensitive" } },
             { barcode: { contains: trimmedQuery, mode: "insensitive" } },

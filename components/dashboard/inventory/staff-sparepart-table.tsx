@@ -12,6 +12,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   getSpareparts,
@@ -135,7 +136,7 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
           className="bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30"
         >
           <RiAddLine className="size-4 mr-1.5" />
-          Tambah Sparepart
+          Tambah Barang
         </Button>
       </div>
 
@@ -161,6 +162,7 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
                 <TableHeader className="bg-muted/30">
                   <TableRow>
                     <TableHead>Nama</TableHead>
+                    <TableHead>Jenis</TableHead>
                     <TableHead>Harga</TableHead>
                     <TableHead>Stok</TableHead>
                     <TableHead>Kompatibilitas</TableHead>
@@ -170,7 +172,7 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
                 <TableBody>
                   {filteredSpareparts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
+                      <TableCell colSpan={6} className="h-24 text-center">
                         {sparepartSearch
                           ? "Tidak ditemukan sparepart sesuai pencarian"
                           : "Belum ada sparepart. Klik \"Tambah Sparepart\" untuk menambahkan."}
@@ -180,6 +182,9 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
                     filteredSpareparts.map((sparepart) => (
                       <TableRow key={sparepart.id}>
                         <TableCell className="font-medium">{sparepart.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">Sparepart</Badge>
+                        </TableCell>
                         <TableCell>{formatCurrency(sparepart.defaultPrice)}</TableCell>
                         <TableCell>
                           <SparepartStockBadge sparepart={sparepart} showLabel={false} />

@@ -56,6 +56,7 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     stock: 15,
     criticalStock: 3,
     isUniversal: false,
+    kind: "sparepart",
     tokoId: "mock",
     category: { id: "mock-cat-lcd", name: "LCD", tokoId: "mock" },
     compatibilities: [
@@ -73,6 +74,7 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     stock: 8,
     criticalStock: 5,
     isUniversal: false,
+    kind: "sparepart",
     tokoId: "mock",
     category: { id: "mock-cat-battery", name: "Baterai", tokoId: "mock" },
     compatibilities: [
@@ -90,6 +92,7 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     stock: 25,
     criticalStock: 10,
     isUniversal: true,
+    kind: "sparepart",
     tokoId: "mock",
     category: { id: "mock-cat-connector", name: "Konektor", tokoId: "mock" },
     compatibilities: [],

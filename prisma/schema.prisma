@@ -76,6 +76,11 @@ enum ItemType {
   service
 }
 
+enum InventoryItemKind {
+  sparepart
+  retail_item
+}
+
 enum ActivityType {
   service_created
   service_updated
@@ -517,6 +522,7 @@ model Sparepart {
   stock        Int     @default(0)
   criticalStock Int    @default(5)
   isUniversal  Boolean @default(false)
+  kind         InventoryItemKind @default(sparepart)
   tokoId       String
 
   toko            Toko                     @relation(fields: [tokoId], references: [id])
