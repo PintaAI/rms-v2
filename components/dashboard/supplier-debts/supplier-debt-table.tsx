@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { deleteSupplierDebt, type SupplierDebtListItem, type SupplierOption } from "@/actions/supplier-debts"
 import { SupplierDebtFormDialog } from "@/components/dashboard/supplier-debts/supplier-debt-form-dialog"
 import { SupplierPaymentDialog } from "@/components/dashboard/supplier-debts/supplier-payment-dialog"
@@ -66,14 +66,6 @@ export function SupplierDebtTable({ tokoId, initialDebts, initialSuppliers, read
   const [deletingDebt, setDeletingDebt] = useState<SupplierDebtListItem | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isDeleting, startDeleteTransition] = useTransition()
-
-  useEffect(() => {
-    setDebts(initialDebts)
-  }, [initialDebts])
-
-  useEffect(() => {
-    setSuppliers(initialSuppliers)
-  }, [initialSuppliers])
 
   const summary = useMemo(
     () => ({
@@ -256,16 +248,27 @@ export function SupplierDebtTable({ tokoId, initialDebts, initialSuppliers, read
         </CardContent>
       </Card>
 
-      <SupplierDebtFormDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        tokoId={tokoId}
-        suppliers={suppliers}
-        debt={editingDebt}
-        onSaved={handleSavedDebt}
-      />
+      {formOpen ? (
+        <SupplierDebtFormDialog
+          key={editingDebt?.id ?? "new"}
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          tokoId={tokoId}
+          suppliers={suppliers}
+          debt={editingDebt}
+          onSaved={handleSavedDebt}
+        />
+      ) : null}
 
-      <SupplierPaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} debt={payingDebt} onSaved={handleSavedPayment} />
+      {paymentOpen ? (
+        <SupplierPaymentDialog
+          key={payingDebt?.id ?? "payment"}
+          open={paymentOpen}
+          onOpenChange={setPaymentOpen}
+          debt={payingDebt}
+          onSaved={handleSavedPayment}
+        />
+      ) : null}
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-md">

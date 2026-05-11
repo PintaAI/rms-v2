@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -97,13 +97,6 @@ export function PaymentDialog({
   const cashIsInsufficient = paymentMethod === "cash" && cashReceived < finalTotal;
 
   const confirmationDisabled = isSubmitting || cashIsInsufficient;
-
-  const helperText = useMemo(() => {
-    if (paymentMethod === "cash") {
-      return "Masukkan uang diterima untuk menghitung kembalian seperti mesin kasir.";
-    }
-    return "Mockup saat ini hanya mencatat invoice sebagai lunas tanpa menyimpan metode pembayaran.";
-  }, [paymentMethod]);
 
   async function handleConfirm() {
     if (confirmationDisabled) return;

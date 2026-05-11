@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
 import { addSupplierDebtPayment, type SupplierDebtListItem } from "@/actions/supplier-debts"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -40,14 +40,6 @@ export function SupplierPaymentDialog({ open, onOpenChange, debt, onSaved }: Sup
   const [note, setNote] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-
-  useEffect(() => {
-    if (!open) return
-    setAmount("")
-    setPaymentDate(todayInputValue())
-    setNote("")
-    setError(null)
-  }, [open])
 
   const parsedAmount = parseAmount(amount)
   const remainingAmount = debt?.remainingAmount ?? 0

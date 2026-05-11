@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
+import { useState, useTransition } from "react"
 import {
   createSupplier,
   createSupplierDebt,
@@ -47,28 +47,16 @@ function parseAmount(value: string) {
 }
 
 export function SupplierDebtFormDialog({ open, onOpenChange, tokoId, suppliers, debt, onSaved }: SupplierDebtFormDialogProps) {
-  const [supplierId, setSupplierId] = useState("")
+  const [supplierId, setSupplierId] = useState(debt?.supplierId ?? "")
   const [newSupplierName, setNewSupplierName] = useState("")
-  const [invoiceNumber, setInvoiceNumber] = useState("")
-  const [description, setDescription] = useState("")
-  const [totalAmount, setTotalAmount] = useState("")
+  const [invoiceNumber, setInvoiceNumber] = useState(debt?.invoiceNumber ?? "")
+  const [description, setDescription] = useState(debt?.description ?? "")
+  const [totalAmount, setTotalAmount] = useState(debt ? String(debt.totalAmount) : "")
   const [paidAmount, setPaidAmount] = useState("")
-  const [dueDate, setDueDate] = useState("")
+  const [dueDate, setDueDate] = useState(toInputDate(debt?.dueDate))
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const isEdit = Boolean(debt)
-
-  useEffect(() => {
-    if (!open) return
-    setSupplierId(debt?.supplierId ?? "")
-    setNewSupplierName("")
-    setInvoiceNumber(debt?.invoiceNumber ?? "")
-    setDescription(debt?.description ?? "")
-    setTotalAmount(debt ? String(debt.totalAmount) : "")
-    setPaidAmount("")
-    setDueDate(toInputDate(debt?.dueDate))
-    setError(null)
-  }, [debt, open])
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()

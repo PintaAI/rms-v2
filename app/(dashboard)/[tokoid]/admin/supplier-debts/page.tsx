@@ -90,6 +90,7 @@ function SupplierDebtsPageShell({
       </div>
 
       <SupplierDebtTable
+        key={`${debtResult?.items.map((debt) => debt.id).join(":") ?? "empty"}:${suppliers?.map((supplier) => supplier.id).join(":") ?? "empty"}`}
         tokoId={tokoId}
         initialDebts={debtResult?.items ?? []}
         initialSuppliers={suppliers ?? []}
