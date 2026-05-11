@@ -154,6 +154,12 @@ enum PaymentStatus {
   paid
 }
 
+enum SupplierDebtStatus {
+  unpaid
+  partial
+  paid
+}
+
 enum WarrantyClaimStatus {
   open
   resolved
@@ -209,6 +215,8 @@ model Toko {
   inventoryAuditSessions InventoryAuditSession[]
   stockMovements   StockMovement[]
   retailSales      RetailSale[]
+  suppliers        Supplier[]
+  supplierDebts    SupplierDebt[]
   featureSetting   TokoFeatureSetting?
   whatsappSetting  TokoWhatsappSetting?
 
@@ -579,6 +587,63 @@ model SparepartCategory {
   @@unique([tokoId, name])
   @@index([tokoId])
   @@map("sparepart_category")
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  tokoId    String
+  name      String
+  phone     String?
+  address   String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  toko  Toko           @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  debts SupplierDebt[]
+
+  @@unique([tokoId, name])
+  @@index([tokoId])
+  @@map("supplier")
+}
+
+model SupplierDebt {
+  id            String             @id @default(uuid())
+  tokoId        String
+  supplierId    String
+  invoiceNumber String?
+  description   String?
+  totalAmount   Int
+  paidAmount    Int                @default(0)
+  dueDate       DateTime?
+  status        SupplierDebtStatus @default(unpaid)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  toko     Toko                  @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  supplier Supplier              @relation(fields: [supplierId], references: [id])
+  payments SupplierDebtPayment[]
+
+  @@index([tokoId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("supplier_debt")
+}
+
+model SupplierDebtPayment {
+  id          String   @id @default(uuid())
+  debtId      String
+  amount      Int
+  paymentDate DateTime @default(now())
+  note        String?
+  createdAt   DateTime @default(now())
+
+  debt SupplierDebt @relation(fields: [debtId], references: [id], onDelete: Cascade)
+
+  @@index([debtId])
+  @@index([paymentDate])
+  @@map("supplier_debt_payment")
 }
 
 model SparepartCompatibility {
