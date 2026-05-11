@@ -251,6 +251,12 @@ export function buildAdminNav({
         isLocked: !inventoryEnabled,
       },
       {
+        href: `/${tokoid}/admin/supplier-debts`,
+        icon: "form",
+        label: "Hutang Supplier",
+        isLocked: !inventoryEnabled,
+      },
+      {
         href: `/${tokoid}/admin/inventory/reports`,
         icon: "chart",
         label: "Laporan Inventory",
