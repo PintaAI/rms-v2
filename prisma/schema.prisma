@@ -81,6 +81,28 @@ enum InventoryItemKind {
   retail_item
 }
 
+enum StockMovementType {
+  restock
+  service_usage
+  service_return
+  service_delete_return
+  retail_sale
+  retail_void
+  audit_adjustment
+}
+
+enum RetailSaleStatus {
+  paid
+  void
+}
+
+enum RetailPaymentMethod {
+  cash
+  transfer
+  qris
+  debit
+}
+
 enum ActivityType {
   service_created
   service_updated
@@ -185,6 +207,8 @@ model Toko {
   warrantyClaims   WarrantyClaim[]
   activities       ActivityLog[]
   inventoryAuditSessions InventoryAuditSession[]
+  stockMovements   StockMovement[]
+  retailSales      RetailSale[]
   featureSetting   TokoFeatureSetting?
   whatsappSetting  TokoWhatsappSetting?
 
@@ -247,6 +271,8 @@ model User {
   resolvedWarrantyClaims WarrantyClaim[] @relation("WarrantyClaimResolvedBy")
   activities      ActivityLog[]
   createdInventoryAuditSessions InventoryAuditSession[] @relation("InventoryAuditCreatedBy")
+  stockMovements  StockMovement[]
+  retailSales     RetailSale[]
   affiliatorProfile Affiliator?
   referredByReferral Referral?
   affiliateCommissions AffiliateCommission[]
@@ -530,6 +556,8 @@ model Sparepart {
   compatibilities SparepartCompatibility[]
   serviceItems    ServiceItem[]
   inventoryAuditItems InventoryAuditItem[]
+  stockMovements  StockMovement[]
+  retailSaleItems RetailSaleItem[]
 
   @@unique([tokoId, name])
   @@unique([tokoId, barcode])
@@ -685,6 +713,58 @@ model InvoiceItem {
   @@map("invoice_item")
 }
 
+model RetailSale {
+  id             String              @id @default(uuid())
+  tokoId         String
+  createdById    String
+  customerName   String?
+  customerPhone  String?
+  subtotal       Int
+  discountAmount Int                 @default(0)
+  grandTotal     Int
+  paymentMethod  RetailPaymentMethod
+  cashReceived   Int?
+  changeAmount   Int?
+  status         RetailSaleStatus    @default(paid)
+  paidAt         DateTime            @default(now())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  toko      Toko             @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  createdBy User             @relation(fields: [createdById], references: [id])
+  items     RetailSaleItem[]
+
+  @@index([tokoId])
+  @@index([createdById])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([paidAt])
+  @@index([tokoId, paidAt])
+  @@map("retail_sale")
+}
+
+model RetailSaleItem {
+  id               String            @id @default(uuid())
+  saleId           String
+  sparepartId      String?
+  name             String
+  barcode          String?
+  kind             InventoryItemKind
+  qty              Int
+  unitPrice        Int
+  unitCostSnapshot Int?
+  lineTotal        Int
+  createdAt        DateTime          @default(now())
+
+  sale      RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sparepart Sparepart? @relation(fields: [sparepartId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([sparepartId])
+  @@index([kind])
+  @@map("retail_sale_item")
+}
+
 model WarrantyClaim {
   id        String @id @default(uuid())
   tokoId    String
@@ -768,6 +848,37 @@ model InventoryAuditItem {
   @@index([sparepartId])
   @@index([status])
   @@map("inventory_audit_item")
+}
+
+model StockMovement {
+  id                String            @id @default(uuid())
+  tokoId            String
+  sparepartId       String
+  type              StockMovementType
+  qtyChange         Int
+  stockBefore       Int
+  stockAfter        Int
+  unitCostSnapshot  Int?
+  unitPriceSnapshot Int?
+  referenceType     String?
+  referenceId       String?
+  note              String?
+  createdById       String
+  createdAt         DateTime          @default(now())
+
+  toko      Toko      @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  sparepart Sparepart @relation(fields: [sparepartId], references: [id])
+  createdBy User      @relation(fields: [createdById], references: [id])
+
+  @@index([tokoId])
+  @@index([sparepartId])
+  @@index([createdById])
+  @@index([type])
+  @@index([createdAt])
+  @@index([tokoId, createdAt])
+  @@index([tokoId, sparepartId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("stock_movement")
 }
 
 //////////////////////

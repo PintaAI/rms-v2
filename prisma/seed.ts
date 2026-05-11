@@ -40,11 +40,13 @@ async function resetDatabase() {
     await tx.invoiceItem.deleteMany();
     await tx.invoice.deleteMany();
     await tx.serviceItem.deleteMany();
+    await tx.warrantyClaim.deleteMany();
     await tx.service.deleteMany();
     await tx.inventoryAuditItem.deleteMany();
     await tx.inventoryAuditSession.deleteMany();
     await tx.sparepartCompatibility.deleteMany();
     await tx.sparepart.deleteMany();
+    await tx.sparepartCategory.deleteMany();
     await tx.servicePricelist.deleteMany();
     await tx.subscriptionPayment.deleteMany();
     await tx.subscriptionInvoice.deleteMany();

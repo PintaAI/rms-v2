@@ -28,9 +28,9 @@ import { getWhatsAppProBetaRequestUrl } from "@/components/settings/helpers";
 import type { SettingsTab, SettingsUser } from "@/components/settings/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { isPlanAtLeast, normalizePlan } from "@/lib/plans";
@@ -164,7 +164,7 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
   );
 
   if (isMobile) {
-    return <Sheet open={open} onOpenChange={handleOpenChange}><SheetContent side="bottom" className="h-[90dvh] max-h-[90dvh] overflow-hidden rounded-t-2xl p-0" showCloseButton><SheetHeader className="sr-only"><SheetTitle>User Settings</SheetTitle></SheetHeader>{settingsContent}</SheetContent></Sheet>;
+    return <Drawer open={open} onOpenChange={handleOpenChange} direction="bottom"><DrawerContent className="h-[90dvh] max-h-[90dvh] overflow-hidden p-0 before:inset-0 before:rounded-t-2xl"><DrawerTitle className="sr-only">User Settings</DrawerTitle>{settingsContent}</DrawerContent></Drawer>;
   }
 
   return <Dialog open={open} onOpenChange={handleOpenChange}><DialogContent className="h-[min(640px,90vh)] w-[calc(100%-1rem)] overflow-hidden p-0 sm:max-w-4xl" showCloseButton><DialogHeader className="sr-only"><DialogTitle>User Settings</DialogTitle></DialogHeader>{settingsContent}</DialogContent></Dialog>;

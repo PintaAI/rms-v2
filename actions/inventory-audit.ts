@@ -549,6 +549,23 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
 
         const adjustedItems = items.filter((item) => item.difference !== 0);
         if (adjustedItems.length > 0) {
+          await tx.stockMovement.createMany({
+            data: adjustedItems.map((item) => ({
+              tokoId: session.tokoId,
+              sparepartId: item.sparepartId,
+              type: "audit_adjustment",
+              qtyChange: item.difference,
+              stockBefore: item.systemStock,
+              stockAfter: item.physicalStock!,
+              unitCostSnapshot: item.snapshotPurchasePrice,
+              unitPriceSnapshot: item.snapshotPrice,
+              referenceType: "inventory_audit_session",
+              referenceId: session.id,
+              note: item.mismatchReason ?? "Inventory audit adjustment",
+              createdById: access.user.id,
+            })),
+          });
+
           await tx.activityLog.createMany({
             data: adjustedItems.map((item) => ({
               tokoId: session.tokoId,

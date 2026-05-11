@@ -167,6 +167,7 @@ export function buildAdminNav({
   const karyawanEnabled = featureAccess["karyawan.management"] ?? false;
   const analyticsEnabled = featureAccess["analytics.revenue"] ?? false;
   const inventoryEnabled = featureAccess["inventory.management"] ?? false;
+  const retailEnabled = featureAccess["retail.sales"] ?? false;
   const auditEnabled = featureAccess["inventory.audit"] ?? false;
 
   const entries: DashboardNavEntry[] = [
@@ -204,6 +205,16 @@ export function buildAdminNav({
       icon: "tools",
       defaultOpen: true,
       items: buildServiceFilterItems(tokoid, "admin", serviceStats),
+    });
+  }
+
+  if (!isFeatureDisabled("retail.sales")) {
+    entries.push({
+      type: "item",
+      href: `/${tokoid}/admin/retail`,
+      icon: "store",
+      label: "Retail",
+      isLocked: !inventoryEnabled || !retailEnabled,
     });
   }
 
@@ -282,6 +293,7 @@ export function buildStaffNav({
   const workflowEnabled = featureAccess["staff.workflow"] ?? false;
   const serviceEnabled = capabilities["service.management"] ?? false;
   const inventoryEnabled = featureAccess["inventory.management"] ?? false;
+  const retailEnabled = featureAccess["retail.sales"] ?? false;
 
   if (isFeatureDisabled("staff.workflow")) {
     return [];
@@ -304,6 +316,16 @@ export function buildStaffNav({
       icon: "tools",
       defaultOpen: true,
       items: buildServiceFilterItems(tokoid, "staff", serviceStats),
+    });
+  }
+
+  if (workflowEnabled && !isFeatureDisabled("retail.sales")) {
+    entries.push({
+      type: "item",
+      href: `/${tokoid}/staff/retail`,
+      icon: "store",
+      label: "Retail",
+      isLocked: !inventoryEnabled || !retailEnabled,
     });
   }
 

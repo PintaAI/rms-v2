@@ -11,14 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Field,
@@ -29,6 +21,7 @@ import {
 } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
 import {
   RiBankCardLine,
@@ -36,6 +29,7 @@ import {
   RiDiscountPercentLine,
   RiMoneyDollarCircleLine,
   RiPriceTag3Line,
+  RiQrCodeLine,
   RiRefund2Line,
   RiWallet3Line,
 } from "@remixicon/react";
@@ -49,11 +43,20 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
   debit: "Debit",
 };
 
+interface CartItem {
+  id: string;
+  type: string;
+  name: string;
+  qty: number;
+  price: number;
+}
+
 interface PaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoiceTotal: number;
   dpAmount?: number;
+  items?: CartItem[];
   isSubmitting?: boolean;
   onSuccess?: () => void;
   onConfirm: (payment: { discountAmount: number; paymentMethod: PaymentMethod }) => Promise<boolean>;
@@ -73,6 +76,7 @@ export function PaymentDialog({
   onOpenChange,
   invoiceTotal,
   dpAmount = 0,
+  items,
   isSubmitting = false,
   onSuccess,
   onConfirm,
@@ -116,7 +120,7 @@ export function PaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Pembayaran Invoice</DialogTitle>
           <DialogDescription>
@@ -124,7 +128,36 @@ export function PaymentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-5">
+          {items && items.length > 0 && (
+            <div className="min-w-0 overflow-x-auto rounded-xl border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tipe</TableHead>
+                    <TableHead>Nama</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead className="text-right">Harga</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <Badge variant="outline">{item.type}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>{item.qty}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(item.price * item.qty)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
           <div className="rounded-xl border bg-muted/30 p-4">
             <div className="flex items-center justify-between gap-3">
               <span className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -142,79 +175,80 @@ export function PaymentDialog({
           </div>
 
           <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="payment-method">
-                <FieldLabelIcon icon={RiWallet3Line} />
-                Metode pembayaran
-              </FieldLabel>
-              <Select
-                value={paymentMethod}
-                onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
-              >
-                <SelectTrigger id="payment-method" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {Object.entries(paymentMethodLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <FieldDescription>{helperText}</FieldDescription>
-            </Field>
-
-            <Field>
-              <div className="flex items-center justify-between gap-3">
-                <FieldLabel htmlFor="payment-discount">
-                  <FieldLabelIcon icon={RiDiscountPercentLine} />
-                  Diskon
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+              <Field>
+                <FieldLabel>
+                  <FieldLabelIcon icon={RiWallet3Line} />
+                  Metode pembayaran
                 </FieldLabel>
-                <label className="flex items-center gap-2 text-xs text-muted-foreground" htmlFor="discount-percent-toggle">
-                  Nominal
-                  <Switch
-                    id="discount-percent-toggle"
-                    size="sm"
-                    checked={usePercentDiscount}
-                    onCheckedChange={setUsePercentDiscount}
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(paymentMethodLabels) as PaymentMethod[]).map((method) => {
+                    const icons = { cash: RiCashLine, transfer: RiBankCardLine, qris: RiQrCodeLine, debit: RiBankCardLine } as const
+                    const Icon = icons[method]
+                    return (
+                      <Badge
+                        key={method}
+                        variant={paymentMethod === method ? "default" : "outline"}
+                        className="flex cursor-pointer items-center gap-1.5 py-2 text-sm"
+                        onClick={() => setPaymentMethod(method)}
+                      >
+                        <Icon className="size-4" />
+                        {paymentMethodLabels[method]}
+                      </Badge>
+                    )
+                  })}
+                </div>
+              </Field>
+
+              <Field>
+                <div className="flex items-center justify-between gap-3">
+                  <FieldLabel htmlFor="payment-discount">
+                    <FieldLabelIcon icon={RiDiscountPercentLine} />
+                    Diskon
+                  </FieldLabel>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground" htmlFor="discount-percent-toggle">
+                    Nominal
+                    <Switch
+                      id="discount-percent-toggle"
+                      size="sm"
+                      checked={usePercentDiscount}
+                      onCheckedChange={setUsePercentDiscount}
+                    />
+                    Persen
+                  </label>
+                </div>
+                <div className="relative">
+                  {!usePercentDiscount && (
+                    <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-xs font-medium text-muted-foreground">
+                      Rp
+                    </span>
+                  )}
+                  <Input
+                    id="payment-discount"
+                    inputMode="numeric"
+                    min={0}
+                    max={usePercentDiscount ? 100 : remainingTotal}
+                    placeholder="0"
+                    type="number"
+                    value={discountInput}
+                    className={usePercentDiscount ? "pr-8" : "pl-8"}
+                    onChange={(event) => setDiscountInput(event.target.value)}
                   />
-                  Persen
-                </label>
-              </div>
-              <div className="relative">
-                {!usePercentDiscount && (
-                  <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-xs font-medium text-muted-foreground">
-                    Rp
-                  </span>
-                )}
-                <Input
-                  id="payment-discount"
-                  inputMode="numeric"
-                  min={0}
-                  max={usePercentDiscount ? 100 : remainingTotal}
-                  placeholder="0"
-                  type="number"
-                  value={discountInput}
-                  className={usePercentDiscount ? "pr-8" : "pl-8"}
-                  onChange={(event) => setDiscountInput(event.target.value)}
-                />
-                {usePercentDiscount && (
-                  <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">
-                    %
-                  </span>
-                )}
-              </div>
-              {usePercentDiscount && discountInput ? (
-                <FieldDescription>
-                  {Math.min(rawDiscount, 100)}% = {formatCurrency(discount)}.
-                </FieldDescription>
-              ) : discountInput && rawDiscount > remainingTotal ? (
-                <FieldDescription>Diskon nominal dibatasi maksimal total invoice.</FieldDescription>
-              ) : null}
-            </Field>
+                  {usePercentDiscount && (
+                    <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">
+                      %
+                    </span>
+                  )}
+                </div>
+                {usePercentDiscount && discountInput ? (
+                  <FieldDescription>
+                    {Math.min(rawDiscount, 100)}% = {formatCurrency(discount)}.
+                  </FieldDescription>
+                ) : discountInput && rawDiscount > remainingTotal ? (
+                  <FieldDescription>Diskon nominal dibatasi maksimal total invoice.</FieldDescription>
+                ) : null}
+              </Field>
+            </div>
 
             {paymentMethod === "cash" && (
               <Field data-invalid={cashIsInsufficient || undefined}>

@@ -109,9 +109,9 @@ export async function createService(
 
   if (!tokoId) {
     const user = await getRequestUser();
-    if (!user) return { success: false, error: "Unauthorized" };
+    if (!user) return { success: false, error: "Tidak memiliki akses" };
     tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "No toko found" };
+    if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
   return withScope(tokoId, { role: ["admin", "staff"] }, async (scope) => {
@@ -197,8 +197,8 @@ export async function updateService(
     where: { id: serviceId },
     select: { tokoId: true, isPickedUp: true },
   });
-  if (!service) return { success: false, error: "Service not found" };
-  if (service.isPickedUp) return { success: false, error: "Cannot update a service that has been picked up" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
+  if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
 
   return withScope(service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
     const hpCatalog = await prisma.hpCatalog.findUnique({
@@ -287,16 +287,22 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
       invoice: { select: { paymentStatus: true } },
     },
   });
-  if (!service) return { success: false, error: "Service not found" };
-  if (service.isPickedUp) return { success: false, error: "Cannot delete a service that has been picked up" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
+  if (service.isPickedUp) return { success: false, error: "Tidak dapat menghapus service yang sudah diambil" };
   if (service.invoice?.paymentStatus === "paid" || service.invoice?.paymentStatus === "dp") {
-    return { success: false, error: "Cannot delete a service with a paid invoice" };
+    return { success: false, error: "Tidak dapat menghapus service dengan invoice lunas" };
   }
 
   return withScope(service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
     const serviceItems = await prisma.serviceItem.findMany({
       where: { serviceId },
-      select: { id: true, type: true, qty: true, referenceId: true },
+      select: {
+        id: true,
+        type: true,
+        qty: true,
+        referenceId: true,
+        sparepart: { select: { stock: true, purchasePrice: true, defaultPrice: true } },
+      },
     });
 
     await prisma.$transaction(async (tx) => {
@@ -311,10 +317,27 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
       await preserveDeletedServiceActivityLogs(tx, serviceId, service);
 
       for (const item of serviceItems) {
-        if (item.type === "sparepart" && item.referenceId) {
-          await tx.sparepart.update({
+        if (item.type === "sparepart" && item.referenceId && item.sparepart) {
+          const updatedSparepart = await tx.sparepart.update({
             where: { id: item.referenceId },
             data: { stock: { increment: item.qty } },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              tokoId: service.tokoId,
+              sparepartId: item.referenceId,
+              type: "service_delete_return",
+              qtyChange: item.qty,
+              stockBefore: updatedSparepart.stock - item.qty,
+              stockAfter: updatedSparepart.stock,
+              unitCostSnapshot: item.sparepart.purchasePrice,
+              unitPriceSnapshot: item.sparepart.defaultPrice,
+              referenceType: "service",
+              referenceId: serviceId,
+              note: "Service deleted, stock returned",
+              createdById: scope.user.id,
+            },
           });
         }
       }
@@ -335,14 +358,14 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
     where: { id: serviceId },
     select: { tokoId: true, status: true, technicianId: true },
   });
-  if (!service) return { success: false, error: "Service not found" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (!technicianAvailableStatuses.includes(service.status)) {
-    return { success: false, error: "Service is not available for takeover" };
+    return { success: false, error: "Service tidak tersedia untuk diambil alih" };
   }
 
   return withScope(service.tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
     if (service.technicianId === scope.user.id) {
-      return { success: false, error: "Service is already assigned to you" };
+      return { success: false, error: "Service sudah ditugaskan kepada Anda" };
     }
 
     const assignedAt = new Date();
@@ -383,7 +406,7 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
       return true;
     });
 
-    if (!updated) throw new Error("Service is no longer available for takeover");
+    if (!updated) throw new Error("Service sudah tidak tersedia untuk diambil alih");
 
     revalidateServicePaths(scope.tokoId, true);
 
@@ -402,17 +425,17 @@ export async function updateStatus(
     where: { id: serviceId },
     select: { tokoId: true, technicianId: true, status: true, isPickedUp: true, invoice: { select: { paymentStatus: true } } },
   });
-  if (!service) return { success: false, error: "Service not found" };
-  if (service.isPickedUp) return { success: false, error: "Cannot update a service that has been picked up" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
+  if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
 
   const isUndoingCompletedStatus = isCompletingStatus(service.status) && !isCompletingStatus(status);
   if (isUndoingCompletedStatus && service.invoice?.paymentStatus === "paid") {
-    return { success: false, error: "Cannot undo status for a paid invoice" };
+    return { success: false, error: "Tidak dapat mengembalikan status untuk invoice lunas" };
   }
 
   const warrantyDate = status === "done" && warrantyUntil ? new Date(warrantyUntil) : null;
   if (warrantyDate && Number.isNaN(warrantyDate.getTime())) {
-    return { success: false, error: "Invalid warranty date" };
+    return { success: false, error: "Tanggal garansi tidak valid" };
   }
 
   return withScope(service.tokoId, { role: ["admin", "staff", "technician"] }, async (scope) => {
@@ -486,10 +509,10 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
     where: { id: serviceId },
     select: { tokoId: true, status: true, isPickedUp: true },
   });
-  if (!service) return { success: false, error: "Service not found" };
-  if (service.isPickedUp) return { success: false, error: "Service has already been picked up" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
+  if (service.isPickedUp) return { success: false, error: "Service sudah diambil" };
   if (service.status !== "done" && service.status !== "failed") {
-    return { success: false, error: "Only completed services can be marked as picked up" };
+    return { success: false, error: "Hanya service selesai yang dapat ditandai diambil" };
   }
 
   return withScope(service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
@@ -530,8 +553,8 @@ export async function assignTechnician(
     where: { id: serviceId },
     select: { tokoId: true, technicianId: true, status: true, isPickedUp: true },
   });
-  if (!service) return { success: false, error: "Service not found" };
-  if (service.isPickedUp) return { success: false, error: "Cannot update a service that has been picked up" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
+  if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
 
   return withScope(service.tokoId, { role: ["admin", "staff"], feature: "service.technicianAssignment" }, async (scope) => {
     if (technicianId) {
@@ -591,14 +614,14 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
       invoice: { select: { paymentStatus: true } },
     },
   });
-  if (!service) return { success: false, error: "Service not found" };
-  if (service.isPickedUp) return { success: false, error: "Cannot update a service that has been picked up" };
-  if (service.invoice?.paymentStatus === "paid") return { success: false, error: "Cannot update items on a paid invoice" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
+  if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
+  if (service.invoice?.paymentStatus === "paid") return { success: false, error: "Tidak dapat memperbarui item pada invoice lunas" };
   if (validated.data.type === "sparepart" && validated.data.servicePricelistId) {
-    return { success: false, error: "Sparepart item cannot use a service pricelist" };
+    return { success: false, error: "Item sparepart tidak dapat menggunakan pricelist jasa" };
   }
   if (validated.data.type === "service" && validated.data.sparepartId) {
-    return { success: false, error: "Service item cannot use a sparepart" };
+    return { success: false, error: "Item jasa tidak dapat menggunakan sparepart" };
   }
 
   return withScope(service.tokoId, { role: ["admin", "staff", "technician"] }, async (scope) => {
@@ -610,11 +633,12 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
 
     if (validated.data.type === "sparepart" && validated.data.sparepartId) {
       assertFeature(scope, "inventory.management");
+      const sparepartId = validated.data.sparepartId;
 
       const sparepart = await prisma.sparepart.findUnique({
-        where: { id: validated.data.sparepartId },
+        where: { id: sparepartId },
         select: {
-          stock: true, name: true, defaultPrice: true, tokoId: true, isUniversal: true, kind: true,
+          stock: true, name: true, defaultPrice: true, purchasePrice: true, tokoId: true, isUniversal: true, kind: true,
           compatibilities: {
             where: { hpCatalogId: service.hpCatalogId },
             select: { hpCatalogId: true },
@@ -629,10 +653,15 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
 
       await prisma.$transaction(async (tx) => {
         const stockUpdate = await tx.sparepart.updateMany({
-          where: { id: validated.data.sparepartId, tokoId: service.tokoId, stock: { gte: validated.data.qty } },
+          where: { id: sparepartId, tokoId: service.tokoId, stock: { gte: validated.data.qty } },
           data: { stock: { decrement: validated.data.qty } },
         });
         if (stockUpdate.count !== 1) throw new Error(`Insufficient stock. Available: ${sparepart.stock}`);
+
+        const updatedSparepart = await tx.sparepart.findUniqueOrThrow({
+          where: { id: sparepartId },
+          select: { stock: true },
+        });
 
         createdItem = await tx.serviceItem.create({
           data: {
@@ -641,7 +670,24 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
             name: sparepart.name,
             qty: validated.data.qty,
             price: sparepart.defaultPrice,
-            referenceId: validated.data.sparepartId,
+            referenceId: sparepartId,
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            tokoId: service.tokoId,
+            sparepartId,
+            type: "service_usage",
+            qtyChange: -validated.data.qty,
+            stockBefore: updatedSparepart.stock + validated.data.qty,
+            stockAfter: updatedSparepart.stock,
+            unitCostSnapshot: sparepart.purchasePrice,
+            unitPriceSnapshot: sparepart.defaultPrice,
+            referenceType: "service_item",
+            referenceId: createdItem.id,
+            note: "Sparepart used in service",
+            createdById: scope.user.id,
           },
         });
 
@@ -650,7 +696,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
         await createActivityLog(tx, {
           tokoId: scope.tokoId, userId: scope.user.id, serviceId: validated.data.serviceId,
           type: "sparepart_stock_out", title: "Sparepart used in service",
-          payload: { sparepartId: validated.data.sparepartId, sparepartName: sparepart.name, qty: validated.data.qty, price: sparepart.defaultPrice },
+          payload: { sparepartId, sparepartName: sparepart.name, qty: validated.data.qty, price: sparepart.defaultPrice },
         });
       });
     } else {
@@ -664,7 +710,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           where: { id: validated.data.servicePricelistId },
           select: { title: true, defaultPrice: true, tokoId: true },
         });
-        if (!pricelist || pricelist.tokoId !== service.tokoId) throw new Error("Service pricelist not found");
+        if (!pricelist || pricelist.tokoId !== service.tokoId) throw new Error("Pricelist jasa tidak ditemukan");
         itemName = pricelist.title;
         itemPrice = pricelist.defaultPrice;
       }
@@ -693,9 +739,9 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
       service: { select: { tokoId: true, isPickedUp: true, technicianId: true, invoice: { select: { paymentStatus: true } } } },
     },
   });
-  if (!item) return { success: false, error: "Item not found" };
-  if (item.service.isPickedUp) return { success: false, error: "Cannot update a service that has been picked up" };
-  if (item.service.invoice?.paymentStatus === "paid") return { success: false, error: "Cannot update items on a paid invoice" };
+  if (!item) return { success: false, error: "Item tidak ditemukan" };
+  if (item.service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
+  if (item.service.invoice?.paymentStatus === "paid") return { success: false, error: "Tidak dapat memperbarui item pada invoice lunas" };
 
   return withScope(item.service.tokoId, { role: ["admin", "staff", "technician"] }, async (scope) => {
     if (isTechnicianRole(scope.user.role) && item.service.technicianId !== scope.user.id) {
@@ -705,9 +751,29 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
     if (item.type === "sparepart" && item.referenceId) {
       await prisma.$transaction(async (tx) => {
         await tx.serviceItem.delete({ where: { id: itemId } });
-        await tx.sparepart.update({
+        const sparepart = await tx.sparepart.findUniqueOrThrow({
+          where: { id: item.referenceId! },
+          select: { stock: true, purchasePrice: true, defaultPrice: true },
+        });
+        const updatedSparepart = await tx.sparepart.update({
           where: { id: item.referenceId! },
           data: { stock: { increment: item.qty } },
+        });
+        await tx.stockMovement.create({
+          data: {
+            tokoId: scope.tokoId,
+            sparepartId: item.referenceId!,
+            type: "service_return",
+            qtyChange: item.qty,
+            stockBefore: updatedSparepart.stock - item.qty,
+            stockAfter: updatedSparepart.stock,
+            unitCostSnapshot: sparepart.purchasePrice,
+            unitPriceSnapshot: sparepart.defaultPrice,
+            referenceType: "service_item",
+            referenceId: itemId,
+            note: "Service item removed, stock returned",
+            createdById: scope.user.id,
+          },
         });
         await createActivityLog(tx, {
           tokoId: scope.tokoId, userId: scope.user.id, serviceId: item.serviceId,
@@ -737,18 +803,18 @@ export async function payInvoice(invoiceId: string, data: z.infer<typeof payInvo
       service: { select: { id: true, tokoId: true, status: true, isPickedUp: true } },
     },
   });
-  if (!invoice) return { success: false, error: "Invoice not found" };
-  if (invoice.paymentStatus === "paid") return { success: false, error: "Invoice has already been paid" };
+  if (!invoice) return { success: false, error: "Invoice tidak ditemukan" };
+  if (invoice.paymentStatus === "paid") return { success: false, error: "Invoice sudah lunas" };
   if (invoice.service.status !== "done" && invoice.service.status !== "failed") {
-    return { success: false, error: "Only completed services can be marked as paid" };
+    return { success: false, error: "Hanya service selesai yang dapat ditandai lunas" };
   }
-  if (invoice.service.isPickedUp) return { success: false, error: "Service has already been picked up" };
+  if (invoice.service.isPickedUp) return { success: false, error: "Service sudah diambil" };
 
   const discountAmount = validated.data.discountAmount ?? 0;
   const paymentMethod = validated.data.paymentMethod;
   const shouldCheckoutOnPayment = paymentMethod === "cash" || paymentMethod === "qris";
   const maxDiscount = Math.max(invoice.grandTotal - invoice.dpAmount, 0);
-  if (discountAmount > maxDiscount) return { success: false, error: "Discount cannot exceed remaining invoice total" };
+  if (discountAmount > maxDiscount) return { success: false, error: "Diskon tidak boleh melebihi sisa total invoice" };
 
   return withScope(invoice.service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
     const paidAt = new Date();
@@ -786,9 +852,9 @@ export async function markDpInvoice(invoiceId: string, dpAmount: number): Promis
       service: { select: { id: true, tokoId: true, status: true, isPickedUp: true } },
     },
   });
-  if (!invoice) return { success: false, error: "Invoice not found" };
-  if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "dp") return { success: false, error: "Invoice already has DP or is paid" };
-  if (dpAmount <= 0) return { success: false, error: "DP amount must be greater than zero" };
+  if (!invoice) return { success: false, error: "Invoice tidak ditemukan" };
+  if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "dp") return { success: false, error: "Invoice sudah memiliki DP atau lunas" };
+  if (dpAmount <= 0) return { success: false, error: "Jumlah DP harus lebih dari nol" };
 
   return withScope(invoice.service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
     await prisma.$transaction(async (tx) => {

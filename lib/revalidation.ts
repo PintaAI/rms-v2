@@ -26,6 +26,13 @@ export function revalidateInventoryPaths(tokoId?: string, includeStaff = true): 
   }
 }
 
+export function revalidateRetailPaths(tokoId: string): void {
+  revalidatePath(`/${tokoId}/admin/retail`);
+  revalidatePath(`/${tokoId}/staff/retail`);
+  revalidatePath(`/${tokoId}/admin/inventory/retail`);
+  revalidateInventoryPaths(tokoId);
+}
+
 export function revalidateTokoPaths(tokoId: string): void {
   revalidatePath(`/${tokoId}/admin/toko`);
   revalidatePath(`/${tokoId}/admin`);

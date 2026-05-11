@@ -1,5 +1,16 @@
 # Retail Lite Phase 3: Retail Sales MVP
 
+Status: Done
+
+Completed: 2026-05-11
+
+Closeout notes:
+
+- Retail sale models, checkout actions, admin/staff pages, nav entries, cart UI, payment UI, stock decrement, and `retail_sale` stock movements are implemented.
+- `revalidateRetailPaths()` refreshes admin/staff retail pages plus admin retail inventory after checkout.
+- Staff disabled-feature retail page behavior redirects back to the staff overview.
+- Production build passes with `bun run build`.
+
 ## Goal
 
 Phase 3 adds direct retail selling without creating fake service orders.
@@ -27,7 +38,7 @@ Included in Phase 3:
 - Add cart UI.
 - Search/scan inventory items.
 - Validate stock.
-- Support discount.
+- Support flat and percentage discount.
 - Support payment method.
 - Support cash received and kembalian.
 - Decrement stock on successful sale.
@@ -69,6 +80,8 @@ assertFeature(scope, "retail.sales")
 ```
 
 Technician should not access retail checkout in V1.
+
+Staff retail checkout must also require `staff.workflow` at the page/nav level so retail access follows the existing staff operational workflow behavior. Server checkout actions still enforce the core retail permissions with admin/staff role, `inventory.management`, and `retail.sales`.
 
 ## Routes
 
@@ -124,6 +137,7 @@ Nav behavior:
 - Hide if `retail.sales` is disabled by toko.
 - Show locked if plan does not allow `retail.sales`.
 - Lock if inventory is not available.
+- For staff, follow the existing `staff.workflow` nav behavior.
 
 Suggested logic:
 
@@ -131,6 +145,7 @@ Suggested logic:
 const inventoryEnabled = featureAccess["inventory.management"] ?? false;
 const retailEnabled = featureAccess["retail.sales"] ?? false;
 const retailDisabledByToko = disabledFeatures.includes("retail.sales");
+const staffWorkflowEnabled = featureAccess["staff.workflow"] ?? false;
 
 if (!retailDisabledByToko) {
   entries.push({
@@ -142,6 +157,8 @@ if (!retailDisabledByToko) {
   });
 }
 ```
+
+For staff nav, also require `staffWorkflowEnabled` according to the existing staff nav pattern.
 
 ## Data Model Changes
 
@@ -363,7 +380,9 @@ const createRetailSaleSchema = z.object({
     sparepartId: z.string().min(1),
     qty: z.number().int().min(1),
   })).min(1),
+  discountType: z.enum(["flat", "percent"]).optional(),
   discountAmount: z.number().int().min(0).optional(),
+  discountPercent: z.number().min(0).max(100).optional(),
   paymentMethod: z.enum(["cash", "transfer", "qris", "debit"]),
   cashReceived: z.number().int().min(0).optional().nullable(),
 })
@@ -374,16 +393,24 @@ Validation rules:
 - Cart must contain at least one item.
 - Each item must belong to the same toko.
 - Qty must be available in stock.
-- Discount cannot exceed subtotal.
+- Items with `defaultPrice <= 0` cannot be checked out.
+- Discount can be flat rupiah amount or percentage.
+- Flat discount cannot exceed subtotal.
+- Percentage discount must be between `0` and `100`.
+- Computed discount amount cannot exceed subtotal.
 - If payment method is `cash`, `cashReceived` must be at least `grandTotal`.
+- If payment method is `cash` and `grandTotal = 0`, blank `cashReceived` is allowed and should be stored as `0` with `changeAmount = 0`.
 - If payment method is not `cash`, `cashReceived` should be null or ignored.
 
 Calculated fields:
 
 ```ts
 subtotal = sum(item.defaultPrice * qty)
-discountAmount = min(input.discountAmount ?? 0, subtotal)
+discountAmount = discountType === "percent"
+  ? Math.floor(subtotal * ((input.discountPercent ?? 0) / 100))
+  : input.discountAmount ?? 0
 grandTotal = subtotal - discountAmount
+cashReceived = paymentMethod === "cash" ? input.cashReceived ?? 0 : null
 changeAmount = paymentMethod === "cash" ? cashReceived - grandTotal : null
 ```
 
@@ -573,6 +600,7 @@ After successful sale:
 revalidateInventoryPaths(scope.tokoId)
 revalidatePath(`/${scope.tokoId}/admin/retail`)
 revalidatePath(`/${scope.tokoId}/staff/retail`)
+revalidatePath(`/${scope.tokoId}/admin/inventory/retail`)
 ```
 
 If sale detail/history is not added yet, no history revalidation is needed.
@@ -604,11 +632,14 @@ Phase 3 is complete when:
 - Staff retail checkout page exists.
 - Admin/staff nav includes Retail when not disabled by toko.
 - Retail pages enforce both `inventory.management` and `retail.sales`.
+- Staff retail page also follows `staff.workflow` access behavior.
 - Checkout can search and add both `sparepart` and `retail_item`.
 - Checkout validates stock.
-- Checkout supports discount.
+- Checkout supports flat and percentage discount.
 - Checkout supports cash, transfer, QRIS, debit.
 - Cash checkout calculates change.
+- Cash checkout allows blank cash received when grand total is zero, storing cash received and change as zero.
+- Checkout blocks zero-price items.
 - Successful checkout creates `RetailSale` and `RetailSaleItem` rows.
 - Successful checkout decrements stock.
 - Successful checkout writes `retail_sale` stock movements.
@@ -701,7 +732,7 @@ Mitigation:
 Recommended sequence:
 
 1. Add Prisma enums and retail sale models.
-2. Create migration.
+2. Create a manual migration file, consistent with previous Retail Lite phase migrations.
 3. Regenerate Prisma client through normal project workflow if needed.
 4. Add `actions/retail.ts`.
 5. Add `getRetailCheckoutItems`.

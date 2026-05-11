@@ -13,14 +13,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
-import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
+import { ServiceDetailCard, ServiceDetailCardSkeleton } from "@/components/dashboard/services/service-detail-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import { assignTechnician, deleteService, getService } from "@/actions";
@@ -441,45 +442,45 @@ export function StaffManageService({
         isLoading={isDeleting}
       />
 
-      <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <SheetContent side="bottom" className="h-[90vh] rounded-t-lg p-2 max-w-4xl mx-auto overflow-y-auto">
-          <SheetHeader className="p-2">
-            <SheetTitle className="font-bold">Detail servis</SheetTitle>
-            <p className="text-sm text-muted-foreground">kelola pembayaran dan pengambilan</p>
-          </SheetHeader>
-          {isLoadingDetail && (
-            <div className="flex items-center justify-center py-8">
-              <p className="text-muted-foreground">Loading service details...</p>
+      <Drawer open={detailDialogOpen} onOpenChange={setDetailDialogOpen} direction="bottom">
+        <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-auto sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
+          <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3">
+            <DrawerTitle className="font-bold">Detail servis</DrawerTitle>
+            <DrawerDescription>kelola pembayaran dan pengambilan</DrawerDescription>
+          </div>
+          <ScrollArea className="h-[calc(100dvh-4.75rem)] min-w-0 overflow-hidden sm:h-auto sm:max-h-[calc(90dvh-4.75rem)]">
+            <div className="min-w-0 p-2">
+              {isLoadingDetail && (
+                <ServiceDetailCardSkeleton />
+              )}
+              {!isLoadingDetail && selectedService && (
+                <ServiceDetailCard
+                  service={selectedService}
+                  variant={["done", "failed"].includes(selectedService.status) ? "completed" : "active"}
+                  viewerRole="staff"
+                  showActions={false}
+                  showRepairItemActions
+                  showCompletionActions
+                  onRefresh={handleRefreshDetail}
+                  onOptimisticStatusChange={handleOptimisticStatusChange}
+                  onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
+                  onOptimisticStatusError={handleOptimisticStatusError}
+                  onStatusChange={() => {
+                    setDetailDialogOpen(false);
+                    router.refresh();
+                  }}
+                  onPickupSuccess={() => {
+                    setDetailDialogOpen(false);
+                    publish({ action: "picked_up", serviceId: selectedService.id, ...getServiceRealtimeMeta(selectedService) });
+                    router.refresh();
+                  }}
+                  onRealtimeEvent={publish}
+                />
+              )}
             </div>
-          )}
-          {!isLoadingDetail && selectedService && (
-            <div className="p-2">
-              <ServiceDetailCard
-                service={selectedService}
-                variant={["done", "failed"].includes(selectedService.status) ? "completed" : "active"}
-                viewerRole="staff"
-                showActions={false}
-                showRepairItemActions
-                showCompletionActions
-                onRefresh={handleRefreshDetail}
-                onOptimisticStatusChange={handleOptimisticStatusChange}
-                onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
-                onOptimisticStatusError={handleOptimisticStatusError}
-                onStatusChange={() => {
-                  setDetailDialogOpen(false);
-                  router.refresh();
-                }}
-                onPickupSuccess={() => {
-                  setDetailDialogOpen(false);
-                  publish({ action: "picked_up", serviceId: selectedService.id, ...getServiceRealtimeMeta(selectedService) });
-                  router.refresh();
-                }}
-                onRealtimeEvent={publish}
-              />
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

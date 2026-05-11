@@ -19,14 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
-import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
+import { ServiceDetailCard, ServiceDetailCardSkeleton } from "@/components/dashboard/services/service-detail-card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import {
   Pagination,
@@ -558,25 +558,27 @@ export function ManageService({
         </div>
       </div>
 
-      <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-        <SheetContent side="bottom" className="rounded-t-2xl p-4 md:hidden">
-          <SheetHeader className="px-0 text-left">
-            <SheetTitle className="font-bold">Filter service</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 grid gap-3">
-            {renderAdvancedFilters()}
+      <Drawer open={filterSheetOpen} onOpenChange={setFilterSheetOpen} direction="bottom">
+        <DrawerContent className="max-h-[90dvh] overflow-hidden p-0 before:inset-0 before:rounded-t-2xl md:hidden">
+          <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3">
+            <DrawerTitle className="font-bold">Filter service</DrawerTitle>
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" onClick={resetAdvancedFilters} disabled={!hasAdvancedFilters}>
-              <RiCloseLine className="h-4 w-4 mr-1.5" />
-              Reset
-            </Button>
-            <Button type="button" onClick={() => setFilterSheetOpen(false)}>
-              Terapkan
-            </Button>
+          <div className="p-4">
+            <div className="grid gap-3">
+              {renderAdvancedFilters()}
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Button type="button" variant="outline" onClick={resetAdvancedFilters} disabled={!hasAdvancedFilters}>
+                <RiCloseLine className="h-4 w-4 mr-1.5" />
+                Reset
+              </Button>
+              <Button type="button" onClick={() => setFilterSheetOpen(false)}>
+                Terapkan
+              </Button>
+            </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
       <section>
         <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
@@ -676,42 +678,44 @@ export function ManageService({
         isLoading={isDeleting}
       />
 
-      <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <SheetContent side="bottom" className="h-[90vh] rounded-t-lg p-2 max-w-4xl mx-auto overflow-y-auto">
-          <SheetHeader className="p-2">
-            <SheetTitle className="font-bold">Detail servis</SheetTitle>
-          </SheetHeader>
-          {isLoadingDetail && (
-            <div className="flex items-center justify-center py-8">
-              <p className="text-muted-foreground">Loading service details...</p>
+      <Drawer open={detailDialogOpen} onOpenChange={setDetailDialogOpen} direction="bottom">
+        <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-auto sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
+          <div className="shrink-0 border-x bg-popover px-4 pb-4 pt-3">
+            <DrawerTitle className="font-bold">Detail servis</DrawerTitle>
+          </div>
+          <ScrollArea className="h-[calc(100dvh-4.25rem)] min-w-0 border-0 overflow-hidden sm:h-auto sm:max-h-[calc(90dvh-4.25rem)]">
+            <div className="min-w-0 p-2">
+              {isLoadingDetail && (
+                <ServiceDetailCardSkeleton />
+              )}
+              {!isLoadingDetail && selectedService && (
+                <ServiceDetailCard
+                  service={selectedService}
+                  variant={[
+                    "done",
+                    "failed",
+                  ].includes(selectedService.status) ? "completed" : "active"}
+                  viewerRole="admin"
+                  onRefresh={handleRefreshDetail}
+                  onOptimisticStatusChange={handleOptimisticStatusChange}
+                  onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
+                  onOptimisticStatusError={handleOptimisticStatusError}
+                  onStatusChange={() => {
+                    setDetailDialogOpen(false);
+                    router.refresh();
+                  }}
+                  onPickupSuccess={() => {
+                    setDetailDialogOpen(false);
+                    publish({ action: "picked_up", serviceId: selectedService.id, ...getServiceRealtimeMeta(selectedService) });
+                    router.refresh();
+                  }}
+                  onRealtimeEvent={publish}
+                />
+              )}
             </div>
-          )}
-          {!isLoadingDetail && selectedService && (
-            <ServiceDetailCard
-              service={selectedService}
-              variant={[
-                "done",
-                "failed",
-              ].includes(selectedService.status) ? "completed" : "active"}
-              viewerRole="admin"
-              onRefresh={handleRefreshDetail}
-              onOptimisticStatusChange={handleOptimisticStatusChange}
-              onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
-              onOptimisticStatusError={handleOptimisticStatusError}
-              onStatusChange={() => {
-                setDetailDialogOpen(false);
-                router.refresh();
-              }}
-              onPickupSuccess={() => {
-                setDetailDialogOpen(false);
-                publish({ action: "picked_up", serviceId: selectedService.id, ...getServiceRealtimeMeta(selectedService) });
-                router.refresh();
-              }}
-              onRealtimeEvent={publish}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
 
     </div>
   );

@@ -1,4 +1,4 @@
-export { ServiceDetailCard } from "./service-detail-card";
+export { ServiceDetailCard, ServiceDetailCardSkeleton } from "./service-detail-card";
 export type {
   ServiceDetailCardItem,
   ServiceDetailCardProps,

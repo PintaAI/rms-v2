@@ -751,17 +751,38 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
     const access = await getInventoryUser(sparepart.tokoId, true)
     if (!access.success) return access
 
-    const updated = await prisma.sparepart.update({
-      where: { id: validated.id },
-      data: { stock: { increment: validated.qty } },
-      include: {
-        category: true,
-        compatibilities: {
-          include: {
-            hpCatalog: { include: { brand: { select: { name: true } } } },
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedSparepart = await tx.sparepart.update({
+        where: { id: validated.id },
+        data: { stock: { increment: validated.qty } },
+        include: {
+          category: true,
+          compatibilities: {
+            include: {
+              hpCatalog: { include: { brand: { select: { name: true } } } },
+            },
           },
         },
-      },
+      })
+
+      await tx.stockMovement.create({
+        data: {
+          tokoId: sparepart.tokoId,
+          sparepartId: validated.id,
+          type: "restock",
+          qtyChange: validated.qty,
+          stockBefore: updatedSparepart.stock - validated.qty,
+          stockAfter: updatedSparepart.stock,
+          unitCostSnapshot: sparepart.purchasePrice,
+          unitPriceSnapshot: updatedSparepart.defaultPrice,
+          referenceType: "restock",
+          referenceId: validated.id,
+          note: "Manual restock",
+          createdById: access.user.id,
+        },
+      })
+
+      return updatedSparepart
     })
 
     revalidateInventoryPaths()
@@ -775,7 +796,7 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
         sparepartId: validated.id,
         sparepartBarcode: sparepart.barcode,
         sparepartName: sparepart.name,
-        previousStock: sparepart.stock,
+        previousStock: updated.stock - validated.qty,
         addedQty: validated.qty,
         newStock: updated.stock,
         kind: sparepart.kind,

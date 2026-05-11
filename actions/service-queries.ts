@@ -35,9 +35,9 @@ export async function getServiceList(
 ): Promise<ActionResultWithData<PaginatedResult<ServiceListItem>>> {
   if (!tokoId) {
     const user = await getRequestUser();
-    if (!user) return { success: false, error: "Unauthorized" };
+    if (!user) return { success: false, error: "Tidak memiliki akses" };
     tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "No toko found" };
+    if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
   return withScope(tokoId, { role: ["admin", "staff"] }, async () => {
@@ -77,7 +77,7 @@ export async function getService(
     },
   });
 
-  if (!service) return { success: false, error: "Service not found" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
 
   return withScope(service.tokoId, {}, async (scope) => {
     if (isTechnicianRole(scope.user.role)) {
@@ -100,9 +100,9 @@ export async function getAvailableTasks(
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
   if (!tokoId) {
     const user = await getRequestUser();
-    if (!user) return { success: false, error: "Unauthorized" };
+    if (!user) return { success: false, error: "Tidak memiliki akses" };
     tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "No toko found" };
+    if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
   return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
@@ -127,9 +127,9 @@ export async function getTechnicianDashboard(
 ): Promise<ActionResultWithData<TechnicianDashboardData>> {
   if (!tokoId) {
     const user = await getRequestUser();
-    if (!user) return { success: false, error: "Unauthorized" };
+    if (!user) return { success: false, error: "Tidak memiliki akses" };
     tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "No toko found" };
+    if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
   return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {

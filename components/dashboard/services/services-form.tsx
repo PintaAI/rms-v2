@@ -6,6 +6,7 @@ import type { ServiceListItem as ServiceListItemType } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -396,6 +397,7 @@ function ServicesFormContent({
     if (initialState.isEditMode && editData && onRevertUpdate) {
       onRevertUpdate(editData as ServiceListItemType);
     }
+    toast.error(result.error || `Gagal ${initialState.isEditMode ? "memperbarui" : "membuat"} service`);
     setError(result.error || `Gagal ${initialState.isEditMode ? "memperbarui" : "membuat"} service`);
   }
 

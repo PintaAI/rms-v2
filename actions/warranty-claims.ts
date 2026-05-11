@@ -38,7 +38,7 @@ export async function createWarrantyClaim(
       warrantyClaims: { where: { status: "open" }, select: { id: true }, take: 1 },
     },
   });
-  if (!service) return { success: false, error: "Service not found" };
+  if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (!service.isPickedUp) return { success: false, error: "Klaim hanya bisa dibuat setelah service diambil" };
   if (service.status !== "done" && service.status !== "failed") return { success: false, error: "Klaim hanya bisa dibuat untuk service selesai" };
   if (service.warrantyClaims.length > 0) return { success: false, error: "Masih ada klaim terbuka untuk service ini" };

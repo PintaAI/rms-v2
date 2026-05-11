@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -218,6 +219,79 @@ export interface ServiceDetailCardProps {
   onOptimisticStatusError?: (serviceId: string) => void;
   onPickupSuccess?: (serviceId: string) => void;
   onRealtimeEvent?: (event: PublishServiceRealtimeEvent) => void;
+}
+
+export function ServiceDetailCardSkeleton() {
+  return (
+    <div className="relative min-w-0 overflow-hidden rounded-lg bg-card py-4 text-card-foreground ring-1 ring-foreground/10">
+      <Skeleton className="absolute inset-x-0 top-0 h-1 rounded-none" />
+      <div className="space-y-3 px-4 pb-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="size-5 rounded-full" />
+              <Skeleton className="h-5 w-44 max-w-full" />
+              <Skeleton className="h-5 w-14 rounded-full" />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <Skeleton className="h-5 w-16 rounded-full" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="h-5 w-28 rounded-full" />
+            </div>
+            <div className="space-y-1">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          </div>
+          <Skeleton className="h-8 w-9 self-end sm:self-start" />
+        </div>
+      </div>
+
+      <div className="space-y-4 px-4">
+        <div className="space-y-1.5">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-4 w-28" />
+        </div>
+        <div className="space-y-1.5">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="rounded-lg border p-3">
+          <div className="flex gap-3">
+            <Skeleton className="mt-0.5 size-4 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-4 w-48 max-w-full" />
+            </div>
+          </div>
+        </div>
+        <div className="rounded-lg border p-3">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-8 w-full rounded-full" />
+            <Skeleton className="h-4 w-44 max-w-full" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-20" />
+          <div className="flex flex-wrap gap-1.5">
+            <Skeleton className="h-5 w-10 rounded-full" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-20" />
+          <div className="grid gap-2 sm:hidden">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+          <Skeleton className="hidden h-32 w-full sm:block" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ServiceDetailCard({
@@ -665,14 +739,14 @@ export function ServiceDetailCard({
 
   return (
     <>
-      <Card className={cn("relative overflow-hidden", roleTone.card)}>
+      <Card className={cn("relative min-w-0 overflow-hidden", roleTone.card)}>
         <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r", roleTone.rail)} />
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="shrink-0">{getBrandIcon(localService.hpCatalog.brand.name)}</span>
-                <CardTitle className="text-base sm:text-lg leading-tight">
+                <CardTitle className="min-w-0 break-words text-base leading-tight sm:text-lg">
                   {localService.hpCatalog.brand.name} {localService.hpCatalog.modelName}
                 </CardTitle>
                 <Badge variant={statusColors[localService.status] || "outline"} className="shrink-0">
@@ -708,7 +782,7 @@ export function ServiceDetailCard({
                 )}
               </div>
               <div>
-                <CardDescription className="text-sm">
+                <CardDescription className="break-words text-sm">
                   {localService.customerName || "No customer name"} • {localService.noWa}
                 </CardDescription>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -716,7 +790,7 @@ export function ServiceDetailCard({
                 </p>
               </div>
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex w-full justify-end gap-2 sm:w-auto sm:shrink-0">
               {isActive && showRepairItemActions && localService.invoice?.paymentStatus !== "paid" && (
                 <Button
                   size="sm"
@@ -885,7 +959,48 @@ export function ServiceDetailCard({
             {localService.items.length > 0 && (
               <div>
                 <Label className="text-muted-foreground">Repair Items</Label>
-                <div className="mt-1 overflow-x-auto rounded-md border">
+                <div className="mt-1 grid gap-2 sm:hidden">
+                  {localService.items.map((item) => (
+                    <div key={item.id} className="rounded-md border bg-muted/20 p-3">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge variant="outline">{item.type}</Badge>
+                            {item.isPending && (
+                              <Badge variant="secondary" className="text-[10px] font-normal">
+                                Menyimpan...
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="break-words text-sm font-medium">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.qty} x {formatCurrency(item.price)}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-semibold">{formatCurrency(item.price * item.qty)}</p>
+                          {isActive && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={removingItemIds.has(item.id) || item.id.startsWith("temp-")}
+                              onClick={() => {
+                                if (onRemoveItem) {
+                                  onRemoveItem(item.id);
+                                } else {
+                                  handleRemoveItem(item.id);
+                                }
+                              }}
+                            >
+                              <RiDeleteBinLine className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1 hidden max-w-full overflow-x-auto rounded-md border sm:block">
                   <Table className="min-w-[640px]">
                     <TableHeader>
                       <TableRow>
@@ -979,7 +1094,7 @@ export function ServiceDetailCard({
                 <p className={cn("text-sm font-medium text-center mb-3", roleTone.label)}>
                   Customer handoff
                 </p>
-                <div className="flex gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:flex">
                   {localService.invoice && (
                     <ActionTile icon={RiFileListLine} label="Invoice" onClick={() => setInvoiceDialogOpen(true)}
                       variant="outline" className="flex-1" />
@@ -1375,6 +1490,7 @@ export function ServiceDetailCard({
         onOpenChange={setPaymentDialogOpen}
         invoiceTotal={localService.invoice?.grandTotal || 0}
         dpAmount={localService.invoice?.dpAmount || 0}
+        items={localService.items}
         isSubmitting={isPayingInvoice}
         onSuccess={openPaidInvoiceDialog}
         onConfirm={handlePayInvoice}

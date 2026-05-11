@@ -7,13 +7,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
-import { ServiceDetailCard } from "@/components/dashboard/services/service-detail-card";
+import { ServiceDetailCard, ServiceDetailCardSkeleton } from "@/components/dashboard/services/service-detail-card";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
 import { getService, takeService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
@@ -42,7 +43,6 @@ import {
   RiToolsLine,
   RiHistoryLine,
   RiArrowRightLine,
-  RiLoader4Line,
   RiStore2Line,
   RiSearchLine,
 } from "@remixicon/react";
@@ -390,42 +390,42 @@ export function TeknisiTaskManager({
         </Card>
       </section>
 
-      <Sheet open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <SheetContent side="bottom" className="mx-auto h-[90vh] max-w-4xl overflow-y-auto rounded-t-lg p-2">
-          <SheetHeader className="flex items-center justify-between p-2">
-            <SheetTitle className="font-bold">Detail Task</SheetTitle>
-            <p className="text-sm text-muted-foreground">kelola task servis</p>
-          </SheetHeader>
-          {isLoadingDetail && (
-            <div className="flex items-center justify-center py-8">
-              <RiLoader4Line className="h-6 w-6 animate-spin text-muted-foreground" />
+      <Drawer open={detailDialogOpen} onOpenChange={setDetailDialogOpen} direction="bottom">
+        <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-auto sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
+          <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3">
+            <DrawerTitle className="font-bold">Detail Task</DrawerTitle>
+            <DrawerDescription>kelola task servis</DrawerDescription>
+          </div>
+          <ScrollArea className="h-[calc(100dvh-4.75rem)] min-w-0 overflow-hidden sm:h-auto sm:max-h-[calc(90dvh-4.75rem)]">
+            <div className="min-w-0 p-2">
+              {isLoadingDetail && (
+                <ServiceDetailCardSkeleton />
+              )}
+              {!isLoadingDetail && selectedTask && (
+                <ServiceDetailCard
+                  service={selectedTask}
+                  variant={
+                    selectedTask.status === "done" ||
+                    selectedTask.status === "failed"
+                      ? "completed"
+                      : "active"
+                  }
+                  viewerRole="technician"
+                  onRefresh={handleRefreshDetail}
+                  onOptimisticStatusChange={handleOptimisticStatusChange}
+                  onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
+                  onOptimisticStatusError={handleOptimisticStatusError}
+                  onStatusChange={() => {
+                    setDetailDialogOpen(false);
+                    router.refresh();
+                  }}
+                  onRealtimeEvent={publish}
+                />
+              )}
             </div>
-          )}
-          {!isLoadingDetail && selectedTask && (
-            <div className="p-2">
-              <ServiceDetailCard
-                service={selectedTask}
-                variant={
-                  selectedTask.status === "done" ||
-                  selectedTask.status === "failed"
-                    ? "completed"
-                    : "active"
-                }
-                viewerRole="technician"
-                onRefresh={handleRefreshDetail}
-                onOptimisticStatusChange={handleOptimisticStatusChange}
-                onOptimisticStatusSuccess={handleOptimisticStatusSuccess}
-                onOptimisticStatusError={handleOptimisticStatusError}
-                onStatusChange={() => {
-                  setDetailDialogOpen(false);
-                  router.refresh();
-                }}
-                onRealtimeEvent={publish}
-              />
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
 
       <TakeoverConfirmDialog
         open={Boolean(pendingTakeoverTask)}
