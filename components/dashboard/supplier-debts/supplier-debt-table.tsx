@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { deleteSupplierDebt, type SupplierDebtListItem, type SupplierOption } from "@/actions/supplier-debts"
 import { SupplierDebtFormDialog } from "@/components/dashboard/supplier-debts/supplier-debt-form-dialog"
 import { SupplierPaymentDialog } from "@/components/dashboard/supplier-debts/supplier-payment-dialog"
@@ -66,6 +66,14 @@ export function SupplierDebtTable({ tokoId, initialDebts, initialSuppliers, read
   const [deletingDebt, setDeletingDebt] = useState<SupplierDebtListItem | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isDeleting, startDeleteTransition] = useTransition()
+
+  useEffect(() => {
+    setDebts(initialDebts)
+  }, [initialDebts])
+
+  useEffect(() => {
+    setSuppliers(initialSuppliers)
+  }, [initialSuppliers])
 
   const summary = useMemo(
     () => ({

@@ -13,12 +13,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  restockSparepart,
+  restockSparepartsWithDebt,
   searchSpareparts,
   getStockInHistory,
   type InventoryItemKind,
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
+import { getSuppliers, type SupplierOption } from "@/actions/supplier-debts";
 import {
   RiStackLine,
   RiSearchLine,
@@ -30,11 +31,14 @@ import {
   RiBarcodeLine,
   RiNumbersLine,
   RiDeleteBinLine,
+  RiFileList3Line,
 } from "@remixicon/react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useScannerPairing, ScannerPairingPanel, ScannerToggleButton } from "@/components/shared/scanner-pairing";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SparepartRestockDialogProps {
   open: boolean;
@@ -65,6 +69,11 @@ const SCANNER_INPUT_THRESHOLD_MS = 30;
 const getRestockPrice = (sparepart: SparepartWithCompatibilities) =>
   sparepart.purchasePrice ?? 0;
 
+const parseCurrencyInput = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  return digits === "" ? 0 : Number(digits);
+};
+
 function SparepartRestockDialogContent({
   tokoId,
   itemKind = "sparepart",
@@ -82,6 +91,14 @@ function SparepartRestockDialogContent({
   const [restockItems, setRestockItems] = useState<RestockItem[]>([]);
   const [history, setHistory] = useState<StockHistoryItem[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [createSupplierDebt, setCreateSupplierDebt] = useState(false);
+  const [supplierId, setSupplierId] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [debtTotalAmount, setDebtTotalAmount] = useState("");
+  const [debtPaidAmount, setDebtPaidAmount] = useState("0");
   const inputRef = useRef<HTMLInputElement>(null);
   const lastKeyTimeRef = useRef<number[]>([]);
   const isScannerInputRef = useRef(false);
@@ -118,12 +135,18 @@ function SparepartRestockDialogContent({
     }
   }, [tokoId]);
 
+  const loadSuppliers = useCallback(async () => {
+    const result = await getSuppliers(tokoId);
+    if (result.success && result.data) setSuppliers(result.data);
+  }, [tokoId]);
+
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
     const historyTimeout = window.setTimeout(() => {
       void loadHistory();
+      void loadSuppliers();
     }, 0);
     return () => {
       window.clearTimeout(historyTimeout);
@@ -131,7 +154,7 @@ function SparepartRestockDialogContent({
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [loadHistory]);
+  }, [loadHistory, loadSuppliers]);
 
   const detectScannerInput = useCallback(() => {
     const now = Date.now();
@@ -222,35 +245,76 @@ function SparepartRestockDialogContent({
     setIsLoading(true);
     setError(null);
 
-    const updatedSpareparts: SparepartWithCompatibilities[] = [];
+    const parsedDebtTotalAmount = debtTotalAmount.trim() === "" ? totalRestockPrice : parseCurrencyInput(debtTotalAmount);
+    const parsedDebtPaidAmount = debtPaidAmount.trim() === "" ? 0 : parseCurrencyInput(debtPaidAmount);
 
-    for (const item of restockItems) {
-      const result = await restockSparepart({ id: item.sparepart.id, qty: item.qty });
-
-      if (!result.success) {
+    if (createSupplierDebt) {
+      if (!supplierId) {
+        setError("Pilih supplier untuk membuat hutang supplier");
         setIsLoading(false);
-        toast.error(result.error || `Gagal menambah stok ${item.sparepart.name}`);
         return;
       }
-
-      if (result.data) {
-        updatedSpareparts.push(result.data);
+      if (Number.isNaN(parsedDebtTotalAmount) || parsedDebtTotalAmount <= 0) {
+        setError("Total pembelian harus lebih dari 0");
+        setIsLoading(false);
+        return;
       }
+      if (Number.isNaN(parsedDebtPaidAmount) || parsedDebtPaidAmount < 0) {
+        setError("Dibayar sekarang tidak boleh negatif");
+        setIsLoading(false);
+        return;
+      }
+      if (parsedDebtPaidAmount > parsedDebtTotalAmount) {
+        setError("Dibayar sekarang tidak boleh melebihi total pembelian");
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    const result = await restockSparepartsWithDebt({
+      tokoId,
+      items: restockItems.map((item) => ({ id: item.sparepart.id, qty: item.qty })),
+      supplierDebt: createSupplierDebt
+        ? {
+            enabled: true,
+            supplierId,
+            invoiceNumber,
+            invoiceDate,
+            dueDate,
+            totalAmount: parsedDebtTotalAmount,
+            paidAmount: parsedDebtPaidAmount,
+          }
+        : { enabled: false },
+    });
+
+    if (!result.success) {
+      setIsLoading(false);
+      toast.error(result.error || `Gagal menambah stok ${itemLabel}`);
+      return;
     }
 
     setIsLoading(false);
 
-    for (const updatedSparepart of updatedSpareparts) {
+    for (const updatedSparepart of result.data ?? []) {
       onSuccess(updatedSparepart);
     }
 
     void loadHistory();
     toast.success(`${restockItems.length} ${itemLabel} berhasil direstock`, {
-      description: `Total harga: ${formatCurrency(totalRestockPrice)}`,
+      description: createSupplierDebt
+        ? `Hutang supplier dibuat: ${formatCurrency(parsedDebtTotalAmount)}`
+        : `Total harga: ${formatCurrency(totalRestockPrice)}`,
     });
     setRestockItems([]);
+    setCreateSupplierDebt(false);
+    setSupplierId("");
+    setInvoiceNumber("");
+    setInvoiceDate("");
+    setDueDate("");
+    setDebtTotalAmount("");
+    setDebtPaidAmount("0");
     onOpenChange(false);
-  }, [itemLabel, loadHistory, onOpenChange, onSuccess, restockItems, totalRestockPrice]);
+  }, [createSupplierDebt, debtPaidAmount, debtTotalAmount, dueDate, invoiceDate, invoiceNumber, itemLabel, loadHistory, onOpenChange, onSuccess, restockItems, supplierId, tokoId, totalRestockPrice]);
 
   const processScannerValue = useCallback(async (rawValue: string) => {
     if (isProcessingScannerRef.current) return;
@@ -608,6 +672,112 @@ function SparepartRestockDialogContent({
                   </div>
                 </div>
               </div>
+            </div>
+          </>
+        )}
+
+        {restockItems.length > 0 && (
+          <>
+            <div className="border-t pt-2" />
+            <div className="flex flex-col gap-3">
+              <label className="flex items-start gap-3 rounded-lg border bg-muted/20 p-3">
+                <Checkbox
+                  checked={createSupplierDebt}
+                  onCheckedChange={(checked) => setCreateSupplierDebt(checked === true)}
+                  disabled={isLoading}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold">
+                    <RiFileList3Line className="size-4" />
+                    Buat hutang supplier dari restock ini
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Stok, nota hutang, dan pembayaran awal akan disimpan dalam satu transaksi.
+                  </span>
+                </span>
+              </label>
+
+              {createSupplierDebt && (
+                <div className="border-l border-border pl-3 sm:ml-4 sm:pl-4">
+                  <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <Label>Supplier <span className="text-destructive">*</span></Label>
+                      <Select value={supplierId} onValueChange={setSupplierId} disabled={isLoading || suppliers.length === 0}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={suppliers.length === 0 ? "Belum ada supplier" : "Pilih supplier"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {suppliers.map((supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="supplier-invoice-number">No nota supplier</Label>
+                      <Input
+                        id="supplier-invoice-number"
+                        value={invoiceNumber}
+                        onChange={(event) => setInvoiceNumber(event.target.value)}
+                        placeholder="INV-001"
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="supplier-invoice-date">Tanggal nota</Label>
+                      <Input
+                        id="supplier-invoice-date"
+                        type="date"
+                        value={invoiceDate}
+                        onChange={(event) => setInvoiceDate(event.target.value)}
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="supplier-due-date">Jatuh tempo</Label>
+                      <Input
+                        id="supplier-due-date"
+                        type="date"
+                        value={dueDate}
+                        onChange={(event) => setDueDate(event.target.value)}
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="supplier-total-amount">Total pembelian <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="supplier-total-amount"
+                        type="text"
+                        inputMode="numeric"
+                        value={debtTotalAmount}
+                        onChange={(event) => setDebtTotalAmount(event.target.value)}
+                        placeholder={formatCurrency(totalRestockPrice)}
+                        disabled={isLoading}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        Kosongkan untuk memakai total daftar restock: {formatCurrency(totalRestockPrice)}.
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:col-span-2">
+                      <Label htmlFor="supplier-paid-amount">Dibayar sekarang</Label>
+                      <Input
+                        id="supplier-paid-amount"
+                        type="text"
+                        inputMode="numeric"
+                        value={debtPaidAmount}
+                        onChange={(event) => setDebtPaidAmount(event.target.value)}
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

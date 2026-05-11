@@ -8,6 +8,7 @@ import type { RequestScope } from "@/lib/auth/request-scope"
 import { revalidateInventoryPaths } from "@/lib/revalidation"
 import type { FeatureKey } from "@/lib/features"
 import type { Prisma } from "@/prisma/generated/prisma/client"
+import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 export type Sparepart = {
@@ -735,6 +736,66 @@ const restockSparepartSchema = z.object({
   qty: z.number().int().min(1, "Jumlah harus 1 atau lebih"),
 })
 
+const currencyAmountSchema = z.preprocess((value) => {
+  if (typeof value === "string") {
+    const digits = value.replace(/\D/g, "")
+    return digits === "" ? undefined : Number(digits)
+  }
+
+  return value
+}, z.number().int("Nominal harus berupa angka bulat"))
+
+const restockSparepartsWithDebtSchema = z.object({
+  tokoId: z.string().min(1, "Toko wajib diisi"),
+  items: z.array(restockSparepartSchema).min(1, "Tambahkan minimal 1 item restock"),
+  supplierDebt: z.object({
+    enabled: z.boolean(),
+    supplierId: z.string().optional().nullable(),
+    invoiceNumber: z.string().trim().optional().nullable(),
+    invoiceDate: z.string().trim().optional().nullable(),
+    dueDate: z.string().trim().optional().nullable(),
+    totalAmount: currencyAmountSchema.optional(),
+    paidAmount: currencyAmountSchema.optional(),
+  }).optional(),
+})
+
+export type RestockSparepartsWithDebtInput = z.infer<typeof restockSparepartsWithDebtSchema>
+
+class RestockActionError extends Error {}
+
+function getSupplierDebtStatus(totalAmount: number, paidAmount: number): "unpaid" | "partial" | "paid" {
+  if (paidAmount >= totalAmount) return "paid"
+  if (paidAmount > 0) return "partial"
+  return "unpaid"
+}
+
+function normalizeOptionalText(value: string | null | undefined) {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+function parseOptionalDate(value: string | null | undefined) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function validateRestockSupplierDebt(input: NonNullable<RestockSparepartsWithDebtInput["supplierDebt"]>) {
+  if (!input.enabled) return
+
+  const totalAmount = input.totalAmount ?? 0
+  const paidAmount = input.paidAmount ?? 0
+
+  if (!input.supplierId) throw new RestockActionError("Supplier wajib dipilih")
+  if (totalAmount <= 0) throw new RestockActionError("Total pembelian harus lebih dari 0")
+  if (paidAmount < 0) throw new RestockActionError("Dibayar sekarang tidak boleh negatif")
+  if (paidAmount > totalAmount) throw new RestockActionError("Dibayar sekarang tidak boleh melebihi total pembelian")
+}
+
+function revalidateSupplierDebtPath(tokoId: string) {
+  revalidatePath(`/${tokoId}/admin/supplier-debts`)
+}
+
 export async function restockSparepart(data: z.infer<typeof restockSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
   try {
     const validated = restockSparepartSchema.parse(data)
@@ -812,6 +873,157 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
     }
     console.error("Error restocking sparepart:", error)
     return { success: false, error: "Gagal menambah stok sparepart" }
+  }
+}
+
+export async function restockSparepartsWithDebt(
+  data: RestockSparepartsWithDebtInput
+): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
+  try {
+    const validated = restockSparepartsWithDebtSchema.parse(data)
+    const access = await getInventoryUser(validated.tokoId, true)
+    if (!access.success) return access
+
+    const supplierDebt = validated.supplierDebt
+    if (supplierDebt?.enabled) validateRestockSupplierDebt(supplierDebt)
+
+    const sparepartIds = validated.items.map((item) => item.id)
+    if (new Set(sparepartIds).size !== sparepartIds.length) {
+      return { success: false, error: "Item restock tidak boleh duplikat" }
+    }
+
+    const existingSpareparts = await prisma.sparepart.findMany({
+      where: { id: { in: sparepartIds }, tokoId: validated.tokoId },
+      select: { id: true, barcode: true, name: true, stock: true, purchasePrice: true, kind: true },
+    })
+    const sparepartById = new Map(existingSpareparts.map((sparepart) => [sparepart.id, sparepart]))
+
+    for (const item of validated.items) {
+      if (!sparepartById.has(item.id)) return { success: false, error: "Item restock tidak ditemukan di toko ini" }
+    }
+
+    if (supplierDebt?.enabled && supplierDebt.supplierId) {
+      const supplier = await prisma.supplier.findFirst({
+        where: { id: supplierDebt.supplierId, tokoId: validated.tokoId },
+        select: { id: true },
+      })
+      if (!supplier) return { success: false, error: "Supplier tidak ditemukan di toko ini" }
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedSpareparts: SparepartWithCompatibilities[] = []
+
+      for (const item of validated.items) {
+        const sparepart = sparepartById.get(item.id)
+        if (!sparepart) throw new RestockActionError("Item restock tidak ditemukan di toko ini")
+
+        const updatedSparepart = await tx.sparepart.update({
+          where: { id: item.id },
+          data: { stock: { increment: item.qty } },
+          include: {
+            category: true,
+            compatibilities: {
+              include: {
+                hpCatalog: { include: { brand: { select: { name: true } } } },
+              },
+            },
+          },
+        })
+
+        await tx.stockMovement.create({
+          data: {
+            tokoId: validated.tokoId,
+            sparepartId: item.id,
+            type: "restock",
+            qtyChange: item.qty,
+            stockBefore: updatedSparepart.stock - item.qty,
+            stockAfter: updatedSparepart.stock,
+            unitCostSnapshot: sparepart.purchasePrice,
+            unitPriceSnapshot: updatedSparepart.defaultPrice,
+            referenceType: "restock",
+            referenceId: item.id,
+            note: supplierDebt?.enabled ? "Manual restock dengan hutang supplier" : "Manual restock",
+            createdById: access.user.id,
+          },
+        })
+
+        updatedSpareparts.push(updatedSparepart)
+      }
+
+      if (supplierDebt?.enabled && supplierDebt.supplierId) {
+        const paidAmount = supplierDebt.paidAmount ?? 0
+        const invoiceDate = normalizeOptionalText(supplierDebt.invoiceDate)
+        const itemSummary = validated.items
+          .map((item) => {
+            const sparepart = sparepartById.get(item.id)
+            return sparepart ? `${sparepart.name} x${item.qty}` : null
+          })
+          .filter(Boolean)
+          .join(", ")
+        const descriptionParts = [`Restock: ${itemSummary}`]
+        if (invoiceDate) descriptionParts.push(`Tanggal nota: ${invoiceDate}`)
+
+        await tx.supplierDebt.create({
+          data: {
+            tokoId: validated.tokoId,
+            supplierId: supplierDebt.supplierId,
+            invoiceNumber: normalizeOptionalText(supplierDebt.invoiceNumber),
+            description: descriptionParts.join("\n"),
+            totalAmount: supplierDebt.totalAmount ?? 0,
+            paidAmount,
+            dueDate: parseOptionalDate(supplierDebt.dueDate),
+            status: getSupplierDebtStatus(supplierDebt.totalAmount ?? 0, paidAmount),
+            payments: paidAmount > 0
+              ? {
+                  create: {
+                    amount: paidAmount,
+                    note: "Pembayaran awal dari restock",
+                  },
+                }
+              : undefined,
+          },
+        })
+      }
+
+      return updatedSpareparts
+    })
+
+    revalidateInventoryPaths(validated.tokoId)
+    if (supplierDebt?.enabled) revalidateSupplierDebtPath(validated.tokoId)
+
+    await Promise.all(updated.map((updatedSparepart) => {
+      const item = validated.items.find((currentItem) => currentItem.id === updatedSparepart.id)
+      const previous = sparepartById.get(updatedSparepart.id)
+      if (!item || !previous) return Promise.resolve()
+
+      return createActivityLogIfUser({
+        tokoId: validated.tokoId,
+        userId: access.user.id,
+        type: "sparepart_stock_in",
+        title: "Sparepart restocked",
+        payload: {
+          sparepartId: updatedSparepart.id,
+          sparepartBarcode: previous.barcode,
+          sparepartName: previous.name,
+          previousStock: updatedSparepart.stock - item.qty,
+          addedQty: item.qty,
+          newStock: updatedSparepart.stock,
+          kind: previous.kind,
+          purchasePrice: previous.purchasePrice ?? 0,
+          totalPrice: (previous.purchasePrice ?? 0) * item.qty,
+          supplierDebtCreated: Boolean(supplierDebt?.enabled),
+        },
+      })
+    }))
+
+    return { success: true, data: updated }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: error.issues[0].message }
+    }
+    if (error instanceof RestockActionError) return { success: false, error: error.message }
+    console.error("Error restocking spareparts with supplier debt:", error)
+    return { success: false, error: "Gagal menyimpan restock" }
   }
 }
 
