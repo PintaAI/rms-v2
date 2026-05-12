@@ -336,6 +336,10 @@ function assertWorkflowForInventory(scope: RequestScope) {
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 }
 
+function assertRetailInventoryFeature(scope: RequestScope, kind?: InventoryItemKind | null) {
+  if (kind === "retail_item") assertFeature(scope, "retail.sales")
+}
+
 type SparepartCategoryClient = typeof prisma | Prisma.TransactionClient
 
 async function findOrCreateSparepartCategory(
@@ -380,6 +384,7 @@ export async function getSpareparts(tokoId: string, kind: InventoryItemKind = "s
   try {
     const access = await getInventoryUser(tokoId)
     if (!access.success) return access
+    assertRetailInventoryFeature(access.scope, kind)
 
     const spareparts = await prisma.sparepart.findMany({
       where: { tokoId, kind },
@@ -447,6 +452,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
     const validated = createSparepartSchema.parse(data)
     const access = await getCreateSparepartUser(validated.tokoId)
     if (!access.success) return access
+    assertRetailInventoryFeature(access.scope, validated.kind)
 
     const existing = await prisma.sparepart.findFirst({
       where: { tokoId: validated.tokoId, name: validated.name },
@@ -535,6 +541,9 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
 
     const access = await getInventoryUser(sparepart.tokoId, true)
     if (!access.success) return access
+    if (sparepart.kind === "retail_item" || validated.kind === "retail_item") {
+      assertFeature(access.scope, "retail.sales")
+    }
 
     if (validated.name) {
       const existing = await prisma.sparepart.findFirst({
@@ -618,6 +627,9 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
     const validated = importSparepartsSchema.parse(data)
     const access = await getInventoryUser(validated.tokoId, true)
     if (!access.success) return access
+    if (validated.rows.some((row) => row.kind === "retail_item")) {
+      assertFeature(access.scope, "retail.sales")
+    }
 
     const errors: ImportSparepartsResult["errors"] = []
     const seenNames = new Map<string, number>()
@@ -811,6 +823,7 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
 
     const access = await getInventoryUser(sparepart.tokoId, true)
     if (!access.success) return access
+    assertRetailInventoryFeature(access.scope, sparepart.kind)
 
     const updated = await prisma.$transaction(async (tx) => {
       const updatedSparepart = await tx.sparepart.update({
@@ -897,6 +910,10 @@ export async function restockSparepartsWithDebt(
       select: { id: true, barcode: true, name: true, stock: true, purchasePrice: true, kind: true },
     })
     const sparepartById = new Map(existingSpareparts.map((sparepart) => [sparepart.id, sparepart]))
+
+    if (existingSpareparts.some((sparepart) => sparepart.kind === "retail_item")) {
+      assertFeature(access.scope, "retail.sales")
+    }
 
     for (const item of validated.items) {
       if (!sparepartById.has(item.id)) return { success: false, error: "Item restock tidak ditemukan di toko ini" }
@@ -1031,6 +1048,7 @@ export async function searchSpareparts(tokoId: string, query: string, kind: Inve
   try {
     const access = await getInventoryUser(tokoId)
     if (!access.success) return access
+    assertRetailInventoryFeature(access.scope, kind)
 
     const spareparts = await prisma.sparepart.findMany({
       where: {
@@ -1250,6 +1268,7 @@ export async function getInventoryReport(
   try {
     const access = await getInventoryUser(tokoId)
     if (!access.success) return access
+    assertRetailInventoryFeature(access.scope, filters.kind)
 
     const spareparts = await prisma.sparepart.findMany({
       where: { tokoId, ...(filters.kind ? { kind: filters.kind } : {}) },
@@ -1334,7 +1353,7 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
   try {
     const sparepart = await prisma.sparepart.findUnique({
       where: { id },
-      select: { tokoId: true, name: true },
+      select: { tokoId: true, name: true, kind: true },
     })
 
     if (!sparepart) {
@@ -1343,6 +1362,7 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
 
     const access = await getInventoryUser(sparepart.tokoId, true)
     if (!access.success) return access
+    assertRetailInventoryFeature(access.scope, sparepart.kind)
 
     const usedInServices = await prisma.serviceItem.findFirst({
       where: { referenceId: id },

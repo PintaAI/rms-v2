@@ -17,14 +17,16 @@ export default async function AdminRetailInventoryPage({ params, searchParams }:
   const query = await searchParams;
   const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
   const scope = await getRequestScope(tokoid);
-  const access = getPageFeatureCheck(scope, "inventory.management");
+  const inventoryAccess = getPageFeatureCheck(scope, "inventory.management");
+  const retailAccess = getPageFeatureCheck(scope, "retail.sales");
+  const access = !inventoryAccess.allowed ? inventoryAccess : retailAccess;
 
   if (access.reason === "role_denied") redirect("/dashboard");
   if (access.reason === "disabled_by_toko") redirect(`/${tokoid}/admin`);
 
   if (access.reason === "plan_required") {
     return (
-      <FeaturePreview featureKey="inventory.management" requiredPlan={access.metadata.minimumPlan}>
+      <FeaturePreview featureKey={access.metadata.key} requiredPlan={access.metadata.minimumPlan}>
         <div className="space-y-8">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
