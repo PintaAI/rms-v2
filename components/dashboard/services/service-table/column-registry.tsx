@@ -29,6 +29,21 @@ function parseNoteStatus(note: string) {
   };
 }
 
+function getInvoiceDisplayTotal(service: ServiceTableItem) {
+  const grandTotal = service.invoice?.grandTotal ?? 0;
+  const dpAmount = service.invoice?.dpAmount ?? 0;
+  const discountAmount = service.invoice?.discountAmount ?? 0;
+  const totalRefund = (service.warrantyClaims ?? [])
+    .filter((claim) => claim.status === "resolved" && claim.refundAmount > 0)
+    .reduce((sum, claim) => sum + claim.refundAmount, 0);
+
+  return {
+    originalTotal: grandTotal,
+    netTotal: Math.max(0, grandTotal - dpAmount - discountAmount - totalRefund),
+    totalRefund,
+  };
+}
+
 export const columnRegistry: Record<string, ColumnDef> = {
   customer: {
     key: "customer",
@@ -258,14 +273,21 @@ export const columnRegistry: Record<string, ColumnDef> = {
       if (!service.invoice) return <span className="text-muted-foreground">-</span>;
       const isPaid = service.invoice.paymentStatus === "paid";
       const isDp = service.invoice.paymentStatus === "dp";
+      const invoiceTotal = getInvoiceDisplayTotal(service);
     return (
       <div className="flex items-start gap-2 flex-wrap">
-        <span className="text-sm font-semibold tabular-nums">{formatCurrency(service.invoice.grandTotal)}</span>
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold tabular-nums">{formatCurrency(invoiceTotal.netTotal)}</span>
+          {invoiceTotal.totalRefund > 0 && (
+            <span className="text-[0.6rem] text-muted-foreground">Asli {formatCurrency(invoiceTotal.originalTotal)}</span>
+          )}
+        </div>
           <div className="flex items-center gap-1">
             {isPaid && <RiCheckLine className="h-3 w-3 text-chart-1" />}
             <Badge variant={getPaymentStatusColor(service.invoice.paymentStatus)} className="text-[0.6rem]">
               {isPaid ? "Paid" : isDp ? `DP${service.invoice.dpAmount ? " " + formatCurrency(service.invoice.dpAmount) : ""}` : "Unpaid"}
             </Badge>
+            {invoiceTotal.totalRefund > 0 && <Badge variant="outline" className="text-[0.6rem]">Refund</Badge>}
           </div>
         </div>
       );

@@ -71,6 +71,15 @@ export const serviceSelectBase = {
       resolvedAt: true,
       createdBy: { select: { name: true } },
       resolvedBy: { select: { name: true } },
+      items: {
+        select: {
+          id: true,
+          sparepartId: true,
+          name: true,
+          qty: true,
+          price: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   },

@@ -119,8 +119,8 @@ function normalizeRetailSalesFilters(filters?: RetailSalesFilters) {
   const page = Math.max(rawPage, 1)
   const q = filters?.q?.trim()
   const cashierId = filters?.cashierId && filters.cashierId !== "all" ? filters.cashierId : undefined
-  const paymentMethod = filters?.paymentMethod && ["cash", "transfer", "qris", "debit"].includes(filters.paymentMethod) ? filters.paymentMethod : undefined
-  const status = filters?.status && ["paid", "void"].includes(filters.status) ? filters.status : undefined
+  const paymentMethod = filters?.paymentMethod && filters.paymentMethod !== "all" ? filters.paymentMethod : undefined
+  const status = filters?.status && filters.status !== "all" ? filters.status : undefined
   const from = filters?.from && /^\d{4}-\d{2}-\d{2}$/.test(filters.from) ? filters.from : undefined
   const to = filters?.to && /^\d{4}-\d{2}-\d{2}$/.test(filters.to) ? filters.to : undefined
 

@@ -23,6 +23,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Table,
   TableHeader,
@@ -52,6 +61,7 @@ import {
   RiLogoutBoxLine,
   RiFileListLine,
   RiShieldCheckLine,
+  RiArrowDownSLine,
 } from "@remixicon/react";
 import { PatternLock } from "@/components/shared/pattern-lock";
 import { getBrandIcon } from "@/lib/brand-icons";
@@ -101,6 +111,7 @@ const claimStatusLabels: Record<string, string> = {
 
 const claimResolutionLabels: Record<string, string> = {
   free_repair: "Servis ulang gratis",
+  replace_part: "Ganti sparepart",
   cash_refund: "Refund uang",
   no_action: "Tolak klaim",
 };
@@ -507,6 +518,9 @@ export function ServiceDetailCard({
   const [claimRefundAmount, setClaimRefundAmount] = useState("");
   const [claimTechnicianNote, setClaimTechnicianNote] = useState("");
   const [claimResolvedNote, setClaimResolvedNote] = useState("");
+  const [claimSparepartId, setClaimSparepartId] = useState("");
+  const [claimSparepartQty, setClaimSparepartQty] = useState(1);
+  const [claimSparepartPopoverOpen, setClaimSparepartPopoverOpen] = useState(false);
   const [isResolvingClaim, setIsResolvingClaim] = useState(false);
 
   const viewInvoiceService = useMemo(() => {
@@ -548,6 +562,8 @@ export function ServiceDetailCard({
   const warrantyClaims = localService.warrantyClaims ?? [];
   const openWarrantyClaim = warrantyClaims.find((claim) => claim.status === "open");
   const canCreateWarrantyClaim = canManageWarrantyClaims && Boolean(localService.isPickedUp) && !openWarrantyClaim;
+  const selectedClaimSparepart = spareparts.find((sparepart) => sparepart.id === claimSparepartId);
+  const claimSparepartStockInsufficient = claimResolution === "replace_part" && Boolean(selectedClaimSparepart) && claimSparepartQty > (selectedClaimSparepart?.stock ?? 0);
 
   function openDoneDialog() {
     if (localService.items.length === 0) {
@@ -713,6 +729,9 @@ export function ServiceDetailCard({
     setClaimRefundAmount("");
     setClaimTechnicianNote("");
     setClaimResolvedNote("");
+    setClaimSparepartId("");
+    setClaimSparepartQty(1);
+    setClaimSparepartPopoverOpen(false);
   }
 
   async function handleResolveWarrantyClaim() {
@@ -720,10 +739,13 @@ export function ServiceDetailCard({
     setIsResolvingClaim(true);
     const result = await resolveWarrantyClaim({
       claimId: resolveClaimId,
-      resolution: claimResolution as "free_repair" | "cash_refund" | "no_action",
+      resolution: claimResolution as "free_repair" | "replace_part" | "cash_refund" | "no_action",
       refundAmount: claimResolution === "cash_refund" && claimRefundAmount ? Number(claimRefundAmount) : undefined,
       technicianNote: claimTechnicianNote.trim() || undefined,
       resolvedNote: claimResolvedNote.trim() || undefined,
+      items: claimResolution === "replace_part" && claimSparepartId
+        ? [{ sparepartId: claimSparepartId, qty: claimSparepartQty }]
+        : undefined,
     });
     setIsResolvingClaim(false);
 
@@ -888,6 +910,15 @@ export function ServiceDetailCard({
                             {claim.customerNote && <p className="text-sm text-muted-foreground">Customer: {claim.customerNote}</p>}
                             {claim.technicianNote && <p className="text-sm text-muted-foreground">Teknisi: {claim.technicianNote}</p>}
                             {claim.resolvedNote && <p className="text-sm text-muted-foreground">Catatan: {claim.resolvedNote}</p>}
+                            {claim.items.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {claim.items.map((item) => (
+                                  <Badge key={item.id} variant="secondary" className="text-xs font-normal">
+                                    {item.name} x{item.qty}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                             <p className="mt-2 text-xs text-muted-foreground">
                               Dibuat {formatDate(claim.createdAt)} oleh {claim.createdBy.name}
                               {claim.resolvedAt && claim.resolvedBy ? ` • Ditutup ${formatDate(claim.resolvedAt)} oleh ${claim.resolvedBy.name}` : ""}
@@ -1424,6 +1455,76 @@ export function ServiceDetailCard({
               </div>
             )}
 
+            {claimResolution === "replace_part" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
+                <div className="flex flex-col gap-1.5">
+                  <Label>Sparepart pengganti</Label>
+                  <Popover open={claimSparepartPopoverOpen} onOpenChange={setClaimSparepartPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between"
+                        disabled={spareparts.length === 0}
+                      >
+                        <span className="min-w-0 truncate text-left">
+                          {selectedClaimSparepart
+                            ? `${selectedClaimSparepart.name} • stok ${selectedClaimSparepart.stock}`
+                            : "Cari nama atau barcode sparepart"}
+                        </span>
+                        <RiArrowDownSLine data-icon="inline-end" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-[min(32rem,calc(100vw-3rem))] p-0">
+                      <Command>
+                        <CommandInput placeholder="Cari nama atau barcode..." />
+                        <CommandList>
+                          <CommandEmpty>Sparepart tidak ditemukan.</CommandEmpty>
+                          <CommandGroup>
+                            {spareparts.map((sparepart) => (
+                              <CommandItem
+                                key={sparepart.id}
+                                value={`${sparepart.name} ${sparepart.barcode} ${sparepart.id}`}
+                                data-checked={claimSparepartId === sparepart.id}
+                                disabled={sparepart.stock <= 0}
+                                onSelect={() => {
+                                  setClaimSparepartId(sparepart.id);
+                                  setClaimSparepartPopoverOpen(false);
+                                }}
+                              >
+                                <div className="flex min-w-0 flex-col">
+                                  <span className="truncate font-medium">{sparepart.name}</span>
+                                  <span className="truncate text-muted-foreground">
+                                    {sparepart.barcode} • stok {sparepart.stock} • {formatCurrency(sparepart.defaultPrice)}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {spareparts.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Tidak ada sparepart kompatibel atau inventory belum aktif.</p>
+                  )}
+                  {claimSparepartStockInsufficient && (
+                    <p className="text-xs text-destructive">Qty melebihi stok tersedia.</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="claim-sparepart-qty">Qty</Label>
+                  <Input
+                    id="claim-sparepart-qty"
+                    type="number"
+                    min={1}
+                    value={claimSparepartQty}
+                    onChange={(event) => setClaimSparepartQty(Math.max(1, Number(event.target.value) || 1))}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="claim-technician-note">Catatan teknisi (optional)</Label>
               <Textarea
@@ -1439,7 +1540,7 @@ export function ServiceDetailCard({
                 id="claim-resolved-note"
                 value={claimResolvedNote}
                 onChange={(event) => setClaimResolvedNote(event.target.value)}
-                placeholder="Contoh: customer setuju refund sebagian"
+                placeholder="Contoh: customer setuju dengan penyelesaian klaim"
               />
             </div>
           </div>
@@ -1450,6 +1551,8 @@ export function ServiceDetailCard({
               disabled={
                 isResolvingClaim
                 || (claimResolution === "cash_refund" && Number(claimRefundAmount) <= 0)
+                || (claimResolution === "replace_part" && !claimSparepartId)
+                || claimSparepartStockInsufficient
               }
             >
               {isResolvingClaim ? "Menyimpan..." : "Tutup Klaim"}

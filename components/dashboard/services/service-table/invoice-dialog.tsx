@@ -54,6 +54,7 @@ const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
 
 const claimResolutionLabels: Record<string, string> = {
   free_repair: "Servis ulang gratis",
+  replace_part: "Ganti sparepart",
   cash_refund: "Refund uang",
   no_action: "Klaim ditolak",
 };
@@ -384,6 +385,11 @@ function InvoicePreviewCard({
                     <td className="px-3 py-2 text-slate-700">{formatInvoiceDate(claim.resolvedAt ?? claim.createdAt)}</td>
                     <td className="px-3 py-2 font-medium text-slate-900">
                       {claimResolutionLabels[claim.resolution ?? ""] || claim.resolution || "Klaim"}
+                      {claim.items.length > 0 && (
+                        <span className="block text-[11px] font-normal text-slate-600">
+                          {claim.items.map((item) => `${item.name} x${item.qty}`).join(", ")}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-slate-700">{claim.reason}</td>
                     <td className="px-3 py-2 text-right font-semibold tabular-nums text-slate-900">

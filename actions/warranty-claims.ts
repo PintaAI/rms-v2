@@ -3,6 +3,7 @@
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createActivityLog } from "@/lib/activity-log";
+import { assertFeature } from "@/lib/auth/request-scope";
 import { withScope } from "@/lib/auth/wrapper";
 import { revalidateServicePaths } from "@/lib/revalidation";
 import type { ActionResult, ActionResultWithData } from "./service-types";
@@ -15,10 +16,14 @@ const createWarrantyClaimSchema = z.object({
 
 const resolveWarrantyClaimSchema = z.object({
   claimId: z.string().min(1),
-  resolution: z.enum(["free_repair", "cash_refund", "no_action"]),
+  resolution: z.enum(["free_repair", "replace_part", "cash_refund", "no_action"]),
   refundAmount: z.number().int().min(0).optional(),
   technicianNote: z.string().trim().optional(),
   resolvedNote: z.string().trim().optional(),
+  items: z.array(z.object({
+    sparepartId: z.string().min(1),
+    qty: z.number().int().min(1),
+  })).optional(),
 });
 
 export async function createWarrantyClaim(
@@ -91,6 +96,7 @@ export async function resolveWarrantyClaim(
       tokoId: true,
       status: true,
       serviceId: true,
+      service: { select: { hpCatalogId: true } },
     },
   });
   if (!claim) return { success: false, error: "Klaim tidak ditemukan" };
@@ -98,16 +104,97 @@ export async function resolveWarrantyClaim(
 
   const resolution = validated.data.resolution;
   const refundAmount = validated.data.refundAmount ?? 0;
+  const items = validated.data.items ?? [];
 
   if (resolution === "cash_refund" && refundAmount <= 0) {
     return { success: false, error: "Nominal refund wajib lebih dari nol" };
   }
+  if (resolution === "replace_part" && items.length === 0) {
+    return { success: false, error: "Pilih minimal satu sparepart pengganti" };
+  }
+  if (resolution !== "replace_part" && items.length > 0) {
+    return { success: false, error: "Sparepart hanya boleh dipilih untuk solusi ganti sparepart" };
+  }
 
   return withScope(claim.tokoId, { role: ["admin", "staff"] }, async (scope) => {
+    if (resolution === "replace_part") assertFeature(scope, "inventory.management");
+
     const resolvedAt = new Date();
     const nextStatus = resolution === "no_action" ? "rejected" as const : "resolved" as const;
+    const claimItems: Array<{ sparepartId: string; name: string; qty: number; price: number }> = [];
 
     await prisma.$transaction(async (tx) => {
+      if (resolution === "replace_part") {
+        for (const item of items) {
+          const sparepart = await tx.sparepart.findUnique({
+            where: { id: item.sparepartId },
+            select: {
+              id: true,
+              tokoId: true,
+              name: true,
+              stock: true,
+              defaultPrice: true,
+              purchasePrice: true,
+              isUniversal: true,
+              compatibilities: {
+                where: { hpCatalogId: claim.service.hpCatalogId },
+                select: { hpCatalogId: true },
+              },
+            },
+          });
+          if (!sparepart || sparepart.tokoId !== claim.tokoId) throw new Error("Sparepart tidak ditemukan");
+          if (!sparepart.isUniversal && sparepart.compatibilities.length === 0) {
+            throw new Error(`Sparepart ${sparepart.name} tidak kompatibel dengan device ini`);
+          }
+
+          const stockUpdate = await tx.sparepart.updateMany({
+            where: { id: item.sparepartId, tokoId: claim.tokoId, stock: { gte: item.qty } },
+            data: { stock: { decrement: item.qty } },
+          });
+          if (stockUpdate.count !== 1) throw new Error(`Stok ${sparepart.name} tidak cukup. Tersedia: ${sparepart.stock}`);
+
+          const updatedSparepart = await tx.sparepart.findUniqueOrThrow({
+            where: { id: item.sparepartId },
+            select: { stock: true },
+          });
+
+          const claimItem = await tx.warrantyClaimItem.create({
+            data: {
+              warrantyClaimId: claim.id,
+              sparepartId: sparepart.id,
+              name: sparepart.name,
+              qty: item.qty,
+              price: sparepart.defaultPrice,
+            },
+            select: { id: true },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              tokoId: claim.tokoId,
+              sparepartId: sparepart.id,
+              type: "service_usage",
+              qtyChange: -item.qty,
+              stockBefore: updatedSparepart.stock + item.qty,
+              stockAfter: updatedSparepart.stock,
+              unitCostSnapshot: sparepart.purchasePrice,
+              unitPriceSnapshot: sparepart.defaultPrice,
+              referenceType: "warranty_claim_item",
+              referenceId: claimItem.id,
+              note: "Sparepart used in warranty claim",
+              createdById: scope.user.id,
+            },
+          });
+
+          claimItems.push({
+            sparepartId: sparepart.id,
+            name: sparepart.name,
+            qty: item.qty,
+            price: sparepart.defaultPrice,
+          });
+        }
+      }
+
       await tx.warrantyClaim.update({
         where: { id: claim.id },
         data: {
@@ -132,11 +219,23 @@ export async function resolveWarrantyClaim(
           status: nextStatus,
           resolution,
           refundAmount: resolution === "cash_refund" ? refundAmount : 0,
+          items: claimItems,
           technicianNote: validated.data.technicianNote || null,
           resolvedNote: validated.data.resolvedNote || null,
           resolvedAt: resolvedAt.toISOString(),
         },
       });
+
+      for (const item of claimItems) {
+        await createActivityLog(tx, {
+          tokoId: scope.tokoId,
+          userId: scope.user.id,
+          serviceId: claim.serviceId,
+          type: "sparepart_stock_out",
+          title: "Sparepart used in warranty claim",
+          payload: { claimId: claim.id, sparepartId: item.sparepartId, sparepartName: item.name, qty: item.qty, price: item.price },
+        });
+      }
     });
 
     revalidateServicePaths(scope.tokoId);
