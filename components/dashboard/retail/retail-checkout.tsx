@@ -85,16 +85,15 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
   const [customerPhone, setCustomerPhone] = useState("")
   const [selectedSale, setSelectedSale] = useState<RetailSaleDetail | null>(null)
   const [receiptOpen, setReceiptOpen] = useState(false)
-  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false)
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(() => {
+    if (typeof window === "undefined") return false
+    return window.localStorage.getItem(AUTO_PRINT_RECEIPT_KEY) === "true"
+  })
   const [autoPrintKey, setAutoPrintKey] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [flyingItem, setFlyingItem] = useState<FlyingCartItem | null>(null)
   const cartButtonRef = useRef<HTMLButtonElement>(null)
   const flyingItemKeyRef = useRef(0)
-
-  useEffect(() => {
-    setAutoPrintReceipt(window.localStorage.getItem(AUTO_PRINT_RECEIPT_KEY) === "true")
-  }, [])
 
   useEffect(() => {
     let active = true

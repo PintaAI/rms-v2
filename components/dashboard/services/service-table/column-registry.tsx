@@ -1,5 +1,5 @@
 import type { ServiceTableItem } from "./types";
-import type { LucetteIcon } from "@remixicon/react";
+import type { RemixiconComponentType } from "@remixicon/react";
 import {
   RiUserLine,
   RiUserStarLine,
@@ -23,7 +23,7 @@ import { formatDate, formatCurrency, getStatusColor, getStatusLabel, getPaymentS
 export interface ColumnDef {
   key: string;
   header: string;
-  icon?: LucetteIcon;
+  icon?: RemixiconComponentType;
   render: (service: ServiceTableItem) => React.ReactNode;
   width?: number;
 }
