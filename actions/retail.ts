@@ -23,6 +23,68 @@ export type RetailSaleResult = {
   paidAt: Date
 }
 
+export type RetailSalesFilters = {
+  q?: string
+  cashierId?: string
+  paymentMethod?: "cash" | "transfer" | "qris" | "debit" | "all"
+  status?: "paid" | "void" | "all"
+  from?: string
+  to?: string
+  page?: number
+  pageSize?: number
+}
+
+export type RetailSaleHistoryItem = {
+  id: string
+  paidAt: Date
+  status: "paid" | "void"
+  customerName: string | null
+  customerPhone: string | null
+  subtotal: number
+  discountAmount: number
+  grandTotal: number
+  paymentMethod: "cash" | "transfer" | "qris" | "debit"
+  cashReceived: number | null
+  changeAmount: number | null
+  cashier: { id: string; name: string }
+  itemCount: number
+  totalQty: number
+}
+
+export type RetailSalesResult = {
+  items: RetailSaleHistoryItem[]
+  cashiers: Array<{ id: string; name: string }>
+  totalItems: number
+  totalGross: number
+  totalDiscount: number
+  totalNet: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+export type RetailSaleDetail = RetailSaleHistoryItem & {
+  toko: {
+    id: string
+    name: string
+    address: string | null
+    phone: string | null
+    logoUrl: string | null
+    invoiceTerms: string | null
+  }
+  items: Array<{
+    id: string
+    sparepartId: string | null
+    name: string
+    barcode: string | null
+    kind: "sparepart" | "retail_item"
+    qty: number
+    unitPrice: number
+    unitCostSnapshot: number | null
+    lineTotal: number
+  }>
+}
+
 const createRetailSaleSchema = z.object({
   tokoId: z.string().min(1, "Toko wajib diisi"),
   customerName: z.string().trim().optional().nullable(),
@@ -48,6 +110,63 @@ async function assertRetailCheckoutAccess(tokoId: string) {
   assertFeature(scope, "inventory.management")
   assertFeature(scope, "retail.sales")
   return scope
+}
+
+function normalizeRetailSalesFilters(filters?: RetailSalesFilters) {
+  const rawPageSize = Number.isFinite(filters?.pageSize) ? filters?.pageSize ?? 20 : 20
+  const rawPage = Number.isFinite(filters?.page) ? filters?.page ?? 1 : 1
+  const pageSize = Math.min(Math.max(rawPageSize, 1), 100)
+  const page = Math.max(rawPage, 1)
+  const q = filters?.q?.trim()
+  const cashierId = filters?.cashierId && filters.cashierId !== "all" ? filters.cashierId : undefined
+  const paymentMethod = filters?.paymentMethod && ["cash", "transfer", "qris", "debit"].includes(filters.paymentMethod) ? filters.paymentMethod : undefined
+  const status = filters?.status && ["paid", "void"].includes(filters.status) ? filters.status : undefined
+  const from = filters?.from && /^\d{4}-\d{2}-\d{2}$/.test(filters.from) ? filters.from : undefined
+  const to = filters?.to && /^\d{4}-\d{2}-\d{2}$/.test(filters.to) ? filters.to : undefined
+
+  return {
+    q: q || undefined,
+    cashierId,
+    paymentMethod,
+    status,
+    from,
+    to,
+    page,
+    pageSize,
+  }
+}
+
+function toRetailHistoryItem(sale: {
+  id: string
+  paidAt: Date
+  status: "paid" | "void"
+  customerName: string | null
+  customerPhone: string | null
+  subtotal: number
+  discountAmount: number
+  grandTotal: number
+  paymentMethod: "cash" | "transfer" | "qris" | "debit"
+  cashReceived: number | null
+  changeAmount: number | null
+  createdBy: { id: string; name: string }
+  items: Array<{ qty: number }>
+}): RetailSaleHistoryItem {
+  return {
+    id: sale.id,
+    paidAt: sale.paidAt,
+    status: sale.status,
+    customerName: sale.customerName,
+    customerPhone: sale.customerPhone,
+    subtotal: sale.subtotal,
+    discountAmount: sale.discountAmount,
+    grandTotal: sale.grandTotal,
+    paymentMethod: sale.paymentMethod,
+    cashReceived: sale.cashReceived,
+    changeAmount: sale.changeAmount,
+    cashier: sale.createdBy,
+    itemCount: sale.items.length,
+    totalQty: sale.items.reduce((total, item) => total + item.qty, 0),
+  }
 }
 
 function normalizeOptionalText(value: string | null | undefined) {
@@ -106,6 +225,140 @@ export async function getRetailCheckoutItems(
     }
   } catch (error) {
     return actionError(error) as ActionResultWithData<RetailCheckoutItem[]>
+  }
+}
+
+export async function getRetailSales(
+  tokoId: string,
+  filters?: RetailSalesFilters
+): Promise<ActionResultWithData<RetailSalesResult>> {
+  try {
+    await assertRetailCheckoutAccess(tokoId)
+    const normalized = normalizeRetailSalesFilters(filters)
+    const paidAtFilter = {
+      ...(normalized.from ? { gte: new Date(`${normalized.from}T00:00:00.000`) } : {}),
+      ...(normalized.to ? { lte: new Date(`${normalized.to}T23:59:59.999`) } : {}),
+    }
+    const where = {
+      tokoId,
+      ...(normalized.cashierId ? { createdById: normalized.cashierId } : {}),
+      ...(normalized.paymentMethod ? { paymentMethod: normalized.paymentMethod } : {}),
+      ...(normalized.status ? { status: normalized.status } : {}),
+      ...(Object.keys(paidAtFilter).length > 0 ? { paidAt: paidAtFilter } : {}),
+      ...(normalized.q
+        ? {
+            OR: [
+              { id: { contains: normalized.q, mode: "insensitive" as const } },
+              { customerName: { contains: normalized.q, mode: "insensitive" as const } },
+              { customerPhone: { contains: normalized.q, mode: "insensitive" as const } },
+              { items: { some: { name: { contains: normalized.q, mode: "insensitive" as const } } } },
+            ],
+          }
+        : {}),
+    }
+
+    const [sales, totalItems, totals, cashiers] = await Promise.all([
+      prisma.retailSale.findMany({
+        where,
+        orderBy: { paidAt: "desc" },
+        skip: (normalized.page - 1) * normalized.pageSize,
+        take: normalized.pageSize,
+        select: {
+          id: true,
+          paidAt: true,
+          status: true,
+          customerName: true,
+          customerPhone: true,
+          subtotal: true,
+          discountAmount: true,
+          grandTotal: true,
+          paymentMethod: true,
+          cashReceived: true,
+          changeAmount: true,
+          createdBy: { select: { id: true, name: true } },
+          items: { select: { qty: true } },
+        },
+      }),
+      prisma.retailSale.count({ where }),
+      prisma.retailSale.aggregate({
+        where: { ...where, status: "paid" },
+        _sum: { subtotal: true, discountAmount: true, grandTotal: true },
+      }),
+      prisma.user.findMany({
+        where: { retailSales: { some: { tokoId } } },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+    ])
+
+    return {
+      success: true,
+      data: {
+        items: sales.map(toRetailHistoryItem),
+        cashiers,
+        totalItems,
+        totalGross: totals._sum.subtotal ?? 0,
+        totalDiscount: totals._sum.discountAmount ?? 0,
+        totalNet: totals._sum.grandTotal ?? 0,
+        page: normalized.page,
+        pageSize: normalized.pageSize,
+        totalPages: Math.max(1, Math.ceil(totalItems / normalized.pageSize)),
+      },
+    }
+  } catch (error) {
+    return actionError(error) as ActionResultWithData<RetailSalesResult>
+  }
+}
+
+export async function getRetailSale(saleId: string): Promise<ActionResultWithData<RetailSaleDetail>> {
+  try {
+    const sale = await prisma.retailSale.findUnique({
+      where: { id: saleId },
+      select: {
+        id: true,
+        tokoId: true,
+        paidAt: true,
+        status: true,
+        customerName: true,
+        customerPhone: true,
+        subtotal: true,
+        discountAmount: true,
+        grandTotal: true,
+        paymentMethod: true,
+        cashReceived: true,
+        changeAmount: true,
+        createdBy: { select: { id: true, name: true } },
+        toko: { select: { id: true, name: true, address: true, phone: true, logoUrl: true, invoiceTerms: true } },
+        items: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            sparepartId: true,
+            name: true,
+            barcode: true,
+            kind: true,
+            qty: true,
+            unitPrice: true,
+            unitCostSnapshot: true,
+            lineTotal: true,
+          },
+        },
+      },
+    })
+
+    if (!sale) return { success: false, error: "Penjualan retail tidak ditemukan" }
+    await assertRetailCheckoutAccess(sale.tokoId)
+
+    return {
+      success: true,
+      data: {
+        ...toRetailHistoryItem(sale),
+        toko: sale.toko,
+        items: sale.items,
+      },
+    }
+  } catch (error) {
+    return actionError(error) as ActionResultWithData<RetailSaleDetail>
   }
 }
 

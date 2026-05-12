@@ -210,11 +210,24 @@ export function buildAdminNav({
 
   if (!isFeatureDisabled("retail.sales")) {
     entries.push({
-      type: "item",
-      href: `/${tokoid}/admin/retail`,
+      type: "group",
+      title: "Retail",
       icon: "store",
-      label: "Retail",
-      isLocked: !inventoryEnabled || !retailEnabled,
+      defaultOpen: true,
+      items: [
+        {
+          href: `/${tokoid}/admin/retail`,
+          icon: "store",
+          label: "Kasir",
+          isLocked: !inventoryEnabled || !retailEnabled,
+        },
+        {
+          href: `/${tokoid}/admin/retail/history`,
+          icon: "history",
+          label: "Riwayat Penjualan",
+          isLocked: !inventoryEnabled || !retailEnabled,
+        },
+      ],
     });
   }
 
@@ -327,11 +340,24 @@ export function buildStaffNav({
 
   if (workflowEnabled && !isFeatureDisabled("retail.sales")) {
     entries.push({
-      type: "item",
-      href: `/${tokoid}/staff/retail`,
+      type: "group",
+      title: "Retail",
       icon: "store",
-      label: "Retail",
-      isLocked: !inventoryEnabled || !retailEnabled,
+      defaultOpen: true,
+      items: [
+        {
+          href: `/${tokoid}/staff/retail`,
+          icon: "store",
+          label: "Kasir",
+          isLocked: !inventoryEnabled || !retailEnabled,
+        },
+        {
+          href: `/${tokoid}/staff/retail/history`,
+          icon: "history",
+          label: "Riwayat Penjualan",
+          isLocked: !inventoryEnabled || !retailEnabled,
+        },
+      ],
     });
   }
 
