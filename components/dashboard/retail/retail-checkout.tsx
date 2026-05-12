@@ -1,7 +1,8 @@
 "use client"
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from "react"
-import { createRetailSale, getRetailCheckoutItems, type RetailCheckoutItem, type RetailSaleResult } from "@/actions/retail"
+import { createRetailSale, getRetailCheckoutItems, getRetailSale, type RetailCheckoutItem, type RetailSaleDetail } from "@/actions/retail"
+import { RetailSaleDetailDrawer } from "@/components/dashboard/retail/retail-sale-detail-drawer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +14,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerTitle } f
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
 import {
   RiAddLine,
   RiBankCardLine,
@@ -44,6 +45,8 @@ type FlyingCartItem = {
   toY: number
   active: boolean
 }
+
+const AUTO_PRINT_RECEIPT_KEY = "retail-checkout-auto-print-receipt"
 
 interface RetailCheckoutProps {
   tokoId: string
@@ -80,11 +83,18 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
   const [cashReceived, setCashReceived] = useState("")
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
-  const [lastSale, setLastSale] = useState<RetailSaleResult | null>(null)
+  const [selectedSale, setSelectedSale] = useState<RetailSaleDetail | null>(null)
+  const [receiptOpen, setReceiptOpen] = useState(false)
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false)
+  const [autoPrintKey, setAutoPrintKey] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [flyingItem, setFlyingItem] = useState<FlyingCartItem | null>(null)
   const cartButtonRef = useRef<HTMLButtonElement>(null)
   const flyingItemKeyRef = useRef(0)
+
+  useEffect(() => {
+    setAutoPrintReceipt(window.localStorage.getItem(AUTO_PRINT_RECEIPT_KEY) === "true")
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -148,7 +158,6 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
       return
     }
 
-    setLastSale(null)
     setCart((prev) => {
       const existingLine = prev.find((line) => line.id === item.id)
       if (!existingLine) return [...prev, { ...item, qty: 1 }]
@@ -167,6 +176,11 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
       if (qty < 1) return []
       return [{ ...line, qty: Math.min(qty, line.stock) }]
     }))
+  }
+
+  const updateAutoPrintReceipt = (checked: boolean) => {
+    setAutoPrintReceipt(checked)
+    window.localStorage.setItem(AUTO_PRINT_RECEIPT_KEY, String(checked))
   }
 
   const handleCheckout = () => {
@@ -196,7 +210,14 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
         return
       }
 
-      setLastSale(result.data)
+      const saleResult = await getRetailSale(result.data.id)
+      if (saleResult.success && saleResult.data) {
+        setSelectedSale(saleResult.data)
+        setReceiptOpen(true)
+        setAutoPrintKey(autoPrintReceipt ? `${saleResult.data.id}:${Date.now()}` : null)
+      } else {
+        toast.error(saleResult.error || "Receipt berhasil dibuat, tapi gagal memuat detail")
+      }
       setCart([])
       setDiscountValue("")
       setCashReceived("")
@@ -213,32 +234,35 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
   return (
     <div className="pb-24">
       <div className="flex flex-col gap-4">
-        {lastSale ? (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle>Checkout Berhasil</CardTitle>
-              <CardDescription>
-                Sale ID {lastSale.id} dibuat pada {formatDate(lastSale.paidAt)} dengan total {formatCurrency(lastSale.grandTotal)}.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        ) : null}
-
-        <Card>
+        <Card className="border-border/50 shadow-lg shadow-black/5">
           <CardHeader>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <CardTitle>Barang Dijual</CardTitle>
-                <CardDescription>Semua sparepart dan barang retail yang stoknya tersedia untuk transaksi kasir.</CardDescription>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                {isLoadingItems ? <RiLoader4Line className="animate-spin" /> : null}
-                <span>{items.length} item tersedia</span>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="h-5 w-1 shrink-0 rounded-full bg-primary" />
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <CardTitle className="truncate">Barang Dijual</CardTitle>
+                      <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary shadow-sm shadow-primary/5">
+                        {items.length} item tersedia
+                      </span>
+                    </div>
+                    <CardDescription>Scan barcode atau cari item untuk transaksi kasir retail.</CardDescription>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 pl-4 text-xs">
+                  {isLoadingItems ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-3 py-1 font-medium text-muted-foreground">
+                      <RiLoader4Line className="size-3 animate-spin" />
+                      Memuat item
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <Button
                 ref={cartButtonRef}
                 size="sm"
-                className="rounded-full"
+                className="w-full rounded-full sm:w-fit"
                 onClick={() => setCartOpen(true)}
               >
                 <RiShoppingCartLine data-icon="inline-start" />
@@ -267,7 +291,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
               ) : items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex min-h-40 flex-col justify-between rounded-xl border bg-card p-4 text-left shadow-sm transition hover:border-primary/40 hover:bg-muted/30 hover:shadow-md"
+                  className="flex min-h-40 flex-col justify-between rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm transition hover:border-primary/40 hover:bg-muted/30 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -509,6 +533,17 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
             </div>
 
             <div className="flex shrink-0 flex-col gap-3 rounded-xl border p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">Auto print</span>
+                <Switch
+                  id="retail-auto-print-receipt"
+                  size="sm"
+                  checked={autoPrintReceipt}
+                  disabled={readOnly}
+                  onCheckedChange={updateAutoPrintReceipt}
+                />
+              </div>
+
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <RiPriceTag3Line className="size-3.5" />
@@ -559,6 +594,13 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
           </DrawerFooter>
         </DrawerContent>
       </Drawer>
+
+      <RetailSaleDetailDrawer
+        sale={selectedSale}
+        open={receiptOpen}
+        onOpenChange={setReceiptOpen}
+        autoPrintKey={autoPrintKey}
+      />
     </div>
   )
 }

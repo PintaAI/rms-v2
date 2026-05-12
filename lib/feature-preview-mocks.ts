@@ -194,6 +194,38 @@ export const MOCK_ANALYTICS_DATA: AdminAnalyticsData = {
     { id: "mock-sp-1", name: "LCD iPhone 11", qty: 18, revenue: 6300000 },
     { id: "mock-sp-2", name: "Battery Samsung A50", qty: 14, revenue: 2100000 },
   ],
+  retail: {
+    enabled: true,
+    summary: {
+      revenue: 12800000,
+      transactions: 186,
+      averageTransaction: 68817,
+      grossMargin: 4200000,
+      totalQty: 340,
+    },
+    trend: [
+      { key: "2026-01", label: "Jan", revenue: 1600000, transactions: 24 },
+      { key: "2026-02", label: "Feb", revenue: 1800000, transactions: 28 },
+      { key: "2026-03", label: "Mar", revenue: 2100000, transactions: 31 },
+      { key: "2026-04", label: "Apr", revenue: 2200000, transactions: 34 },
+      { key: "2026-05", label: "May", revenue: 2500000, transactions: 36 },
+      { key: "2026-06", label: "Jun", revenue: 2600000, transactions: 33 },
+    ],
+    topItemsByQty: [
+      { id: "mock-retail-1", name: "Tempered Glass", kind: "retail_item", qty: 82, revenue: 1640000, grossMargin: 984000 },
+      { id: "mock-retail-2", name: "Charger Type-C", kind: "retail_item", qty: 44, revenue: 3520000, grossMargin: 1320000 },
+    ],
+    topItemsByRevenue: [
+      { id: "mock-retail-2", name: "Charger Type-C", kind: "retail_item", qty: 44, revenue: 3520000, grossMargin: 1320000 },
+      { id: "mock-retail-3", name: "Battery Samsung A50", kind: "sparepart", qty: 14, revenue: 2100000, grossMargin: 700000 },
+    ],
+    paymentBreakdown: [
+      { method: "cash", label: "Cash", count: 92, revenue: 6100000 },
+      { method: "qris", label: "QRIS", count: 58, revenue: 4200000 },
+      { method: "transfer", label: "Transfer", count: 24, revenue: 1700000 },
+      { method: "debit", label: "Debit", count: 12, revenue: 800000 },
+    ],
+  },
 };
 
 export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {

@@ -20,6 +20,7 @@ import {
   RiCheckDoubleLine,
   RiMoneyDollarCircleLine,
   RiPrinterLine,
+  RiShoppingBag3Line,
   RiStore2Line,
   RiTimeLine,
 } from "@remixicon/react";
@@ -29,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
 
@@ -40,6 +42,11 @@ const revenueChartConfig = {
 const serviceChartConfig = {
   services: { label: "Servis", color: "var(--chart-3)" },
   completed: { label: "Selesai", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+const retailChartConfig = {
+  revenue: { label: "Revenue", color: "var(--chart-1)" },
+  transactions: { label: "Transaksi", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
 const statusChartConfig = {
@@ -114,6 +121,13 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
         </div>
       </div>
 
+      <Tabs defaultValue="service" className="w-full">
+        <TabsList className="mb-4 grid w-full grid-cols-2 sm:w-fit">
+          <TabsTrigger value="service">Analytics Service</TabsTrigger>
+          <TabsTrigger value="retail">Analytics Retail</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="service" className="flex flex-col gap-6 lg:gap-8">
       <section className="grid gap-3 print:grid-cols-4 sm:grid-cols-2 xl:grid-cols-4">
         <AnalyticsMetricCard
           title="Pendapatan Lunas"
@@ -306,7 +320,176 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
           </CardContent>
         </Card>
       </section>
+        </TabsContent>
+
+        <TabsContent value="retail" className="flex flex-col gap-6 lg:gap-8">
+          {data.retail.enabled ? (
+            <RetailAnalyticsContent data={data} />
+          ) : (
+            <Card className="border-border/50 shadow-lg shadow-black/5">
+              <CardHeader>
+                <CardTitle>Analytics Retail belum aktif</CardTitle>
+                <CardDescription>Aktifkan fitur retail sales untuk melihat performa penjualan retail.</CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+function RetailAnalyticsContent({ data }: { data: AdminAnalyticsData }) {
+  return (
+    <>
+      <section className="grid gap-3 print:grid-cols-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AnalyticsMetricCard
+          title="Revenue Retail"
+          value={formatCurrency(data.retail.summary.revenue)}
+          description={`${data.retail.summary.transactions} transaksi paid`}
+          icon={<RiMoneyDollarCircleLine className="size-4" />}
+          variant="success"
+        />
+        <AnalyticsMetricCard
+          title="Rata-rata Transaksi"
+          value={formatCurrency(data.retail.summary.averageTransaction)}
+          description="Average order value retail"
+          icon={<RiShoppingBag3Line className="size-4" />}
+          variant="primary"
+        />
+        <AnalyticsMetricCard
+          title="Gross Margin"
+          value={formatCurrency(data.retail.summary.grossMargin)}
+          description="Estimasi dari cost snapshot"
+          icon={<RiBarChartBoxLine className="size-4" />}
+          variant="default"
+        />
+        <AnalyticsMetricCard
+          title="Qty Terjual"
+          value={String(data.retail.summary.totalQty)}
+          description="Total item retail terjual"
+          icon={<RiArchiveLine className="size-4" />}
+          variant="default"
+        />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(20rem,0.65fr)]">
+        <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
+          <CardHeader>
+            <CardTitle>Tren Retail</CardTitle>
+            <CardDescription>Revenue retail dan jumlah transaksi per {data.bucketMode === "month" ? "bulan" : "hari"}.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={retailChartConfig} className="h-[260px] w-full print:h-[145px]">
+              <AreaChart accessibilityLayer data={data.retail.trend} margin={{ left: 0, right: 12 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => compactCurrency(Number(value))} />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value, name) => (
+                        <>
+                          <span className="text-muted-foreground">{retailChartConfig[name as keyof typeof retailChartConfig]?.label}</span>
+                          <span className="ml-auto font-mono font-medium tabular-nums">
+                            {name === "transactions" ? Number(value) : formatCurrency(Number(value))}
+                          </span>
+                        </>
+                      )}
+                    />
+                  }
+                />
+                <Area dataKey="revenue" type="natural" fill="var(--color-revenue)" fillOpacity={0.28} stroke="var(--color-revenue)" />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
+          <CardHeader>
+            <CardTitle>Metode Pembayaran</CardTitle>
+            <CardDescription>Breakdown transaksi retail paid.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Metode</TableHead>
+                  <TableHead className="text-right">Transaksi</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.retail.paymentBreakdown.length > 0 ? data.retail.paymentBreakdown.map((payment) => (
+                  <TableRow key={payment.method}>
+                    <TableCell className="font-medium">{payment.label}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{payment.count}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{formatCurrency(payment.revenue)}</TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">Belum ada transaksi retail paid.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <RetailTopItemsTable title="Item Terlaris" description="Berdasarkan qty terjual." items={data.retail.topItemsByQty} />
+        <RetailTopItemsTable title="Revenue Item Tertinggi" description="Berdasarkan revenue retail." items={data.retail.topItemsByRevenue} />
+      </section>
+    </>
+  );
+}
+
+function RetailTopItemsTable({
+  title,
+  description,
+  items,
+}: {
+  title: string;
+  description: string;
+  items: AdminAnalyticsData["retail"]["topItemsByQty"];
+}) {
+  return (
+    <Card className="border-border/50 shadow-lg shadow-black/5 print:shadow-none">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Item</TableHead>
+              <TableHead className="text-right">Qty</TableHead>
+              <TableHead className="text-right">Revenue</TableHead>
+              <TableHead className="text-right">Margin</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.length > 0 ? items.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell>
+                  <div className="font-medium">{item.name}</div>
+                  <div className="text-xs text-muted-foreground">{item.kind === "retail_item" ? "Retail item" : "Sparepart"}</div>
+                </TableCell>
+                <TableCell className="text-right font-mono tabular-nums">{item.qty}</TableCell>
+                <TableCell className="text-right font-mono tabular-nums">{formatCurrency(item.revenue)}</TableCell>
+                <TableCell className="text-right font-mono tabular-nums">{formatCurrency(item.grossMargin)}</TableCell>
+              </TableRow>
+            )) : (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Belum ada item retail terjual.</TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 

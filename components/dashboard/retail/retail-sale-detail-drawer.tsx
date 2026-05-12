@@ -1,15 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { RetailSaleDetail } from "@/actions/retail"
 import { RetailReceipt } from "@/components/dashboard/retail/retail-receipt"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { RiPrinterLine } from "@remixicon/react"
+import { RiLoader4Line, RiPrinterLine } from "@remixicon/react"
 import { toast } from "sonner"
 
 const paymentLabels: Record<RetailSaleDetail["paymentMethod"], string> = {
@@ -28,18 +29,23 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;")
 }
 
-export function RetailSaleDetailDialog({
+export function RetailSaleDetailDrawer({
   sale,
   open,
   onOpenChange,
+  autoPrintKey,
+  isLoading = false,
 }: {
   sale: RetailSaleDetail | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  autoPrintKey?: string | null
+  isLoading?: boolean
 }) {
   const [isPrinting, setIsPrinting] = useState(false)
+  const printedKeyRef = useRef<string | null>(null)
 
-  function handlePrint() {
+  const handlePrint = useCallback(() => {
     if (!sale) return
 
     setIsPrinting(true)
@@ -108,26 +114,39 @@ export function RetailSaleDetailDialog({
     printWindow.focus()
     printWindow.print()
     setIsPrinting(false)
-  }
+  }, [sale])
+
+  useEffect(() => {
+    if (!open || !sale || !autoPrintKey || printedKeyRef.current === autoPrintKey) return
+
+    printedKeyRef.current = autoPrintKey
+    const timeoutId = window.setTimeout(() => {
+      handlePrint()
+    }, 300)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [autoPrintKey, handlePrint, open, sale])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto sm:max-w-5xl">
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="mx-auto flex h-dvh max-h-dvh w-full min-w-0 max-w-5xl flex-col overflow-hidden p-0 before:inset-0 before:rounded-t-2xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[90vh] sm:data-[vaul-drawer-direction=bottom]:mt-16 sm:data-[vaul-drawer-direction=bottom]:max-h-[90vh]">
         {sale ? (
           <>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <DialogHeader>
-                <DialogTitle>Receipt {sale.id.slice(0, 8).toUpperCase()}</DialogTitle>
-                <DialogDescription>Detail transaksi retail dan preview receipt untuk cetak ulang.</DialogDescription>
-              </DialogHeader>
-              <Button type="button" size="sm" onClick={handlePrint} disabled={isPrinting}>
-                <RiPrinterLine data-icon="inline-start" />
-                Cetak Receipt
-              </Button>
+            <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3 sm:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <DrawerHeader className="items-start p-0 text-left group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
+                  <DrawerTitle>Receipt {sale.id.slice(0, 8).toUpperCase()}</DrawerTitle>
+                  <DrawerDescription>Detail transaksi retail dan preview receipt untuk cetak ulang.</DrawerDescription>
+                </DrawerHeader>
+                <Button type="button" size="sm" onClick={handlePrint} disabled={isPrinting}>
+                  <RiPrinterLine data-icon="inline-start" />
+                  Cetak Receipt
+                </Button>
+              </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-              <div className="flex flex-col gap-5">
+            <div className="grid min-h-0 flex-1 gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+              <div className="flex min-h-0 flex-col gap-5">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-xl border bg-card p-4">
                     <p className="text-xs text-muted-foreground">Tanggal</p>
@@ -143,32 +162,34 @@ export function RetailSaleDetailDialog({
                   </div>
                 </div>
 
-                <div className="rounded-xl border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead>Barcode</TableHead>
-                        <TableHead className="text-center">Qty</TableHead>
-                        <TableHead className="text-right">Harga</TableHead>
-                        <TableHead className="text-right">Cost</TableHead>
-                        <TableHead className="text-right">Subtotal</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sale.items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.name}</TableCell>
-                          <TableCell>{item.barcode || "-"}</TableCell>
-                          <TableCell className="text-center">{item.qty}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatCurrency(item.unitPrice)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{item.unitCostSnapshot === null ? "-" : formatCurrency(item.unitCostSnapshot)}</TableCell>
-                          <TableCell className="text-right font-medium tabular-nums">{formatCurrency(item.lineTotal)}</TableCell>
+                <ScrollArea className="min-h-0 rounded-xl border lg:flex-1 [&>[data-slot=scroll-area-viewport]]:max-h-[260px] lg:[&>[data-slot=scroll-area-viewport]]:max-h-none">
+                  <div className="min-w-[720px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Item</TableHead>
+                          <TableHead>Barcode</TableHead>
+                          <TableHead className="text-center">Qty</TableHead>
+                          <TableHead className="text-right">Harga</TableHead>
+                          <TableHead className="text-right">Cost</TableHead>
+                          <TableHead className="text-right">Subtotal</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {sale.items.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">{item.name}</TableCell>
+                            <TableCell>{item.barcode || "-"}</TableCell>
+                            <TableCell className="text-center">{item.qty}</TableCell>
+                            <TableCell className="text-right tabular-nums">{formatCurrency(item.unitPrice)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{item.unitCostSnapshot === null ? "-" : formatCurrency(item.unitCostSnapshot)}</TableCell>
+                            <TableCell className="text-right font-medium tabular-nums">{formatCurrency(item.lineTotal)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </ScrollArea>
 
                 <div className="rounded-xl border bg-card p-4">
                   <div className="flex flex-col gap-2 text-sm">
@@ -197,20 +218,23 @@ export function RetailSaleDetailDialog({
                 </div>
               </div>
 
-              <div className="rounded-xl border bg-card p-3">
-                <RetailReceipt sale={sale} />
-              </div>
+              <ScrollArea className="min-h-0 rounded-xl border bg-card lg:h-full [&>[data-slot=scroll-area-viewport]]:max-h-[360px] lg:[&>[data-slot=scroll-area-viewport]]:max-h-none">
+                <div className="p-3">
+                  <RetailReceipt sale={sale} />
+                </div>
+              </ScrollArea>
             </div>
           </>
         ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>Detail Receipt</DialogTitle>
-              <DialogDescription>Memuat detail transaksi retail.</DialogDescription>
-            </DialogHeader>
-          </>
+          <div className="flex min-h-72 flex-col items-center justify-center gap-3 p-6 text-center">
+            {isLoading ? <RiLoader4Line className="animate-spin" /> : null}
+            <DrawerHeader className="p-0 text-center">
+              <DrawerTitle>Detail Receipt</DrawerTitle>
+              <DrawerDescription>{isLoading ? "Memuat detail transaksi retail." : "Detail transaksi belum dipilih."}</DrawerDescription>
+            </DrawerHeader>
+          </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

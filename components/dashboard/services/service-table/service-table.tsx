@@ -375,13 +375,17 @@ export function ServiceTable({
             {effectiveColumns.map((colKey, index) => {
               const columnDef = columnRegistry[colKey as keyof typeof columnRegistry];
               const nextColumn = effectiveColumns[index + 1];
+              const Icon = columnDef?.icon;
               return (
                 <TableHead
                   key={colKey}
                   className="relative h-9 select-none text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground"
                   style={{ width: getColumnWidth(colKey), minWidth: getColumnWidth(colKey) }}
                 >
-                  <span className="block truncate pr-2">{columnDef?.header || colKey}</span>
+                  <div className="flex items-center gap-1.5">
+                    {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
+                    <span className="block truncate">{columnDef?.header || colKey}</span>
+                  </div>
                   {nextColumn && (
                     <span
                       aria-hidden="true"

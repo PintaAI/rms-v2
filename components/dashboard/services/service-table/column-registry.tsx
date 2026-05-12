@@ -1,4 +1,5 @@
 import type { ServiceTableItem } from "./types";
+import type { LucetteIcon } from "@remixicon/react";
 import {
   RiUserLine,
   RiUserStarLine,
@@ -6,6 +7,13 @@ import {
   RiInboxUnarchiveLine,
   RiCheckLine,
   RiCheckDoubleLine,
+  RiSmartphoneLine,
+  RiChatVoiceLine,
+  RiArchiveLine,
+  RiStickyNoteLine,
+  RiCheckboxCircleLine,
+  RiBillLine,
+  RiCalendarLine,
 } from "@remixicon/react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,6 +23,7 @@ import { formatDate, formatCurrency, getStatusColor, getStatusLabel, getPaymentS
 export interface ColumnDef {
   key: string;
   header: string;
+  icon?: LucetteIcon;
   render: (service: ServiceTableItem) => React.ReactNode;
   width?: number;
 }
@@ -48,6 +57,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   customer: {
     key: "customer",
     header: "Customer",
+    icon: RiUserLine,
     render: (service) => (
       <div className="flex items-center gap-3">
         <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center text-primary">
@@ -65,6 +75,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   device: {
     key: "device",
     header: "Device",
+    icon: RiSmartphoneLine,
     render: (service) => (
       <div className="flex items-center gap-3">
         <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center text-muted-foreground">
@@ -82,6 +93,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   complaint: {
     key: "complaint",
     header: "Keluhan & Penanganan",
+    icon: RiChatVoiceLine,
     render: (service) => (
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-wrap items-start gap-1.5">
@@ -125,6 +137,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   includedItems: {
     key: "includedItems",
     header: "Items",
+    icon: RiArchiveLine,
     render: (service) => {
       if (!service.includedItems || service.includedItems.length === 0) {
         return <span className="text-muted-foreground">-</span>;
@@ -154,6 +167,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   note: {
     key: "note",
     header: "Note",
+    icon: RiStickyNoteLine,
     render: (service) => {
       if (!service.note) return <span className="text-muted-foreground">-</span>;
       const parsedNote = parseNoteStatus(service.note);
@@ -188,6 +202,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   createdBy: {
     key: "createdBy",
     header: "Created By",
+    icon: RiUserStarLine,
     render: (service) =>
       service.createdBy?.name ? (
         <div className="flex items-center gap-2">
@@ -210,6 +225,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   status: {
     key: "status",
     header: "Status",
+    icon: RiCheckboxCircleLine,
     render: (service) => {
       const StatusIcon = getStatusIcon(service.status);
       return (
@@ -245,6 +261,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   technician: {
     key: "technician",
     header: "Teknisi",
+    icon: RiUserStarLine,
     width: 140,
     render: (service) =>
       service.technician
@@ -269,6 +286,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   invoice: {
     key: "invoice",
     header: "Invoice",
+    icon: RiBillLine,
     render: (service) => {
       if (!service.invoice) return <span className="text-muted-foreground">-</span>;
       const isPaid = service.invoice.paymentStatus === "paid";
@@ -298,6 +316,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   checkinAt: {
     key: "checkinAt",
     header: "Check-in / Out",
+    icon: RiCalendarLine,
     render: (service) => (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
@@ -320,6 +339,7 @@ export const columnRegistry: Record<string, ColumnDef> = {
   doneAt: {
     key: "doneAt",
     header: "Completed At",
+    icon: RiCheckDoubleLine,
     render: (service) => (
       <div className="flex items-center gap-2">
         <RiCheckDoubleLine className="h-3.5 w-3.5 text-green-600" />

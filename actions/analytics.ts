@@ -40,6 +40,44 @@ export interface AdminAnalyticsTopSparepartPoint {
   revenue: number;
 }
 
+export interface AdminRetailAnalyticsTrendPoint {
+  key: string;
+  label: string;
+  revenue: number;
+  transactions: number;
+}
+
+export interface AdminRetailAnalyticsTopItemPoint {
+  id: string;
+  name: string;
+  kind: "sparepart" | "retail_item";
+  qty: number;
+  revenue: number;
+  grossMargin: number;
+}
+
+export interface AdminRetailAnalyticsPaymentPoint {
+  method: "cash" | "transfer" | "qris" | "debit";
+  label: string;
+  count: number;
+  revenue: number;
+}
+
+export interface AdminRetailAnalyticsData {
+  enabled: boolean;
+  summary: {
+    revenue: number;
+    transactions: number;
+    averageTransaction: number;
+    grossMargin: number;
+    totalQty: number;
+  };
+  trend: AdminRetailAnalyticsTrendPoint[];
+  topItemsByQty: AdminRetailAnalyticsTopItemPoint[];
+  topItemsByRevenue: AdminRetailAnalyticsTopItemPoint[];
+  paymentBreakdown: AdminRetailAnalyticsPaymentPoint[];
+}
+
 export interface AdminAnalyticsData {
   toko: {
     id: string;
@@ -64,6 +102,7 @@ export interface AdminAnalyticsData {
   statusBreakdown: AdminAnalyticsStatusPoint[];
   topTechnicians: AdminAnalyticsTechnicianPoint[];
   topSpareparts: AdminAnalyticsTopSparepartPoint[];
+  retail: AdminRetailAnalyticsData;
 }
 
 export interface AdminAnalyticsFilters {
@@ -84,7 +123,7 @@ export async function getAdminAnalytics(
   tokoId: string,
   filters?: AdminAnalyticsFilterInput
 ): Promise<ActionResultWithData<AdminAnalyticsData>> {
-  return withScope(tokoId, { role: ["admin"], feature: "analytics.revenue" }, async (): Promise<AdminAnalyticsData> => {
+  return withScope(tokoId, { role: ["admin"], feature: "analytics.revenue" }, async (scope): Promise<AdminAnalyticsData> => {
 
     const normalizedFilters = normalizeFilters(filters);
     const allTimeStart = normalizedFilters.allTime ? await getAllTimeStart(tokoId) : null;
@@ -100,7 +139,8 @@ export async function getAdminAnalytics(
       ...(normalizedFilters.status ? { status: normalizedFilters.status } : {}),
     };
 
-    const [toko, services, invoices, refundClaims, sparepartCount, lowStockCount, stockAggregate] = await Promise.all([
+    const retailEnabled = scope.featureAccess["retail.sales"] ?? false;
+    const [toko, services, invoices, refundClaims, sparepartCount, lowStockCount, stockAggregate, retailSales] = await Promise.all([
       prisma.toko.findUnique({
         where: { id: tokoId },
         select: { id: true, name: true, logoUrl: true },
@@ -166,6 +206,31 @@ export async function getAdminAnalytics(
           AND "stock" <= "criticalStock"
       `,
       prisma.sparepart.aggregate({ where: { tokoId }, _sum: { stock: true } }),
+      retailEnabled
+        ? prisma.retailSale.findMany({
+            where: {
+              tokoId,
+              status: "paid",
+              paidAt: { gte: periodStart, lt: periodEnd },
+            },
+            select: {
+              id: true,
+              grandTotal: true,
+              paymentMethod: true,
+              paidAt: true,
+              items: {
+                select: {
+                  sparepartId: true,
+                  name: true,
+                  kind: true,
+                  qty: true,
+                  unitCostSnapshot: true,
+                  lineTotal: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     if (!toko) {
@@ -197,6 +262,11 @@ export async function getAdminAnalytics(
 
     const technicianMap = new Map<string, AdminAnalyticsTechnicianPoint>();
     const sparepartMap = new Map<string, AdminAnalyticsTopSparepartPoint>();
+    const retailTrendMap = Object.fromEntries(
+      buckets.map((bucket) => [bucket.key, { key: bucket.key, label: bucket.label, revenue: 0, transactions: 0 }])
+    ) as Record<string, AdminRetailAnalyticsTrendPoint>;
+    const retailItemMap = new Map<string, AdminRetailAnalyticsTopItemPoint>();
+    const retailPaymentMap = new Map<AdminRetailAnalyticsPaymentPoint["method"], AdminRetailAnalyticsPaymentPoint>();
 
     for (const service of services) {
       statusCounts[service.status] += 1;
@@ -273,6 +343,49 @@ export async function getAdminAnalytics(
 
     const totalServices = services.length;
     const completionRate = totalServices > 0 ? Math.round((statusCounts.done / totalServices) * 100) : 0;
+    let retailRevenue = 0;
+    let retailGrossMargin = 0;
+    let retailTotalQty = 0;
+
+    for (const sale of retailSales) {
+      retailRevenue += sale.grandTotal;
+      const retailTrend = retailTrendMap[getBucketKey(sale.paidAt, bucketMode)];
+      if (retailTrend) {
+        retailTrend.revenue += sale.grandTotal;
+        retailTrend.transactions += 1;
+      }
+
+      const payment = retailPaymentMap.get(sale.paymentMethod) ?? {
+        method: sale.paymentMethod,
+        label: getPaymentMethodLabel(sale.paymentMethod),
+        count: 0,
+        revenue: 0,
+      };
+      payment.count += 1;
+      payment.revenue += sale.grandTotal;
+      retailPaymentMap.set(sale.paymentMethod, payment);
+
+      for (const item of sale.items) {
+        const itemGrossMargin = item.lineTotal - (item.unitCostSnapshot ?? 0) * item.qty;
+        const itemKey = item.sparepartId ?? item.name;
+        const current = retailItemMap.get(itemKey) ?? {
+          id: itemKey,
+          name: item.name,
+          kind: item.kind,
+          qty: 0,
+          revenue: 0,
+          grossMargin: 0,
+        };
+        current.qty += item.qty;
+        current.revenue += item.lineTotal;
+        current.grossMargin += itemGrossMargin;
+        retailTotalQty += item.qty;
+        retailGrossMargin += itemGrossMargin;
+        retailItemMap.set(itemKey, current);
+      }
+    }
+
+    const retailItems = Array.from(retailItemMap.values());
 
     return {
       toko,
@@ -304,6 +417,20 @@ export async function getAdminAnalytics(
       topSpareparts: Array.from(sparepartMap.values())
         .sort((a, b) => b.qty - a.qty || b.revenue - a.revenue)
         .slice(0, 5),
+      retail: {
+        enabled: retailEnabled,
+        summary: {
+          revenue: retailRevenue,
+          transactions: retailSales.length,
+          averageTransaction: retailSales.length > 0 ? Math.round(retailRevenue / retailSales.length) : 0,
+          grossMargin: retailGrossMargin,
+          totalQty: retailTotalQty,
+        },
+        trend: buckets.map((bucket) => retailTrendMap[bucket.key]),
+        topItemsByQty: [...retailItems].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue).slice(0, 5),
+        topItemsByRevenue: [...retailItems].sort((a, b) => b.revenue - a.revenue || b.qty - a.qty).slice(0, 5),
+        paymentBreakdown: Array.from(retailPaymentMap.values()).sort((a, b) => b.revenue - a.revenue),
+      },
     };
   });
 }
@@ -328,11 +455,12 @@ function normalizeFilters(filters: AdminAnalyticsFilterInput | undefined): Admin
 }
 
 async function getAllTimeStart(tokoId: string) {
-  const [serviceMin, invoiceMin] = await Promise.all([
+  const [serviceMin, invoiceMin, retailMin] = await Promise.all([
     prisma.service.aggregate({ where: { tokoId }, _min: { checkinAt: true } }),
     prisma.invoice.aggregate({ where: { service: { tokoId } }, _min: { createdAt: true } }),
+    prisma.retailSale.aggregate({ where: { tokoId }, _min: { paidAt: true } }),
   ]);
-  const dates = [serviceMin._min.checkinAt, invoiceMin._min.createdAt].filter((date): date is Date => Boolean(date));
+  const dates = [serviceMin._min.checkinAt, invoiceMin._min.createdAt, retailMin._min.paidAt].filter((date): date is Date => Boolean(date));
 
   if (dates.length === 0) return new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
@@ -404,6 +532,17 @@ function isDateKey(value: string) {
 
 function isServiceStatus(value: unknown): value is ServiceStatus {
   return value === "received" || value === "repairing" || value === "done" || value === "failed";
+}
+
+function getPaymentMethodLabel(method: AdminRetailAnalyticsPaymentPoint["method"]) {
+  const labels: Record<AdminRetailAnalyticsPaymentPoint["method"], string> = {
+    cash: "Cash",
+    transfer: "Transfer",
+    qris: "QRIS",
+    debit: "Debit",
+  };
+
+  return labels[method];
 }
 
 function formatPeriodDate(date: Date) {
