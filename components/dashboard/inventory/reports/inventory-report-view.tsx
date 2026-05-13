@@ -3,7 +3,6 @@ import { InventoryReportFilter } from "./inventory-report-filter"
 import { InventoryReportHeader } from "./inventory-report-header"
 import { InventoryReportList } from "./inventory-report-list"
 import { InventoryReportSummary } from "./inventory-report-summary"
-import { SupplierReturnBacklogCard } from "./supplier-return-backlog-card"
 import { SupplierReturnReportSection } from "./supplier-return-report-section"
 import type { InventoryReportFilters, InventoryReportToko } from "./types"
 
@@ -36,7 +35,6 @@ export function InventoryReportView({
       />
       <InventoryReportList report={report} />
       <SupplierReturnReportSection report={report.supplierReturns} />
-      <SupplierReturnBacklogCard />
     </div>
   )
 }
