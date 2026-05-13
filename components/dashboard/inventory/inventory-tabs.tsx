@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import {
   Table,
   TableHeader,
@@ -47,6 +48,8 @@ import {
   RiStackLine,
   RiUpload2Line,
   RiHistoryLine,
+  RiFilter3Line,
+  RiCloseLine,
 } from "@remixicon/react";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -91,6 +94,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const [restockDialogOpen, setRestockDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pricelistImportDialogOpen, setPricelistImportDialogOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   useEffect(() => {
     if (hasInitialData) return;
@@ -149,6 +153,40 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
 
   const filteredPricelists = pricelists.filter((pl) =>
     pl.title.toLowerCase().includes(pricelistSearch.toLowerCase())
+  );
+  const activeSparepartFilterCount = Number(sparepartCategoryFilter !== "all") + Number(sparepartStockFilter !== "all");
+  const hasSparepartFilters = activeSparepartFilterCount > 0;
+
+  const resetSparepartFilters = () => {
+    setSparepartCategoryFilter("all");
+    setSparepartStockFilter("all");
+  };
+
+  const renderSparepartFilters = () => (
+    <>
+      <Select value={sparepartCategoryFilter} onValueChange={setSparepartCategoryFilter}>
+        <SelectTrigger className="h-9 w-full">
+          <SelectValue placeholder="Filter kategori" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua kategori</SelectItem>
+          {sparepartCategories.map((category) => (
+            <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={sparepartStockFilter} onValueChange={(value) => setSparepartStockFilter(value as StockFilter)}>
+        <SelectTrigger className="h-9 w-full">
+          <SelectValue placeholder="Filter stok" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua stok</SelectItem>
+          <SelectItem value="critical">Stok kritis</SelectItem>
+          <SelectItem value="out">Stok habis</SelectItem>
+          <SelectItem value="safe">Stok aman</SelectItem>
+        </SelectContent>
+      </Select>
+    </>
   );
 
   const handleAddSparepart = () => {
@@ -341,7 +379,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             </div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px_180px]">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_220px_180px]">
             <div className="relative">
               <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -351,29 +389,36 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                 className="pl-9"
               />
             </div>
-            <Select value={sparepartCategoryFilter} onValueChange={setSparepartCategoryFilter}>
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue placeholder="Filter kategori" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua kategori</SelectItem>
-                {sparepartCategories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={sparepartStockFilter} onValueChange={(value) => setSparepartStockFilter(value as StockFilter)}>
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue placeholder="Filter stok" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua stok</SelectItem>
-                <SelectItem value="critical">Stok kritis</SelectItem>
-                <SelectItem value="out">Stok habis</SelectItem>
-                <SelectItem value="safe">Stok aman</SelectItem>
-              </SelectContent>
-            </Select>
+            <Button type="button" variant="outline" className="md:hidden" onClick={() => setFilterSheetOpen(true)}>
+              <RiFilter3Line className="h-4 w-4 mr-1.5" />
+              Filter{activeSparepartFilterCount > 0 ? ` (${activeSparepartFilterCount})` : ""}
+            </Button>
+            <div className="hidden md:contents">
+              {renderSparepartFilters()}
+            </div>
           </div>
+
+          <Drawer open={filterSheetOpen} onOpenChange={setFilterSheetOpen} direction="bottom">
+            <DrawerContent className="max-h-[90dvh] overflow-hidden p-0 before:inset-0 before:rounded-t-2xl md:hidden">
+              <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3">
+                <DrawerTitle className="font-bold">Filter sparepart</DrawerTitle>
+              </div>
+              <div className="p-4">
+                <div className="grid gap-3">
+                  {renderSparepartFilters()}
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  <Button type="button" variant="outline" onClick={resetSparepartFilters} disabled={!hasSparepartFilters}>
+                    <RiCloseLine className="h-4 w-4 mr-1.5" />
+                    Reset
+                  </Button>
+                  <Button type="button" onClick={() => setFilterSheetOpen(false)}>
+                    Terapkan
+                  </Button>
+                </div>
+              </div>
+            </DrawerContent>
+          </Drawer>
 
           {isLoadingSpareparts ? (
             <div className="p-8 flex items-center justify-center">
