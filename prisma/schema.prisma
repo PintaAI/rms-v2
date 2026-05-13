@@ -573,6 +573,7 @@ model Sparepart {
   categoryId    String?
   stock         Int               @default(0)
   criticalStock Int               @default(5)
+  warrantyDays  Int?
   isUniversal   Boolean           @default(false)
   kind          InventoryItemKind @default(sparepart)
   tokoId        String
@@ -829,17 +830,19 @@ model RetailSale {
 }
 
 model RetailSaleItem {
-  id               String            @id @default(uuid())
-  saleId           String
-  sparepartId      String?
-  name             String
-  barcode          String?
-  kind             InventoryItemKind
-  qty              Int
-  unitPrice        Int
-  unitCostSnapshot Int?
-  lineTotal        Int
-  createdAt        DateTime          @default(now())
+  id                   String            @id @default(uuid())
+  saleId               String
+  sparepartId          String?
+  name                 String
+  barcode              String?
+  kind                 InventoryItemKind
+  qty                  Int
+  unitPrice            Int
+  unitCostSnapshot     Int?
+  warrantyDaysSnapshot Int?
+  warrantyUntil         DateTime?
+  lineTotal            Int
+  createdAt            DateTime          @default(now())
 
   sale      RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   sparepart Sparepart? @relation(fields: [sparepartId], references: [id], onDelete: SetNull)

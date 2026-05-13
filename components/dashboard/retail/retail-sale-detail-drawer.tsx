@@ -37,6 +37,7 @@ function getThermalReceiptHtml(sale: RetailSaleDetail) {
     <div class="item">
       <div class="line"><strong>${escapeHtml(item.name)}</strong><strong>${formatCurrency(item.lineTotal)}</strong></div>
       <div class="muted line"><span>${item.qty} x ${formatCurrency(item.unitPrice)}</span><span>${escapeHtml(item.barcode || "")}</span></div>
+      ${item.warrantyUntil ? `<div class="muted">Garansi sampai ${escapeHtml(formatDate(item.warrantyUntil))}</div>` : ""}
     </div>`).join("")
   const cashRows = sale.paymentMethod === "cash" ? `
     <div class="line"><span>Diterima</span><strong>${formatCurrency(sale.cashReceived ?? 0)}</strong></div>
@@ -97,6 +98,7 @@ function getA5ReceiptHtml(sale: RetailSaleDetail) {
       <td>
         <strong>${escapeHtml(item.name)}</strong>
         ${item.barcode ? `<span>${escapeHtml(item.barcode)}</span>` : ""}
+        ${item.warrantyUntil ? `<span>Garansi sampai ${escapeHtml(formatDate(item.warrantyUntil))}</span>` : ""}
       </td>
       <td class="center">${item.qty}</td>
       <td class="right">${formatCurrency(item.unitPrice)}</td>
@@ -282,12 +284,13 @@ export function RetailSaleDetailDrawer({
                 </div>
 
                 <ScrollArea className="min-h-0 rounded-xl border lg:flex-1 [&>[data-slot=scroll-area-viewport]]:max-h-[260px] lg:[&>[data-slot=scroll-area-viewport]]:max-h-none">
-                  <div className="min-w-[720px]">
+                  <div className="min-w-[800px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Item</TableHead>
                           <TableHead>Barcode</TableHead>
+                          <TableHead>Garansi</TableHead>
                           <TableHead className="text-center">Qty</TableHead>
                           <TableHead className="text-right">Harga</TableHead>
                           <TableHead className="text-right">Cost</TableHead>
@@ -299,6 +302,7 @@ export function RetailSaleDetailDrawer({
                           <TableRow key={item.id}>
                             <TableCell className="font-medium">{item.name}</TableCell>
                             <TableCell>{item.barcode || "-"}</TableCell>
+                            <TableCell>{item.warrantyUntil ? formatDate(item.warrantyUntil) : "-"}</TableCell>
                             <TableCell className="text-center">{item.qty}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatCurrency(item.unitPrice)}</TableCell>
                             <TableCell className="text-right tabular-nums">{item.unitCostSnapshot === null ? "-" : formatCurrency(item.unitCostSnapshot)}</TableCell>

@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { importSpareparts, type ImportSparepartInput } from "@/actions/inventory";
+import { importSpareparts, type ImportSparepartInput, type InventoryItemKind } from "@/actions/inventory";
 import { RiDownload2Line, RiLoader4Line, RiUpload2Line } from "@remixicon/react";
 
 const MAX_IMPORT_ROWS = 100;
@@ -35,6 +35,7 @@ interface SparepartImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tokoId: string;
+  itemKind?: InventoryItemKind;
   onSuccess: () => void;
 }
 
@@ -90,10 +91,11 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
       const rawCategoryName = getCell(row, ["Kategori", "Category", "categoryName"]);
       const rawStock = getCell(row, ["Stok", "Stock"]);
       const rawCriticalStock = getCell(row, ["Stok Kritis", "Critical Stock", "criticalStock", "Minimum Stock", "minimumStock"]);
+      const rawWarrantyDays = getCell(row, ["Garansi Hari", "Garansi", "Warranty Days", "warrantyDays"]);
       const rawUniversal = getCell(row, ["Universal", "Is Universal", "isUniversal"]);
       const name = typeof rawName === "string" ? rawName.trim() : String(rawName ?? "").trim();
 
-      if (!name && rawPrice === undefined && rawPurchasePrice === undefined && rawSupplierName === undefined && rawCategoryName === undefined && rawStock === undefined) return null;
+      if (!name && rawPrice === undefined && rawPurchasePrice === undefined && rawSupplierName === undefined && rawCategoryName === undefined && rawStock === undefined && rawWarrantyDays === undefined) return null;
 
       const defaultPrice = parseNumber(rawPrice);
       const purchasePrice = rawPurchasePrice === undefined || rawPurchasePrice === "" ? null : parseNumber(rawPurchasePrice);
@@ -101,6 +103,7 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
       const categoryName = typeof rawCategoryName === "string" ? rawCategoryName.trim() : String(rawCategoryName ?? "").trim();
       const stock = parseNumber(rawStock);
       const criticalStock = rawCriticalStock === undefined || rawCriticalStock === "" ? 5 : parseNumber(rawCriticalStock);
+      const warrantyDays = rawWarrantyDays === undefined || rawWarrantyDays === "" ? null : parseNumber(rawWarrantyDays);
       const isUniversal = parseUniversal(rawUniversal);
       const normalizedName = name.toLowerCase();
       const duplicateRow = seenNames.get(normalizedName);
@@ -112,6 +115,7 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
       else if (purchasePrice !== null && (!Number.isInteger(purchasePrice) || purchasePrice < 0)) error = "Harga beli harus angka 0 atau lebih";
       else if (!Number.isInteger(stock) || stock < 0) error = "Stok harus angka 0 atau lebih";
       else if (!Number.isInteger(criticalStock) || criticalStock < 0) error = "Stok kritis harus angka 0 atau lebih";
+      else if (warrantyDays !== null && (!Number.isInteger(warrantyDays) || warrantyDays < 1)) error = "Garansi harus angka 1 hari atau lebih";
 
       if (name && !duplicateRow) seenNames.set(normalizedName, rowNumber);
 
@@ -124,6 +128,7 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
         categoryName: categoryName || null,
         stock: Number.isFinite(stock) ? stock : 0,
         criticalStock: Number.isFinite(criticalStock) ? criticalStock : 5,
+        warrantyDays: warrantyDays !== null && Number.isFinite(warrantyDays) ? warrantyDays : null,
         isUniversal: isUniversal ?? true,
         error,
       };
@@ -131,7 +136,7 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
     .filter((row): row is ParsedRow => row !== null);
 }
 
-export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }: SparepartImportDialogProps) {
+export function SparepartImportDialog({ open, onOpenChange, tokoId, itemKind = "sparepart", onSuccess }: SparepartImportDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
@@ -141,6 +146,9 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
   const validRows = rows.filter((row) => !row.error);
   const invalidRows = rows.filter((row) => row.error);
   const canImport = validRows.length > 0 && invalidRows.length === 0 && !isParsing && !isImporting;
+  const isRetailItem = itemKind === "retail_item";
+  const itemLabel = isRetailItem ? "Barang Retail" : "Sparepart";
+  const emptyMessage = isRetailItem ? "Tidak ada data barang retail di file Excel" : "Tidak ada data sparepart di file Excel";
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -170,6 +178,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
             categoryName: null,
             stock: 0,
             criticalStock: 5,
+            warrantyDays: null,
             isUniversal: true,
             error: `Maksimal ${MAX_IMPORT_ROWS} baris per import`,
           },
@@ -178,7 +187,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
       }
 
       setRows(parsedRows);
-      if (parsedRows.length === 0) toast.error("Tidak ada data sparepart di file Excel");
+      if (parsedRows.length === 0) toast.error(emptyMessage);
     } catch (error) {
       setRows([]);
       toast.error(error instanceof Error ? error.message : "Gagal membaca file Excel");
@@ -188,14 +197,20 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
   }
 
   function handleDownloadTemplate() {
-    const worksheet = XLSX.utils.aoa_to_sheet([
-      ["Nama", "Kategori", "Harga Beli", "Harga Jual", "Supplier", "Stok", "Stok Kritis", "Universal"],
-      ["LCD iPhone 13", "LCD", 350000, 450000, "Supplier A", 5, 2, "ya"],
-      ["Baterai Samsung A12", "Baterai", 120000, 180000, "Supplier B", 10, 5, "ya"],
-    ]);
+    const worksheet = XLSX.utils.aoa_to_sheet(isRetailItem
+      ? [
+          ["Nama", "Kategori", "Harga Beli", "Harga Jual", "Supplier", "Stok", "Stok Kritis", "Garansi Hari"],
+          ["Charger USB-C 20W", "Charger", 65000, 95000, "Supplier A", 10, 3, 30],
+          ["Tempered Glass iPhone 13", "Aksesoris", 10000, 25000, "Supplier B", 25, 5, ""],
+        ]
+      : [
+          ["Nama", "Kategori", "Harga Beli", "Harga Jual", "Supplier", "Stok", "Stok Kritis", "Universal"],
+          ["LCD iPhone 13", "LCD", 350000, 450000, "Supplier A", 5, 2, "ya"],
+          ["Baterai Samsung A12", "Baterai", 120000, 180000, "Supplier B", 10, 5, "ya"],
+        ]);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sparepart");
-    XLSX.writeFile(workbook, "template-import-sparepart.xlsx");
+    XLSX.utils.book_append_sheet(workbook, worksheet, isRetailItem ? "Barang Retail" : "Sparepart");
+    XLSX.writeFile(workbook, isRetailItem ? "template-import-barang-retail.xlsx" : "template-import-sparepart.xlsx");
   }
 
   async function handleImport() {
@@ -213,13 +228,15 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
         categoryName: row.categoryName,
         stock: row.stock,
         criticalStock: row.criticalStock,
+        warrantyDays: isRetailItem ? row.warrantyDays ?? null : null,
         isUniversal: row.isUniversal,
+        kind: itemKind,
       })),
     });
     setIsImporting(false);
 
     if (!result.success || !result.data) {
-      toast.error(result.error || "Gagal import sparepart");
+      toast.error(result.error || `Gagal import ${itemLabel.toLowerCase()}`);
       return;
     }
 
@@ -240,16 +257,21 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
             <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
               <RiUpload2Line className="size-4" />
             </span>
-            Import Excel Sparepart
+            Import Excel {itemLabel}
           </DialogTitle>
           <DialogDescription>
-            Import maksimal {MAX_IMPORT_ROWS} baris. Jika nama sparepart sudah ada, harga, supplier, dan stok akan diupdate.
+            Import maksimal {MAX_IMPORT_ROWS} baris. Jika nama {itemLabel.toLowerCase()} sudah ada, harga, supplier, stok{isRetailItem ? ", dan garansi" : ""} akan diupdate.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-            Format kolom: <span className="font-medium text-foreground">Nama</span>, <span className="font-medium text-foreground">Kategori</span> optional, <span className="font-medium text-foreground">Harga Jual</span>, <span className="font-medium text-foreground">Harga Beli</span> optional, <span className="font-medium text-foreground">Supplier</span> optional, <span className="font-medium text-foreground">Stok</span>, <span className="font-medium text-foreground">Stok Kritis</span> optional, dan <span className="font-medium text-foreground">Universal</span> optional berisi ya/tidak.
+            Format kolom: <span className="font-medium text-foreground">Nama</span>, <span className="font-medium text-foreground">Kategori</span> optional, <span className="font-medium text-foreground">Harga Jual</span>, <span className="font-medium text-foreground">Harga Beli</span> optional, <span className="font-medium text-foreground">Supplier</span> optional, <span className="font-medium text-foreground">Stok</span>, <span className="font-medium text-foreground">Stok Kritis</span> optional
+            {isRetailItem ? (
+              <>, dan <span className="font-medium text-foreground">Garansi Hari</span> optional.</>
+            ) : (
+              <>, dan <span className="font-medium text-foreground">Universal</span> optional berisi ya/tidak.</>
+            )}
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -294,7 +316,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
                     <TableHead>Supplier</TableHead>
                     <TableHead>Stok</TableHead>
                     <TableHead>Stok Kritis</TableHead>
-                    <TableHead>Universal</TableHead>
+                    {isRetailItem ? <TableHead>Garansi</TableHead> : <TableHead>Universal</TableHead>}
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -309,7 +331,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, onSuccess }:
                       <TableCell>{row.supplierName || "-"}</TableCell>
                       <TableCell>{row.stock}</TableCell>
                       <TableCell>{row.criticalStock ?? 5}</TableCell>
-                      <TableCell>{row.isUniversal ? "Ya" : "Tidak"}</TableCell>
+                      <TableCell>{isRetailItem ? (row.warrantyDays ? `${row.warrantyDays} hari` : "-") : (row.isUniversal ? "Ya" : "Tidak")}</TableCell>
                       <TableCell>
                         {row.error ? (
                           <span className="text-destructive">{row.error}</span>

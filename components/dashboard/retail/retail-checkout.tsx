@@ -305,6 +305,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                     <span className="font-semibold">{formatCurrency(item.defaultPrice)}</span>
                     <span className="text-muted-foreground">Stok {item.stock}</span>
                   </div>
+                  {item.warrantyDays ? <div className="mt-1 text-xs font-medium text-primary">Garansi {item.warrantyDays} hari</div> : null}
                   {item.categoryName ? <div className="mt-1 text-xs text-muted-foreground">{item.categoryName}</div> : null}
                   <Button className="mt-4 w-full" onClick={(event) => handleAddToCart(event, item)} disabled={readOnly || item.stock <= 0}>
                     <RiAddLine data-icon="inline-start" />
@@ -357,11 +358,12 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                   </div>
                 ) : (
                   <div className="w-full max-w-full min-w-0 overflow-x-auto rounded-md border">
-                    <Table className="min-w-[640px]">
+                    <Table className="min-w-[720px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Tipe</TableHead>
                           <TableHead>Nama</TableHead>
+                          <TableHead>Garansi</TableHead>
                           <TableHead>Qty</TableHead>
                           <TableHead>Harga</TableHead>
                           <TableHead className="text-right">Total</TableHead>
@@ -375,6 +377,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                               <Badge variant="outline">{item.kind === "retail_item" ? "Retail" : "Sparepart"}</Badge>
                             </TableCell>
                             <TableCell className="font-medium">{item.name}</TableCell>
+                            <TableCell>{item.warrantyDays ? `${item.warrantyDays} hari` : "-"}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1">
                                 <Button variant="outline" size="icon-sm" onClick={() => updateQty(item.id, item.qty - 1)} disabled={readOnly}>

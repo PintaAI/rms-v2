@@ -13,6 +13,7 @@ export type RetailCheckoutItem = {
   kind: "sparepart" | "retail_item"
   defaultPrice: number
   purchasePrice: number | null
+  warrantyDays: number | null
   stock: number
   categoryName: string | null
 }
@@ -81,6 +82,8 @@ export type RetailSaleDetail = RetailSaleHistoryItem & {
     qty: number
     unitPrice: number
     unitCostSnapshot: number | null
+    warrantyDaysSnapshot: number | null
+    warrantyUntil: Date | null
     lineTotal: number
   }>
 }
@@ -174,6 +177,12 @@ function normalizeOptionalText(value: string | null | undefined) {
   return trimmed ? trimmed : null
 }
 
+function addDays(date: Date, days: number) {
+  const result = new Date(date)
+  result.setDate(result.getDate() + days)
+  return result
+}
+
 export async function getRetailCheckoutItems(
   tokoId: string,
   query?: string
@@ -205,6 +214,7 @@ export async function getRetailCheckoutItems(
         kind: true,
         defaultPrice: true,
         purchasePrice: true,
+        warrantyDays: true,
         stock: true,
         category: { select: { name: true } },
       },
@@ -219,6 +229,7 @@ export async function getRetailCheckoutItems(
         kind: item.kind,
         defaultPrice: item.defaultPrice,
         purchasePrice: item.purchasePrice,
+        warrantyDays: item.warrantyDays,
         stock: item.stock,
         categoryName: item.category?.name ?? null,
       })),
@@ -340,6 +351,8 @@ export async function getRetailSale(saleId: string): Promise<ActionResultWithDat
             qty: true,
             unitPrice: true,
             unitCostSnapshot: true,
+            warrantyDaysSnapshot: true,
+            warrantyUntil: true,
             lineTotal: true,
           },
         },
@@ -385,6 +398,7 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
           kind: true,
           defaultPrice: true,
           purchasePrice: true,
+          warrantyDays: true,
           stock: true,
         },
       })
@@ -408,6 +422,7 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
       if (discountAmount > subtotal) throw new RetailCheckoutError("Diskon tidak boleh melebihi subtotal")
 
       const grandTotal = subtotal - discountAmount
+      const paidAt = new Date()
       let cashReceived: number | null = null
       let changeAmount: number | null = null
 
@@ -432,9 +447,11 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
           paymentMethod: validated.paymentMethod,
           cashReceived,
           changeAmount,
+          paidAt,
           items: {
             create: inventoryItems.map((item) => {
               const qty = qtyBySparepartId.get(item.id) ?? 0
+              const warrantyUntil = item.warrantyDays ? addDays(paidAt, item.warrantyDays) : null
               return {
                 sparepartId: item.id,
                 name: item.name,
@@ -443,6 +460,8 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
                 qty,
                 unitPrice: item.defaultPrice,
                 unitCostSnapshot: item.purchasePrice,
+                warrantyDaysSnapshot: item.warrantyDays,
+                warrantyUntil,
                 lineTotal: item.defaultPrice * qty,
               }
             }),

@@ -21,6 +21,7 @@ export type Sparepart = {
   categoryId: string | null
   stock: number
   criticalStock: number
+  warrantyDays: number | null
   isUniversal: boolean
   kind: InventoryItemKind
   tokoId: string
@@ -72,6 +73,7 @@ export type ImportSparepartInput = {
   categoryName?: string | null
   stock: number
   criticalStock?: number | null
+  warrantyDays?: number | null
   isUniversal?: boolean
   kind?: InventoryItemKind
 }
@@ -229,6 +231,7 @@ const createSparepartSchema = z.object({
   categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").optional(),
+  warrantyDays: z.number().int().min(1, "Garansi harus 1 hari atau lebih").nullable().optional(),
   isUniversal: z.boolean().optional(),
   kind: z.enum(["sparepart", "retail_item"]).optional(),
   tokoId: z.string(),
@@ -244,6 +247,7 @@ const importSparepartRowSchema = z.object({
   categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih"),
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").nullable().optional(),
+  warrantyDays: z.number().int().min(1, "Garansi harus 1 hari atau lebih").nullable().optional(),
   isUniversal: z.boolean().optional(),
   kind: z.enum(["sparepart", "retail_item"]).optional(),
 })
@@ -273,6 +277,7 @@ const updateSparepartSchema = z.object({
   categoryName: z.string().trim().nullable().optional(),
   stock: z.number().int().min(0, "Stok harus 0 atau lebih").optional(),
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").optional(),
+  warrantyDays: z.number().int().min(1, "Garansi harus 1 hari atau lebih").nullable().optional(),
   isUniversal: z.boolean().optional(),
   kind: z.enum(["sparepart", "retail_item"]).optional(),
   hpCatalogIds: z.array(z.string()).optional(),
@@ -518,6 +523,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         categoryId: category?.id ?? null,
         stock: validated.stock ?? 0,
         criticalStock: validated.criticalStock ?? 5,
+        warrantyDays: isRetailItem ? validated.warrantyDays ?? null : null,
         isUniversal: isRetailItem ? true : validated.isUniversal ?? false,
         kind,
         tokoId: validated.tokoId,
@@ -553,6 +559,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         categoryName: sparepart.category?.name,
         stock: sparepart.stock,
         criticalStock: sparepart.criticalStock,
+        warrantyDays: sparepart.warrantyDays,
         isUniversal: sparepart.isUniversal,
         kind: sparepart.kind,
       },
@@ -614,6 +621,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         categoryId: validated.categoryName === undefined ? undefined : category?.id ?? null,
         stock: validated.stock,
         criticalStock: validated.criticalStock,
+        warrantyDays: isRetailItem ? validated.warrantyDays : null,
         isUniversal: isRetailItem ? true : validated.isUniversal,
         kind: validated.kind,
         ...(isRetailItem
@@ -649,6 +657,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         categoryName: updated.category?.name,
         stock: updated.stock,
         criticalStock: updated.criticalStock,
+        warrantyDays: updated.warrantyDays,
         isUniversal: updated.isUniversal,
         kind: updated.kind,
       },
@@ -729,6 +738,7 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
               categoryId: category?.id ?? null,
               stock: row.stock,
               criticalStock: row.criticalStock ?? 5,
+              warrantyDays: row.kind === "retail_item" ? row.warrantyDays ?? null : null,
               isUniversal: row.kind === "retail_item" ? true : row.isUniversal ?? true,
               kind: row.kind ?? "sparepart",
               ...(row.kind === "retail_item" ? { compatibilities: { deleteMany: {} } } : {}),
@@ -748,6 +758,7 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
             categoryId: category?.id ?? null,
             stock: row.stock,
             criticalStock: row.criticalStock ?? 5,
+            warrantyDays: row.kind === "retail_item" ? row.warrantyDays ?? null : null,
             isUniversal: row.kind === "retail_item" ? true : row.isUniversal ?? true,
             kind: row.kind ?? "sparepart",
             tokoId: validated.tokoId,

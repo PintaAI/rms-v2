@@ -10,6 +10,14 @@ const paymentLabels: Record<RetailSaleDetail["paymentMethod"], string> = {
   debit: "Debit",
 }
 
+function formatWarrantyDate(date: Date | string) {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(date))
+}
+
 export function RetailReceipt({ sale }: { sale: RetailSaleDetail }) {
   return (
     <div className="mx-auto w-full max-w-sm bg-background p-5 text-sm text-foreground" data-retail-receipt>
@@ -60,6 +68,9 @@ export function RetailReceipt({ sale }: { sale: RetailSaleDetail }) {
               <span>{item.qty} x {formatCurrency(item.unitPrice)}</span>
               {item.barcode ? <span>{item.barcode}</span> : null}
             </div>
+            {item.warrantyUntil ? (
+              <div className="text-xs font-medium text-foreground">Garansi sampai {formatWarrantyDate(item.warrantyUntil)}</div>
+            ) : null}
           </div>
         ))}
       </div>

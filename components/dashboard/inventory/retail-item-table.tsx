@@ -8,10 +8,11 @@ import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InventoryItemFormDialog } from "@/components/dashboard/inventory/inventory-item-form-dialog";
+import { SparepartImportDialog } from "@/components/dashboard/inventory/sparepart-import-dialog";
 import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepart-restock-dialog";
 import { SparepartStockBadge } from "@/components/dashboard/inventory/sparepart-stock-badge";
 import { formatCurrency } from "@/lib/utils";
-import { RiAddLine, RiDeleteBinLine, RiEditLine, RiLoader4Line, RiSearchLine, RiStackLine } from "@remixicon/react";
+import { RiAddLine, RiDeleteBinLine, RiEditLine, RiLoader4Line, RiSearchLine, RiStackLine, RiUpload2Line } from "@remixicon/react";
 
 interface RetailItemTableProps {
   tokoId: string;
@@ -27,6 +28,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
   const [formOpen, setFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<SparepartWithCompatibilities | null>(null);
   const [restockOpen, setRestockOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingItem, setDeletingItem] = useState<SparepartWithCompatibilities | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -68,6 +70,13 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
     setEditingItem(null);
   };
 
+  const handleImportSuccess = async () => {
+    setIsLoading(true);
+    const result = await getSpareparts(tokoId, "retail_item");
+    if (result.success && result.data) setItems(result.data);
+    setIsLoading(false);
+  };
+
   const handleDelete = async () => {
     if (!deletingItem) return;
     setIsDeleting(true);
@@ -89,6 +98,10 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
           <Button variant="outline" onClick={() => setRestockOpen(true)}>
             <RiStackLine className="mr-1.5 size-4" />
             Restock
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <RiUpload2Line className="mr-1.5 size-4" />
+            Import Excel
           </Button>
           <Button
             onClick={() => {
@@ -115,7 +128,8 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
               <RiLoader4Line className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[840px]">
               <TableHeader className="bg-muted/30">
                 <TableRow>
                   <TableHead>Nama</TableHead>
@@ -123,6 +137,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
                   <TableHead>Supplier</TableHead>
                   <TableHead>Harga Beli</TableHead>
                   <TableHead>Harga Jual</TableHead>
+                  <TableHead>Garansi</TableHead>
                   <TableHead>Stok</TableHead>
                   <TableHead className="w-[88px]">Aksi</TableHead>
                 </TableRow>
@@ -130,7 +145,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
               <TableBody>
                 {filteredItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                       {search ? "Tidak ditemukan barang retail sesuai pencarian" : "Belum ada barang retail. Klik \"Tambah Barang Retail\" untuk menambahkan."}
                     </TableCell>
                   </TableRow>
@@ -142,6 +157,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
                       <TableCell>{item.supplierName || "-"}</TableCell>
                       <TableCell>{item.purchasePrice != null ? formatCurrency(item.purchasePrice) : "-"}</TableCell>
                       <TableCell>{formatCurrency(item.defaultPrice)}</TableCell>
+                      <TableCell>{item.warrantyDays ? `${item.warrantyDays} hari` : "-"}</TableCell>
                       <TableCell>
                         <SparepartStockBadge sparepart={item} />
                       </TableCell>
@@ -175,7 +191,8 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
                   ))
                 )}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -195,6 +212,14 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
         tokoId={tokoId}
         itemKind="retail_item"
         onSuccess={handleSuccess}
+      />
+
+      <SparepartImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        tokoId={tokoId}
+        itemKind="retail_item"
+        onSuccess={handleImportSuccess}
       />
 
       <DeleteDialog

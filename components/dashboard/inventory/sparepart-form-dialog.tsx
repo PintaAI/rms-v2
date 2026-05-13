@@ -21,7 +21,7 @@ import {
 } from "@/actions/inventory";
 import { MultiDeviceInput, type HpCatalogOption } from "@/components/shared/multi-device-input";
 import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
-import { RiEditLine, RiPriceTag3Line, RiStackLine, RiDeviceLine, RiBox3Line } from "@remixicon/react";
+import { RiEditLine, RiPriceTag3Line, RiStackLine, RiDeviceLine, RiBox3Line, RiShieldCheckLine } from "@remixicon/react";
 
 interface SparepartFormProps {
   open: boolean;
@@ -71,6 +71,7 @@ function SparepartFormContent({
   const [categoryName, setCategoryName] = useState(sparepart?.category?.name ?? "");
   const [stock, setStock] = useState(sparepart ? sparepart.stock.toString() : "");
   const [criticalStock, setCriticalStock] = useState(sparepart ? sparepart.criticalStock.toString() : "5");
+  const [warrantyDays, setWarrantyDays] = useState(sparepart?.warrantyDays != null ? sparepart.warrantyDays.toString() : "");
   const [isUniversal, setIsUniversal] = useState(sparepart?.isUniversal ?? false);
   const [selectedDevices, setSelectedDevices] = useState<HpCatalogOption[]>(() => toDeviceOptions(sparepart));
   const sparepartRef = useRef(sparepart);
@@ -163,6 +164,12 @@ function SparepartFormContent({
       return;
     }
 
+    const warrantyDaysValue = warrantyDays.trim() ? parseInt(warrantyDays, 10) : null;
+    if (isRetailItem && warrantyDaysValue !== null && (isNaN(warrantyDaysValue) || warrantyDaysValue < 1)) {
+      setError("Garansi harus berupa angka minimal 1 hari");
+      return;
+    }
+
     const hpCatalogIds = isRetailItem ? [] : selectedDevices.map((d) => d.id);
     const finalIsUniversal = isRetailItem || hpCatalogIds.length === 0 ? true : isUniversal;
     const trimmedCategoryName = categoryName.trim();
@@ -185,6 +192,7 @@ function SparepartFormContent({
       categoryId: optimisticCategory?.id ?? null,
       stock: stockValue,
       criticalStock: criticalStockValue,
+      warrantyDays: isRetailItem ? warrantyDaysValue : null,
       isUniversal: finalIsUniversal,
       kind: mode,
       tokoId,
@@ -222,6 +230,7 @@ function SparepartFormContent({
           categoryName: trimmedCategoryName || null,
           stock: stockValue,
           criticalStock: criticalStockValue,
+          warrantyDays: isRetailItem ? warrantyDaysValue : null,
           isUniversal: finalIsUniversal,
           kind: mode,
           hpCatalogIds,
@@ -234,6 +243,7 @@ function SparepartFormContent({
           categoryName: trimmedCategoryName || null,
           stock: stockValue,
           criticalStock: criticalStockValue,
+          warrantyDays: isRetailItem ? warrantyDaysValue : null,
           isUniversal: finalIsUniversal,
           kind: mode,
           tokoId,
@@ -392,6 +402,25 @@ function SparepartFormContent({
                 </datalist>
                 <p className="text-xs text-muted-foreground">Kategori baru akan dibuat otomatis saat disimpan.</p>
               </div>
+
+              {isRetailItem && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="warrantyDays" className="flex items-center gap-1.5 text-sm">
+                    <RiShieldCheckLine className="size-3.5" />
+                    Garansi (hari)
+                  </Label>
+                  <Input
+                    id="warrantyDays"
+                    type="number"
+                    value={warrantyDays}
+                    onChange={(e) => setWarrantyDays(e.target.value)}
+                    placeholder="Contoh: 30"
+                    min="1"
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">Kosongkan jika barang ini tidak memiliki garansi.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
