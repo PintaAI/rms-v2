@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   RiAddCircleLine,
   RiArchiveLine,
+  RiArrowGoBackLine,
   RiCheckboxCircleLine,
   RiCloseCircleLine,
   RiDeleteBin6Line,
@@ -144,6 +145,14 @@ const activityTypeConfig: Record<
     badgeVariant: "warning",
     borderClass: "border-amber-500/30",
     backgroundClass: "bg-amber-500/5",
+  },
+  supplier_return_created: {
+    label: "Retur Supplier",
+    actionLabel: "membuat retur supplier",
+    icon: RiArrowGoBackLine,
+    badgeVariant: "accent",
+    borderClass: "border-sky-500/30",
+    backgroundClass: "bg-sky-500/5",
   },
   inventory_audit_started: {
     label: "Audit Mulai",

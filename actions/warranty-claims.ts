@@ -24,6 +24,13 @@ const resolveWarrantyClaimSchema = z.object({
     sparepartId: z.string().min(1),
     qty: z.number().int().min(1),
   })).optional(),
+  supplierReturn: z.object({
+    sparepartId: z.string().min(1),
+    qty: z.number().int().min(1),
+    supplierName: z.string().trim().optional(),
+    reason: z.string().trim().min(3, "Alasan retur wajib diisi"),
+    note: z.string().trim().optional(),
+  }).optional(),
 });
 
 export async function createWarrantyClaim(
@@ -105,6 +112,7 @@ export async function resolveWarrantyClaim(
   const resolution = validated.data.resolution;
   const refundAmount = validated.data.refundAmount ?? 0;
   const items = validated.data.items ?? [];
+  const supplierReturn = validated.data.supplierReturn;
 
   if (resolution === "cash_refund" && refundAmount <= 0) {
     return { success: false, error: "Nominal refund wajib lebih dari nol" };
@@ -114,6 +122,9 @@ export async function resolveWarrantyClaim(
   }
   if (resolution !== "replace_part" && items.length > 0) {
     return { success: false, error: "Sparepart hanya boleh dipilih untuk solusi ganti sparepart" };
+  }
+  if (supplierReturn && resolution !== "replace_part") {
+    return { success: false, error: "Retur supplier hanya boleh dibuat untuk solusi ganti sparepart" };
   }
 
   return withScope(claim.tokoId, { role: ["admin", "staff"] }, async (scope) => {
@@ -193,6 +204,46 @@ export async function resolveWarrantyClaim(
             price: sparepart.defaultPrice,
           });
         }
+      }
+
+      if (supplierReturn) {
+        const returnedSparepart = await tx.sparepart.findUnique({
+          where: { id: supplierReturn.sparepartId },
+          select: { id: true, tokoId: true, name: true, kind: true },
+        });
+        if (!returnedSparepart || returnedSparepart.tokoId !== claim.tokoId || returnedSparepart.kind !== "sparepart") {
+          throw new Error("Sparepart retur tidak ditemukan");
+        }
+
+        const createdSupplierReturn = await tx.supplierReturn.create({
+          data: {
+            tokoId: claim.tokoId,
+            warrantyClaimId: claim.id,
+            sparepartId: returnedSparepart.id,
+            qty: supplierReturn.qty,
+            supplierName: supplierReturn.supplierName || null,
+            reason: supplierReturn.reason,
+            note: supplierReturn.note || null,
+            createdById: scope.user.id,
+          },
+          select: { id: true },
+        });
+
+        await createActivityLog(tx, {
+          tokoId: scope.tokoId,
+          userId: scope.user.id,
+          serviceId: claim.serviceId,
+          type: "supplier_return_created",
+          title: "Supplier return created from warranty claim",
+          payload: {
+            supplierReturnId: createdSupplierReturn.id,
+            warrantyClaimId: claim.id,
+            sparepartId: returnedSparepart.id,
+            qty: supplierReturn.qty,
+            supplierName: supplierReturn.supplierName || null,
+            reason: supplierReturn.reason,
+          },
+        });
       }
 
       await tx.warrantyClaim.update({

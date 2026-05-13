@@ -58,6 +58,7 @@ export type SparepartListItem = {
   name: string
   barcode: string
   defaultPrice: number
+  supplierName: string | null
   stock: number
   kind: InventoryItemKind
 }
@@ -167,9 +168,36 @@ export type InventoryReportCategory = {
   name: string
 }
 
+export type SupplierReturnSupplierReport = {
+  supplierName: string
+  pendingCount: number
+  pendingQty: number
+  pendingValue: number
+  averageResolutionDays: number | null
+  replacedQty: number
+  refundedAmount: number
+  rejectedCount: number
+}
+
+export type SupplierReturnSparepartReport = {
+  sparepartId: string
+  sparepartName: string
+  supplierName: string | null
+  returnCount: number
+  returnedQty: number
+}
+
+export type SupplierReturnReport = {
+  supplierReports: SupplierReturnSupplierReport[]
+  mostReturnedSpareparts: SupplierReturnSparepartReport[]
+  totalPendingValue: number
+  averageResolutionDays: number | null
+}
+
 export type InventoryReportResult = {
   items: InventoryReportItem[]
   categories: InventoryReportCategory[]
+  supplierReturns: SupplierReturnReport
   totalSpareparts: number
   totalStockUnits: number
   totalCapitalValue: number
@@ -178,6 +206,19 @@ export type InventoryReportResult = {
   outOfStockCount: number
   criticalStockCount: number
   safeStockCount: number
+}
+
+function calculateAverageResolutionDays(
+  items: Array<{ createdAt: Date; resolvedAt: Date | null }>
+): number | null {
+  const resolvedDurations = items
+    .filter((item) => item.resolvedAt)
+    .map((item) => item.resolvedAt!.getTime() - item.createdAt.getTime())
+
+  if (resolvedDurations.length === 0) return null
+
+  const averageMs = resolvedDurations.reduce((total, duration) => total + duration, 0) / resolvedDurations.length
+  return Math.round((averageMs / (1000 * 60 * 60 * 24)) * 10) / 10
 }
 
 const createSparepartSchema = z.object({
@@ -435,6 +476,7 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
         name: true,
         barcode: true,
         defaultPrice: true,
+        supplierName: true,
         stock: true,
         kind: true,
       },
@@ -1270,11 +1312,27 @@ export async function getInventoryReport(
     if (!access.success) return access
     assertRetailInventoryFeature(access.scope, filters.kind)
 
-    const spareparts = await prisma.sparepart.findMany({
-      where: { tokoId, ...(filters.kind ? { kind: filters.kind } : {}) },
-      include: { category: true },
-      orderBy: { name: "asc" },
-    })
+    const [spareparts, supplierReturns] = await Promise.all([
+      prisma.sparepart.findMany({
+        where: { tokoId, ...(filters.kind ? { kind: filters.kind } : {}) },
+        include: { category: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.supplierReturn.findMany({
+        where: { tokoId },
+        select: {
+          id: true,
+          qty: true,
+          supplierName: true,
+          status: true,
+          refundAmount: true,
+          createdAt: true,
+          resolvedAt: true,
+          sparepartId: true,
+          sparepart: { select: { id: true, name: true, purchasePrice: true, supplierName: true } },
+        },
+      }),
+    ])
 
     const categories = Array.from(
       new Map(
@@ -1328,11 +1386,71 @@ export async function getInventoryReport(
       (statusFilter === "all" || item.status === statusFilter)
     )
 
+    const supplierReportMap = new Map<string, SupplierReturnSupplierReport & { resolvedItems: Array<{ createdAt: Date; resolvedAt: Date | null }> }>()
+    const sparepartReportMap = new Map<string, SupplierReturnSparepartReport>()
+
+    for (const supplierReturn of supplierReturns) {
+      const supplierName = supplierReturn.supplierName || supplierReturn.sparepart.supplierName || "Tanpa supplier"
+      const supplierReport = supplierReportMap.get(supplierName) ?? {
+        supplierName,
+        pendingCount: 0,
+        pendingQty: 0,
+        pendingValue: 0,
+        averageResolutionDays: null,
+        replacedQty: 0,
+        refundedAmount: 0,
+        rejectedCount: 0,
+        resolvedItems: [],
+      }
+      const purchasePrice = supplierReturn.sparepart.purchasePrice ?? 0
+
+      if (supplierReturn.status === "pending") {
+        supplierReport.pendingCount += 1
+        supplierReport.pendingQty += supplierReturn.qty
+        supplierReport.pendingValue += supplierReturn.qty * purchasePrice
+      }
+
+      if (supplierReturn.status === "replaced") supplierReport.replacedQty += supplierReturn.qty
+      if (supplierReturn.status === "refunded") supplierReport.refundedAmount += supplierReturn.refundAmount
+      if (supplierReturn.status === "rejected") supplierReport.rejectedCount += 1
+      if (supplierReturn.resolvedAt) supplierReport.resolvedItems.push({ createdAt: supplierReturn.createdAt, resolvedAt: supplierReturn.resolvedAt })
+
+      supplierReportMap.set(supplierName, supplierReport)
+
+      const sparepartReport = sparepartReportMap.get(supplierReturn.sparepartId) ?? {
+        sparepartId: supplierReturn.sparepart.id,
+        sparepartName: supplierReturn.sparepart.name,
+        supplierName: supplierReturn.sparepart.supplierName,
+        returnCount: 0,
+        returnedQty: 0,
+      }
+      sparepartReport.returnCount += 1
+      sparepartReport.returnedQty += supplierReturn.qty
+      sparepartReportMap.set(supplierReturn.sparepartId, sparepartReport)
+    }
+
+    const supplierReports = Array.from(supplierReportMap.values())
+      .map(({ resolvedItems, ...report }) => ({
+        ...report,
+        averageResolutionDays: calculateAverageResolutionDays(resolvedItems),
+      }))
+      .sort((a, b) => b.pendingValue - a.pendingValue || b.refundedAmount - a.refundedAmount || a.supplierName.localeCompare(b.supplierName))
+
+    const supplierReturnReport: SupplierReturnReport = {
+      supplierReports,
+      mostReturnedSpareparts: Array.from(sparepartReportMap.values())
+        .sort((a, b) => b.returnedQty - a.returnedQty || b.returnCount - a.returnCount || a.sparepartName.localeCompare(b.sparepartName))
+        .slice(0, 10),
+      totalPendingValue: supplierReports.reduce((total, report) => total + report.pendingValue, 0),
+      averageResolutionDays: calculateAverageResolutionDays(supplierReturns),
+    }
+
     return {
       success: true,
       data: {
         items: filteredItems,
         categories,
+        supplierReturns: supplierReturnReport,
         totalSpareparts: filteredItems.length,
         totalStockUnits: filteredItems.reduce((total, item) => total + item.stock, 0),
         totalCapitalValue: filteredItems.reduce((total, item) => total + item.capitalValue, 0),

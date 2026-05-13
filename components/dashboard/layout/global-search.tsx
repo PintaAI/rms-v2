@@ -136,6 +136,7 @@ function useStaticSearchResults(pathname: string): SearchResult[] {
       addMenu("inventory", "Inventory", inventoryBase, ["sparepart", "stok"]);
       addMenu("sparepart", "Sparepart", role === "admin" ? `${inventoryBase}?tab=sparepart` : inventoryBase, ["inventory", "stok"]);
       if (role === "admin") addMenu("jasa", "Jasa", `${inventoryBase}?tab=jasa`, ["pricelist", "harga jasa"]);
+      if (role === "admin") addMenu("supplier-returns", "Retur Supplier", `${inventoryBase}/supplier-returns`, ["retur", "supplier", "garansi"]);
     }
 
     if (role === "admin" && featureAccess["inventory.audit"] && !isFeatureDisabled("inventory.audit")) {

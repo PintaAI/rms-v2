@@ -348,6 +348,14 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                 </Button>
               )}
               {!readOnly && (
+                <Button asChild variant="outline" className="flex-1 sm:flex-none">
+                  <Link href={`/${tokoId}/admin/inventory/supplier-returns`}>
+                    <RiHistoryLine className="h-4 w-4 mr-1.5" />
+                    Retur Supplier
+                  </Link>
+                </Button>
+              )}
+              {!readOnly && (
                 <Button
                   variant="outline"
                   className="flex-1 sm:flex-none"

@@ -33,16 +33,13 @@ export function RestockHistoryFilter({
   hasActiveFilter,
 }: RestockHistoryFilterProps) {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState(filters.q)
+  const [searchDraft, setSearchDraft] = useState({ source: filters.q, value: filters.q })
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchParamString = searchParams.toString()
   const hasActiveAdvancedFilter = filters.userId !== "all" || Boolean(filters.from) || Boolean(filters.to)
-
-  useEffect(() => {
-    setSearchQuery(filters.q)
-  }, [filters.q])
+  const searchQuery = searchDraft.source === filters.q ? searchDraft.value : filters.q
 
   useEffect(() => {
     const params = new URLSearchParams(searchParamString)
@@ -72,7 +69,7 @@ export function RestockHistoryFilter({
         <Input
           name="q"
           value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
+          onChange={(event) => setSearchDraft({ source: filters.q, value: event.target.value })}
           placeholder="Nama sparepart, barcode, atau user"
           className="pl-8"
         />

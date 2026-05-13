@@ -6,12 +6,15 @@ import { RetailReceipt } from "@/components/dashboard/retail/retail-receipt"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { RiLoader4Line, RiPrinterLine } from "@remixicon/react"
+import { RiArrowDownSLine, RiLoader4Line, RiPrinterLine } from "@remixicon/react"
 import { toast } from "sonner"
+
+type PrintFormat = "thermal" | "a5"
 
 const paymentLabels: Record<RetailSaleDetail["paymentMethod"], string> = {
   cash: "Cash",
@@ -27,6 +30,160 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;")
+}
+
+function getThermalReceiptHtml(sale: RetailSaleDetail) {
+  const itemRows = sale.items.map((item) => `
+    <div class="item">
+      <div class="line"><strong>${escapeHtml(item.name)}</strong><strong>${formatCurrency(item.lineTotal)}</strong></div>
+      <div class="muted line"><span>${item.qty} x ${formatCurrency(item.unitPrice)}</span><span>${escapeHtml(item.barcode || "")}</span></div>
+    </div>`).join("")
+  const cashRows = sale.paymentMethod === "cash" ? `
+    <div class="line"><span>Diterima</span><strong>${formatCurrency(sale.cashReceived ?? 0)}</strong></div>
+    <div class="line"><span>Kembali</span><strong>${formatCurrency(sale.changeAmount ?? 0)}</strong></div>` : ""
+
+  return `<!doctype html>
+    <html>
+      <head>
+        <title>Receipt ${sale.id.slice(0, 8).toUpperCase()}</title>
+        <style>
+          @page { size: 80mm auto; margin: 0; }
+          body { margin: 0; font-family: Arial, sans-serif; color: #111827; }
+          .receipt { max-width: 360px; margin: 0 auto; padding: 20px; font-size: 13px; }
+          .center { text-align: center; }
+          .muted { color: #6b7280; font-size: 12px; }
+          .line { display: flex; justify-content: space-between; gap: 16px; }
+          .item { margin-bottom: 10px; }
+          .divider { border-top: 1px solid #e5e7eb; margin: 14px 0; }
+          .total { font-size: 16px; font-weight: 700; }
+          .terms { white-space: pre-line; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <main class="receipt">
+          <section class="center">
+            <h2>${escapeHtml(sale.toko.name)}</h2>
+            ${sale.toko.address ? `<p class="muted">${escapeHtml(sale.toko.address)}</p>` : ""}
+            ${sale.toko.phone ? `<p class="muted">${escapeHtml(sale.toko.phone)}</p>` : ""}
+          </section>
+          <div class="divider"></div>
+          <section>
+            <div class="line"><span class="muted">Sale ID</span><strong>${sale.id.slice(0, 8).toUpperCase()}</strong></div>
+            <div class="line"><span class="muted">Tanggal</span><strong>${formatDate(sale.paidAt)}</strong></div>
+            <div class="line"><span class="muted">Kasir</span><strong>${escapeHtml(sale.cashier.name)}</strong></div>
+            ${(sale.customerName || sale.customerPhone) ? `<div class="line"><span class="muted">Customer</span><strong>${escapeHtml(sale.customerName || sale.customerPhone || "")}</strong></div>` : ""}
+          </section>
+          <div class="divider"></div>
+          <section>${itemRows}</section>
+          <div class="divider"></div>
+          <section>
+            <div class="line"><span>Subtotal</span><strong>${formatCurrency(sale.subtotal)}</strong></div>
+            ${sale.discountAmount > 0 ? `<div class="line"><span>Diskon</span><strong>- ${formatCurrency(sale.discountAmount)}</strong></div>` : ""}
+            <div class="line total"><span>Total</span><span>${formatCurrency(sale.grandTotal)}</span></div>
+            <div class="line"><span>Pembayaran</span><strong>${paymentLabels[sale.paymentMethod]}</strong></div>
+            ${cashRows}
+          </section>
+          ${sale.toko.invoiceTerms ? `<div class="divider"></div><p class="center muted terms">${escapeHtml(sale.toko.invoiceTerms)}</p>` : ""}
+        </main>
+      </body>
+    </html>`
+}
+
+function getA5ReceiptHtml(sale: RetailSaleDetail) {
+  const itemRows = sale.items.map((item, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>
+        <strong>${escapeHtml(item.name)}</strong>
+        ${item.barcode ? `<span>${escapeHtml(item.barcode)}</span>` : ""}
+      </td>
+      <td class="center">${item.qty}</td>
+      <td class="right">${formatCurrency(item.unitPrice)}</td>
+      <td class="right">${formatCurrency(item.lineTotal)}</td>
+    </tr>`).join("")
+  const cashRows = sale.paymentMethod === "cash" ? `
+    <div class="summary-row"><span>Diterima</span><strong>${formatCurrency(sale.cashReceived ?? 0)}</strong></div>
+    <div class="summary-row"><span>Kembali</span><strong>${formatCurrency(sale.changeAmount ?? 0)}</strong></div>` : ""
+
+  return `<!doctype html>
+    <html>
+      <head>
+        <title>Invoice A5 ${sale.id.slice(0, 8).toUpperCase()}</title>
+        <style>
+          @page { size: A5; margin: 12mm; }
+          * { box-sizing: border-box; }
+          body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #ffffff; font-size: 11px; }
+          .invoice { width: 100%; min-height: calc(210mm - 24mm); display: flex; flex-direction: column; gap: 18px; }
+          .header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #111827; padding-bottom: 14px; }
+          .store h1 { margin: 0 0 6px; font-size: 20px; line-height: 1.1; }
+          .store p, .meta p, .terms { margin: 0; color: #4b5563; line-height: 1.45; }
+          .meta { min-width: 170px; text-align: right; }
+          .meta h2 { margin: 0 0 8px; font-size: 18px; letter-spacing: 0.08em; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; }
+          .label { display: block; margin-bottom: 2px; color: #6b7280; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+          .value { font-weight: 700; }
+          table { width: 100%; border-collapse: collapse; }
+          th { border-bottom: 1px solid #111827; padding: 8px 6px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+          td { border-bottom: 1px solid #e5e7eb; padding: 8px 6px; vertical-align: top; }
+          td span { display: block; margin-top: 3px; color: #6b7280; font-size: 10px; }
+          .center { text-align: center; }
+          .right { text-align: right; }
+          .footer { display: grid; grid-template-columns: 1fr 210px; gap: 24px; margin-top: auto; }
+          .summary { display: flex; flex-direction: column; gap: 6px; }
+          .summary-row { display: flex; justify-content: space-between; gap: 16px; }
+          .summary-row.total { border-top: 1px solid #111827; margin-top: 4px; padding-top: 8px; font-size: 15px; }
+          .terms { white-space: pre-line; }
+          @media print { body { margin: 0; } }
+        </style>
+      </head>
+      <body>
+        <main class="invoice">
+          <section class="header">
+            <div class="store">
+              <h1>${escapeHtml(sale.toko.name)}</h1>
+              ${sale.toko.address ? `<p>${escapeHtml(sale.toko.address)}</p>` : ""}
+              ${sale.toko.phone ? `<p>${escapeHtml(sale.toko.phone)}</p>` : ""}
+            </div>
+            <div class="meta">
+              <h2>INVOICE</h2>
+              <p>#${sale.id.slice(0, 8).toUpperCase()}</p>
+              <p>${formatDate(sale.paidAt)}</p>
+            </div>
+          </section>
+
+          <section class="info-grid">
+            <div><span class="label">Customer</span><span class="value">${escapeHtml(sale.customerName || sale.customerPhone || "Walk-in")}</span></div>
+            <div><span class="label">Kasir</span><span class="value">${escapeHtml(sale.cashier.name)}</span></div>
+            <div><span class="label">Pembayaran</span><span class="value">${paymentLabels[sale.paymentMethod]}</span></div>
+            <div><span class="label">Status</span><span class="value">${sale.status === "paid" ? "Paid" : "Void"}</span></div>
+          </section>
+
+          <table>
+            <thead>
+              <tr>
+                <th class="center" style="width: 28px;">No</th>
+                <th>Item</th>
+                <th class="center" style="width: 48px;">Qty</th>
+                <th class="right" style="width: 96px;">Harga</th>
+                <th class="right" style="width: 104px;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+
+          <section class="footer">
+            <div class="terms">${sale.toko.invoiceTerms ? escapeHtml(sale.toko.invoiceTerms) : "Terima kasih atas pembelian Anda."}</div>
+            <div class="summary">
+              <div class="summary-row"><span>Subtotal</span><strong>${formatCurrency(sale.subtotal)}</strong></div>
+              ${sale.discountAmount > 0 ? `<div class="summary-row"><span>Diskon</span><strong>- ${formatCurrency(sale.discountAmount)}</strong></div>` : ""}
+              <div class="summary-row total"><span>Total</span><strong>${formatCurrency(sale.grandTotal)}</strong></div>
+              ${cashRows}
+            </div>
+          </section>
+        </main>
+      </body>
+    </html>`
 }
 
 export function RetailSaleDetailDrawer({
@@ -45,71 +202,18 @@ export function RetailSaleDetailDrawer({
   const [isPrinting, setIsPrinting] = useState(false)
   const printedKeyRef = useRef<string | null>(null)
 
-  const handlePrint = useCallback(() => {
+  const handlePrint = useCallback((format: PrintFormat = "thermal") => {
     if (!sale) return
 
     setIsPrinting(true)
-    const printWindow = window.open("", "_blank", "width=420,height=720")
+    const printWindow = window.open("", "_blank", format === "a5" ? "width=760,height=900" : "width=420,height=720")
     if (!printWindow) {
       toast.error("Popup print diblokir browser")
       setIsPrinting(false)
       return
     }
 
-    const itemRows = sale.items.map((item) => `
-      <div class="item">
-        <div class="line"><strong>${escapeHtml(item.name)}</strong><strong>${formatCurrency(item.lineTotal)}</strong></div>
-        <div class="muted line"><span>${item.qty} x ${formatCurrency(item.unitPrice)}</span><span>${escapeHtml(item.barcode || "")}</span></div>
-      </div>`).join("")
-    const cashRows = sale.paymentMethod === "cash" ? `
-      <div class="line"><span>Diterima</span><strong>${formatCurrency(sale.cashReceived ?? 0)}</strong></div>
-      <div class="line"><span>Kembali</span><strong>${formatCurrency(sale.changeAmount ?? 0)}</strong></div>` : ""
-
-    printWindow.document.write(`<!doctype html>
-      <html>
-        <head>
-          <title>Receipt ${sale.id.slice(0, 8).toUpperCase()}</title>
-          <style>
-            body { margin: 0; font-family: Arial, sans-serif; color: #111827; }
-            .receipt { max-width: 360px; margin: 0 auto; padding: 20px; font-size: 13px; }
-            .center { text-align: center; }
-            .muted { color: #6b7280; font-size: 12px; }
-            .line { display: flex; justify-content: space-between; gap: 16px; }
-            .item { margin-bottom: 10px; }
-            .divider { border-top: 1px solid #e5e7eb; margin: 14px 0; }
-            .total { font-size: 16px; font-weight: 700; }
-            .terms { white-space: pre-line; }
-            @media print { body { margin: 0; } }
-          </style>
-        </head>
-        <body>
-          <main class="receipt">
-            <section class="center">
-              <h2>${escapeHtml(sale.toko.name)}</h2>
-              ${sale.toko.address ? `<p class="muted">${escapeHtml(sale.toko.address)}</p>` : ""}
-              ${sale.toko.phone ? `<p class="muted">${escapeHtml(sale.toko.phone)}</p>` : ""}
-            </section>
-            <div class="divider"></div>
-            <section>
-              <div class="line"><span class="muted">Sale ID</span><strong>${sale.id.slice(0, 8).toUpperCase()}</strong></div>
-              <div class="line"><span class="muted">Tanggal</span><strong>${formatDate(sale.paidAt)}</strong></div>
-              <div class="line"><span class="muted">Kasir</span><strong>${escapeHtml(sale.cashier.name)}</strong></div>
-              ${(sale.customerName || sale.customerPhone) ? `<div class="line"><span class="muted">Customer</span><strong>${escapeHtml(sale.customerName || sale.customerPhone || "")}</strong></div>` : ""}
-            </section>
-            <div class="divider"></div>
-            <section>${itemRows}</section>
-            <div class="divider"></div>
-            <section>
-              <div class="line"><span>Subtotal</span><strong>${formatCurrency(sale.subtotal)}</strong></div>
-              ${sale.discountAmount > 0 ? `<div class="line"><span>Diskon</span><strong>- ${formatCurrency(sale.discountAmount)}</strong></div>` : ""}
-              <div class="line total"><span>Total</span><span>${formatCurrency(sale.grandTotal)}</span></div>
-              <div class="line"><span>Pembayaran</span><strong>${paymentLabels[sale.paymentMethod]}</strong></div>
-              ${cashRows}
-            </section>
-            ${sale.toko.invoiceTerms ? `<div class="divider"></div><p class="center muted terms">${escapeHtml(sale.toko.invoiceTerms)}</p>` : ""}
-          </main>
-        </body>
-      </html>`)
+    printWindow.document.write(format === "a5" ? getA5ReceiptHtml(sale) : getThermalReceiptHtml(sale))
     printWindow.document.close()
     printWindow.focus()
     printWindow.print()
@@ -138,10 +242,25 @@ export function RetailSaleDetailDrawer({
                   <DrawerTitle>Receipt {sale.id.slice(0, 8).toUpperCase()}</DrawerTitle>
                   <DrawerDescription>Detail transaksi retail dan preview receipt untuk cetak ulang.</DrawerDescription>
                 </DrawerHeader>
-                <Button type="button" size="sm" onClick={handlePrint} disabled={isPrinting}>
-                  <RiPrinterLine data-icon="inline-start" />
-                  Cetak Receipt
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" size="sm" disabled={isPrinting}>
+                      <RiPrinterLine data-icon="inline-start" />
+                      Cetak Receipt
+                      <RiArrowDownSLine data-icon="inline-end" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem onSelect={() => handlePrint("thermal")}>
+                        Kertas Thermal
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => handlePrint("a5")}>
+                        Kertas A5
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 

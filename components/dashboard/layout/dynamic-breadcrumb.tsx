@@ -18,6 +18,7 @@ const routeLabels: Record<string, string> = {
   service: "Service",
   karyawan: "Karyawan",
   inventory: "Inventory",
+  "supplier-returns": "Retur Supplier",
   analytics: "Analytics",
   staff: "Staff",
   tasks: "Tasks",

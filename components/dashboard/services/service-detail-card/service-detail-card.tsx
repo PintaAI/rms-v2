@@ -116,6 +116,14 @@ const claimResolutionLabels: Record<string, string> = {
   no_action: "Tolak klaim",
 };
 
+const supplierReturnStatusLabels: Record<string, string> = {
+  pending: "pending",
+  sent: "dikirim",
+  replaced: "diganti supplier",
+  refunded: "refund supplier",
+  rejected: "ditolak",
+};
+
 const undoTargetStatus = "repairing" as const;
 
 const warrantyPresets = [
@@ -375,7 +383,7 @@ export function ServiceDetailCard({
 
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [spareparts, setSpareparts] = useState<
-    Array<{ id: string; name: string; barcode: string; defaultPrice: number; stock: number }>
+    Array<{ id: string; name: string; barcode: string; defaultPrice: number; supplierName: string | null; stock: number }>
   >([]);
   const [servicePricelists, setServicePricelists] = useState<
     Array<{ id: string; title: string; defaultPrice: number }>
@@ -521,6 +529,13 @@ export function ServiceDetailCard({
   const [claimSparepartId, setClaimSparepartId] = useState("");
   const [claimSparepartQty, setClaimSparepartQty] = useState(1);
   const [claimSparepartPopoverOpen, setClaimSparepartPopoverOpen] = useState(false);
+  const [claimSupplierReturnEnabled, setClaimSupplierReturnEnabled] = useState(false);
+  const [claimSupplierReturnSparepartId, setClaimSupplierReturnSparepartId] = useState("");
+  const [claimSupplierReturnQty, setClaimSupplierReturnQty] = useState(1);
+  const [claimSupplierReturnSupplierName, setClaimSupplierReturnSupplierName] = useState("");
+  const [claimSupplierReturnReason, setClaimSupplierReturnReason] = useState("");
+  const [claimSupplierReturnNote, setClaimSupplierReturnNote] = useState("");
+  const [claimSupplierReturnPopoverOpen, setClaimSupplierReturnPopoverOpen] = useState(false);
   const [isResolvingClaim, setIsResolvingClaim] = useState(false);
 
   const viewInvoiceService = useMemo(() => {
@@ -563,7 +578,9 @@ export function ServiceDetailCard({
   const openWarrantyClaim = warrantyClaims.find((claim) => claim.status === "open");
   const canCreateWarrantyClaim = canManageWarrantyClaims && Boolean(localService.isPickedUp) && !openWarrantyClaim;
   const selectedClaimSparepart = spareparts.find((sparepart) => sparepart.id === claimSparepartId);
+  const selectedSupplierReturnSparepart = spareparts.find((sparepart) => sparepart.id === claimSupplierReturnSparepartId);
   const claimSparepartStockInsufficient = claimResolution === "replace_part" && Boolean(selectedClaimSparepart) && claimSparepartQty > (selectedClaimSparepart?.stock ?? 0);
+  const supplierReturnInvalid = claimResolution === "replace_part" && claimSupplierReturnEnabled && (!claimSupplierReturnSparepartId || claimSupplierReturnReason.trim().length < 3);
 
   function openDoneDialog() {
     if (localService.items.length === 0) {
@@ -732,6 +749,13 @@ export function ServiceDetailCard({
     setClaimSparepartId("");
     setClaimSparepartQty(1);
     setClaimSparepartPopoverOpen(false);
+    setClaimSupplierReturnEnabled(false);
+    setClaimSupplierReturnSparepartId("");
+    setClaimSupplierReturnQty(1);
+    setClaimSupplierReturnSupplierName("");
+    setClaimSupplierReturnReason("");
+    setClaimSupplierReturnNote("");
+    setClaimSupplierReturnPopoverOpen(false);
   }
 
   async function handleResolveWarrantyClaim() {
@@ -745,6 +769,15 @@ export function ServiceDetailCard({
       resolvedNote: claimResolvedNote.trim() || undefined,
       items: claimResolution === "replace_part" && claimSparepartId
         ? [{ sparepartId: claimSparepartId, qty: claimSparepartQty }]
+        : undefined,
+      supplierReturn: claimResolution === "replace_part" && claimSupplierReturnEnabled
+        ? {
+          sparepartId: claimSupplierReturnSparepartId,
+          qty: claimSupplierReturnQty,
+          supplierName: claimSupplierReturnSupplierName.trim() || undefined,
+          reason: claimSupplierReturnReason.trim(),
+          note: claimSupplierReturnNote.trim() || undefined,
+        }
         : undefined,
     });
     setIsResolvingClaim(false);
@@ -918,6 +951,11 @@ export function ServiceDetailCard({
                                   </Badge>
                                 ))}
                               </div>
+                            )}
+                            {(claim.supplierReturns?.length ?? 0) > 0 && (
+                              <p className="mt-2 text-sm text-muted-foreground">
+                                Retur supplier: {claim.supplierReturns.map((supplierReturn) => supplierReturnStatusLabels[supplierReturn.status] || supplierReturn.status).join(", ")}
+                              </p>
                             )}
                             <p className="mt-2 text-xs text-muted-foreground">
                               Dibuat {formatDate(claim.createdAt)} oleh {claim.createdBy.name}
@@ -1417,7 +1455,7 @@ export function ServiceDetailCard({
       </Dialog>
 
       <Dialog open={Boolean(resolveClaimId)} onOpenChange={(open) => { if (!open) setResolveClaimId(null); }}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Tutup Klaim Garansi</DialogTitle>
             <DialogDescription>
@@ -1427,7 +1465,10 @@ export function ServiceDetailCard({
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label>Solusi</Label>
-              <Select value={claimResolution} onValueChange={setClaimResolution}>
+              <Select value={claimResolution} onValueChange={(value) => {
+                setClaimResolution(value);
+                if (value !== "replace_part") setClaimSupplierReturnEnabled(false);
+              }}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Pilih solusi" />
                 </SelectTrigger>
@@ -1489,6 +1530,11 @@ export function ServiceDetailCard({
                                 disabled={sparepart.stock <= 0}
                                 onSelect={() => {
                                   setClaimSparepartId(sparepart.id);
+                                  if (!claimSupplierReturnSparepartId || claimSupplierReturnSparepartId === claimSparepartId) {
+                                    setClaimSupplierReturnSparepartId(sparepart.id);
+                                    setClaimSupplierReturnQty(claimSparepartQty);
+                                    setClaimSupplierReturnSupplierName(sparepart.supplierName ?? "");
+                                  }
                                   setClaimSparepartPopoverOpen(false);
                                 }}
                               >
@@ -1519,9 +1565,132 @@ export function ServiceDetailCard({
                     type="number"
                     min={1}
                     value={claimSparepartQty}
-                    onChange={(event) => setClaimSparepartQty(Math.max(1, Number(event.target.value) || 1))}
+                    onChange={(event) => {
+                      const qty = Math.max(1, Number(event.target.value) || 1);
+                      setClaimSparepartQty(qty);
+                      if (claimSupplierReturnEnabled && claimSupplierReturnSparepartId === claimSparepartId) {
+                        setClaimSupplierReturnQty(qty);
+                      }
+                    }}
                   />
                 </div>
+              </div>
+            )}
+
+            {claimResolution === "replace_part" && (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="claim-supplier-return-enabled"
+                    checked={claimSupplierReturnEnabled}
+                    onCheckedChange={(checked) => {
+                      const enabled = checked === true;
+                      setClaimSupplierReturnEnabled(enabled);
+                      if (enabled && selectedClaimSparepart) {
+                        setClaimSupplierReturnSparepartId(selectedClaimSparepart.id);
+                        setClaimSupplierReturnQty(claimSparepartQty);
+                        setClaimSupplierReturnSupplierName(selectedClaimSparepart.supplierName ?? "");
+                      }
+                    }}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label htmlFor="claim-supplier-return-enabled">Part lama akan diretur ke supplier</Label>
+                    <p className="text-xs text-muted-foreground">Retur dibuat pending dan tidak mengubah stok inventory.</p>
+                  </div>
+                </div>
+
+                {claimSupplierReturnEnabled && (
+                  <div className="mt-4 grid gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
+                      <div className="flex flex-col gap-1.5">
+                        <Label>Sparepart lama/bermasalah</Label>
+                        <Popover open={claimSupplierReturnPopoverOpen} onOpenChange={setClaimSupplierReturnPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full justify-between"
+                              disabled={spareparts.length === 0}
+                            >
+                              <span className="min-w-0 truncate text-left">
+                                {selectedSupplierReturnSparepart
+                                  ? selectedSupplierReturnSparepart.name
+                                  : "Pilih sparepart yang diretur"}
+                              </span>
+                              <RiArrowDownSLine data-icon="inline-end" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="w-[min(32rem,calc(100vw-3rem))] p-0">
+                            <Command>
+                              <CommandInput placeholder="Cari nama atau barcode..." />
+                              <CommandList>
+                                <CommandEmpty>Sparepart tidak ditemukan.</CommandEmpty>
+                                <CommandGroup>
+                                  {spareparts.map((sparepart) => (
+                                    <CommandItem
+                                      key={sparepart.id}
+                                      value={`${sparepart.name} ${sparepart.barcode} ${sparepart.id}`}
+                                      data-checked={claimSupplierReturnSparepartId === sparepart.id}
+                                      onSelect={() => {
+                                        setClaimSupplierReturnSparepartId(sparepart.id);
+                                        setClaimSupplierReturnSupplierName(sparepart.supplierName ?? "");
+                                        setClaimSupplierReturnPopoverOpen(false);
+                                      }}
+                                    >
+                                      <div className="flex min-w-0 flex-col">
+                                        <span className="truncate font-medium">{sparepart.name}</span>
+                                        <span className="truncate text-muted-foreground">
+                                          {sparepart.barcode} • supplier {sparepart.supplierName || "-"}
+                                        </span>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="claim-supplier-return-qty">Qty retur</Label>
+                        <Input
+                          id="claim-supplier-return-qty"
+                          type="number"
+                          min={1}
+                          value={claimSupplierReturnQty}
+                          onChange={(event) => setClaimSupplierReturnQty(Math.max(1, Number(event.target.value) || 1))}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="claim-supplier-return-supplier">Supplier name</Label>
+                      <Input
+                        id="claim-supplier-return-supplier"
+                        value={claimSupplierReturnSupplierName}
+                        onChange={(event) => setClaimSupplierReturnSupplierName(event.target.value)}
+                        placeholder="Nama supplier"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="claim-supplier-return-reason">Alasan retur</Label>
+                      <Textarea
+                        id="claim-supplier-return-reason"
+                        value={claimSupplierReturnReason}
+                        onChange={(event) => setClaimSupplierReturnReason(event.target.value)}
+                        placeholder="Contoh: part lama bermasalah saat masa garansi supplier"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="claim-supplier-return-note">Catatan optional</Label>
+                      <Textarea
+                        id="claim-supplier-return-note"
+                        value={claimSupplierReturnNote}
+                        onChange={(event) => setClaimSupplierReturnNote(event.target.value)}
+                        placeholder="Nomor nota supplier, kondisi fisik, atau info tambahan"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1553,6 +1722,7 @@ export function ServiceDetailCard({
                 || (claimResolution === "cash_refund" && Number(claimRefundAmount) <= 0)
                 || (claimResolution === "replace_part" && !claimSparepartId)
                 || claimSparepartStockInsufficient
+                || supplierReturnInvalid
               }
             >
               {isResolvingClaim ? "Menyimpan..." : "Tutup Klaim"}

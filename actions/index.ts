@@ -12,3 +12,4 @@ export * from "./billing";
 export * from "./global-search";
 export * from "./retail";
 export * from "./supplier-debts";
+export * from "./supplier-returns";

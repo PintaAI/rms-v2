@@ -80,6 +80,13 @@ export const serviceSelectBase = {
           price: true,
         },
       },
+      supplierReturns: {
+        select: {
+          id: true,
+          status: true,
+        },
+        orderBy: { createdAt: "desc" },
+      },
     },
     orderBy: { createdAt: "desc" },
   },

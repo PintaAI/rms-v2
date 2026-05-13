@@ -59,6 +59,12 @@ export default async function InventoryReportsPage({ params, searchParams }: Inv
     : {
         items: [],
         categories: [],
+        supplierReturns: {
+          supplierReports: [],
+          mostReturnedSpareparts: [],
+          totalPendingValue: 0,
+          averageResolutionDays: null,
+        },
         totalSpareparts: 0,
         totalStockUnits: 0,
         totalCapitalValue: 0,
