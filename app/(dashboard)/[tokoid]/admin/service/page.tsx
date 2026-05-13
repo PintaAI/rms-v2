@@ -9,13 +9,14 @@ import { RiStore2Line } from "@remixicon/react";
 
 interface AdminServicePageProps {
   params: Promise<{ tokoid: string }>;
-  searchParams: Promise<{ q?: string | string[]; status?: string | string[]; pickedup?: string | string[] }>;
+  searchParams: Promise<{ q?: string | string[]; serviceId?: string | string[]; status?: string | string[]; pickedup?: string | string[] }>;
 }
 
 export default async function AdminServicePage({ params, searchParams }: AdminServicePageProps) {
   const { tokoid } = await params;
   const query = await searchParams;
   const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
+  const initialServiceId = Array.isArray(query.serviceId) ? query.serviceId[0] ?? "" : query.serviceId ?? "";
   const statusFilter = Array.isArray(query.status) ? query.status[0] : query.status;
   const pickedUpFilter = Array.isArray(query.pickedup) ? query.pickedup[0] : query.pickedup;
   const isAllMenu = !statusFilter && pickedUpFilter !== "true";
@@ -101,12 +102,13 @@ export default async function AdminServicePage({ params, searchParams }: AdminSe
       <AdminServiceOverviewStats tokoId={tokoid} stats={stats} className={`space-y-4 ${isAllMenu ? "" : "hidden md:block"}`} />
 
       <ManageService
-        key={initialSearchQuery}
+        key={`${initialSearchQuery}-${initialServiceId}`}
         allServices={servicesResult.data.data}
         tokoId={tokoid}
         pageSize={pageSize}
         hideTechnicianColumn={!technicianAssignmentEnabled}
         initialSearchQuery={initialSearchQuery}
+        initialServiceId={initialServiceId}
       />
     </div>
   );

@@ -163,7 +163,7 @@ function renderClaimContext(tokoId: string, item: SupplierReturnRow) {
       <div className="truncate font-medium">{item.warrantyClaim.customerName || "Customer"}</div>
       <div className="truncate text-xs text-muted-foreground">{item.warrantyClaim.deviceName}</div>
       <Button asChild variant="link" className="h-auto p-0 text-xs">
-        <Link href={`/${tokoId}/admin/service?q=${encodeURIComponent(item.warrantyClaim.serviceId)}`}>
+        <Link href={`/${tokoId}/admin/service?serviceId=${encodeURIComponent(item.warrantyClaim.serviceId)}`}>
           <RiExternalLinkLine data-icon="inline-start" />
           Lihat service
         </Link>

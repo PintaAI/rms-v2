@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,7 @@ interface ManageServiceProps {
   pageSize: number;
   hideTechnicianColumn?: boolean;
   initialSearchQuery?: string;
+  initialServiceId?: string;
 }
 
 function isSameDate(value: Date | string | null | undefined, date: Date | null): boolean {
@@ -88,9 +89,12 @@ export function ManageService({
   pageSize,
   hideTechnicianColumn,
   initialSearchQuery = "",
+  initialServiceId = "",
 }: ManageServiceProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamString = searchParams.toString();
   const statusFilter = searchParams.get("status") ?? undefined;
   const pickedUpFilter = searchParams.get("pickedup") === "true";
   const storeTokoId = useServiceOptimisticStore((state) => state.tokoId);
@@ -390,6 +394,42 @@ export function ManageService({
     setIsLoadingDetail(false);
   }, []);
 
+  useEffect(() => {
+    if (!initialServiceId) return;
+
+    let active = true;
+    const timeoutId = window.setTimeout(() => {
+      setIsLoadingDetail(true);
+      setDetailDialogOpen(true);
+      setSelectedService(null);
+
+      getService(initialServiceId).then((result) => {
+        if (!active) return;
+        if (result.success && result.data) {
+          setSelectedService(result.data);
+        } else {
+          toast.error(result.error || "Service tidak ditemukan");
+        }
+        setIsLoadingDetail(false);
+      });
+    }, 0);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [initialServiceId]);
+
+  const handleDetailOpenChange = useCallback((open: boolean) => {
+    setDetailDialogOpen(open);
+    if (open || !searchParams.get("serviceId")) return;
+
+    const params = new URLSearchParams(searchParamString);
+    params.delete("serviceId");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParamString, searchParams]);
+
   const handleRefreshDetail = useCallback(() => {
     if (selectedService) {
       getService(selectedService.id).then((result) => {
@@ -678,7 +718,7 @@ export function ManageService({
         isLoading={isDeleting}
       />
 
-      <Drawer open={detailDialogOpen} onOpenChange={setDetailDialogOpen} direction="bottom">
+      <Drawer open={detailDialogOpen} onOpenChange={handleDetailOpenChange} direction="bottom">
         <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-auto sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
           <div className="shrink-0 border-x bg-popover px-4 pb-4 pt-3">
             <DrawerTitle className="font-bold">Detail servis</DrawerTitle>

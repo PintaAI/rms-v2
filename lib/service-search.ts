@@ -3,6 +3,7 @@ import { fuzzyScore } from "@/lib/fuzzy-search";
 
 export function getServiceSearchScore(query: string, service: ServiceListItem): number | null {
   const targets = [
+    service.id,
     service.customerName,
     service.noWa,
     service.complaint,
