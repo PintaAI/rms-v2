@@ -262,7 +262,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
 
   return (
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value === "jasa" ? "jasa" : "sparepart")} className="w-full">
-      <TabsList className={cn("mb-4")}>
+      <TabsList className={cn("mb-4 grid w-full grid-cols-2 sm:inline-flex sm:w-auto")}>
         <TabsTrigger value="sparepart" className="gap-1.5">
           <RiArchiveLine className="h-4 w-4" />
           Sparepart
@@ -275,14 +275,14 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
 
       <TabsContent value="sparepart">
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="h-5 w-1 bg-primary rounded-full" />
               <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
                 Sparepart {readOnly && <span className="text-muted-foreground/60">(Hanya Baca)</span>}
               </h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <ButtonGroup>
                 <Button
                   variant={viewMode === "table" ? "default" : "outline"}
@@ -302,7 +302,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                 </Button>
               </ButtonGroup>
               {!readOnly && (
-                <Button asChild variant="outline">
+                <Button asChild variant="outline" className="flex-1 sm:flex-none">
                   <Link href={`/${tokoId}/admin/inventory/restock-history`}>
                     <RiHistoryLine className="h-4 w-4 mr-1.5" />
                     Riwayat Restock
@@ -312,6 +312,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
               {!readOnly && (
                 <Button
                   variant="outline"
+                  className="flex-1 sm:flex-none"
                   onClick={() => setRestockDialogOpen(true)}
                 >
                   <RiStackLine className="h-4 w-4 mr-1.5" />
@@ -321,6 +322,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
               {!readOnly && (
                 <Button
                   variant="outline"
+                  className="flex-1 sm:flex-none"
                   onClick={() => setImportDialogOpen(true)}
                 >
                   <RiUpload2Line className="h-4 w-4 mr-1.5" />
@@ -330,7 +332,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
               {!readOnly && (
                 <Button
                   onClick={handleAddSparepart}
-                  className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+                  className="flex-1 bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30 sm:flex-none"
                 >
                   <RiAddLine className="h-4 w-4 mr-1.5" />
                   Tambah Sparepart
@@ -486,7 +488,8 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           ) : (
             <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
               <CardContent className="p-0">
-                <Table>
+                <div className="overflow-x-auto">
+                <Table className="min-w-[920px]">
                   <TableHeader>
                       <TableRow className="bg-muted/50">
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Nama</TableHead>
@@ -556,6 +559,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -609,14 +613,14 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
 
       <TabsContent value="jasa">
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="h-5 w-1 bg-chart-1 rounded-full" />
               <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
                 Jasa Service {readOnly && <span className="text-muted-foreground/60">(Hanya Baca)</span>}
               </h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <ButtonGroup>
                 <Button
                   variant={viewMode === "table" ? "default" : "outline"}
@@ -638,6 +642,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
               {!readOnly && (
                 <Button
                   variant="outline"
+                  className="flex-1 sm:flex-none"
                   onClick={() => setPricelistImportDialogOpen(true)}
                 >
                   <RiUpload2Line className="h-4 w-4 mr-1.5" />
@@ -647,7 +652,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
               {!readOnly && (
                 <Button
                   onClick={handleAddPricelist}
-                  className="bg-gradient-to-r from-chart-1 to-chart-1/90 hover:from-chart-1/90 hover:to-chart-1/80 shadow-lg shadow-chart-1/20 transition-all duration-200 hover:shadow-xl hover:shadow-chart-1/30"
+                  className="flex-1 bg-gradient-to-r from-chart-1 to-chart-1/90 shadow-lg shadow-chart-1/20 transition-all duration-200 hover:from-chart-1/90 hover:to-chart-1/80 hover:shadow-xl hover:shadow-chart-1/30 sm:flex-none"
                 >
                   <RiAddLine className="h-4 w-4 mr-1.5" />
                   Tambah Jasa
@@ -723,7 +728,8 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           ) : (
             <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
               <CardContent className="p-0">
-                <Table>
+                <div className="overflow-x-auto">
+                <Table className="min-w-[520px]">
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Judul</TableHead>
@@ -770,6 +776,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           )}

@@ -32,14 +32,14 @@ export default async function AdminInventoryPage({ params, searchParams }: Admin
       >
         <div className="space-y-8">
           <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-black tracking-tight">Inventory</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Inventory</h1>
               <div className="h-6 w-1 bg-primary rounded-full" />
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <div className="flex h-5 w-5 items-center justify-center rounded-md bg-muted">
                   <RiStore2Line className="h-3 w-3 text-muted-foreground" />
                 </div>
-                <span className="text-sm font-medium text-muted-foreground">Toko Example</span>
+                <span className="truncate text-sm font-medium text-muted-foreground">Toko Example</span>
               </div>
             </div>
             <p className="text-sm text-muted-foreground/70">Kelola sparepart dan jasa service</p>
@@ -66,10 +66,10 @@ export default async function AdminInventoryPage({ params, searchParams }: Admin
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-black tracking-tight">Inventory</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Inventory</h1>
           <div className="h-6 w-1 bg-primary rounded-full" />
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {toko?.logoUrl ? (
               <Image
                 src={toko.logoUrl}
@@ -83,7 +83,7 @@ export default async function AdminInventoryPage({ params, searchParams }: Admin
                 <RiStore2Line className="h-3 w-3 text-muted-foreground" />
               </div>
             )}
-            <span className="text-sm font-medium text-muted-foreground">{toko?.name || "Toko"}</span>
+            <span className="truncate text-sm font-medium text-muted-foreground">{toko?.name || "Toko"}</span>
           </div>
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola sparepart dan jasa service</p>
