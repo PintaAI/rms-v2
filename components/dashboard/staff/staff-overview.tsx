@@ -103,7 +103,7 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
         <TokoHeader role="Staff" tokoName={currentToko?.name} tokoLogoUrl={currentToko?.logoUrl} />
 
         <StaffOverviewActions tokoId={tokoId} />

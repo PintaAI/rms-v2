@@ -126,14 +126,14 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="h-5 w-1 rounded-full bg-primary" />
           <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Sparepart</h2>
         </div>
         <Button
           onClick={handleAddSparepart}
-          className="bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30"
+          className="w-full bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30 sm:w-auto"
         >
           <RiAddLine className="size-4 mr-1.5" />
           Tambah Barang
@@ -157,8 +157,8 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
               <RiLoader4Line className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="overflow-hidden">
-              <Table>
+            <div className="w-full overflow-x-auto">
+              <Table className="min-w-[760px]">
                 <TableHeader className="bg-muted/30">
                   <TableRow>
                     <TableHead>Nama</TableHead>

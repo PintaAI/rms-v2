@@ -363,14 +363,15 @@ export function ServiceTable({
         </div>
       )}
 
-      <Table className="table-fixed" style={{ minWidth: tableWidth }}>
-        <colgroup>
-          {effectiveColumns.map((colKey) => (
-            <col key={colKey} style={{ width: getColumnWidth(colKey) }} />
-          ))}
-          {hasActions && <col style={{ width: ACTION_COLUMN_WIDTH }} />}
-        </colgroup>
-        <TableHeader>
+      <div className="w-full overflow-x-auto">
+        <Table className="table-fixed" style={{ minWidth: tableWidth }}>
+          <colgroup>
+            {effectiveColumns.map((colKey) => (
+              <col key={colKey} style={{ width: getColumnWidth(colKey) }} />
+            ))}
+            {hasActions && <col style={{ width: ACTION_COLUMN_WIDTH }} />}
+          </colgroup>
+          <TableHeader>
           <TableRow className="hover:bg-transparent border-border/50">
             {effectiveColumns.map((colKey, index) => {
               const columnDef = columnRegistry[colKey as keyof typeof columnRegistry];
@@ -526,8 +527,9 @@ export function ServiceTable({
               );
             })
           )}
-        </TableBody>
-      </Table>
+          </TableBody>
+        </Table>
+      </div>
 
       <InvoiceDialog
         service={selectedInvoiceService}

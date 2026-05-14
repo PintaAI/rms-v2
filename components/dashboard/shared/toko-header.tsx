@@ -22,31 +22,31 @@ export function TokoHeader({
   titleDataTour,
 }: TokoHeaderProps) {
   return (
-    <div className={cn("space-y-1", className)}>
-      <div className="flex items-center gap-3">
+    <div className={cn("min-w-0 space-y-1", className)}>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
         <h1
-          className="text-3xl font-black tracking-tight"
+          className="text-2xl font-black tracking-tight sm:text-3xl"
           {...(titleDataTour ? { "data-tour": titleDataTour } : {})}
         >
           {role} Overview
         </h1>
-        <div className="h-6 w-1 rounded-full bg-primary" />
+        <div className="h-5 w-1 shrink-0 rounded-full bg-primary sm:h-6" />
         {tokoName && (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 px-2 py-1 sm:bg-transparent sm:px-0 sm:py-0">
             {tokoLogoUrl ? (
               <Image
                 src={tokoLogoUrl}
                 alt={tokoName}
                 width={20}
                 height={20}
-                className="h-5 w-5 rounded-md object-cover"
+                className="h-5 w-5 shrink-0 rounded-md object-cover"
               />
             ) : (
-              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-muted">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted">
                 <RiStore2Line className="h-3 w-3 text-muted-foreground" />
               </div>
             )}
-            <span className="text-sm font-medium text-muted-foreground">{tokoName}</span>
+            <span className="min-w-0 truncate text-sm font-medium text-muted-foreground">{tokoName}</span>
           </div>
         )}
       </div>

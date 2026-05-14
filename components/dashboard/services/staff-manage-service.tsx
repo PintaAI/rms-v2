@@ -5,6 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -32,7 +38,7 @@ import { getServiceSearchScore } from "@/lib/service-search";
 import { useServiceOptimisticStore } from "@/lib/realtime/service-optimistic-store";
 import { useDashboardRealtime } from "@/components/dashboard/layout/dashboard-realtime-provider";
 import { getServiceRealtimeLabel, getServiceRealtimeMeta } from "@/lib/realtime/service-realtime-label";
-import { RiAddLine, RiSearchLine } from "@remixicon/react";
+import { RiAddLine, RiCalendarLine, RiCloseLine, RiFilter3Line, RiSearchLine } from "@remixicon/react";
 import { toast } from "sonner";
 
 interface StaffManageServiceProps {
@@ -40,6 +46,26 @@ interface StaffManageServiceProps {
   tokoId: string;
   pageSize: number;
   initialSearchQuery?: string;
+}
+
+function isSameDate(value: Date | string | null | undefined, date: Date | null): boolean {
+  if (!date) return true;
+  if (!value) return false;
+
+  const valueDate = new Date(value);
+  return valueDate.getFullYear() === date.getFullYear()
+    && valueDate.getMonth() === date.getMonth()
+    && valueDate.getDate() === date.getDate();
+}
+
+function formatFilterDate(date: Date | null): string {
+  if (!date) return "Pilih tanggal";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 function matchesPaymentStatus(service: ServiceListItem, paymentStatusFilter: string): boolean {
@@ -82,11 +108,16 @@ export function StaffManageService({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ServiceListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [createdByFilter, setCreatedByFilter] = useState("all");
+  const [technicianFilter, setTechnicianFilter] = useState("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
+  const [checkinDateFilter, setCheckinDateFilter] = useState<Date | null>(null);
+  const [checkoutDateFilter, setCheckoutDateFilter] = useState<Date | null>(null);
   const statusSnapshotsRef = useRef(new Map<string, ServiceListItem>());
   const pendingPatchesRef = useRef(new Map<string, Partial<Omit<ServiceListItem, "id">>>());
 
@@ -94,7 +125,31 @@ export function StaffManageService({
     hydrateServices(tokoId, allServices);
   }, [allServices, hydrateServices, tokoId]);
 
-  const filteredServices = useMemo(() => {
+  const createdByOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    for (const service of services) {
+      if (service.createdBy?.name) {
+        options.set(service.createdBy.name, service.createdBy.name);
+      }
+    }
+
+    return Array.from(options, ([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [services]);
+
+  const technicianOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    for (const service of services) {
+      if (service.technician?.name) {
+        options.set(service.technician.name, service.technician.name);
+      }
+    }
+
+    return Array.from(options, ([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [services]);
+
+  const servicesFilteredWithoutSearch = useMemo(() => {
     const statusFilteredServices = (() => {
       if (pickedUpFilter) {
         return services.filter((s) => s.isPickedUp);
@@ -104,12 +159,21 @@ export function StaffManageService({
       return services.filter((s) => filterStatuses.includes(s.status) && !s.isPickedUp);
     })();
 
-    const paymentFilteredServices = statusFilteredServices.filter((service) => matchesPaymentStatus(service, paymentStatusFilter));
+    return statusFilteredServices.filter((service) => {
+      if (createdByFilter !== "all" && service.createdBy?.name !== createdByFilter) return false;
+      if (technicianAssignmentEnabled && technicianFilter !== "all" && service.technician?.name !== technicianFilter) return false;
+      if (!matchesPaymentStatus(service, paymentStatusFilter)) return false;
+      if (!isSameDate(service.checkinAt, checkinDateFilter)) return false;
+      if (!isSameDate(service.checkoutAt, checkoutDateFilter)) return false;
+      return true;
+    });
+  }, [services, statusFilter, pickedUpFilter, createdByFilter, technicianFilter, paymentStatusFilter, checkinDateFilter, checkoutDateFilter, technicianAssignmentEnabled]);
 
+  const filteredServices = useMemo(() => {
     const trimmedQuery = searchQuery.trim();
-    if (!trimmedQuery) return paymentFilteredServices;
+    if (!trimmedQuery) return servicesFilteredWithoutSearch;
 
-    return paymentFilteredServices
+    return servicesFilteredWithoutSearch
       .map((service) => ({
         service,
         score: getServiceSearchScore(trimmedQuery, service),
@@ -120,7 +184,29 @@ export function StaffManageService({
         return new Date(b.service.checkinAt).getTime() - new Date(a.service.checkinAt).getTime();
       })
       .map((item) => item.service);
-  }, [services, statusFilter, pickedUpFilter, paymentStatusFilter, searchQuery]);
+  }, [servicesFilteredWithoutSearch, searchQuery]);
+
+  const hasAdvancedFilters = createdByFilter !== "all"
+    || (technicianAssignmentEnabled && technicianFilter !== "all")
+    || paymentStatusFilter !== "all"
+    || checkinDateFilter !== null
+    || checkoutDateFilter !== null;
+
+  const activeFilterCount = [
+    createdByFilter !== "all",
+    technicianAssignmentEnabled && technicianFilter !== "all",
+    paymentStatusFilter !== "all",
+    checkinDateFilter !== null,
+    checkoutDateFilter !== null,
+  ].filter(Boolean).length;
+
+  const resetAdvancedFilters = useCallback(() => {
+    setCreatedByFilter("all");
+    setTechnicianFilter("all");
+    setPaymentStatusFilter("all");
+    setCheckinDateFilter(null);
+    setCheckoutDateFilter(null);
+  }, []);
 
   const paginatedServices = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -293,14 +379,14 @@ export function StaffManageService({
     return true;
   }, [optimisticPatch, patchSelectedService, publish, rollbackUpdate, router, services, settleMutation]);
 
-  const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}|${paymentStatusFilter}`);
+  const prevFilterRef = useRef(`${statusFilter ?? ""}|${pickedUpFilter}`);
   useEffect(() => {
-    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}|${paymentStatusFilter}`;
+    const nextFilterKey = `${statusFilter ?? ""}|${pickedUpFilter}|${searchQuery}|${createdByFilter}|${technicianFilter}|${paymentStatusFilter}|${checkinDateFilter?.toISOString() ?? ""}|${checkoutDateFilter?.toISOString() ?? ""}`;
     if (prevFilterRef.current !== nextFilterKey) {
       prevFilterRef.current = nextFilterKey;
       setCurrentPage(1);
     }
-  }, [statusFilter, pickedUpFilter, searchQuery, paymentStatusFilter]);
+  }, [statusFilter, pickedUpFilter, searchQuery, createdByFilter, technicianFilter, paymentStatusFilter, checkinDateFilter, checkoutDateFilter]);
 
   const getPageTitle = () => {
     if (pickedUpFilter) return "Service Diambil";
@@ -313,7 +399,7 @@ export function StaffManageService({
 
   const getEmptyMessage = () => {
     if (searchQuery.trim()) return "Tidak ada service yang cocok dengan pencarian";
-    if (paymentStatusFilter !== "all") return "Tidak ada service yang cocok dengan filter pembayaran";
+    if (hasAdvancedFilters) return "Tidak ada service yang cocok dengan filter";
     if (pickedUpFilter) return "Tidak ada service yang sudah diambil";
     if (statusFilter === "done,failed" || statusFilter === "failed,done") {
       return "Tidak ada service selesai atau gagal yang belum diambil";
@@ -321,38 +407,156 @@ export function StaffManageService({
     return `Tidak ada service${statusFilter ? ` dengan status ${statusFilter}` : ""}`;
   };
 
+  const renderAdvancedFilters = () => (
+    <>
+      <Select value={createdByFilter} onValueChange={setCreatedByFilter}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Created by" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua pembuat</SelectItem>
+          {createdByOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {technicianAssignmentEnabled && (
+        <Select value={technicianFilter} onValueChange={setTechnicianFilter}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Teknisi" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua teknisi</SelectItem>
+            {technicianOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Pembayaran" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua pembayaran</SelectItem>
+          <SelectItem value="paid">Paid</SelectItem>
+          <SelectItem value="unpaid">Unpaid / DP</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" className="justify-start gap-2 font-normal">
+            <RiCalendarLine className="size-4 text-muted-foreground" />
+            <span className="truncate">Checkin: {formatFilterDate(checkinDateFilter)}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar
+            mode="single"
+            selected={checkinDateFilter ?? undefined}
+            onSelect={(date) => setCheckinDateFilter(date ?? null)}
+          />
+          {checkinDateFilter && (
+            <div className="border-t border-border/50 p-2">
+              <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setCheckinDateFilter(null)}>
+                Hapus tanggal checkin
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" className="justify-start gap-2 font-normal">
+            <RiCalendarLine className="size-4 text-muted-foreground" />
+            <span className="truncate">Checkout: {formatFilterDate(checkoutDateFilter)}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar
+            mode="single"
+            selected={checkoutDateFilter ?? undefined}
+            onSelect={(date) => setCheckoutDateFilter(date ?? null)}
+          />
+          {checkoutDateFilter && (
+            <div className="border-t border-border/50 p-2">
+              <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setCheckoutDateFilter(null)}>
+                Hapus tanggal checkout
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="grid w-full gap-3 sm:max-w-xl sm:grid-cols-[minmax(0,1fr)_180px]">
-          <div className="relative">
-            <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Cari service..."
-              className="pl-9"
-            />
+      <div className="rounded-2xl border border-border/60 bg-card/70 p-3 shadow-sm md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="grid w-full gap-3 md:grid-cols-2 lg:max-w-6xl lg:grid-cols-6">
+            <div className="relative md:col-span-2 lg:col-span-1">
+              <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Cari service..."
+                className="pl-9"
+              />
+            </div>
+            <div className="hidden md:contents">
+              {renderAdvancedFilters()}
+            </div>
           </div>
-          <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Pembayaran" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua pembayaran</SelectItem>
-              <SelectItem value="paid">Paid</SelectItem>
-              <SelectItem value="unpaid">Unpaid / DP</SelectItem>
-            </SelectContent>
-          </Select>
+
+          <div className="grid grid-cols-2 gap-2 md:flex md:shrink-0">
+            <Button type="button" variant="outline" className="md:hidden" onClick={() => setFilterSheetOpen(true)}>
+              <RiFilter3Line className="h-4 w-4 mr-1.5" />
+              Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            </Button>
+            {hasAdvancedFilters && (
+              <Button type="button" variant="outline" className="hidden md:inline-flex" onClick={resetAdvancedFilters}>
+                <RiCloseLine className="h-4 w-4 mr-1.5" />
+                Reset Filter
+              </Button>
+            )}
+            <Button
+              onClick={() => { setEditData(null); setFormOpen(true); }}
+              className="bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30"
+            >
+              <RiAddLine className="h-4 w-4 mr-1.5" />
+              New Service
+            </Button>
+          </div>
         </div>
-        <Button
-          onClick={() => { setEditData(null); setFormOpen(true); }}
-          className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
-        >
-          <RiAddLine className="h-4 w-4 mr-1.5" />
-          New Service
-        </Button>
       </div>
+
+      <Drawer open={filterSheetOpen} onOpenChange={setFilterSheetOpen} direction="bottom">
+        <DrawerContent className="max-h-[90dvh] overflow-hidden p-0 before:inset-0 before:rounded-t-2xl md:hidden">
+          <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3">
+            <DrawerTitle className="font-bold">Filter service</DrawerTitle>
+            <DrawerDescription>Filter daftar service staff.</DrawerDescription>
+          </div>
+          <div className="p-4">
+            <div className="grid gap-3">
+              {renderAdvancedFilters()}
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Button type="button" variant="outline" onClick={resetAdvancedFilters} disabled={!hasAdvancedFilters}>
+                <RiCloseLine className="h-4 w-4 mr-1.5" />
+                Reset
+              </Button>
+              <Button type="button" onClick={() => setFilterSheetOpen(false)}>
+                Terapkan
+              </Button>
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       <section>
         <Card className="border-border/50 shadow-lg py-0 shadow-black/5 overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
@@ -361,7 +565,7 @@ export function StaffManageService({
               services={tableServices}
               role="staff"
               headerTitle={getPageTitle()}
-              headerDescription={`Halaman ${currentPage} dari ${totalPages || 1} (${filteredServices.length} dari ${services.length} total)`}
+              headerDescription={`Halaman ${currentPage} dari ${totalPages || 1} (${filteredServices.length} dari ${servicesFilteredWithoutSearch.length} ditampilkan)`}
               headerBadge={filteredServices.length}
               statusFilter={statusFilter}
               emptyMessage={getEmptyMessage()}
@@ -374,7 +578,7 @@ export function StaffManageService({
             />
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 px-6 py-4 border-t border-border/50 bg-muted/30">
+              <div className="flex flex-wrap items-center justify-center gap-2 border-t border-border/50 bg-muted/30 px-4 py-4 sm:px-6">
               <Button
                 variant="outline"
                 size="sm"

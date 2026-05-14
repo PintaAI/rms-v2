@@ -35,24 +35,24 @@ export default async function StaffServicePage({
     return (
       <div className="space-y-8">
         <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black tracking-tight">Service</h1>
-            <div className="h-6 w-1 bg-primary rounded-full" />
-            <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Service</h1>
+            <div className="h-5 w-1 shrink-0 rounded-full bg-primary sm:h-6" />
+            <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 px-2 py-1 sm:bg-transparent sm:px-0 sm:py-0">
               {toko?.logoUrl ? (
                 <Image
                   src={toko.logoUrl}
                   alt={toko.name}
                   width={20}
                   height={20}
-                  className="h-5 w-5 rounded-md object-cover"
+                  className="h-5 w-5 shrink-0 rounded-md object-cover"
                 />
               ) : (
-                <div className="h-5 w-5 rounded-md bg-muted flex items-center justify-center">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted">
                   <RiStore2Line className="h-3 w-3 text-muted-foreground" />
                 </div>
               )}
-              <span className="text-sm font-medium text-muted-foreground">{toko?.name || "Toko"}</span>
+              <span className="min-w-0 truncate text-sm font-medium text-muted-foreground">{toko?.name || "Toko"}</span>
             </div>
           </div>
           <p className="text-sm text-muted-foreground/70">Kelola semua service di toko</p>
@@ -67,24 +67,24 @@ export default async function StaffServicePage({
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-black tracking-tight">Service</h1>
-          <div className="h-6 w-1 bg-primary rounded-full" />
-          <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Service</h1>
+          <div className="h-5 w-1 shrink-0 rounded-full bg-primary sm:h-6" />
+          <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/40 px-2 py-1 sm:bg-transparent sm:px-0 sm:py-0">
             {toko?.logoUrl ? (
               <Image
                 src={toko.logoUrl}
                 alt={toko.name}
                 width={20}
                 height={20}
-                className="h-5 w-5 rounded-md object-cover"
+                className="h-5 w-5 shrink-0 rounded-md object-cover"
               />
             ) : (
-              <div className="h-5 w-5 rounded-md bg-muted flex items-center justify-center">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted">
                 <RiStore2Line className="h-3 w-3 text-muted-foreground" />
               </div>
             )}
-            <span className="text-sm font-medium text-muted-foreground">{toko?.name || "Toko"}</span>
+            <span className="min-w-0 truncate text-sm font-medium text-muted-foreground">{toko?.name || "Toko"}</span>
           </div>
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola semua service di toko</p>
