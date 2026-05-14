@@ -23,6 +23,7 @@ import {
   RiShoppingBag3Line,
   RiStore2Line,
   RiTimeLine,
+  RiToolsLine,
 } from "@remixicon/react";
 import type { AdminAnalyticsData } from "@/actions/analytics";
 import { AnalyticsFilter } from "@/components/dashboard/admin/analytics-filter";
@@ -120,6 +121,37 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
           </Badge>
         </div>
       </div>
+
+      <section className="grid gap-3 print:grid-cols-4 sm:grid-cols-2 xl:grid-cols-4">
+        <AnalyticsMetricCard
+          title="Total Pendapatan"
+          value={formatCurrency(data.summary.totalRevenue)}
+          description="Service lunas + retail paid"
+          icon={<RiMoneyDollarCircleLine className="size-4" />}
+          variant="success"
+        />
+        <AnalyticsMetricCard
+          title="Pendapatan Bersih Estimasi"
+          value={formatCurrency(data.summary.estimatedNetRevenue)}
+          description="Service net + margin retail"
+          icon={<RiBarChartBoxLine className="size-4" />}
+          variant="primary"
+        />
+        <AnalyticsMetricCard
+          title="Pendapatan Service"
+          value={formatCurrency(data.summary.paidRevenue)}
+          description={`${data.summary.paidInvoices} invoice lunas`}
+          icon={<RiToolsLine className="size-4" />}
+          variant="default"
+        />
+        <AnalyticsMetricCard
+          title="Pendapatan Retail"
+          value={formatCurrency(data.summary.retailRevenue)}
+          description={data.retail.enabled ? `${data.retail.summary.transactions} transaksi paid` : "Retail belum aktif"}
+          icon={<RiShoppingBag3Line className="size-4" />}
+          variant="default"
+        />
+      </section>
 
       <Tabs defaultValue="service" className="w-full">
         <TabsList className="mb-4 grid w-full grid-cols-2 sm:w-fit">

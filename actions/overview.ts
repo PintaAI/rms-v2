@@ -20,6 +20,14 @@ export interface AdminOverviewStats {
     monthlyPaid: number;
     monthlyPending: number;
     dailyRevenue: number;
+    monthlyIncome: number;
+    supplierDebtRemaining: number;
+    supplierDebtPaymentsThisMonth: number;
+    supplierReturnRefundedThisMonth: number;
+    supplierReturnPendingCount: number;
+    supplierReturnPendingValue: number;
+    cashBersihMonth: number;
+    supplierSignalsEnabled: boolean;
   };
   inventory: {
     lowStockCount: number;
@@ -256,8 +264,23 @@ export async function getAdminOverview(
 
     const canUseRealtimeUpdates = scope.featureAccess["realtime.updates"] ?? false;
     const canViewRevenueAnalytics = scope.featureAccess["analytics.revenue"] ?? false;
+    const canUseRetailSales = scope.featureAccess["retail.sales"] ?? false;
+    const canUseInventoryManagement = scope.featureAccess["inventory.management"] ?? false;
 
-    const [monthlyPaidRevenue, monthlyPendingRevenue, dailyRevenue, monthlyRefunds, dailyRefunds, recentActivities] = await Promise.all([
+    const [
+      monthlyPaidRevenue,
+      monthlyPendingRevenue,
+      dailyRevenue,
+      monthlyRefunds,
+      dailyRefunds,
+      monthlyRetailRevenue,
+      supplierDebtTotals,
+      supplierDebtPayments,
+      supplierReturnRefunds,
+      supplierReturnPendingCount,
+      supplierReturnPendingItems,
+      recentActivities,
+    ] = await Promise.all([
       canViewRevenueAnalytics
         ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
@@ -273,6 +296,27 @@ export async function getAdminOverview(
       canViewRevenueAnalytics
         ? prisma.warrantyClaim.aggregate({ where: { tokoId, status: "resolved", refundAmount: { gt: 0 }, resolvedAt: { gte: dailyStart } }, _sum: { refundAmount: true } })
         : Promise.resolve({ _sum: { refundAmount: 0 } }),
+      canViewRevenueAnalytics && canUseRetailSales
+        ? prisma.retailSale.aggregate({ where: { tokoId, status: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
+        : Promise.resolve({ _sum: { grandTotal: 0 } }),
+      canViewRevenueAnalytics && canUseInventoryManagement
+        ? prisma.supplierDebt.aggregate({ where: { tokoId, status: { in: ["unpaid", "partial"] } }, _sum: { totalAmount: true, paidAmount: true } })
+        : Promise.resolve({ _sum: { totalAmount: 0, paidAmount: 0 } }),
+      canViewRevenueAnalytics && canUseInventoryManagement
+        ? prisma.supplierDebtPayment.aggregate({ where: { paymentDate: { gte: monthlyStart }, debt: { tokoId } }, _sum: { amount: true } })
+        : Promise.resolve({ _sum: { amount: 0 } }),
+      canViewRevenueAnalytics && canUseInventoryManagement
+        ? prisma.supplierReturn.aggregate({ where: { tokoId, status: "refunded", resolvedAt: { gte: monthlyStart } }, _sum: { refundAmount: true } })
+        : Promise.resolve({ _sum: { refundAmount: 0 } }),
+      canViewRevenueAnalytics && canUseInventoryManagement
+        ? prisma.supplierReturn.count({ where: { tokoId, status: { in: ["pending", "sent"] } } })
+        : Promise.resolve(0),
+      canViewRevenueAnalytics && canUseInventoryManagement
+        ? prisma.supplierReturn.findMany({
+            where: { tokoId, status: { in: ["pending", "sent"] } },
+            select: { qty: true, sparepart: { select: { purchasePrice: true } } },
+          })
+        : Promise.resolve([]),
       canUseRealtimeUpdates
         ? prisma.activityLog.findMany({ where: { tokoId }, orderBy: { createdAt: "desc" }, take: 6, select: activityLogSelect })
         : Promise.resolve([]),
@@ -280,11 +324,33 @@ export async function getAdminOverview(
 
     const monthlyPaidNet = Math.max((monthlyPaidRevenue._sum.grandTotal || 0) - (monthlyRefunds._sum.refundAmount || 0), 0);
     const dailyRevenueNet = Math.max((dailyRevenue._sum.grandTotal || 0) - (dailyRefunds._sum.refundAmount || 0), 0);
+    const retailRevenueMonth = monthlyRetailRevenue._sum.grandTotal || 0;
+    const monthlyIncome = monthlyPaidNet + retailRevenueMonth;
+    const supplierDebtRemaining = Math.max((supplierDebtTotals._sum.totalAmount || 0) - (supplierDebtTotals._sum.paidAmount || 0), 0);
+    const supplierDebtPaymentsThisMonth = supplierDebtPayments._sum.amount || 0;
+    const supplierReturnRefundedThisMonth = supplierReturnRefunds._sum.refundAmount || 0;
+    const supplierReturnPendingValue = supplierReturnPendingItems.reduce(
+      (total, item) => total + item.qty * (item.sparepart.purchasePrice ?? 0),
+      0
+    );
+    const cashBersihMonth = monthlyIncome + supplierReturnRefundedThisMonth - supplierDebtPaymentsThisMonth;
 
     return {
       stats: {
         services: { total, repairing: statusMap["repairing"] || 0, done: statusMap["done"] || 0, failed: statusMap["failed"] || 0, daily: dailyCount, weekly: weeklyCount },
-        revenue: { monthlyPaid: monthlyPaidNet, monthlyPending: monthlyPendingRevenue._sum.grandTotal || 0, dailyRevenue: dailyRevenueNet },
+        revenue: {
+          monthlyPaid: monthlyPaidNet,
+          monthlyPending: monthlyPendingRevenue._sum.grandTotal || 0,
+          dailyRevenue: dailyRevenueNet,
+          monthlyIncome,
+          supplierDebtRemaining,
+          supplierDebtPaymentsThisMonth,
+          supplierReturnRefundedThisMonth,
+          supplierReturnPendingCount,
+          supplierReturnPendingValue,
+          cashBersihMonth,
+          supplierSignalsEnabled: canUseInventoryManagement,
+        },
         inventory: { lowStockCount },
       },
       recentServices,

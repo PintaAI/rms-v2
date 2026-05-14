@@ -144,15 +144,15 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
 
       {featureAccess.revenueAnalytics && (
         <section data-tour="stats-revenue" className="flex flex-col gap-3 sm:gap-4">
-          <OverviewSectionHeader title="Pendapatan" colorClass="bg-chart-1" />
+          <OverviewSectionHeader title="Ringkasan Keuangan" colorClass="bg-chart-1" />
           <div className="md:hidden">
             <OverviewMobileGroupCard
-              title="Pendapatan"
+              title="Ringkasan Keuangan"
               variant="success"
               items={[
                 {
-                  label: "Bulan Ini",
-                  value: formatCurrency(stats.revenue.monthlyPaid),
+                  label: "Pendapatan Bulan Ini",
+                  value: formatCurrency(stats.revenue.monthlyIncome),
                   icon: <RiMoneyDollarCircleLine className="size-4" />,
                   variant: "success",
                 },
@@ -162,6 +162,22 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
                   icon: <RiTimeLine className="size-4" />,
                   variant: stats.revenue.monthlyPending > 0 ? "warning" : "default",
                 },
+                ...(stats.revenue.supplierSignalsEnabled
+                  ? [
+                      {
+                        label: "Sisa Hutang Supplier",
+                        value: formatCurrency(stats.revenue.supplierDebtRemaining),
+                        icon: <RiArchiveLine className="size-4" />,
+                        variant: stats.revenue.supplierDebtRemaining > 0 ? "warning" as const : "default" as const,
+                      },
+                      {
+                        label: "Cash Bersih Bulan Ini",
+                        value: formatCurrency(stats.revenue.cashBersihMonth),
+                        icon: <RiMoneyDollarCircleLine className="size-4" />,
+                        variant: stats.revenue.cashBersihMonth >= 0 ? "success" as const : "warning" as const,
+                      },
+                    ]
+                  : []),
                 {
                   label: "Hari Ini",
                   value: formatCurrency(stats.revenue.dailyRevenue),
@@ -171,25 +187,52 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
               ]}
             />
           </div>
-          <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-4">
+          <div className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-4">
             <OverviewStatsCard
               title="Pendapatan Bulan Ini"
-              value={formatCurrency(stats.revenue.monthlyPaid)}
+              value={formatCurrency(stats.revenue.monthlyIncome)}
               icon={<RiMoneyDollarCircleLine className="h-4 w-4" />}
+              description="Service lunas + retail paid"
               variant="success"
             />
             <OverviewStatsCard
               title="Pending Bulan Ini"
               value={formatCurrency(stats.revenue.monthlyPending)}
               icon={<RiTimeLine className="h-4 w-4" />}
+              description="Invoice service belum lunas / DP"
               variant={stats.revenue.monthlyPending > 0 ? "warning" : "default"}
             />
+            {stats.revenue.supplierSignalsEnabled && (
+              <>
+                <OverviewStatsCard
+                  title="Sisa Hutang Supplier"
+                  value={formatCurrency(stats.revenue.supplierDebtRemaining)}
+                  icon={<RiArchiveLine className="h-4 w-4" />}
+                  variant={stats.revenue.supplierDebtRemaining > 0 ? "warning" : "default"}
+                />
+                <OverviewStatsCard
+                  title="Cash Bersih Bulan Ini"
+                  value={formatCurrency(stats.revenue.cashBersihMonth)}
+                  icon={<RiMoneyDollarCircleLine className="h-4 w-4" />}
+                  variant={stats.revenue.cashBersihMonth >= 0 ? "success" : "warning"}
+                />
+              </>
+            )}
             <OverviewStatsCard
               title="Pendapatan Hari Ini"
               value={formatCurrency(stats.revenue.dailyRevenue)}
               icon={<RiCalendarCheckLine className="h-4 w-4" />}
               variant="primary"
             />
+            {stats.revenue.supplierSignalsEnabled && (
+              <OverviewStatsCard
+                title="Retur Supplier Pending"
+                value={stats.revenue.supplierReturnPendingCount}
+                icon={<RiTimeLine className="h-4 w-4" />}
+                description={`${formatCurrency(stats.revenue.supplierReturnPendingValue)} estimasi nilai`}
+                variant={stats.revenue.supplierReturnPendingCount > 0 ? "warning" : "default"}
+              />
+            )}
             <OverviewStatsCard
               title="Low Stock Items"
               value={stats.inventory.lowStockCount}

@@ -168,7 +168,11 @@ export const MOCK_ANALYTICS_DATA: AdminAnalyticsData = {
   bucketMode: "month",
   periodLabel: "Jan - Jun 2026",
   summary: {
+    totalRevenue: 36100000,
+    estimatedNetRevenue: 27500000,
     paidRevenue: 23300000,
+    retailRevenue: 12800000,
+    retailGrossMargin: 4200000,
     pendingRevenue: 4500000,
     paidInvoices: 415,
     averagePaidInvoice: 56144,

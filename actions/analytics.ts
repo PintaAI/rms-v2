@@ -88,7 +88,11 @@ export interface AdminAnalyticsData {
   bucketMode: "day" | "month";
   periodLabel: string;
   summary: {
+    totalRevenue: number;
+    estimatedNetRevenue: number;
     paidRevenue: number;
+    retailRevenue: number;
+    retailGrossMargin: number;
     pendingRevenue: number;
     paidInvoices: number;
     averagePaidInvoice: number;
@@ -395,7 +399,11 @@ export async function getAdminAnalytics(
       bucketMode,
       periodLabel,
       summary: {
+        totalRevenue: paidRevenue + retailRevenue,
+        estimatedNetRevenue: paidRevenue + retailGrossMargin,
         paidRevenue,
+        retailRevenue,
+        retailGrossMargin,
         pendingRevenue,
         paidInvoices,
         averagePaidInvoice: paidInvoices > 0 ? Math.round(paidRevenue / paidInvoices) : 0,

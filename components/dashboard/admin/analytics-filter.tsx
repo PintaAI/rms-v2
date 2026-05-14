@@ -77,6 +77,14 @@ const presetOptions: PresetOption[] = [
     label: "Tahun ini",
     getRange: () => ({ from: new Date(new Date().getFullYear(), 0, 1), to: startOfToday() }),
   },
+  {
+    key: "last-year",
+    label: "Tahun lalu",
+    getRange: () => {
+      const year = new Date().getFullYear() - 1;
+      return { from: new Date(year, 0, 1), to: new Date(year, 11, 31) };
+    },
+  },
 ];
 
 export function AnalyticsFilter({ filters }: AnalyticsFilterProps) {
