@@ -6,7 +6,7 @@ import { fuzzyScore } from "@/lib/fuzzy-search";
 import { mapServiceToListItem, serviceSelectBase, technicianAvailableStatuses } from "./service-shared";
 import type { ActionResultWithData, ServiceListItem } from "./service-types";
 
-export type GlobalSearchResultType = "service" | "karyawan" | "sparepart" | "jasa";
+export type GlobalSearchResultType = "service" | "karyawan" | "sparepart" | "retail_item" | "jasa";
 
 export interface GlobalSearchResult {
   id: string;
@@ -32,6 +32,7 @@ function resultHref(tokoId: string, role: string, type: GlobalSearchResultType, 
   }
 
   if (type === "karyawan") return `/${tokoId}/admin/karyawan?q=${encodedQuery}`;
+  if (type === "retail_item") return `/${tokoId}/admin/inventory/retail?q=${encodedQuery}`;
   if (type === "jasa") return `/${tokoId}/admin/inventory?tab=jasa&q=${encodedQuery}`;
   return `/${tokoId}/${segment}/inventory?q=${encodedQuery}`;
 }
@@ -220,6 +221,33 @@ export async function searchDashboard(
         subtitle: `${sparepart.barcode} - Stok ${sparepart.stock}`,
         href: resultHref(tokoId, role, "sparepart", trimmedQuery),
         keywords: [sparepart.barcode, String(sparepart.defaultPrice)],
+      })), 6));
+    }
+
+    if (role === "admin" && canSearchInventory(scope) && scope.featureAccess["retail.sales"]) {
+      const retailItems = await prisma.sparepart.findMany({
+        where: {
+          tokoId,
+          kind: "retail_item",
+          OR: [
+            { name: { contains: trimmedQuery, mode: "insensitive" } },
+            { barcode: { contains: trimmedQuery, mode: "insensitive" } },
+            { supplierName: { contains: trimmedQuery, mode: "insensitive" } },
+            { category: { name: { contains: trimmedQuery, mode: "insensitive" } } },
+          ],
+        },
+        select: { id: true, name: true, barcode: true, stock: true, defaultPrice: true, supplierName: true, category: { select: { name: true } } },
+        orderBy: { name: "asc" },
+        take: 8,
+      });
+
+      results.push(...rankResults(trimmedQuery, retailItems.map((item) => ({
+        id: item.id,
+        type: "retail_item" as const,
+        title: item.name,
+        subtitle: `${item.barcode} - Stok ${item.stock}`,
+        href: resultHref(tokoId, role, "retail_item", trimmedQuery),
+        keywords: [item.barcode, item.supplierName, item.category?.name, String(item.defaultPrice)].filter((value): value is string => Boolean(value)),
       })), 6));
     }
 

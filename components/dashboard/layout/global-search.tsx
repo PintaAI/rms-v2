@@ -9,6 +9,7 @@ import {
   RiPriceTag3Line,
   RiSearchLine,
   RiSettings3Line,
+  RiStore2Line,
   RiToolsLine,
   RiUserSettingsLine,
 } from "@remixicon/react";
@@ -43,11 +44,12 @@ const groupLabels: Record<SearchResultType, string> = {
   service: "Service",
   karyawan: "Karyawan",
   sparepart: "Sparepart",
+  retail_item: "Barang Retail",
   jasa: "Jasa",
   settings: "Settings",
 };
 
-const groupOrder: SearchResultType[] = ["menu", "service", "karyawan", "sparepart", "jasa", "settings"];
+const groupOrder: SearchResultType[] = ["menu", "service", "karyawan", "sparepart", "retail_item", "jasa", "settings"];
 
 function roleSegment(role: string) {
   return role === "technician" ? "teknisi" : role;
@@ -135,6 +137,9 @@ function useStaticSearchResults(pathname: string): SearchResult[] {
     if (inventorySearchEnabled) {
       addMenu("inventory", "Inventory", inventoryBase, ["sparepart", "stok"]);
       addMenu("sparepart", "Sparepart", role === "admin" ? `${inventoryBase}?tab=sparepart` : inventoryBase, ["inventory", "stok"]);
+      if (role === "admin" && featureAccess["retail.sales"] && !isFeatureDisabled("retail.sales")) {
+        addMenu("retail-item", "Barang Retail", `${inventoryBase}/retail`, ["retail", "barang retail", "kasir"]);
+      }
       if (role === "admin") addMenu("jasa", "Jasa", `${inventoryBase}?tab=jasa`, ["pricelist", "harga jasa"]);
       if (role === "admin") addMenu("supplier-returns", "Retur Supplier", `${inventoryBase}/supplier-returns`, ["retur", "supplier", "garansi"]);
     }
@@ -288,6 +293,7 @@ function ResultIcon({ type }: { type: SearchResultType }) {
   if (type === "service") return <RiToolsLine />;
   if (type === "karyawan") return <RiUserSettingsLine />;
   if (type === "sparepart") return <RiArchiveLine />;
+  if (type === "retail_item") return <RiStore2Line />;
   if (type === "jasa") return <RiPriceTag3Line />;
   if (type === "settings") return <RiSettings3Line />;
   return <RiDashboardLine />;
