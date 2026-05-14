@@ -93,6 +93,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
   const [cartOpen, setCartOpen] = useState(false)
   const [flyingItem, setFlyingItem] = useState<FlyingCartItem | null>(null)
   const cartButtonRef = useRef<HTMLButtonElement>(null)
+  const cashReceivedRef = useRef<HTMLInputElement>(null)
   const flyingItemKeyRef = useRef(0)
 
   useEffect(() => {
@@ -112,6 +113,17 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
       active = false
     }
   }, [deferredSearch, tokoId])
+
+  useEffect(() => {
+    if (!cartOpen || paymentMethod !== "cash" || readOnly) return
+    if (!window.matchMedia("(min-width: 640px)").matches) return
+
+    const frame = requestAnimationFrame(() => {
+      cashReceivedRef.current?.focus()
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [cartOpen, paymentMethod, readOnly])
 
   const subtotal = useMemo(() => cart.reduce((total, item) => total + item.defaultPrice * item.qty, 0), [cart])
   const rawDiscount = toNumber(discountValue)
@@ -339,7 +351,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
       ) : null}
 
       <Drawer open={cartOpen} onOpenChange={setCartOpen}>
-        <DrawerContent className="mx-auto flex h-dvh max-h-dvh w-full min-w-0 max-w-3xl flex-col overflow-hidden p-0 before:inset-0 before:rounded-t-2xl data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[85vh] sm:data-[vaul-drawer-direction=bottom]:mt-24 sm:data-[vaul-drawer-direction=bottom]:max-h-[85vh]">
+        <DrawerContent className="mx-auto flex h-dvh max-h-dvh w-full min-w-0 max-w-3xl flex-col overflow-hidden p-0 before:inset-0 before:rounded-t-2xl data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-[85vh] sm:max-h-[85vh] sm:data-[vaul-drawer-direction=bottom]:mt-24 sm:data-[vaul-drawer-direction=bottom]:max-h-[85vh]">
           <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3 sm:px-6">
             <DrawerTitle className="flex items-center gap-2 text-base">
               Keranjang Kasir
@@ -348,62 +360,62 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
             <DrawerDescription>{cart.length} jenis barang siap checkout.</DrawerDescription>
           </div>
 
-          <ScrollArea className="min-h-0 w-full max-w-full flex-1 overflow-x-hidden sm:flex-none [&>[data-slot=scroll-area-viewport]]:max-w-full [&>[data-slot=scroll-area-viewport]]:overflow-x-hidden">
+          <ScrollArea className="min-h-0 w-full max-w-full flex-1 overflow-x-hidden [&>[data-slot=scroll-area-viewport]]:max-w-full [&>[data-slot=scroll-area-viewport]]:overflow-x-hidden">
             <div className="flex w-full max-w-full min-w-0 flex-col gap-5 p-4 sm:p-6">
-            <div className="h-40 w-full max-w-[calc(100vw-2rem)] shrink-0 overflow-y-auto sm:h-auto sm:max-h-64 sm:max-w-full">
-              <div className="flex w-full max-w-full min-w-0 flex-col gap-3">
-                {cart.length === 0 ? (
-                  <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    Keranjang masih kosong.
-                  </div>
-                ) : (
-                  <div className="w-full max-w-full min-w-0 overflow-x-auto rounded-md border">
-                    <Table className="min-w-[720px]">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Tipe</TableHead>
-                          <TableHead>Nama</TableHead>
-                          <TableHead>Garansi</TableHead>
-                          <TableHead>Qty</TableHead>
-                          <TableHead>Harga</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                          <TableHead />
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {cart.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell>
-                              <Badge variant="outline">{item.kind === "retail_item" ? "Retail" : "Sparepart"}</Badge>
-                            </TableCell>
-                            <TableCell className="font-medium">{item.name}</TableCell>
-                            <TableCell>{item.warrantyDays ? `${item.warrantyDays} hari` : "-"}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Button variant="outline" size="icon-sm" onClick={() => updateQty(item.id, item.qty - 1)} disabled={readOnly}>
-                                  <RiSubtractLine />
-                                </Button>
-                                <Input value={item.qty} onChange={(event) => updateQty(item.id, toNumber(event.target.value))} disabled={readOnly} className="h-7 w-14 text-center" />
-                                <Button variant="outline" size="icon-sm" onClick={() => updateQty(item.id, item.qty + 1)} disabled={readOnly || item.qty >= item.stock}>
-                                  <RiAddLine />
-                                </Button>
-                              </div>
-                            </TableCell>
-                            <TableCell>{formatCurrency(item.defaultPrice)}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(item.defaultPrice * item.qty)}</TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="sm" onClick={() => updateQty(item.id, 0)} disabled={readOnly}>
-                                <RiDeleteBinLine className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </TableCell>
+              <div className="max-h-48 w-full max-w-[calc(100vw-2rem)] shrink-0 overflow-y-auto sm:max-h-72 sm:max-w-full">
+                <div className="flex w-full max-w-full min-w-0 flex-col gap-3">
+                  {cart.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      Keranjang masih kosong.
+                    </div>
+                  ) : (
+                    <div className="w-full max-w-full min-w-0 overflow-x-auto rounded-md border">
+                      <Table className="min-w-[720px]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Tipe</TableHead>
+                            <TableHead>Nama</TableHead>
+                            <TableHead>Garansi</TableHead>
+                            <TableHead>Qty</TableHead>
+                            <TableHead>Harga</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead />
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                        </TableHeader>
+                        <TableBody>
+                          {cart.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell>
+                                <Badge variant="outline">{item.kind === "retail_item" ? "Retail" : "Sparepart"}</Badge>
+                              </TableCell>
+                              <TableCell className="font-medium">{item.name}</TableCell>
+                              <TableCell>{item.warrantyDays ? `${item.warrantyDays} hari` : "-"}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1">
+                                  <Button variant="outline" size="icon-sm" onClick={() => updateQty(item.id, item.qty - 1)} disabled={readOnly}>
+                                    <RiSubtractLine />
+                                  </Button>
+                                  <Input value={item.qty} onChange={(event) => updateQty(item.id, toNumber(event.target.value))} disabled={readOnly} className="h-7 w-14 text-center" />
+                                  <Button variant="outline" size="icon-sm" onClick={() => updateQty(item.id, item.qty + 1)} disabled={readOnly || item.qty >= item.stock}>
+                                    <RiAddLine />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                              <TableCell>{formatCurrency(item.defaultPrice)}</TableCell>
+                              <TableCell className="text-right font-medium">{formatCurrency(item.defaultPrice * item.qty)}</TableCell>
+                              <TableCell>
+                                <Button variant="ghost" size="sm" onClick={() => updateQty(item.id, 0)} disabled={readOnly}>
+                                  <RiDeleteBinLine className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
             <div className="shrink-0">
               <FieldGroup>
@@ -516,6 +528,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                         Rp
                       </span>
                       <Input
+                        ref={cashReceivedRef}
                         id="retail-cash-received"
                         value={cashReceived}
                         onChange={(event) => setCashReceived(event.target.value)}
