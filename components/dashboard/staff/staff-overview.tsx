@@ -53,7 +53,7 @@ function mapRecentServiceToTableItem(service: StaffOverviewData["recentServices"
     hpCatalog: service.hpCatalog,
     technician: service.technician,
     invoice: service.invoice,
-    createdBy: undefined,
+    createdBy: service.createdBy ?? undefined,
     passwordPattern: null,
     imei: null,
     isPickedUp: service.isPickedUp,

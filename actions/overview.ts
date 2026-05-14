@@ -43,6 +43,7 @@ export interface AdminOverviewRecentService {
     brand: { name: string };
   };
   technician: { id: string; name: string } | null;
+  createdBy: { name: string } | null;
   invoice: {
     id: string;
     grandTotal: number;
@@ -119,6 +120,9 @@ const recentServiceSelect = {
   },
   technician: {
     select: { id: true, name: true },
+  },
+  createdBy: {
+    select: { name: true },
   },
   invoice: {
     select: {
