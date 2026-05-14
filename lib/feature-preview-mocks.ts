@@ -265,6 +265,7 @@ export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {
       checkoutAt: null,
       hpCatalog: { id: "mock-hp-1", modelName: "iPhone 11", brand: { name: "Apple" } },
       technician: { id: "mock-tech-1", name: "Ahmad Rizki" },
+      createdBy: { name: "Budi Santoso" },
       invoice: { id: "mock-inv-1", grandTotal: 450000, paymentStatus: "paid", dpAmount: 0 },
     },
     {
@@ -280,6 +281,7 @@ export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {
       checkoutAt: null,
       hpCatalog: { id: "mock-hp-2", modelName: "Galaxy A50", brand: { name: "Samsung" } },
       technician: { id: "mock-tech-2", name: "Sari Dewi" },
+      createdBy: { name: "Budi Santoso" },
       invoice: { id: "mock-inv-2", grandTotal: 200000, paymentStatus: "dp", dpAmount: 50000 },
     },
     {
@@ -295,6 +297,7 @@ export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {
       checkoutAt: null,
       hpCatalog: { id: "mock-hp-3", modelName: "Xiaomi Note 12", brand: { name: "Xiaomi" } },
       technician: null,
+      createdBy: { name: "Budi Santoso" },
       invoice: null,
     },
   ],
