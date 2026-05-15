@@ -548,7 +548,7 @@ export function InvoiceDialog({
 
     try {
       setActivePrint(true);
-      const printWindow = window.open("", "_blank", "width=900,height=700");
+      const printWindow = window.open("", "_blank", "width=1100,height=800");
 
       if (!printWindow) {
         toast.error("Popup print diblokir browser");
@@ -562,9 +562,37 @@ export function InvoiceDialog({
           <head>
             <title>${getInvoiceNumber(service)}</title>
             <style>
-              body { margin: 0; background: #f8fafc; }
-              img { display: block; width: 100%; max-width: 900px; margin: 0 auto; }
-              @media print { body { background: #fff; } img { max-width: 100%; } }
+              @page { size: A5 landscape; margin: 8mm; }
+              html,
+              body {
+                margin: 0;
+                width: 210mm;
+                min-height: 148mm;
+                background: #f8fafc;
+              }
+              body {
+                display: flex;
+                align-items: flex-start;
+                justify-content: center;
+              }
+              img {
+                display: block;
+                width: 100%;
+                height: auto;
+                max-width: 210mm;
+                object-fit: contain;
+              }
+              @media print {
+                body {
+                  width: auto;
+                  min-height: auto;
+                  background: #fff;
+                }
+                img {
+                  max-width: 100%;
+                  max-height: calc(148mm - 16mm);
+                }
+              }
             </style>
           </head>
           <body>

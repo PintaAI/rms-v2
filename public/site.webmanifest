@@ -6,7 +6,7 @@
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "browser"],
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "lang": "id-ID",
   "categories": ["business", "productivity", "utilities"],
   "icons": [
