@@ -94,12 +94,14 @@ export function UserInfo() {
               </Avatar>
               <div className="hidden min-w-0 flex-1 flex-col sm:flex">
                 <span className="text-sm font-semibold truncate transition-colors duration-300 group-hover:text-foreground/90">{user.name}</span>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-                  <span className="capitalize">{user.role}</span>
-                  <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-primary">
-                    {planLabels[currentPlan]}
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                    <span className="capitalize">{user.role}</span>
+                    {user.role === "admin" && (
+                      <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[0.625rem] font-semibold text-primary">
+                        {planLabels[currentPlan]}
+                      </span>
+                    )}
                   </span>
-                </span>
               </div>
               <span className="max-w-20 truncate text-xs font-semibold sm:hidden">{user.name}</span>
               <RiArrowRightSLine className="hidden size-4 text-muted-foreground/50 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-muted-foreground sm:block" />
@@ -107,10 +109,12 @@ export function UserInfo() {
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="space-y-1">
-            <div className="text-xs font-normal text-muted-foreground">Current plan</div>
-            <Badge variant={currentPlan === "free" ? "outline" : "default"}>{planLabels[currentPlan]}</Badge>
-          </DropdownMenuLabel>
+          {user.role === "admin" && (
+            <DropdownMenuLabel className="space-y-1">
+              <div className="text-xs font-normal text-muted-foreground">Current plan</div>
+              <Badge variant={currentPlan === "free" ? "outline" : "default"}>{planLabels[currentPlan]}</Badge>
+            </DropdownMenuLabel>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setSettingsOpen(true)}

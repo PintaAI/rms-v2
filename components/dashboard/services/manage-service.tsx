@@ -27,6 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServicesForm } from "@/components/dashboard/services/services-form";
 import { ServiceDetailCard, ServiceDetailCardSkeleton } from "@/components/dashboard/services/service-detail-card";
+import { defaultServiceActionPermissions, type ServiceActionPermissions } from "@/components/dashboard/services/service-action-permissions";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import {
   Pagination,
@@ -55,6 +56,7 @@ interface ManageServiceProps {
   hideTechnicianColumn?: boolean;
   initialSearchQuery?: string;
   initialServiceId?: string;
+  actionPermissions?: ServiceActionPermissions;
 }
 
 function isSameDate(value: Date | string | null | undefined, date: Date | null): boolean {
@@ -90,6 +92,7 @@ export function ManageService({
   hideTechnicianColumn,
   initialSearchQuery = "",
   initialServiceId = "",
+  actionPermissions = defaultServiceActionPermissions,
 }: ManageServiceProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -587,13 +590,15 @@ export function ManageService({
                 Reset Filter
               </Button>
             )}
-            <Button
-              onClick={() => { setEditData(null); setFormOpen(true); }}
-              className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
-            >
-              <RiAddLine className="h-4 w-4 mr-1.5" />
-              Tambah Service
-            </Button>
+            {actionPermissions.canCreate && (
+              <Button
+                onClick={() => { setEditData(null); setFormOpen(true); }}
+                className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+              >
+                <RiAddLine className="h-4 w-4 mr-1.5" />
+                Tambah Service
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -631,9 +636,9 @@ export function ManageService({
               headerBadge={filteredServices.length}
               statusFilter={statusFilter}
               emptyMessage={getEmptyMessage()}
-              onEdit={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
-              onDelete={statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
-              onAssignTech={hideTechnicianColumn ? undefined : handleAssignTech}
+              onEdit={!actionPermissions.canUpdate || statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleEdit}
+              onDelete={!actionPermissions.canDelete || statusFilter === "done,failed" || statusFilter === "failed,done" || pickedUpFilter ? undefined : handleDelete}
+              onAssignTech={hideTechnicianColumn || !actionPermissions.canAssignTechnician ? undefined : handleAssignTech}
               onRowClick={handleRowClick}
               tokoId={tokoId}
               hideTechnicianColumn={hideTechnicianColumn}
@@ -719,11 +724,11 @@ export function ManageService({
       />
 
       <Drawer open={detailDialogOpen} onOpenChange={handleDetailOpenChange} direction="bottom">
-        <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-[90dvh] sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
+        <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-auto sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
           <div className="shrink-0 border-x bg-popover px-4 pb-4 pt-3">
             <DrawerTitle className="font-bold">Detail servis</DrawerTitle>
           </div>
-          <ScrollArea className="h-[calc(100dvh-4.25rem)] min-w-0 border-0 overflow-hidden sm:h-[calc(90dvh-4.25rem)]">
+          <ScrollArea className="h-[calc(100dvh-4.25rem)] min-w-0 border-0 overflow-hidden sm:h-auto sm:max-h-[calc(90dvh-4.25rem)]">
             <div className="min-w-0 p-2">
               {isLoadingDetail && (
                 <ServiceDetailCardSkeleton />
@@ -750,6 +755,7 @@ export function ManageService({
                     router.refresh();
                   }}
                   onRealtimeEvent={publish}
+                  actionPermissions={actionPermissions}
                 />
               )}
             </div>

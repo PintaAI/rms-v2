@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +13,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel, FieldContent } from "@/components/ui/field";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableHeader,
@@ -23,8 +26,8 @@ import {
 } from "@/components/ui/table";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { TechnicianPerformanceDialog } from "@/components/dashboard/admin/technician-performance-dialog";
-import { createKaryawan, deleteKaryawan } from "@/actions/karyawan";
-import type { KaryawanItem, KaryawanStats } from "@/actions/karyawan";
+import { createKaryawan, deleteKaryawan, getKaryawanPermissionSettings, resetKaryawanPermissionOverrides, saveKaryawanPermissionOverrides } from "@/actions/karyawan";
+import type { KaryawanItem, KaryawanPermissionSettings, KaryawanStats, SaveKaryawanPermissionOverrideInput } from "@/actions/karyawan";
 import {
   RiUserLine,
   RiUserStarLine,
@@ -39,12 +42,68 @@ import {
   RiCloseCircleLine,
   RiFileListLine,
   RiFileCopyLine,
+  RiErrorWarningLine,
   RiInformationLine,
   RiSearchLine,
+  RiShieldUserLine,
 } from "@remixicon/react";
 import { fuzzyScore } from "@/lib/fuzzy-search";
+import type { PermissionCategory, PermissionEffect, PermissionKey } from "@/lib/permissions";
 
 type StatsVariant = "default" | "primary" | "success" | "warning" | "accent";
+type PermissionDraftEffect = PermissionEffect | "default";
+
+const permissionCategoryLabels: Record<PermissionCategory, string> = {
+  inventory: "Inventory",
+  service: "Service",
+  retail: "Retail",
+  karyawan: "Karyawan",
+  analytics: "Analytics",
+  whatsapp: "WhatsApp",
+  toko: "Toko",
+  features: "Features",
+  supplier_returns: "Supplier Returns",
+  supplier_debts: "Supplier Debts",
+  warranty: "Warranty",
+  dashboard: "Dashboard",
+};
+
+function buildPermissionDraft(settings: KaryawanPermissionSettings): Record<PermissionKey, PermissionDraftEffect> {
+  const draft = Object.fromEntries(
+    settings.permissions.map((permission) => [permission.permissionKey, "default"])
+  ) as Record<PermissionKey, PermissionDraftEffect>;
+
+  for (const override of settings.overrides) {
+    draft[override.permissionKey] = override.effect;
+  }
+
+  return draft;
+}
+
+function getEffectiveAllowed(defaultAllowed: boolean, effect: PermissionDraftEffect) {
+  if (effect === "allow") return true;
+  if (effect === "deny") return false;
+  return defaultAllowed;
+}
+
+function lowerFirst(value: string) {
+  return value ? value.charAt(0).toLowerCase() + value.slice(1) : value;
+}
+
+function getPermissionHint(
+  permission: KaryawanPermissionSettings["permissions"][number],
+  effect: PermissionDraftEffect,
+) {
+  if (effect === "default") {
+    return null;
+  }
+
+  if (effect === "allow") {
+    return `Karyawan ini boleh ${lowerFirst(permission.label)}.`;
+  }
+
+  return `Jika dinonaktifkan, ${lowerFirst(permission.inactiveReason)}`;
+}
 
 interface StatsCardProps {
   title: string;
@@ -167,6 +226,11 @@ interface ManageKaryawanProps {
   tokoId: string;
   tokoName?: string;
   initialSearchQuery?: string;
+  actionPermissions?: {
+    canCreate: boolean;
+    canDelete: boolean;
+    canManagePermissions: boolean;
+  };
 }
 
 export function ManageKaryawan({
@@ -175,6 +239,11 @@ export function ManageKaryawan({
   tokoId,
   tokoName = "toko",
   initialSearchQuery = "",
+  actionPermissions = {
+    canCreate: true,
+    canDelete: true,
+    canManagePermissions: true,
+  },
 }: ManageKaryawanProps) {
   const [karyawan, setKaryawan] = useState<KaryawanItem[]>(initialKaryawan);
   const [stats, setStats] = useState<KaryawanStats>(initialStats);
@@ -184,8 +253,16 @@ export function ManageKaryawan({
   const [deleteTarget, setDeleteTarget] = useState<KaryawanItem | null>(null);
   const [performanceDialogOpen, setPerformanceDialogOpen] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState<KaryawanItem | null>(null);
+  const [permissionDialogOpen, setPermissionDialogOpen] = useState(false);
+  const [permissionTarget, setPermissionTarget] = useState<KaryawanItem | null>(null);
+  const [permissionSettings, setPermissionSettings] = useState<KaryawanPermissionSettings | null>(null);
+  const [permissionDraft, setPermissionDraft] = useState<Record<PermissionKey, PermissionDraftEffect> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
+  const [isResettingPermissions, setIsResettingPermissions] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -229,6 +306,19 @@ export function ManageKaryawan({
       })
       .map((entry) => entry.item);
   }, [karyawan, searchQuery]);
+
+  const permissionGroups = useMemo(() => {
+    if (!permissionSettings) return [];
+
+    const grouped = new Map<PermissionCategory, KaryawanPermissionSettings["permissions"]>();
+    for (const permission of permissionSettings.permissions) {
+      const current = grouped.get(permission.category) ?? [];
+      current.push(permission);
+      grouped.set(permission.category, current);
+    }
+
+    return Array.from(grouped.entries());
+  }, [permissionSettings]);
 
   const resetForm = () => {
     setFormData({ name: "", password: "", role: "staff" });
@@ -279,6 +369,87 @@ export function ManageKaryawan({
     setSelectedTechnician(item);
     setPerformanceDialogOpen(true);
   };
+
+  const handlePermissionClick = useCallback(async (item: KaryawanItem) => {
+    setPermissionTarget(item);
+    setPermissionDialogOpen(true);
+    setPermissionSettings(null);
+    setPermissionDraft(null);
+    setError(null);
+    setPermissionError(null);
+    setIsLoadingPermissions(true);
+
+    const result = await getKaryawanPermissionSettings(tokoId, item.id);
+    setIsLoadingPermissions(false);
+
+    if (!result.success || !result.data) {
+      setPermissionError(result.error || "Gagal memuat permission karyawan");
+      return;
+    }
+
+    setPermissionSettings(result.data);
+    setPermissionDraft(buildPermissionDraft(result.data));
+  }, [tokoId]);
+
+  const handlePermissionDraftChange = (permissionKey: PermissionKey, effect: PermissionDraftEffect) => {
+    setPermissionDraft((prev) => prev ? { ...prev, [permissionKey]: effect } : prev);
+  };
+
+  const handlePermissionCheckedChange = (permission: KaryawanPermissionSettings["permissions"][number], checked: boolean) => {
+    handlePermissionDraftChange(
+      permission.permissionKey,
+      checked === permission.defaultAllowed ? "default" : checked ? "allow" : "deny"
+    );
+  };
+
+  const handleSavePermissions = useCallback(async () => {
+    if (!permissionTarget || !permissionSettings || !permissionDraft) return;
+
+    setIsSavingPermissions(true);
+    setPermissionError(null);
+
+    const overrides: SaveKaryawanPermissionOverrideInput[] = permissionSettings.permissions.flatMap((permission) => {
+      if (!permission.requiredFeatureAvailable) return [];
+
+      const effect = permissionDraft[permission.permissionKey];
+      return effect === "default" ? [] : [{ permissionKey: permission.permissionKey, effect }];
+    });
+
+    const result = await saveKaryawanPermissionOverrides(tokoId, permissionTarget.id, overrides);
+    setIsSavingPermissions(false);
+
+    if (!result.success || !result.data) {
+      setPermissionError(result.error || "Gagal menyimpan permission karyawan");
+      return;
+    }
+
+    setPermissionSettings(result.data);
+    setPermissionDraft(buildPermissionDraft(result.data));
+    setPermissionDialogOpen(false);
+    setPermissionTarget(null);
+    setSuccess("Permission karyawan berhasil disimpan");
+    setTimeout(() => setSuccess(null), 3000);
+  }, [permissionDraft, permissionSettings, permissionTarget, tokoId]);
+
+  const handleResetPermissions = useCallback(async () => {
+    if (!permissionTarget) return;
+
+    setIsResettingPermissions(true);
+    setPermissionError(null);
+
+    const result = await resetKaryawanPermissionOverrides(tokoId, permissionTarget.id);
+    setIsResettingPermissions(false);
+
+    if (!result.success || !result.data) {
+      setPermissionError(result.error || "Gagal reset permission karyawan");
+      return;
+    }
+
+    setPermissionSettings(result.data);
+    setPermissionDraft(buildPermissionDraft(result.data));
+    setSuccess("Permission karyawan berhasil direset ke default role");
+    setTimeout(() => setSuccess(null), 3000);
+  }, [permissionTarget, tokoId]);
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deleteTarget) return;
@@ -357,13 +528,15 @@ export function ManageKaryawan({
                 className="pl-9"
               />
             </div>
-            <Button
-              onClick={() => setAddDialogOpen(true)}
-              className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
-            >
-              <RiAddLine className="h-4 w-4 mr-1.5" />
-              Tambah Karyawan
-            </Button>
+            {actionPermissions.canCreate && (
+              <Button
+                onClick={() => setAddDialogOpen(true)}
+                className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30"
+              >
+                <RiAddLine className="h-4 w-4 mr-1.5" />
+                Tambah Karyawan
+              </Button>
+            )}
           </div>
         </div>
 
@@ -376,7 +549,7 @@ export function ManageKaryawan({
                   <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Email</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Role</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Performance</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[80px]">Aksi</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -428,16 +601,33 @@ export function ManageKaryawan({
                           />
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleDeleteClick(item);
-                            }}
-                          >
-                            <RiDeleteBinLine className="size-4 text-destructive" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            {actionPermissions.canManagePermissions && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void handlePermissionClick(item);
+                                }}
+                                title="Kelola permission"
+                              >
+                                <RiShieldUserLine className="size-4" />
+                              </Button>
+                            )}
+                            {actionPermissions.canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleDeleteClick(item);
+                                }}
+                              >
+                                <RiDeleteBinLine className="size-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -619,6 +809,139 @@ export function ManageKaryawan({
         technician={selectedTechnician}
         tokoId={tokoId}
       />
+
+      <Dialog open={permissionDialogOpen} onOpenChange={(open) => {
+        setPermissionDialogOpen(open);
+        if (!open) {
+          setPermissionTarget(null);
+          setPermissionSettings(null);
+          setPermissionDraft(null);
+          setIsLoadingPermissions(false);
+          setIsSavingPermissions(false);
+          setIsResettingPermissions(false);
+          setPermissionError(null);
+        }
+      }}>
+        <DialogContent className="flex max-h-[85vh] max-w-4xl flex-col overflow-hidden sm:min-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Kelola Permission</DialogTitle>
+            <DialogDescription>
+              Atur override permission untuk {permissionTarget?.name}. Default mengikuti role karyawan.
+            </DialogDescription>
+          </DialogHeader>
+
+          {permissionError && (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+              {permissionError}
+            </div>
+          )}
+
+          {isLoadingPermissions ? (
+            <div className="flex min-h-60 items-center justify-center">
+              <RiLoader4Line className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : permissionSettings && permissionDraft ? (
+            <div className="min-h-0 overflow-y-auto pr-1">
+              <div className="mb-4 rounded-lg border border-border/50 bg-muted/30 p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{permissionSettings.user.name}</span>
+                  <Badge variant="outline">{permissionSettings.user.role === "technician" ? "Technician" : "Staff"}</Badge>
+                  <span className="text-muted-foreground">{permissionSettings.user.email}</span>
+                </div>
+              </div>
+
+              <TooltipProvider>
+                <div className="space-y-6">
+                  {permissionGroups.map(([category, permissions]) => (
+                    <div key={category} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-1 rounded-full bg-primary" />
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                          {permissionCategoryLabels[category]}
+                        </h3>
+                      </div>
+                      <div className="divide-y divide-border/50 rounded-lg border border-border/50">
+                        {permissions.map((permission) => {
+                          const draftEffect = permissionDraft[permission.permissionKey] ?? "default";
+                          const effectiveAllowed = getEffectiveAllowed(permission.defaultAllowed, draftEffect);
+                          const disabled = !permission.requiredFeatureAvailable;
+                          const hint = getPermissionHint(permission, draftEffect);
+
+                          return (
+                            <label
+                              key={permission.permissionKey}
+                              className={`flex items-start gap-3 p-3 transition-colors ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-muted/40"}`}
+                            >
+                              <Checkbox
+                                checked={effectiveAllowed}
+                                onCheckedChange={(checked) => handlePermissionCheckedChange(permission, checked === true)}
+                                disabled={disabled}
+                                className="mt-0.5"
+                              />
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-start justify-between gap-3">
+                                  <p className="text-sm font-semibold">{permission.label}</p>
+                                  {hint && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="mt-0.5 inline-flex text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300">
+                                          <RiErrorWarningLine className="size-4" />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left">
+                                        {hint}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">{permission.description}</p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </TooltipProvider>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+              Permission tidak dapat dimuat.
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={handleResetPermissions}
+              disabled={!permissionSettings || !permissionTarget || isResettingPermissions || isSavingPermissions}
+            >
+              {isResettingPermissions ? (
+                <>
+                  <RiLoader4Line className="size-4 animate-spin" />
+                  Reset...
+                </>
+              ) : (
+                "Reset ke Default"
+              )}
+            </Button>
+            <Button variant="outline" onClick={() => setPermissionDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleSavePermissions} disabled={!permissionSettings || !permissionDraft || isSavingPermissions || isResettingPermissions}>
+              {isSavingPermissions ? (
+                <>
+                  <RiLoader4Line className="size-4 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : (
+                "Simpan Permission"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <DeleteDialog
         open={deleteDialogOpen}

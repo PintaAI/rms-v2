@@ -266,29 +266,31 @@ function SparepartFormContent({
   }
 
   return (
-    <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-visible sm:max-w-2xl">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2 text-xl">
-          <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+    <DialogContent className="flex w-[calc(100%-1rem)] flex-col p-0 sm:max-w-2xl">
+      <DialogHeader className="px-4 py-3 sm:px-6 sm:pb-2 sm:pt-6">
+        <DialogTitle className="flex items-center gap-2 text-base sm:text-xl">
+          <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary sm:size-8">
             <RiBox3Line className="size-4" />
           </span>
           {sparepart ? `Edit ${itemLabel}` : `Tambah ${itemLabel}`}
         </DialogTitle>
       </DialogHeader>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col">
+        <div className="px-4 sm:px-6">
+        <div className="flex flex-col gap-3 py-3 sm:gap-4 sm:py-4">
+        <div className="flex flex-col gap-2.5 sm:gap-3">
           <div className="flex items-center gap-1">
-            <div className="h-5 w-1 rounded-full bg-primary" />
-            <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+            <div className="h-4 w-1 rounded-full bg-primary sm:h-5" />
+            <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground sm:text-sm">
               <RiEditLine className="size-4" />
               Informasi Dasar
             </span>
           </div>
 
-          <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="name" className="text-sm">Nama {itemLabel}</Label>
+          <div className="flex flex-col gap-3 sm:ml-4 sm:gap-4 sm:border-l sm:border-border sm:pl-4">
+            <div className="flex flex-col gap-1.5 sm:gap-2">
+              <Label htmlFor="name" className="text-xs sm:text-sm">Nama {itemLabel}</Label>
               <Input
                 id="name"
                 value={name}
@@ -299,10 +301,10 @@ function SparepartFormContent({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="flex flex-col gap-1.5 sm:gap-2">
                 <div className="flex items-center gap-1.5">
-                  <Label htmlFor="price" className="flex items-center gap-1.5 text-sm">
+                  <Label htmlFor="price" className="flex items-center gap-1.5 text-xs sm:text-sm">
                     <RiPriceTag3Line className="size-3.5" />
                     Harga Jual
                   </Label>
@@ -320,8 +322,8 @@ function SparepartFormContent({
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="purchasePrice" className="flex items-center gap-1.5 text-sm">
+              <div className="flex flex-col gap-1.5 sm:gap-2">
+                <Label htmlFor="purchasePrice" className="flex items-center gap-1.5 text-xs sm:text-sm">
                   <RiPriceTag3Line className="size-3.5" />
                   Harga Beli
                 </Label>
@@ -336,9 +338,9 @@ function SparepartFormContent({
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5 sm:gap-2">
                 <div className="flex items-center gap-1.5">
-                  <Label htmlFor="stock" className="flex items-center gap-1.5 text-sm">
+                  <Label htmlFor="stock" className="flex items-center gap-1.5 text-xs sm:text-sm">
                     <RiStackLine className="size-3.5" />
                     Stok
                   </Label>
@@ -356,8 +358,8 @@ function SparepartFormContent({
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="criticalStock" className="flex items-center gap-1.5 text-sm">
+              <div className="flex flex-col gap-1.5 sm:gap-2">
+                <Label htmlFor="criticalStock" className="flex items-center gap-1.5 text-xs sm:text-sm">
                   <RiStackLine className="size-3.5" />
                   Stok Kritis
                 </Label>
@@ -371,11 +373,11 @@ function SparepartFormContent({
                   disabled={isLoading}
                   required
                 />
-                <p className="text-xs text-muted-foreground">Barang dianggap kritis jika stok sama dengan atau di bawah angka ini.</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">Barang dianggap kritis jika stok sama dengan atau di bawah angka ini.</p>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="supplierName" className="text-sm">Nama Supplier</Label>
+              <div className="flex flex-col gap-1.5 sm:gap-2">
+                <Label htmlFor="supplierName" className="text-xs sm:text-sm">Nama Supplier</Label>
                 <Input
                   id="supplierName"
                   value={supplierName}
@@ -385,8 +387,8 @@ function SparepartFormContent({
                 />
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="categoryName" className="text-sm">Kategori</Label>
+              <div className="flex flex-col gap-1.5 sm:gap-2">
+                <Label htmlFor="categoryName" className="text-xs sm:text-sm">Kategori</Label>
                 <Input
                   id="categoryName"
                   list="sparepart-category-options"
@@ -400,7 +402,7 @@ function SparepartFormContent({
                     <option key={category.id} value={category.name} />
                   ))}
                 </datalist>
-                <p className="text-xs text-muted-foreground">Kategori baru akan dibuat otomatis saat disimpan.</p>
+                <p className="hidden text-xs text-muted-foreground sm:block">Kategori baru akan dibuat otomatis saat disimpan.</p>
               </div>
 
               {isRetailItem && (
@@ -425,19 +427,19 @@ function SparepartFormContent({
           </div>
         </div>
 
-        {!isRetailItem && <div className="border-t pt-2" />}
+        {!isRetailItem && <div className="border-t" />}
 
         {!isRetailItem && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2.5 sm:gap-3">
             <div className="flex items-center gap-1">
-              <div className="h-5 w-1 rounded-full bg-primary" />
-              <span className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              <div className="h-4 w-1 rounded-full bg-primary sm:h-5" />
+              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground sm:text-sm">
                 <RiDeviceLine className="size-4" />
                 Kompatibilitas
               </span>
             </div>
 
-            <div className="flex flex-col gap-4 border-l border-border pl-3 sm:ml-4 sm:pl-4">
+            <div className="flex flex-col gap-3 sm:ml-4 sm:gap-4 sm:border-l sm:border-border sm:pl-4">
               {selectedDevices.length === 0 && (
                 <div className="flex items-start gap-2">
                   <Checkbox
@@ -446,13 +448,13 @@ function SparepartFormContent({
                     onCheckedChange={(checked) => setIsUniversal(checked === true)}
                     disabled={isLoading}
                   />
-                  <Label htmlFor="isUniversal" className="text-sm leading-relaxed">Universal (dapat digunakan di perangkat apapun)</Label>
+                  <Label htmlFor="isUniversal" className="text-xs leading-relaxed sm:text-sm">Universal (dapat digunakan di perangkat apapun)</Label>
                 </div>
               )}
 
               {!isUniversal && (
-                <div className="flex flex-col gap-2">
-                  <Label className="text-sm">Perangkat Kompatibel</Label>
+                <div className="flex flex-col gap-1.5 sm:gap-2">
+                  <Label className="text-xs sm:text-sm">Perangkat Kompatibel</Label>
                   <MultiDeviceInput
                     value={selectedDevices}
                     onChange={(devices) => {
@@ -485,7 +487,10 @@ function SparepartFormContent({
           </div>
         )}
 
-        <div className="flex flex-col-reverse gap-2 border-t pt-2 sm:flex-row sm:justify-end sm:gap-3">
+        </div>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t bg-background px-4 py-3 sm:flex-row sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Batal
           </Button>

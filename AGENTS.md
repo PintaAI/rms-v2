@@ -37,5 +37,6 @@ Registered in `lib/features.ts` — add a key to `FeatureKey` union + entry in `
 
 - Server actions in `actions/` (auto-exported via `actions/index.ts`). Call `revalidatePath` directly or via `lib/revalidation.ts` after mutations.
 - UI: shadcn `radix-mira` preset, Tailwind v4, `@remixicon/react` icons. Follow `components.json`. Never introduce `lucide-react`.
+- Wide dialogs should set both a max width and a responsive min width, e.g. `max-w-4xl sm:min-w-4xl`, so desktop dialogs do not collapse while mobile remains safe.
 - User manual: `user-manual/*.md` parsed by `lib/markdown.ts`, exposed by `app/api/user-manual/route.ts`. Filenames encode order + icon (e.g. `01-overview[RiBook2Line].md`). Markdown `:::demo ComponentName` blocks wired through `components/user-manual/demo-components`.
 - Dev docs live in `dev-doc/` — read relevant ones before touching auth, feature gates, or WhatsApp.

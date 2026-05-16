@@ -37,7 +37,7 @@ const buildHistoryHref = (
   if (params.to) search.set("to", params.to)
   if (params.page && params.page > 1) search.set("page", String(params.page))
   const query = search.toString()
-  return `/${tokoId}/admin/inventory/restock-history${query ? `?${query}` : ""}`
+  return `/${tokoId}/inventory/restock-history${query ? `?${query}` : ""}`
 }
 
 export function RestockHistoryList({ tokoId, history, filters }: RestockHistoryListProps) {

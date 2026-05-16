@@ -3,10 +3,10 @@
 import { createActivityLogIfUser } from "@/lib/activity-log"
 import prisma from "@/lib/prisma"
 import { actionError, type ActionResult, type ActionResultWithData } from "@/lib/auth/authorization"
-import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope"
-import type { RequestScope } from "@/lib/auth/request-scope"
+import { assertFeature, assertPermission, getRequestScope } from "@/lib/auth/request-scope"
 import { revalidateInventoryPaths } from "@/lib/revalidation"
 import type { FeatureKey } from "@/lib/features"
+import type { PermissionKey } from "@/lib/permissions"
 import type { Prisma } from "@/prisma/generated/prisma/client"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
@@ -344,31 +344,18 @@ async function generateSparepartBarcodes(tokoId: string, count: number) {
 
 async function getInventoryUser(
   tokoId: string,
-  requireWriteAccess: boolean = false,
-  feature: FeatureKey = "inventory.management"
+  permissionKey: PermissionKey = "inventory.view",
+  feature: FeatureKey = "inventory.management",
+  kind?: InventoryItemKind | null
 ) {
   try {
     const scope = await getRequestScope(tokoId)
-    if (requireWriteAccess) assertRole(scope, ["admin"])
-    assertFeature(scope, feature)
-    assertWorkflowForInventory(scope)
-
-    return { success: true as const, user: scope.user, scope }
-  } catch (error) {
-    return actionError(error) as { success: false; error: string }
-  }
-}
-
-async function getCreateSparepartUser(tokoId: string) {
-  try {
-    const scope = await getRequestScope(tokoId)
-    assertFeature(scope, "inventory.management")
-    assertWorkflowForInventory(scope)
-
-    if (scope.user.role === "staff") {
-      assertFeature(scope, "inventory.staffCreateSparepart")
+    if (kind === "retail_item") {
+      assertFeature(scope, "retail.sales")
+      assertPermission(scope, "inventory.manageRetail")
     } else {
-      assertRole(scope, ["admin"])
+      assertFeature(scope, feature)
+      assertPermission(scope, permissionKey)
     }
 
     return { success: true as const, user: scope.user, scope }
@@ -377,13 +364,21 @@ async function getCreateSparepartUser(tokoId: string) {
   }
 }
 
-function assertWorkflowForInventory(scope: RequestScope) {
-  if (scope.user.role === "staff") assertFeature(scope, "staff.workflow")
-  if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
-}
+async function getCreateSparepartUser(tokoId: string, kind?: InventoryItemKind | null) {
+  try {
+    const scope = await getRequestScope(tokoId)
+    if (kind === "retail_item") {
+      assertFeature(scope, "retail.sales")
+      assertPermission(scope, "inventory.manageRetail")
+    } else {
+      assertFeature(scope, "inventory.management")
+      assertPermission(scope, "inventory.create")
+    }
 
-function assertRetailInventoryFeature(scope: RequestScope, kind?: InventoryItemKind | null) {
-  if (kind === "retail_item") assertFeature(scope, "retail.sales")
+    return { success: true as const, user: scope.user, scope }
+  } catch (error) {
+    return actionError(error) as { success: false; error: string }
+  }
 }
 
 type SparepartCategoryClient = typeof prisma | Prisma.TransactionClient
@@ -428,9 +423,8 @@ export async function getSparepartCategories(tokoId: string): Promise<ActionResu
 
 export async function getSpareparts(tokoId: string, kind: InventoryItemKind = "sparepart"): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
   try {
-    const access = await getInventoryUser(tokoId)
+    const access = await getInventoryUser(tokoId, "inventory.view", "inventory.management", kind)
     if (!access.success) return access
-    assertRetailInventoryFeature(access.scope, kind)
 
     const spareparts = await prisma.sparepart.findMany({
       where: { tokoId, kind },
@@ -457,7 +451,7 @@ export async function getSpareparts(tokoId: string, kind: InventoryItemKind = "s
 
 export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: string): Promise<ActionResultWithData<SparepartListItem[]>> {
   try {
-    const access = await getInventoryUser(tokoId, false, "inventory.management")
+    const access = await getInventoryUser(tokoId, "inventory.view", "inventory.management")
     if (!access.success) return access
 
     const whereClause: {
@@ -497,9 +491,8 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
 export async function createSparepart(data: z.infer<typeof createSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
   try {
     const validated = createSparepartSchema.parse(data)
-    const access = await getCreateSparepartUser(validated.tokoId)
+    const access = await getCreateSparepartUser(validated.tokoId, validated.kind)
     if (!access.success) return access
-    assertRetailInventoryFeature(access.scope, validated.kind)
 
     const existing = await prisma.sparepart.findFirst({
       where: { tokoId: validated.tokoId, name: validated.name },
@@ -541,7 +534,7 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
       },
     })
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(validated.tokoId)
 
     await createActivityLogIfUser({
       tokoId: validated.tokoId,
@@ -588,11 +581,8 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
       return { success: false, error: "Sparepart tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(sparepart.tokoId, true)
+    const access = await getInventoryUser(sparepart.tokoId, "inventory.update", "inventory.management", sparepart.kind)
     if (!access.success) return access
-    if (sparepart.kind === "retail_item" || validated.kind === "retail_item") {
-      assertFeature(access.scope, "retail.sales")
-    }
 
     if (validated.name) {
       const existing = await prisma.sparepart.findFirst({
@@ -640,7 +630,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
       },
     })
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(sparepart.tokoId)
 
     await createActivityLogIfUser({
       tokoId: sparepart.tokoId,
@@ -676,10 +666,11 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
 export async function importSpareparts(data: z.infer<typeof importSparepartsSchema>): Promise<ActionResultWithData<ImportSparepartsResult>> {
   try {
     const validated = importSparepartsSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, true)
+    const access = await getInventoryUser(validated.tokoId, "inventory.import")
     if (!access.success) return access
     if (validated.rows.some((row) => row.kind === "retail_item")) {
       assertFeature(access.scope, "retail.sales")
+      assertPermission(access.scope, "inventory.manageRetail")
     }
 
     const errors: ImportSparepartsResult["errors"] = []
@@ -769,7 +760,7 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
       }
     })
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(validated.tokoId)
 
     await createActivityLogIfUser({
       tokoId: validated.tokoId,
@@ -858,7 +849,7 @@ function validateRestockSupplierDebt(input: NonNullable<RestockSparepartsWithDeb
 }
 
 function revalidateSupplierDebtPath(tokoId: string) {
-  revalidatePath(`/${tokoId}/admin/supplier-debts`)
+  revalidatePath(`/${tokoId}/supplier-debts`)
 }
 
 export async function restockSparepart(data: z.infer<typeof restockSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
@@ -874,9 +865,12 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
       return { success: false, error: "Sparepart tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(sparepart.tokoId, true)
+    const access = await getInventoryUser(sparepart.tokoId, "inventory.restock")
     if (!access.success) return access
-    assertRetailInventoryFeature(access.scope, sparepart.kind)
+    if (sparepart.kind === "retail_item") {
+      assertFeature(access.scope, "retail.sales")
+      assertPermission(access.scope, "inventory.manageRetail")
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const updatedSparepart = await tx.sparepart.update({
@@ -912,7 +906,7 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
       return updatedSparepart
     })
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(sparepart.tokoId)
 
     await createActivityLogIfUser({
       tokoId: sparepart.tokoId,
@@ -947,7 +941,7 @@ export async function restockSparepartsWithDebt(
 ): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
   try {
     const validated = restockSparepartsWithDebtSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, true)
+    const access = await getInventoryUser(validated.tokoId, "inventory.restock")
     if (!access.success) return access
 
     const supplierDebt = validated.supplierDebt
@@ -966,6 +960,7 @@ export async function restockSparepartsWithDebt(
 
     if (existingSpareparts.some((sparepart) => sparepart.kind === "retail_item")) {
       assertFeature(access.scope, "retail.sales")
+      assertPermission(access.scope, "inventory.manageRetail")
     }
 
     for (const item of validated.items) {
@@ -1099,9 +1094,8 @@ export async function restockSparepartsWithDebt(
 
 export async function searchSpareparts(tokoId: string, query: string, kind: InventoryItemKind = "sparepart"): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
   try {
-    const access = await getInventoryUser(tokoId)
+    const access = await getInventoryUser(tokoId, "inventory.view", "inventory.management", kind)
     if (!access.success) return access
-    assertRetailInventoryFeature(access.scope, kind)
 
     const spareparts = await prisma.sparepart.findMany({
       where: {
@@ -1143,7 +1137,7 @@ export async function getStockInHistory(tokoId: string, limit: number = 20): Pro
   userName: string
 }>>> {
   try {
-    const access = await getInventoryUser(tokoId)
+    const access = await getInventoryUser(tokoId, "inventory.viewHistory")
     if (!access.success) return access
 
     const activities = await prisma.activityLog.findMany({
@@ -1196,7 +1190,7 @@ export async function getRestockHistory(
   filters: RestockHistoryFilters = {}
 ): Promise<ActionResultWithData<RestockHistoryResult>> {
   try {
-    const access = await getInventoryUser(tokoId)
+    const access = await getInventoryUser(tokoId, "inventory.viewHistory")
     if (!access.success) return access
 
     const pageSize = Math.min(Math.max(filters.pageSize ?? 20, 1), 100)
@@ -1319,9 +1313,8 @@ export async function getInventoryReport(
   filters: InventoryReportFilters = {}
 ): Promise<ActionResultWithData<InventoryReportResult>> {
   try {
-    const access = await getInventoryUser(tokoId)
+    const access = await getInventoryUser(tokoId, "inventory.report", "inventory.management", filters.kind)
     if (!access.success) return access
-    assertRetailInventoryFeature(access.scope, filters.kind)
 
     const [spareparts, supplierReturns] = await Promise.all([
       prisma.sparepart.findMany({
@@ -1489,9 +1482,8 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
       return { success: false, error: "Sparepart tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(sparepart.tokoId, true)
+    const access = await getInventoryUser(sparepart.tokoId, "inventory.delete", "inventory.management", sparepart.kind)
     if (!access.success) return access
-    assertRetailInventoryFeature(access.scope, sparepart.kind)
 
     const usedInServices = await prisma.serviceItem.findFirst({
       where: { referenceId: id },
@@ -1506,7 +1498,7 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
       prisma.sparepart.delete({ where: { id } }),
     ])
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(sparepart.tokoId)
 
     await createActivityLogIfUser({
       tokoId: sparepart.tokoId,
@@ -1553,7 +1545,7 @@ export async function getServicePricelists(tokoId: string): Promise<ActionResult
 export async function importServicePricelists(data: z.infer<typeof importServicePricelistsSchema>): Promise<ActionResultWithData<ImportServicePricelistsResult>> {
   try {
     const validated = importServicePricelistsSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, true)
+    const access = await getInventoryUser(validated.tokoId, "inventory.manageServicePricelists")
     if (!access.success) return access
 
     const errors: ImportServicePricelistsResult["errors"] = []
@@ -1619,7 +1611,7 @@ export async function importServicePricelists(data: z.infer<typeof importService
       }
     })
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(validated.tokoId)
 
     return {
       success: true,
@@ -1637,7 +1629,7 @@ export async function importServicePricelists(data: z.infer<typeof importService
 export async function createServicePricelist(data: z.infer<typeof createServicePricelistSchema>): Promise<ActionResultWithData<ServicePricelist>> {
   try {
     const validated = createServicePricelistSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, true)
+    const access = await getInventoryUser(validated.tokoId, "inventory.manageServicePricelists")
     if (!access.success) return access
 
     const existing = await prisma.servicePricelist.findFirst({
@@ -1662,7 +1654,7 @@ export async function createServicePricelist(data: z.infer<typeof createServiceP
       },
     })
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(validated.tokoId)
 
     return { success: true, data: pricelist }
   } catch (error) {
@@ -1687,7 +1679,7 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
       return { success: false, error: "Daftar harga jasa tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(pricelist.tokoId, true)
+    const access = await getInventoryUser(pricelist.tokoId, "inventory.manageServicePricelists")
     if (!access.success) return access
 
     if (validated.title) {
@@ -1717,7 +1709,7 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
       },
     })
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(pricelist.tokoId)
 
     return { success: true, data: updated }
   } catch (error) {
@@ -1740,12 +1732,12 @@ export async function deleteServicePricelist(id: string): Promise<ActionResult> 
       return { success: false, error: "Daftar harga jasa tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(pricelist.tokoId, true)
+    const access = await getInventoryUser(pricelist.tokoId, "inventory.manageServicePricelists")
     if (!access.success) return access
 
     await prisma.servicePricelist.delete({ where: { id } })
 
-    revalidateInventoryPaths()
+    revalidateInventoryPaths(pricelist.tokoId)
 
     return { success: true }
   } catch (error) {

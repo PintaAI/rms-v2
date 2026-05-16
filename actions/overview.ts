@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth/request-user";
+import { assertPermission } from "@/lib/auth/request-scope";
 import { withScope } from "@/lib/auth/wrapper";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus } from "@/prisma/generated/prisma/enums";
@@ -256,7 +257,9 @@ export async function getAdminOverview(
     if (!tokoId) return { success: false, error: "No toko found" };
   }
 
-  return withScope(tokoId, { role: ["admin"] }, async (scope) => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "dashboard.view");
+
     const shared = await getSharedOverviewData(tokoId);
     if (!shared.success || !shared.data) throw new Error(shared.error ?? "Failed to fetch overview data");
 
@@ -374,7 +377,9 @@ export async function getStaffOverview(
     if (!tokoId) return { success: false, error: "No toko found" };
   }
 
-  return withScope(tokoId, { role: ["admin", "staff"], feature: "staff.workflow" }, async () => {
+  return withScope(tokoId, { feature: "staff.workflow" }, async (scope) => {
+    assertPermission(scope, "dashboard.view");
+
     const shared = await getSharedOverviewData(tokoId);
     if (!shared.success || !shared.data) throw new Error(shared.error ?? "Failed to fetch overview data");
 

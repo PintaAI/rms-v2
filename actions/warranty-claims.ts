@@ -3,7 +3,7 @@
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createActivityLog } from "@/lib/activity-log";
-import { assertFeature } from "@/lib/auth/request-scope";
+import { assertFeature, assertPermission } from "@/lib/auth/request-scope";
 import { withScope } from "@/lib/auth/wrapper";
 import { revalidateServicePaths } from "@/lib/revalidation";
 import type { ActionResult, ActionResultWithData } from "./service-types";
@@ -55,7 +55,9 @@ export async function createWarrantyClaim(
   if (service.status !== "done" && service.status !== "failed") return { success: false, error: "Klaim hanya bisa dibuat untuk service selesai" };
   if (service.warrantyClaims.length > 0) return { success: false, error: "Masih ada klaim terbuka untuk service ini" };
 
-  return withScope(service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
+  return withScope(service.tokoId, {}, async (scope) => {
+    assertPermission(scope, "warranty.create");
+
     const claim = await prisma.$transaction(async (tx) => {
       const created = await tx.warrantyClaim.create({
         data: {
@@ -127,7 +129,9 @@ export async function resolveWarrantyClaim(
     return { success: false, error: "Retur supplier hanya boleh dibuat untuk solusi ganti sparepart" };
   }
 
-  return withScope(claim.tokoId, { role: ["admin", "staff"] }, async (scope) => {
+  return withScope(claim.tokoId, {}, async (scope) => {
+    assertPermission(scope, "warranty.resolve");
+
     if (resolution === "replace_part") assertFeature(scope, "inventory.management");
 
     const resolvedAt = new Date();

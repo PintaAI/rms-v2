@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { ServiceStats, TechnicianTaskStats } from "@/actions/service";
 import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
 import type { CapabilityAccessMap } from "@/lib/auth/request-scope";
+import type { PermissionAccessMap, PermissionKey } from "@/lib/permissions";
 
 // ── Shared nav item shapes ──────────────────────────────────────────
 
@@ -50,38 +51,40 @@ export type DashboardNavEntry =
 
 export function buildServiceFilterItems(
   tokoid: string,
-  rolePath: "admin" | "staff",
+  basePath: string,
   serviceStats: ServiceStats | null | undefined
 ): NavFilterItem[] {
+  const servicePath = `/${tokoid}${basePath}/service`;
+
   return [
     {
-      href: `/${tokoid}/${rolePath}/service`,
+      href: servicePath,
       icon: "tools",
       label: "Semua",
     },
     {
-      href: `/${tokoid}/${rolePath}/service?status=received`,
+      href: `${servicePath}?status=received`,
       icon: "inbox",
       label: "Masuk",
       badge: serviceStats?.received,
       badgeVariant: "secondary",
     },
     {
-      href: `/${tokoid}/${rolePath}/service?status=repairing`,
+      href: `${servicePath}?status=repairing`,
       icon: "progress",
       label: "Proses",
       badge: serviceStats?.repairing,
       badgeVariant: "accent",
     },
     {
-      href: `/${tokoid}/${rolePath}/service?status=done,failed`,
+      href: `${servicePath}?status=done,failed`,
       icon: "check",
       label: "Selesai & Gagal",
       badge: (serviceStats?.done ?? 0) + (serviceStats?.failed ?? 0),
       badgeVariant: "success",
     },
     {
-      href: `/${tokoid}/${rolePath}/service?pickedup=true`,
+      href: `${servicePath}?pickedup=true`,
       icon: "logout",
       label: "Sudah Diambil",
       badge: serviceStats?.pickedUp,
@@ -98,40 +101,40 @@ export function buildTechnicianTaskFilterItems(
 ): NavFilterItem[] {
   return [
     {
-      href: `/${tokoid}/teknisi/task`,
+      href: `/${tokoid}/service/tasks`,
       icon: "folder",
       label: "Semua",
     },
     {
-      href: `/${tokoid}/teknisi/task?status=tersedia`,
+      href: `/${tokoid}/service/tasks?status=tersedia`,
       icon: "task",
       label: "Tersedia",
       badge: taskStats?.tersedia,
       badgeVariant: "secondary",
     },
     {
-      href: `/${tokoid}/teknisi/task?status=repairing`,
+      href: `/${tokoid}/service/tasks?status=repairing`,
       icon: "tools",
       label: "Dikerjakan",
       badge: taskStats?.repairing,
       badgeVariant: "accent",
     },
     {
-      href: `/${tokoid}/teknisi/task?status=selesai`,
+      href: `/${tokoid}/service/tasks?status=selesai`,
       icon: "check",
       label: "Selesai",
       badge: taskStats?.selesai,
       badgeVariant: "success",
     },
     {
-      href: `/${tokoid}/teknisi/task?status=gagal`,
+      href: `/${tokoid}/service/tasks?status=gagal`,
       icon: "close",
       label: "Gagal",
       badge: taskStats?.gagal,
       badgeVariant: "destructive",
     },
     {
-      href: `/${tokoid}/teknisi/task?status=history`,
+      href: `/${tokoid}/service/tasks?status=history`,
       icon: "history",
       label: "History",
       badgeVariant: "outline",
@@ -144,6 +147,7 @@ export function buildTechnicianTaskFilterItems(
 interface CommonNavProps {
   tokoid: string;
   featureAccess: FeatureAccessMap;
+  permissionAccess: PermissionAccessMap;
   disabledFeatures: FeatureKey[];
 }
 
@@ -152,51 +156,65 @@ interface AdminStaffNavProps extends CommonNavProps {
   serviceStats: ServiceStats | null | undefined;
 }
 
+function shouldShowPermission(permissionAccess: PermissionAccessMap, permission: PermissionKey): boolean {
+  const access = permissionAccess[permission];
+  return access.allowed || access.lockReason === "feature_unavailable";
+}
+
+function canUsePermission(permissionAccess: PermissionAccessMap, permission: PermissionKey): boolean {
+  return permissionAccess[permission]?.allowed === true;
+}
+
 export function buildAdminNav({
   tokoid,
-  featureAccess,
+  permissionAccess,
   capabilities,
   disabledFeatures,
   serviceStats,
 }: AdminStaffNavProps): DashboardNavEntry[] {
   const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
 
-  const dashboardEnabled = capabilities["dashboard.overview"] ?? false;
-  const tokoEnabled = capabilities["toko.manage"] ?? false;
-  const serviceEnabled = capabilities["service.management"] ?? false;
-  const karyawanEnabled = featureAccess["karyawan.management"] ?? false;
-  const analyticsEnabled = featureAccess["analytics.revenue"] ?? false;
-  const inventoryEnabled = featureAccess["inventory.management"] ?? false;
-  const retailEnabled = featureAccess["retail.sales"] ?? false;
-  const auditEnabled = featureAccess["inventory.audit"] ?? false;
+  const dashboardEnabled = canUsePermission(permissionAccess, "dashboard.view") && (capabilities["dashboard.overview"] ?? false);
+  const tokoEnabled = canUsePermission(permissionAccess, "toko.viewSettings") && (capabilities["toko.manage"] ?? false);
+  const serviceEnabled = canUsePermission(permissionAccess, "service.view") && (capabilities["service.management"] ?? false);
+  const karyawanEnabled = canUsePermission(permissionAccess, "karyawan.view");
+  const analyticsEnabled = canUsePermission(permissionAccess, "analytics.view");
+  const inventoryEnabled = canUsePermission(permissionAccess, "inventory.view");
+  const retailEnabled = canUsePermission(permissionAccess, "retail.view");
+  const retailHistoryEnabled = canUsePermission(permissionAccess, "retail.viewHistory");
+  const auditEnabled = canUsePermission(permissionAccess, "inventory.audit");
 
-  const entries: DashboardNavEntry[] = [
-    {
+  const entries: DashboardNavEntry[] = [];
+
+  if (shouldShowPermission(permissionAccess, "dashboard.view")) {
+    entries.push({
       type: "item",
       href: `/${tokoid}/admin`,
       icon: "dashboard",
       label: "Admin Overview",
       isLocked: !dashboardEnabled,
-    },
-  ];
+    });
+  }
 
-  if (!isFeatureDisabled("analytics.revenue")) {
+  if (!isFeatureDisabled("analytics.revenue") && shouldShowPermission(permissionAccess, "analytics.view")) {
     entries.push({
       type: "item",
-      href: `/${tokoid}/admin/analytics`,
+      href: `/${tokoid}/analytics`,
       icon: "chart",
       label: "Analytics",
       isLocked: !analyticsEnabled,
     });
   }
 
-  entries.push({
-    type: "item",
-    href: `/${tokoid}/admin/toko`,
-    icon: "store",
-    label: "Toko",
-    isLocked: !tokoEnabled,
-  });
+  if (shouldShowPermission(permissionAccess, "toko.viewSettings")) {
+    entries.push({
+      type: "item",
+      href: `/${tokoid}/admin/toko`,
+      icon: "store",
+      label: "Toko",
+      isLocked: !tokoEnabled,
+    });
+  }
 
   if (serviceEnabled) {
     entries.push({
@@ -204,11 +222,11 @@ export function buildAdminNav({
       title: "Service",
       icon: "tools",
       defaultOpen: true,
-      items: buildServiceFilterItems(tokoid, "admin", serviceStats),
+      items: buildServiceFilterItems(tokoid, "", serviceStats),
     });
   }
 
-  if (!isFeatureDisabled("retail.sales")) {
+  if (!isFeatureDisabled("retail.sales") && (shouldShowPermission(permissionAccess, "retail.view") || shouldShowPermission(permissionAccess, "retail.viewHistory"))) {
     entries.push({
       type: "group",
       title: "Retail",
@@ -216,25 +234,25 @@ export function buildAdminNav({
       defaultOpen: true,
       items: [
         {
-          href: `/${tokoid}/admin/retail`,
+          href: `/${tokoid}/retail`,
           icon: "store",
           label: "Kasir",
           isLocked: !inventoryEnabled || !retailEnabled,
         },
         {
-          href: `/${tokoid}/admin/retail/history`,
+          href: `/${tokoid}/retail/history`,
           icon: "history",
           label: "Riwayat Penjualan",
-          isLocked: !inventoryEnabled || !retailEnabled,
+          isLocked: !inventoryEnabled || !retailHistoryEnabled,
         },
-      ],
+      ].filter((item) => item.label === "Kasir" ? shouldShowPermission(permissionAccess, "retail.view") : shouldShowPermission(permissionAccess, "retail.viewHistory")),
     });
   }
 
-  if (!isFeatureDisabled("karyawan.management")) {
+  if (!isFeatureDisabled("karyawan.management") && shouldShowPermission(permissionAccess, "karyawan.view")) {
     entries.push({
       type: "item",
-      href: `/${tokoid}/admin/karyawan`,
+      href: `/${tokoid}/karyawan`,
       icon: "people",
       label: "Karyawan",
       isLocked: !karyawanEnabled,
@@ -243,50 +261,44 @@ export function buildAdminNav({
 
   const inventoryItems: NavGroupItem[] = [];
 
-  if (!isFeatureDisabled("inventory.management")) {
+  if (!isFeatureDisabled("inventory.management") && shouldShowPermission(permissionAccess, "inventory.view")) {
     inventoryItems.push(
       {
-        href: `/${tokoid}/admin/inventory`,
+        href: `/${tokoid}/inventory`,
         icon: "tools",
-        label: "Sparepart & Jasa",
+        label: "Inventory Toko",
         isLocked: !inventoryEnabled,
       },
       {
-        href: `/${tokoid}/admin/inventory/retail`,
-        icon: "store",
-        label: "Barang Retail",
-        isLocked: !inventoryEnabled,
-      },
-      {
-        href: `/${tokoid}/admin/inventory/restock-history`,
+        href: `/${tokoid}/inventory/restock-history`,
         icon: "history",
         label: "Riwayat Restock",
-        isLocked: !inventoryEnabled,
+        isLocked: !canUsePermission(permissionAccess, "inventory.viewHistory"),
       },
-      {
-        href: `/${tokoid}/admin/inventory/supplier-returns`,
+      ...(canUsePermission(permissionAccess, "supplier_returns.view") ? [{
+        href: `/${tokoid}/inventory/supplier-returns`,
         icon: "form",
         label: "Retur Supplier",
-        isLocked: !inventoryEnabled,
-      },
+        isLocked: false,
+      }] : []),
       {
-        href: `/${tokoid}/admin/supplier-debts`,
+        href: `/${tokoid}/supplier-debts`,
         icon: "form",
         label: "Hutang Supplier",
-        isLocked: !inventoryEnabled,
+        isLocked: !canUsePermission(permissionAccess, "supplier_debts.view"),
       },
       {
-        href: `/${tokoid}/admin/inventory/reports`,
+        href: `/${tokoid}/inventory/reports`,
         icon: "chart",
         label: "Laporan Inventory",
-        isLocked: !inventoryEnabled,
+        isLocked: !canUsePermission(permissionAccess, "inventory.report"),
       }
     );
   }
 
-  if (!isFeatureDisabled("inventory.audit")) {
+  if (!isFeatureDisabled("inventory.audit") && shouldShowPermission(permissionAccess, "inventory.audit")) {
     inventoryItems.push({
-      href: `/${tokoid}/admin/inventory/audit-gudang`,
+      href: `/${tokoid}/inventory/audit-gudang`,
       icon: "form",
       label: "Audit Gudang",
       isLocked: !auditEnabled,
@@ -309,6 +321,7 @@ export function buildAdminNav({
 export function buildStaffNav({
   tokoid,
   featureAccess,
+  permissionAccess,
   capabilities,
   disabledFeatures,
   serviceStats,
@@ -316,23 +329,46 @@ export function buildStaffNav({
   const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
 
   const workflowEnabled = featureAccess["staff.workflow"] ?? false;
-  const serviceEnabled = capabilities["service.management"] ?? false;
-  const inventoryEnabled = featureAccess["inventory.management"] ?? false;
-  const retailEnabled = featureAccess["retail.sales"] ?? false;
+  const serviceEnabled = canUsePermission(permissionAccess, "service.view") && (capabilities["service.management"] ?? false);
+  const inventoryEnabled = canUsePermission(permissionAccess, "inventory.view");
+  const retailEnabled = canUsePermission(permissionAccess, "retail.view");
+  const retailHistoryEnabled = canUsePermission(permissionAccess, "retail.viewHistory");
 
   if (isFeatureDisabled("staff.workflow")) {
     return [];
   }
 
-  const entries: DashboardNavEntry[] = [
-    {
+  const entries: DashboardNavEntry[] = [];
+
+  if (shouldShowPermission(permissionAccess, "dashboard.view")) {
+    entries.push({
       type: "item",
       href: `/${tokoid}/staff`,
       icon: "dashboard",
       label: "Staff Overview",
-      isLocked: !workflowEnabled,
-    },
-  ];
+      isLocked: !workflowEnabled || !canUsePermission(permissionAccess, "dashboard.view"),
+    });
+  }
+
+  if (!isFeatureDisabled("analytics.revenue") && shouldShowPermission(permissionAccess, "analytics.view")) {
+    entries.push({
+      type: "item",
+      href: `/${tokoid}/analytics`,
+      icon: "chart",
+      label: "Analytics",
+      isLocked: !canUsePermission(permissionAccess, "analytics.view"),
+    });
+  }
+
+  if (!isFeatureDisabled("karyawan.management") && shouldShowPermission(permissionAccess, "karyawan.view")) {
+    entries.push({
+      type: "item",
+      href: `/${tokoid}/karyawan`,
+      icon: "people",
+      label: "Karyawan",
+      isLocked: !canUsePermission(permissionAccess, "karyawan.view"),
+    });
+  }
 
   if (workflowEnabled && serviceEnabled) {
     entries.push({
@@ -340,11 +376,11 @@ export function buildStaffNav({
       title: "Service",
       icon: "tools",
       defaultOpen: true,
-      items: buildServiceFilterItems(tokoid, "staff", serviceStats),
+      items: buildServiceFilterItems(tokoid, "", serviceStats),
     });
   }
 
-  if (workflowEnabled && !isFeatureDisabled("retail.sales")) {
+  if (workflowEnabled && !isFeatureDisabled("retail.sales") && inventoryEnabled && (retailEnabled || retailHistoryEnabled)) {
     entries.push({
       type: "group",
       title: "Retail",
@@ -352,28 +388,93 @@ export function buildStaffNav({
       defaultOpen: true,
       items: [
         {
-          href: `/${tokoid}/staff/retail`,
+          href: `/${tokoid}/retail`,
           icon: "store",
           label: "Kasir",
-          isLocked: !inventoryEnabled || !retailEnabled,
+          isLocked: false,
         },
         {
-          href: `/${tokoid}/staff/retail/history`,
+          href: `/${tokoid}/retail/history`,
           icon: "history",
           label: "Riwayat Penjualan",
-          isLocked: !inventoryEnabled || !retailEnabled,
+          isLocked: false,
         },
-      ],
+      ].filter((item) => item.label === "Kasir" ? retailEnabled : retailHistoryEnabled),
     });
   }
 
-  if (workflowEnabled && !isFeatureDisabled("inventory.management")) {
-    entries.push({
-      type: "item",
-      href: `/${tokoid}/staff/inventory`,
+  const inventoryItems: NavGroupItem[] = [];
+
+  if (workflowEnabled && !isFeatureDisabled("inventory.management") && canUsePermission(permissionAccess, "inventory.view")) {
+    inventoryItems.push(
+      {
+        href: `/${tokoid}/inventory`,
+        icon: "archive",
+        label: "Inventory",
+        isLocked: false,
+      },
+    );
+    if (canUsePermission(permissionAccess, "inventory.viewHistory")) {
+      inventoryItems.push(
+      {
+        href: `/${tokoid}/inventory/restock-history`,
+        icon: "history",
+        label: "Riwayat Restock",
+        isLocked: false,
+      });
+    }
+    if (canUsePermission(permissionAccess, "supplier_returns.view")) {
+      inventoryItems.push({
+        href: `/${tokoid}/inventory/supplier-returns`,
+        icon: "form",
+        label: "Retur Supplier",
+        isLocked: false,
+      });
+    }
+    if (canUsePermission(permissionAccess, "supplier_debts.view")) {
+      inventoryItems.push(
+      {
+        href: `/${tokoid}/supplier-debts`,
+        icon: "form",
+        label: "Hutang Supplier",
+        isLocked: false,
+      });
+    }
+    if (canUsePermission(permissionAccess, "inventory.report")) {
+      inventoryItems.push(
+      {
+        href: `/${tokoid}/inventory/reports`,
+        icon: "chart",
+        label: "Laporan Inventory",
+        isLocked: false,
+      }
+      );
+    }
+  } else if (workflowEnabled && !isFeatureDisabled("retail.sales") && canUsePermission(permissionAccess, "inventory.manageRetail")) {
+    inventoryItems.push({
+      href: `/${tokoid}/inventory`,
       icon: "archive",
       label: "Inventory",
-      isLocked: !inventoryEnabled,
+      isLocked: false,
+    });
+  }
+
+  if (workflowEnabled && !isFeatureDisabled("inventory.audit") && canUsePermission(permissionAccess, "inventory.audit")) {
+    inventoryItems.push({
+      href: `/${tokoid}/inventory/audit-gudang`,
+      icon: "form",
+      label: "Audit Gudang",
+      isLocked: false,
+    });
+  }
+
+  if (inventoryItems.length > 0) {
+    entries.push({
+      type: "group",
+      title: "Inventory",
+      icon: "archive",
+      defaultOpen: true,
+      items: inventoryItems,
     });
   }
 
@@ -383,24 +484,28 @@ export function buildStaffNav({
 export function buildTeknisiNav({
   tokoid,
   featureAccess,
+  permissionAccess,
   disabledFeatures,
   taskStats,
 }: CommonNavProps & { taskStats: TechnicianTaskStats | null | undefined }): DashboardNavEntry[] {
   const isFeatureDisabled = (feature: FeatureKey) => disabledFeatures.includes(feature);
   const workflowEnabled = featureAccess["technician.workflow"] ?? false;
-  const inventoryEnabled = featureAccess["inventory.management"] ?? false;
-
   const entries: DashboardNavEntry[] = [];
 
-  if (!isFeatureDisabled("technician.workflow")) {
+  if (!isFeatureDisabled("technician.workflow") && shouldShowPermission(permissionAccess, "dashboard.view")) {
     entries.push(
       {
         type: "item",
         href: `/${tokoid}/teknisi`,
         icon: "dashboard",
         label: "Teknisi Overview",
-        isLocked: !workflowEnabled,
-      },
+        isLocked: !workflowEnabled || !canUsePermission(permissionAccess, "dashboard.view"),
+      }
+    );
+  }
+
+  if (!isFeatureDisabled("technician.workflow") && shouldShowPermission(permissionAccess, "service.view")) {
+    entries.push(
       {
         type: "filterGroup",
         title: "Task",
@@ -411,13 +516,71 @@ export function buildTeknisiNav({
     );
   }
 
-  if (!isFeatureDisabled("inventory.management")) {
+  const inventoryItems: NavGroupItem[] = [];
+
+  if (!isFeatureDisabled("inventory.management") && canUsePermission(permissionAccess, "inventory.view")) {
+    inventoryItems.push(
+      {
+        href: `/${tokoid}/inventory`,
+        icon: "archive",
+        label: "Inventory",
+        isLocked: false,
+      },
+    );
+    if (canUsePermission(permissionAccess, "inventory.viewHistory")) {
+      inventoryItems.push(
+      {
+        href: `/${tokoid}/inventory/restock-history`,
+        icon: "history",
+        label: "Riwayat Restock",
+        isLocked: false,
+      });
+    }
+    if (canUsePermission(permissionAccess, "supplier_returns.view")) {
+      inventoryItems.push({
+        href: `/${tokoid}/inventory/supplier-returns`,
+        icon: "form",
+        label: "Retur Supplier",
+        isLocked: false,
+      });
+    }
+    if (canUsePermission(permissionAccess, "supplier_debts.view")) {
+      inventoryItems.push(
+      {
+        href: `/${tokoid}/supplier-debts`,
+        icon: "form",
+        label: "Hutang Supplier",
+        isLocked: false,
+      });
+    }
+    if (canUsePermission(permissionAccess, "inventory.report")) {
+      inventoryItems.push(
+      {
+        href: `/${tokoid}/inventory/reports`,
+        icon: "chart",
+        label: "Laporan Inventory",
+        isLocked: false,
+      }
+      );
+    }
+  }
+
+  if (!isFeatureDisabled("inventory.audit") && canUsePermission(permissionAccess, "inventory.audit")) {
+    inventoryItems.push({
+      href: `/${tokoid}/inventory/audit-gudang`,
+      icon: "form",
+      label: "Audit Gudang",
+      isLocked: false,
+    });
+  }
+
+  if (inventoryItems.length > 0) {
     entries.push({
-      type: "item",
-      href: `/${tokoid}/teknisi/inventory`,
+      type: "group",
+      title: "Inventory",
       icon: "archive",
-      label: "Inventory",
-      isLocked: !inventoryEnabled,
+      defaultOpen: true,
+      items: inventoryItems,
     });
   }
 

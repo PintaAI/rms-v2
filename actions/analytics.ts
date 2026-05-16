@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { assertPermission } from "@/lib/auth/request-scope";
 import { withScope, type ActionResultWithData } from "@/lib/auth/wrapper";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 
@@ -127,7 +128,8 @@ export async function getAdminAnalytics(
   tokoId: string,
   filters?: AdminAnalyticsFilterInput
 ): Promise<ActionResultWithData<AdminAnalyticsData>> {
-  return withScope(tokoId, { role: ["admin"], feature: "analytics.revenue" }, async (scope): Promise<AdminAnalyticsData> => {
+  return withScope(tokoId, {}, async (scope): Promise<AdminAnalyticsData> => {
+    assertPermission(scope, "analytics.view");
 
     const normalizedFilters = normalizeFilters(filters);
     const allTimeStart = normalizedFilters.allTime ? await getAllTimeStart(tokoId) : null;

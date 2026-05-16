@@ -88,7 +88,7 @@ export function SupplierReturnsFilter({ tokoId, filters, hasActiveFilter }: Supp
   const renderActions = (className = "") => (
     <div className="flex items-end gap-2">
       <Button type="submit" className={className}>Terapkan</Button>
-      {hasActiveFilter && <Button asChild variant="outline"><Link href={`/${tokoId}/admin/inventory/supplier-returns`}>Reset</Link></Button>}
+      {hasActiveFilter && <Button asChild variant="outline"><Link href={`/${tokoId}/inventory/supplier-returns`}>Reset</Link></Button>}
     </div>
   )
 
@@ -111,7 +111,7 @@ export function SupplierReturnsFilter({ tokoId, filters, hasActiveFilter }: Supp
               <RiFilter3Line className="mr-1.5 size-4" />
               {hasAdvancedFilter ? "Filter aktif" : "Filter"}
             </Button>
-            {hasActiveFilter && <Button asChild variant="outline"><Link href={`/${tokoId}/admin/inventory/supplier-returns`}>Reset</Link></Button>}
+            {hasActiveFilter && <Button asChild variant="outline"><Link href={`/${tokoId}/inventory/supplier-returns`}>Reset</Link></Button>}
           </div>
           <form className="hidden gap-3 lg:grid lg:grid-cols-[minmax(240px,1.4fr)_minmax(180px,0.8fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)_auto]">
             <input type="hidden" name="q" value={searchQuery} />

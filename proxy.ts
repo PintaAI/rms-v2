@@ -6,7 +6,10 @@ const publicRoutes = ["/", "/auth"];
 const authApiRoutes = "/api/auth";
 const userManualRoute = "/user-manual";
 const scannerRoute = "/scanner";
+const affiliateRoute = "/affiliate";
 const protectedRoutePrefixes = ["/dashboard", "/onboard", "/superuser"];
+const publicSingleSegmentRoutes = ["/offline", "/experiment"];
+const sharedTokoModules = ["analytics", "inventory", "karyawan", "retail", "service", "supplier-debts"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -18,16 +21,22 @@ export function proxy(request: NextRequest) {
   const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith("/auth"));
   const isUserManualRoute = pathname.startsWith(userManualRoute);
   const isScannerRoute = pathname === scannerRoute || pathname.startsWith(`${scannerRoute}/`);
+  const isAffiliateRoute = pathname === affiliateRoute || pathname.startsWith(`${affiliateRoute}/`);
+  const isNextInternalRoute = pathname.startsWith("/_next");
   const isDashboardRoute = /^\/[^/]+\/(admin|staff|teknisi)/.test(pathname);
-  const isTokoRootRoute = /^\/[^/]+$/.test(pathname) && !isPublicRoute && !isScannerRoute && !pathname.startsWith(userManualRoute);
+  const isExcludedSharedTokoRoute = isPublicRoute || isScannerRoute || isUserManualRoute || isAffiliateRoute || isNextInternalRoute;
+  const isTokoRootRoute = /^\/[^/]+$/.test(pathname) && !isExcludedSharedTokoRoute;
+  const sharedModulePattern = new RegExp(`^/[^/]+/(${sharedTokoModules.join("|")})(/|$)`);
+  const isSharedTokoModuleRoute = sharedModulePattern.test(pathname) && !isExcludedSharedTokoRoute;
   const isProtectedRoute =
     protectedRoutePrefixes.some((route) => pathname.startsWith(route)) ||
     isDashboardRoute ||
-    isTokoRootRoute;
+    (isTokoRootRoute && !publicSingleSegmentRoutes.includes(pathname)) ||
+    isSharedTokoModuleRoute;
 
   const sessionToken = getSessionCookie(request);
 
-  if (isUserManualRoute || isScannerRoute) {
+  if (isUserManualRoute || isScannerRoute || isAffiliateRoute || isNextInternalRoute) {
     return NextResponse.next();
   }
 

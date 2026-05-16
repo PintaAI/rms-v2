@@ -14,7 +14,7 @@ export function InventoryReportHeader({ tokoId, toko, errorMessage }: InventoryR
   return (
     <div className="flex flex-col gap-4">
       <Button asChild variant="ghost" className="-ml-2 w-fit">
-        <Link href={`/${tokoId}/admin/inventory`}>
+        <Link href={`/${tokoId}/inventory`}>
           <RiArrowLeftLine data-icon="inline-start" />
           Kembali ke Inventory
         </Link>

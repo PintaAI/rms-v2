@@ -2,7 +2,8 @@
 
 import prisma from "@/lib/prisma"
 import { actionError, type ActionResultWithData } from "@/lib/auth/authorization"
-import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope"
+import { assertFeature, assertPermission, getRequestScope } from "@/lib/auth/request-scope"
+import type { PermissionKey } from "@/lib/permissions"
 import { revalidateRetailPaths } from "@/lib/revalidation"
 import { z } from "zod"
 
@@ -107,9 +108,9 @@ export type CreateRetailSaleInput = z.infer<typeof createRetailSaleSchema>
 
 class RetailCheckoutError extends Error {}
 
-async function assertRetailCheckoutAccess(tokoId: string) {
+async function assertRetailAccess(tokoId: string, permission: PermissionKey) {
   const scope = await getRequestScope(tokoId)
-  assertRole(scope, ["admin", "staff"])
+  assertPermission(scope, permission)
   assertFeature(scope, "inventory.management")
   assertFeature(scope, "retail.sales")
   return scope
@@ -188,7 +189,7 @@ export async function getRetailCheckoutItems(
   query?: string
 ): Promise<ActionResultWithData<RetailCheckoutItem[]>> {
   try {
-    await assertRetailCheckoutAccess(tokoId)
+    await assertRetailAccess(tokoId, "retail.view")
 
     const search = query?.trim()
     const items = await prisma.sparepart.findMany({
@@ -244,7 +245,7 @@ export async function getRetailSales(
   filters?: RetailSalesFilters
 ): Promise<ActionResultWithData<RetailSalesResult>> {
   try {
-    await assertRetailCheckoutAccess(tokoId)
+    await assertRetailAccess(tokoId, "retail.viewHistory")
     const normalized = normalizeRetailSalesFilters(filters)
     const paidAtFilter = {
       ...(normalized.from ? { gte: new Date(`${normalized.from}T00:00:00.000`) } : {}),
@@ -360,7 +361,7 @@ export async function getRetailSale(saleId: string): Promise<ActionResultWithDat
     })
 
     if (!sale) return { success: false, error: "Penjualan retail tidak ditemukan" }
-    await assertRetailCheckoutAccess(sale.tokoId)
+    await assertRetailAccess(sale.tokoId, "retail.viewHistory")
 
     return {
       success: true,
@@ -378,7 +379,7 @@ export async function getRetailSale(saleId: string): Promise<ActionResultWithDat
 export async function createRetailSale(input: CreateRetailSaleInput): Promise<ActionResultWithData<RetailSaleResult>> {
   try {
     const validated = createRetailSaleSchema.parse(input)
-    const scope = await assertRetailCheckoutAccess(validated.tokoId)
+    const scope = await assertRetailAccess(validated.tokoId, "retail.sell")
 
     const qtyBySparepartId = new Map<string, number>()
     for (const item of validated.items) {

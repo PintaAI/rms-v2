@@ -10,6 +10,7 @@ import {
   fetchWhatsappInstances,
   getWhatsappConnectionState,
 } from "@/lib/evolution";
+import { assertPermission } from "@/lib/auth/request-scope";
 import { withScope } from "@/lib/auth/wrapper";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
 
@@ -158,7 +159,8 @@ export interface WhatsappLiveState {
 export async function getTokoWhatsappSetting(
   tokoId: string
 ): Promise<ActionResultWithData<TokoWhatsappSettingData | null>> {
-  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "whatsapp.view");
     const setting = await getSettingByTokoId(tokoId);
     return setting ? serializeSetting(setting) : null;
   });
@@ -167,7 +169,8 @@ export async function getTokoWhatsappSetting(
 export async function getWhatsappState(
   tokoId: string
 ): Promise<ActionResultWithData<WhatsappLiveState>> {
-  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "whatsapp.view");
     const setting = await getSettingByTokoId(tokoId);
     if (!setting) throw new Error("WhatsApp setting not found");
 
@@ -192,7 +195,8 @@ export async function getWhatsappState(
 export async function connectTokoWhatsapp(
   tokoId: string
 ): Promise<ActionResultWithData<{ qr: unknown }>> {
-  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "whatsapp.manageSettings");
     const toko = await prisma.toko.findUnique({ where: { id: tokoId }, select: { id: true } });
     if (!toko) throw new Error("Toko not found");
 
@@ -228,7 +232,8 @@ export async function connectTokoWhatsapp(
 export async function refreshTokoWhatsappConnection(
   tokoId: string
 ): Promise<ActionResultWithData<WhatsappLiveState>> {
-  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "whatsapp.manageSettings");
     const setting = await getSettingByTokoId(tokoId);
     if (!setting) throw new Error("WhatsApp setting not found");
 
@@ -268,7 +273,8 @@ export async function updateTokoWhatsappSetting(
   const parsed = updateWhatsappSettingSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
-  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "whatsapp.manageSettings");
     const toko = await prisma.toko.findUnique({ where: { id: tokoId }, select: { id: true } });
     if (!toko) throw new Error("Toko not found");
 
@@ -303,7 +309,8 @@ export async function updateTokoWhatsappSetting(
 export async function disconnectTokoWhatsapp(
   tokoId: string
 ): Promise<ActionResultWithData<TokoWhatsappSettingData>> {
-  return withScope(tokoId, { role: ["admin"], feature: "whatsapp.integration" }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "whatsapp.manageSettings");
     const setting = await getSettingByTokoId(tokoId);
     const instanceName = setting?.instanceName ?? getInstanceName(tokoId);
 

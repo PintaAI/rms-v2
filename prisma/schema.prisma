@@ -64,6 +64,11 @@ enum TokoUserRole {
   owner
 }
 
+enum PermissionEffect {
+  allow
+  deny
+}
+
 enum ServiceStatus {
   received
   repairing
@@ -235,6 +240,7 @@ model Toko {
   supplierDebts          SupplierDebt[]
   featureSetting         TokoFeatureSetting?
   whatsappSetting        TokoWhatsappSetting?
+  userPermissions        TokoUserPermission[]
 
   @@index([status])
   @@map("toko")
@@ -302,6 +308,7 @@ model User {
   affiliatorProfile             Affiliator?
   referredByReferral            Referral?
   affiliateCommissions          AffiliateCommission[]
+  tokoPermissions               TokoUserPermission[]
 
   @@index([role])
   @@map("user")
@@ -320,6 +327,24 @@ model UserToko {
   @@index([userId])
   @@index([tokoId])
   @@map("user_toko")
+}
+
+model TokoUserPermission {
+  id            String           @id @default(cuid())
+  tokoId        String
+  userId        String
+  permissionKey String
+  effect        PermissionEffect
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tokoId, userId, permissionKey])
+  @@index([tokoId, userId])
+  @@index([userId])
+  @@map("toko_user_permission")
 }
 
 model Subscription {

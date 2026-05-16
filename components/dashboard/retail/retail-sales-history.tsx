@@ -59,7 +59,7 @@ export function RetailSalesHistory({
   initialFilters,
 }: {
   tokoId: string
-  rolePath: "admin" | "staff"
+  rolePath: "admin" | "staff" | "shared"
   initialData: RetailSalesResult
   initialFilters: RetailSalesFilters
 }) {
@@ -84,7 +84,8 @@ export function RetailSalesHistory({
     }
 
     startTransition(() => {
-      router.push(`/${tokoId}/${rolePath}/retail/history${params.size ? `?${params.toString()}` : ""}`)
+      const pathname = rolePath === "shared" ? `/${tokoId}/retail/history` : `/${tokoId}/${rolePath}/retail/history`
+      router.push(`${pathname}${params.size ? `?${params.toString()}` : ""}`)
     })
   }
 

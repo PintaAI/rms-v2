@@ -15,6 +15,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ServiceTable } from "@/components/dashboard/services/service-table";
 import { ServiceDetailCard, ServiceDetailCardSkeleton } from "@/components/dashboard/services/service-detail-card";
+import { defaultServiceActionPermissions, type ServiceActionPermissions } from "@/components/dashboard/services/service-action-permissions";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
 import { getService, takeService } from "@/actions";
 import type { ServiceListItem, ServiceDetail } from "@/actions";
@@ -59,6 +60,7 @@ interface TeknisiTaskManagerProps {
     logoUrl: string | null;
   };
   initialSearchQuery?: string;
+  actionPermissions?: ServiceActionPermissions;
 }
 
 export function TeknisiTaskManager({
@@ -68,6 +70,7 @@ export function TeknisiTaskManager({
   tokoId,
   currentToko,
   initialSearchQuery = "",
+  actionPermissions = defaultServiceActionPermissions,
 }: TeknisiTaskManagerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -372,7 +375,7 @@ export function TeknisiTaskManager({
                 headerDescription="Task yang bisa diambil atau takeover"
                 headerBadge={tableItems.length}
                 emptyMessage={searchQuery.trim() ? "Tidak ada task yang cocok dengan pencarian" : "Tidak ada task yang bisa diambil atau takeover"}
-                onTake={handleTakeTask}
+                onTake={actionPermissions.canTakeOverTask ? handleTakeTask : undefined}
                 onRowClick={handleOpenTask}
               />
             ) : (
@@ -391,12 +394,12 @@ export function TeknisiTaskManager({
       </section>
 
       <Drawer open={detailDialogOpen} onOpenChange={setDetailDialogOpen} direction="bottom">
-        <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-[90dvh] sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
+        <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-auto sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
           <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3">
             <DrawerTitle className="font-bold">Detail Task</DrawerTitle>
             <DrawerDescription>kelola task servis</DrawerDescription>
           </div>
-          <ScrollArea className="h-[calc(100dvh-4.75rem)] min-w-0 overflow-hidden sm:h-[calc(90dvh-4.75rem)]">
+          <ScrollArea className="h-[calc(100dvh-4.75rem)] min-w-0 overflow-hidden sm:h-auto sm:max-h-[calc(90dvh-4.75rem)]">
             <div className="min-w-0 p-2">
               {isLoadingDetail && (
                 <ServiceDetailCardSkeleton />
@@ -420,6 +423,7 @@ export function TeknisiTaskManager({
                     router.refresh();
                   }}
                   onRealtimeEvent={publish}
+                  actionPermissions={actionPermissions}
                 />
               )}
             </div>

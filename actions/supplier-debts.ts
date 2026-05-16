@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma"
 import { actionError, type ActionResult, type ActionResultWithData } from "@/lib/auth/authorization"
-import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope"
+import { assertFeature, assertPermission, getRequestScope } from "@/lib/auth/request-scope"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
@@ -83,10 +83,10 @@ export type AddSupplierDebtPaymentInput = z.infer<typeof addSupplierDebtPaymentS
 
 class SupplierDebtActionError extends Error {}
 
-async function assertSupplierDebtAccess(tokoId: string) {
+async function assertSupplierDebtAccess(tokoId: string, permissionKey: Parameters<typeof assertPermission>[1]) {
   const scope = await getRequestScope(tokoId)
-  assertRole(scope, ["admin"])
   assertFeature(scope, "inventory.management")
+  assertPermission(scope, permissionKey)
   return scope
 }
 
@@ -113,7 +113,7 @@ function validateSupplierDebtPaymentAmount(amount: number, remainingAmount: numb
 }
 
 function revalidateSupplierDebtPaths(tokoId: string) {
-  revalidatePath(`/${tokoId}/admin/supplier-debts`)
+  revalidatePath(`/${tokoId}/supplier-debts`)
 }
 
 async function getDebtTokoId(debtId: string) {
@@ -166,7 +166,7 @@ async function assertSupplierBelongsToToko(supplierId: string, tokoId: string): 
 
 export async function getSuppliers(tokoId: string): Promise<ActionResultWithData<SupplierOption[]>> {
   try {
-    await assertSupplierDebtAccess(tokoId)
+    await assertSupplierDebtAccess(tokoId, "supplier_debts.view")
 
     const suppliers = await prisma.supplier.findMany({
       where: { tokoId },
@@ -184,7 +184,7 @@ export async function getSuppliers(tokoId: string): Promise<ActionResultWithData
 export async function createSupplier(input: CreateSupplierInput): Promise<ActionResultWithData<SupplierOption>> {
   try {
     const validated = createSupplierSchema.parse(input)
-    await assertSupplierDebtAccess(validated.tokoId)
+    await assertSupplierDebtAccess(validated.tokoId, "supplier_debts.create")
 
     const existing = await prisma.supplier.findFirst({
       where: { tokoId: validated.tokoId, name: validated.name },
@@ -216,7 +216,7 @@ export async function createSupplier(input: CreateSupplierInput): Promise<Action
 
 export async function getSupplierDebts(tokoId: string): Promise<ActionResultWithData<SupplierDebtListResult>> {
   try {
-    await assertSupplierDebtAccess(tokoId)
+    await assertSupplierDebtAccess(tokoId, "supplier_debts.view")
 
     const debts = await prisma.supplierDebt.findMany({
       where: { tokoId },
@@ -251,7 +251,7 @@ export async function getSupplierDebts(tokoId: string): Promise<ActionResultWith
 export async function createSupplierDebt(input: CreateSupplierDebtInput): Promise<ActionResultWithData<SupplierDebtListItem>> {
   try {
     const validated = createSupplierDebtSchema.parse(input)
-    await assertSupplierDebtAccess(validated.tokoId)
+    await assertSupplierDebtAccess(validated.tokoId, "supplier_debts.create")
 
     const paidAmount = validated.paidAmount ?? 0
     validateSupplierDebtAmounts(validated.totalAmount, paidAmount)
@@ -300,7 +300,7 @@ export async function updateSupplierDebt(input: UpdateSupplierDebtInput): Promis
   try {
     const validated = updateSupplierDebtSchema.parse(input)
     const tokoId = await getDebtTokoId(validated.id)
-    await assertSupplierDebtAccess(tokoId)
+    await assertSupplierDebtAccess(tokoId, "supplier_debts.update")
     await assertSupplierBelongsToToko(validated.supplierId, tokoId)
 
     const debt = await prisma.$transaction(async (tx) => {
@@ -342,7 +342,7 @@ export async function updateSupplierDebt(input: UpdateSupplierDebtInput): Promis
 export async function deleteSupplierDebt(id: string): Promise<ActionResult> {
   try {
     const tokoId = await getDebtTokoId(id)
-    await assertSupplierDebtAccess(tokoId)
+    await assertSupplierDebtAccess(tokoId, "supplier_debts.delete")
 
     const debt = await prisma.supplierDebt.findUnique({
       where: { id },
@@ -366,7 +366,7 @@ export async function addSupplierDebtPayment(input: AddSupplierDebtPaymentInput)
   try {
     const validated = addSupplierDebtPaymentSchema.parse(input)
     const tokoId = await getDebtTokoId(validated.debtId)
-    await assertSupplierDebtAccess(tokoId)
+    await assertSupplierDebtAccess(tokoId, "supplier_debts.pay")
 
     const debt = await prisma.$transaction(async (tx) => {
       const existingDebt = await tx.supplierDebt.findUnique({

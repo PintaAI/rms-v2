@@ -3,6 +3,7 @@
 import prisma from "@/lib/prisma";
 import { ensurePlanLimit } from "@/lib/auth/enforcement";
 import { AuthError } from "@/lib/auth/authorization";
+import { assertPermission } from "@/lib/auth/request-scope";
 import { FEATURE_REGISTRY, isFeatureKey, isPlanAtLeast, type FeatureKey } from "@/lib/features";
 import { getRequestUser } from "@/lib/auth/request-user";
 import { withScope } from "@/lib/auth/wrapper";
@@ -263,7 +264,9 @@ export async function createToko(input: {
 }
 
 export async function getTokoById(tokoId: string): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
-  return withScope(tokoId, {}, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "toko.viewSettings");
+
     const toko = await prisma.toko.findUnique({
       where: { id: tokoId },
       select: {
@@ -294,7 +297,9 @@ export async function updateToko(
     return { success: false, error: "Toko name must be at least 2 characters" };
   }
 
-  return withScope(tokoId, { role: ["admin"] }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "toko.viewSettings");
+
     const toko = await prisma.toko.update({
       where: { id: tokoId },
       data: {
@@ -365,7 +370,9 @@ export async function getTokoInvoiceSettings(tokoId: string): Promise<{
 }
 
 export async function deleteToko(tokoId: string): Promise<{ success: boolean; error?: string }> {
-  return withScope(tokoId, { role: ["admin"] }, async (scope) => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "toko.manageOperational");
+
     if (scope.user.tokoIds.length === 1) {
       return { success: false, error: "Cannot delete the last toko. You must have at least one toko." };
     }

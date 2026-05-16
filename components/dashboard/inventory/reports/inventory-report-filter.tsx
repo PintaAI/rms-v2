@@ -128,7 +128,7 @@ export function InventoryReportFilter({
       <Button type="submit" className={buttonClassName}>Terapkan</Button>
       {hasActiveFilter && (
         <Button asChild variant="outline">
-          <Link href={`/${tokoId}/admin/inventory/reports`}>Reset</Link>
+          <Link href={`/${tokoId}/inventory/reports`}>Reset</Link>
         </Button>
       )}
     </div>
@@ -157,7 +157,7 @@ export function InventoryReportFilter({
             </div>
             {hasActiveFilter && (
               <Button asChild variant="outline">
-                <Link href={`/${tokoId}/admin/inventory/reports`}>Reset</Link>
+                <Link href={`/${tokoId}/inventory/reports`}>Reset</Link>
               </Button>
             )}
           </div>

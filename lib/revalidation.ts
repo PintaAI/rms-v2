@@ -1,35 +1,35 @@
 import { revalidatePath } from "next/cache";
 
 export function revalidateServicePaths(tokoId: string, includeTeknisi = false): void {
-  revalidatePath(`/${tokoId}/admin/service`);
+  revalidatePath(`/${tokoId}/service`);
+  revalidatePath(`/${tokoId}/service/tasks`);
   revalidatePath(`/${tokoId}/admin`);
   if (includeTeknisi) {
-    revalidatePath(`/${tokoId}/teknisi/task`);
+    revalidatePath(`/${tokoId}/teknisi`);
   }
 }
 
 export function revalidateInventoryPaths(tokoId?: string, includeStaff = true): void {
   if (!tokoId) {
-    revalidatePath("/dashboard/admin/inventory");
-    if (includeStaff) {
-      revalidatePath("/dashboard/staff/sparepart");
-    }
+    revalidatePath("/dashboard");
     return;
   }
 
-  revalidatePath(`/${tokoId}/admin/inventory`);
-  revalidatePath(`/${tokoId}/admin/inventory/audit-gudang`);
+  revalidatePath(`/${tokoId}/inventory`);
+  revalidatePath(`/${tokoId}/inventory/audit-gudang`);
+  revalidatePath(`/${tokoId}/inventory/reports`);
+  revalidatePath(`/${tokoId}/inventory/restock-history`);
+  revalidatePath(`/${tokoId}/inventory/supplier-returns`);
   revalidatePath(`/${tokoId}/admin`);
   if (includeStaff) {
-    revalidatePath(`/${tokoId}/staff/inventory`);
-    revalidatePath(`/${tokoId}/teknisi/inventory`);
+    revalidatePath(`/${tokoId}/staff`);
+    revalidatePath(`/${tokoId}/teknisi`);
   }
 }
 
 export function revalidateRetailPaths(tokoId: string): void {
-  revalidatePath(`/${tokoId}/admin/retail`);
-  revalidatePath(`/${tokoId}/staff/retail`);
-  revalidatePath(`/${tokoId}/admin/inventory/retail`);
+  revalidatePath(`/${tokoId}/retail`);
+  revalidatePath(`/${tokoId}/retail/history`);
   revalidateInventoryPaths(tokoId);
 }
 
@@ -38,6 +38,12 @@ export function revalidateTokoPaths(tokoId: string): void {
   revalidatePath(`/${tokoId}/admin`);
 }
 
+export function revalidateAnalyticsPaths(tokoId: string): void {
+  revalidatePath(`/${tokoId}/analytics`);
+  revalidatePath(`/${tokoId}/admin`);
+}
+
 export function revalidateKaryawanPaths(tokoId: string): void {
-  revalidatePath(`/${tokoId}/admin/karyawan`);
+  revalidatePath(`/${tokoId}/karyawan`);
+  revalidatePath(`/${tokoId}/admin`);
 }

@@ -81,21 +81,21 @@ function filterStaticResults(query: string, results: SearchResult[]) {
 }
 
 function useStaticSearchResults(pathname: string): SearchResult[] {
-  const { tokoId, user, featureAccess, capabilities, disabledFeatures } = useDashboardScope();
+  const { tokoId, user, featureAccess, permissionAccess, capabilities, disabledFeatures } = useDashboardScope();
   const role = user.role;
   const segment = roleSegment(role);
-  const serviceBase = `/${tokoId}/${segment}/${role === "technician" ? "task" : "service"}`;
-  const inventoryBase = `/${tokoId}/${segment}/inventory`;
+  const serviceBase = role === "technician" ? `/${tokoId}/service/tasks` : `/${tokoId}/service`;
+  const inventoryBase = `/${tokoId}/inventory`;
 
   return useMemo(() => {
     const items: SearchResult[] = [];
     const isFeatureDisabled = (feature: string) => disabledFeatures.some((disabledFeature) => disabledFeature === feature);
-    const serviceSearchEnabled = role === "admin"
-      ? capabilities["service.management"]
-      : role === "staff"
-        ? capabilities["service.management"] && featureAccess["staff.workflow"] === true && !isFeatureDisabled("staff.workflow")
-        : role === "technician" && featureAccess["technician.workflow"] === true && !isFeatureDisabled("technician.workflow");
-    const inventorySearchEnabled = featureAccess["inventory.management"] === true
+    const canUsePermission = (permission: keyof typeof permissionAccess) => permissionAccess[permission]?.allowed === true;
+    const serviceSearchEnabled = canUsePermission("service.view") && (role === "admin"
+      || (role === "staff" && featureAccess["staff.workflow"] === true && !isFeatureDisabled("staff.workflow"))
+      || (role === "technician" && featureAccess["technician.workflow"] === true && !isFeatureDisabled("technician.workflow")));
+    const inventorySearchEnabled = canUsePermission("inventory.view")
+      && featureAccess["inventory.management"] === true
       && !isFeatureDisabled("inventory.management")
       && (role === "admin"
         || (role === "staff" && featureAccess["staff.workflow"] === true && !isFeatureDisabled("staff.workflow"))
@@ -106,11 +106,12 @@ function useStaticSearchResults(pathname: string): SearchResult[] {
 
     addMenu("overview", role === "admin" ? "Admin Overview" : role === "staff" ? "Staff Overview" : "Teknisi Overview", `/${tokoId}/${segment}`, ["dashboard", "overview"]);
 
+    if (canUsePermission("analytics.view") && featureAccess["analytics.revenue"] && !isFeatureDisabled("analytics.revenue")) {
+      addMenu("analytics", "Analytics", `/${tokoId}/analytics`, ["revenue", "laporan"]);
+    }
+
     if (role === "admin") {
-      if (featureAccess["analytics.revenue"] && !isFeatureDisabled("analytics.revenue")) {
-        addMenu("analytics", "Analytics", `/${tokoId}/admin/analytics`, ["revenue", "laporan"]);
-      }
-      if (capabilities["toko.manage"]) addMenu("toko", "Toko", `/${tokoId}/admin/toko`, ["store", "profil toko"]);
+      if (canUsePermission("toko.viewSettings") && capabilities["toko.manage"]) addMenu("toko", "Toko", `/${tokoId}/admin/toko`, ["store", "profil toko"]);
     }
 
     if ((role === "admin" || role === "staff") && serviceSearchEnabled) {
@@ -130,22 +131,23 @@ function useStaticSearchResults(pathname: string): SearchResult[] {
       addMenu("task-history", "Task History", `${serviceBase}?status=history`, ["riwayat"]);
     }
 
-    if (role === "admin" && featureAccess["karyawan.management"] && !isFeatureDisabled("karyawan.management")) {
-      addMenu("karyawan", "Karyawan", `/${tokoId}/admin/karyawan`, ["staff", "teknisi", "team"]);
+    if (canUsePermission("karyawan.view") && featureAccess["karyawan.management"] && !isFeatureDisabled("karyawan.management")) {
+      addMenu("karyawan", "Karyawan", `/${tokoId}/karyawan`, ["staff", "teknisi", "team"]);
     }
 
     if (inventorySearchEnabled) {
       addMenu("inventory", "Inventory", inventoryBase, ["sparepart", "stok"]);
       addMenu("sparepart", "Sparepart", role === "admin" ? `${inventoryBase}?tab=sparepart` : inventoryBase, ["inventory", "stok"]);
-      if (role === "admin" && featureAccess["retail.sales"] && !isFeatureDisabled("retail.sales")) {
-        addMenu("retail-item", "Barang Retail", `${inventoryBase}/retail`, ["retail", "barang retail", "kasir"]);
-      }
-      if (role === "admin") addMenu("jasa", "Jasa", `${inventoryBase}?tab=jasa`, ["pricelist", "harga jasa"]);
-      if (role === "admin") addMenu("supplier-returns", "Retur Supplier", `${inventoryBase}/supplier-returns`, ["retur", "supplier", "garansi"]);
+      if (canUsePermission("inventory.manageRetail")) addMenu("retail-item", "Barang Retail", `${inventoryBase}?tab=retail`, ["retail", "barang retail", "kasir"]);
+      if (canUsePermission("inventory.manageServicePricelists")) addMenu("jasa", "Jasa", `${inventoryBase}?tab=jasa`, ["pricelist", "harga jasa"]);
+      if (canUsePermission("inventory.viewHistory")) addMenu("restock-history", "Riwayat Restock", `${inventoryBase}/restock-history`, ["restock", "stok masuk"]);
+      if (canUsePermission("supplier_returns.view")) addMenu("supplier-returns", "Retur Supplier", `/${tokoId}/inventory/supplier-returns`, ["retur", "supplier", "garansi"]);
+      if (canUsePermission("inventory.report")) addMenu("inventory-reports", "Laporan Inventory", `${inventoryBase}/reports`, ["laporan", "report"]);
+      if (canUsePermission("supplier_debts.view")) addMenu("supplier-debts", "Hutang Supplier", `/${tokoId}/supplier-debts`, ["hutang", "supplier", "nota"]);
     }
 
-    if (role === "admin" && featureAccess["inventory.audit"] && !isFeatureDisabled("inventory.audit")) {
-      addMenu("audit", "Audit Gudang", `/${tokoId}/admin/inventory/audit-gudang`, ["stok opname", "audit"]);
+    if (canUsePermission("inventory.audit") && featureAccess["inventory.audit"] && !isFeatureDisabled("inventory.audit")) {
+      addMenu("audit", "Audit Gudang", `/${tokoId}/inventory/audit-gudang`, ["stok opname", "audit"]);
     }
 
     const settingsItems: Array<[string, string, string[]]> = [
@@ -167,7 +169,7 @@ function useStaticSearchResults(pathname: string): SearchResult[] {
     }
 
     return items;
-  }, [capabilities, disabledFeatures, featureAccess, inventoryBase, pathname, role, segment, serviceBase, tokoId]);
+  }, [capabilities, disabledFeatures, featureAccess, inventoryBase, pathname, permissionAccess, role, segment, serviceBase, tokoId]);
 }
 
 export function GlobalSearch() {

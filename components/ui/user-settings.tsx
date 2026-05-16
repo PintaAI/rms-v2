@@ -16,6 +16,7 @@ import {
 import { getBillingPlanSummary, getOwnerBillingSummary, type BillingPlanSummary, type OwnerBillingSummary } from "@/actions";
 import { AffiliateSettings } from "@/components/affiliate/affiliate-settings";
 import { useAuth } from "@/components/auth/auth-provider";
+import { useOptionalDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import { FeatureSettingsTab } from "@/components/dashboard/admin/feature-settings-tab";
 import { WhatsappSettingsTab } from "@/components/dashboard/admin/whatsapp-settings-tab";
 import { AppearanceSettingsTab } from "@/components/settings/appearance-tab";
@@ -59,10 +60,19 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
   const [activeTab, setActiveTab] = React.useState<SettingsTab>(() => initialTab || "profile");
   const isMobile = useIsMobile();
   const { tokoList, user: authUser } = useAuth();
+  const dashboardScope = useOptionalDashboardScope();
   const params = useParams<{ tokoid?: string | string[] }>();
   const currentTokoId = getParamValue(params?.tokoid);
   const currentToko = tokoList.find((toko) => toko.id === currentTokoId) ?? tokoList[0];
   const currentPlan = authUser?.plan ?? "free";
+  const currentDashboardScope = dashboardScope?.tokoId === currentTokoId ? dashboardScope : null;
+  const whatsappAccess = currentDashboardScope
+    ? currentDashboardScope.permissionAccess["whatsapp.view"]
+    : null;
+  const canViewWhatsapp = whatsappAccess ? whatsappAccess.allowed : true;
+  const canManageWhatsapp = currentDashboardScope
+    ? currentDashboardScope.permissionAccess["whatsapp.manageSettings"]?.allowed === true
+    : authUser?.role === "admin";
   const [billingSummary, setBillingSummary] = React.useState<BillingPlanSummary | null>(null);
   const [ownerBillingSummary, setOwnerBillingSummary] = React.useState<OwnerBillingSummary | null>(null);
   const [isBillingLoading, setIsBillingLoading] = React.useState(false);
@@ -124,7 +134,10 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
         if (!isPlanAtLeast(normalizePlan(currentPlan), "premium")) {
           return <WhatsappLocked userEmail={user?.email} tokoName={currentToko?.name} />;
         }
-        return currentTokoId ? <WhatsappSettingsTab tokoId={currentTokoId} /> : <EmptyTabMessage message="Pilih toko untuk mengatur WhatsApp." />;
+        if (!canViewWhatsapp) {
+          return <EmptyTabMessage message="Anda tidak memiliki permission untuk melihat pengaturan WhatsApp toko ini." />;
+        }
+        return currentTokoId ? <WhatsappSettingsTab tokoId={currentTokoId} canManageSettings={canManageWhatsapp} /> : <EmptyTabMessage message="Pilih toko untuk mengatur WhatsApp." />;
       case "password":
         return <PasswordSettingsTab onSuccess={() => onOpenChange(false)} />;
       case "appearance":

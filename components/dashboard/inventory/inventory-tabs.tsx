@@ -34,6 +34,7 @@ import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/ser
 import { ServicePricelistImportDialog } from "@/components/dashboard/inventory/service-pricelist-import-dialog";
 import { SparepartStockBadge, getSparepartStockVariant, type StockVariant } from "@/components/dashboard/inventory/sparepart-stock-badge";
 import { SparepartCompatibilityCell } from "@/components/dashboard/inventory/sparepart-compatibility-cell";
+import { RetailItemTable } from "@/components/dashboard/inventory/retail-item-table";
 import {
   RiAddLine,
   RiEditLine,
@@ -50,30 +51,77 @@ import {
   RiHistoryLine,
   RiFilter3Line,
   RiCloseLine,
+  RiShoppingBag3Line,
 } from "@remixicon/react";
 import { cn, formatCurrency } from "@/lib/utils";
 
 type ViewMode = "table" | "card";
 type StockFilter = "all" | "critical" | "out" | "safe";
 
+export type InventoryActionPermissions = {
+  canViewInventory: boolean;
+  canCreateSparepart: boolean;
+  canUpdateSparepart: boolean;
+  canDeleteSparepart: boolean;
+  canRestockSparepart: boolean;
+  canImportSparepart: boolean;
+  canManageServicePricelists: boolean;
+  canViewRestockHistory: boolean;
+  canManageRetail: boolean;
+};
+
 interface InventoryTabsProps {
   tokoId: string;
   readOnly?: boolean;
   initialSpareparts?: SparepartWithCompatibilities[];
   initialPricelists?: ServicePricelist[];
-  initialTab?: "sparepart" | "jasa";
+  initialTab?: "sparepart" | "jasa" | "retail";
   initialSearchQuery?: string;
+  actionPermissions?: InventoryActionPermissions;
+  showRestockHistoryLink?: boolean;
 }
 
-export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _initialSpareparts, initialPricelists: _initialPricelists, initialTab = "sparepart", initialSearchQuery = "" }: InventoryTabsProps) {
+export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _initialSpareparts, initialPricelists: _initialPricelists, initialTab = "sparepart", initialSearchQuery = "", actionPermissions, showRestockHistoryLink = !readOnly }: InventoryTabsProps) {
+  const permissions = actionPermissions ?? {
+    canViewInventory: !readOnly,
+    canCreateSparepart: !readOnly,
+    canUpdateSparepart: !readOnly,
+    canDeleteSparepart: !readOnly,
+    canRestockSparepart: !readOnly,
+    canImportSparepart: !readOnly,
+    canManageServicePricelists: !readOnly,
+    canViewRestockHistory: !readOnly,
+    canManageRetail: !readOnly,
+  };
+  const resolvedInitialTab =
+    initialTab === "retail" && permissions.canManageRetail
+      ? "retail"
+      : initialTab === "jasa" && permissions.canViewInventory
+        ? "jasa"
+        : permissions.canViewInventory
+          ? "sparepart"
+          : "retail";
+  const tabListColumns = permissions.canViewInventory && permissions.canManageRetail
+    ? "grid-cols-3"
+    : permissions.canViewInventory
+      ? "grid-cols-2"
+      : "grid-cols-1";
+  const hasSparepartRowActions = permissions.canUpdateSparepart || permissions.canDeleteSparepart;
+  const hasAnySparepartMutation =
+    permissions.canCreateSparepart ||
+    permissions.canUpdateSparepart ||
+    permissions.canDeleteSparepart ||
+    permissions.canRestockSparepart ||
+    permissions.canImportSparepart;
+  const hasServicePricelistActions = permissions.canManageServicePricelists;
   const hasInitialData = _initialSpareparts !== undefined && _initialPricelists !== undefined;
   const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>(_initialSpareparts ?? []);
   const [pricelists, setPricelists] = useState<ServicePricelist[]>(_initialPricelists ?? []);
-  const [activeTab, setActiveTab] = useState<"sparepart" | "jasa">(initialTab);
-  const [sparepartSearch, setSparepartSearch] = useState(initialTab === "sparepart" ? initialSearchQuery : "");
+  const [activeTab, setActiveTab] = useState<"sparepart" | "jasa" | "retail">(resolvedInitialTab);
+  const [sparepartSearch, setSparepartSearch] = useState(resolvedInitialTab === "sparepart" ? initialSearchQuery : "");
   const [sparepartCategoryFilter, setSparepartCategoryFilter] = useState("all");
   const [sparepartStockFilter, setSparepartStockFilter] = useState<StockFilter>("all");
-  const [pricelistSearch, setPricelistSearch] = useState(initialTab === "jasa" ? initialSearchQuery : "");
+  const [pricelistSearch, setPricelistSearch] = useState(resolvedInitialTab === "jasa" ? initialSearchQuery : "");
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(!hasInitialData);
   const [isLoadingPricelists, setIsLoadingPricelists] = useState(!hasInitialData);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
@@ -299,16 +347,34 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   };
 
   return (
-    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value === "jasa" ? "jasa" : "sparepart")} className="w-full">
-      <TabsList className={cn("mb-4 grid w-full grid-cols-2 sm:inline-flex sm:w-auto")}>
-        <TabsTrigger value="sparepart" className="gap-1.5">
-          <RiArchiveLine className="h-4 w-4" />
-          Sparepart
-        </TabsTrigger>
-        <TabsTrigger value="jasa" className="gap-1.5">
-          <RiPriceTag3Line className="h-4 w-4" />
-          Jasa
-        </TabsTrigger>
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => {
+        if (value === "retail" && permissions.canManageRetail) setActiveTab("retail");
+        else if (value === "jasa" && permissions.canViewInventory) setActiveTab("jasa");
+        else if (permissions.canViewInventory) setActiveTab("sparepart");
+      }}
+      className="w-full"
+    >
+      <TabsList className={cn("mb-4 grid w-full sm:inline-flex sm:w-auto", tabListColumns)}>
+        {permissions.canViewInventory && (
+          <TabsTrigger value="sparepart" className="gap-1.5">
+            <RiArchiveLine className="h-4 w-4" />
+            Sparepart
+          </TabsTrigger>
+        )}
+        {permissions.canViewInventory && (
+          <TabsTrigger value="jasa" className="gap-1.5">
+            <RiPriceTag3Line className="h-4 w-4" />
+            Jasa
+          </TabsTrigger>
+        )}
+        {permissions.canManageRetail && (
+          <TabsTrigger value="retail" className="gap-1.5">
+            <RiShoppingBag3Line className="h-4 w-4" />
+            Barang Retail
+          </TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="sparepart">
@@ -317,7 +383,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             <div className="flex items-center gap-3">
               <div className="h-5 w-1 bg-primary rounded-full" />
               <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-                Sparepart {readOnly && <span className="text-muted-foreground/60">(Hanya Baca)</span>}
+                Sparepart {!hasAnySparepartMutation && <span className="text-muted-foreground/60">(Hanya Baca)</span>}
               </h2>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
@@ -339,23 +405,15 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   <RiGridFill className="h-3.5 w-3.5" />
                 </Button>
               </ButtonGroup>
-              {!readOnly && (
+              {showRestockHistoryLink && permissions.canViewRestockHistory && (
                 <Button asChild variant="outline" className="flex-1 sm:flex-none">
-                  <Link href={`/${tokoId}/admin/inventory/restock-history`}>
+                  <Link href={`/${tokoId}/inventory/restock-history`}>
                     <RiHistoryLine className="h-4 w-4 mr-1.5" />
                     Riwayat Restock
                   </Link>
                 </Button>
               )}
-              {!readOnly && (
-                <Button asChild variant="outline" className="flex-1 sm:flex-none">
-                  <Link href={`/${tokoId}/admin/inventory/supplier-returns`}>
-                    <RiHistoryLine className="h-4 w-4 mr-1.5" />
-                    Retur Supplier
-                  </Link>
-                </Button>
-              )}
-              {!readOnly && (
+              {permissions.canRestockSparepart && (
                 <Button
                   variant="outline"
                   className="flex-1 sm:flex-none"
@@ -365,7 +423,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   Restock
                 </Button>
               )}
-              {!readOnly && (
+              {permissions.canImportSparepart && (
                 <Button
                   variant="outline"
                   className="flex-1 sm:flex-none"
@@ -375,7 +433,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   Import Excel
                 </Button>
               )}
-              {!readOnly && (
+              {permissions.canCreateSparepart && (
                 <Button
                   onClick={handleAddSparepart}
                   className="flex-1 bg-gradient-to-r from-primary to-primary/90 shadow-lg shadow-primary/20 transition-all duration-200 hover:from-primary/90 hover:to-primary/80 hover:shadow-xl hover:shadow-primary/30 sm:flex-none"
@@ -506,29 +564,35 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                             </div>
                           </div>
                         </div>
-                        {!readOnly && (
+                        {hasSparepartRowActions && (
                           <div className="flex justify-end gap-1 mt-3 pt-2 border-t border-border/50">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handlePrintSparepartLabel(sparepart)}
-                            >
-                              <RiPrinterLine className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handleEditSparepart(sparepart)}
-                            >
-                              <RiEditLine className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => handleDeleteSparepartClick(sparepart)}
-                            >
-                              <RiDeleteBinLine className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {permissions.canUpdateSparepart && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => handlePrintSparepartLabel(sparepart)}
+                                >
+                                  <RiPrinterLine className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => handleEditSparepart(sparepart)}
+                                >
+                                  <RiEditLine className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {permissions.canDeleteSparepart && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => handleDeleteSparepartClick(sparepart)}
+                              >
+                                <RiDeleteBinLine className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -553,13 +617,13 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Stok Kritis</TableHead>
                         <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Kompatibilitas</TableHead>
-                        {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>}
+                        {hasSparepartRowActions && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[112px]">Aksi</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredSpareparts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={readOnly ? 8 : 9} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={hasSparepartRowActions ? 9 : 8} className="h-24 text-center text-muted-foreground">
                           {sparepartSearch
                             ? "No spareparts found matching your search"
                             : "No spareparts yet. Click \"Add Sparepart\" to add one."}
@@ -580,30 +644,36 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                           <TableCell>
                             <SparepartCompatibilityCell sparepart={sparepart} />
                           </TableCell>
-                          {!readOnly && (
+                          {hasSparepartRowActions && (
                             <TableCell>
                               <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  onClick={() => handlePrintSparepartLabel(sparepart)}
-                                >
-                                  <RiPrinterLine className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  onClick={() => handleEditSparepart(sparepart)}
-                                >
-                                  <RiEditLine className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  onClick={() => handleDeleteSparepartClick(sparepart)}
-                                >
-                                  <RiDeleteBinLine className="h-4 w-4 text-destructive" />
-                                </Button>
+                                {permissions.canUpdateSparepart && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      onClick={() => handlePrintSparepartLabel(sparepart)}
+                                    >
+                                      <RiPrinterLine className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      onClick={() => handleEditSparepart(sparepart)}
+                                    >
+                                      <RiEditLine className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                                {permissions.canDeleteSparepart && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    onClick={() => handleDeleteSparepartClick(sparepart)}
+                                  >
+                                    <RiDeleteBinLine className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           )}
@@ -618,7 +688,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           )}
         </div>
 
-        {!readOnly && (
+        {(permissions.canCreateSparepart || permissions.canUpdateSparepart) && (
           <SparepartFormDialog
             open={sparepartDialogOpen}
             onOpenChange={setSparepartDialogOpen}
@@ -628,7 +698,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           />
         )}
 
-        {!readOnly && (
+        {permissions.canUpdateSparepart && (
           <SparepartLabelPrintDialog
             open={labelDialogOpen}
             onOpenChange={setLabelDialogOpen}
@@ -636,7 +706,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           />
         )}
 
-        {!readOnly && (
+        {permissions.canRestockSparepart && (
           <SparepartRestockDialog
             open={restockDialogOpen}
             onOpenChange={setRestockDialogOpen}
@@ -645,7 +715,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           />
         )}
 
-        {!readOnly && (
+        {permissions.canImportSparepart && (
           <SparepartImportDialog
             open={importDialogOpen}
             onOpenChange={setImportDialogOpen}
@@ -670,7 +740,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             <div className="flex items-center gap-3">
               <div className="h-5 w-1 bg-chart-1 rounded-full" />
               <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-                Jasa Service {readOnly && <span className="text-muted-foreground/60">(Hanya Baca)</span>}
+                Jasa Service {!hasServicePricelistActions && <span className="text-muted-foreground/60">(Hanya Baca)</span>}
               </h2>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
@@ -692,7 +762,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   <RiGridFill className="h-3.5 w-3.5" />
                 </Button>
               </ButtonGroup>
-              {!readOnly && (
+              {permissions.canManageServicePricelists && (
                 <Button
                   variant="outline"
                   className="flex-1 sm:flex-none"
@@ -702,7 +772,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                   Import Excel
                 </Button>
               )}
-              {!readOnly && (
+              {permissions.canManageServicePricelists && (
                 <Button
                   onClick={handleAddPricelist}
                   className="flex-1 bg-gradient-to-r from-chart-1 to-chart-1/90 shadow-lg shadow-chart-1/20 transition-all duration-200 hover:from-chart-1/90 hover:to-chart-1/80 hover:shadow-xl hover:shadow-chart-1/30 sm:flex-none"
@@ -754,7 +824,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                         <span className="text-xs text-muted-foreground">Price</span>
                         <span className="font-semibold text-sm tabular-nums">{formatCurrency(pricelist.defaultPrice)}</span>
                       </div>
-                      {!readOnly && (
+                      {hasServicePricelistActions && (
                         <div className="flex justify-end gap-1 mt-3 pt-2 border-t border-border/50">
                           <Button
                             variant="ghost"
@@ -787,13 +857,13 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                     <TableRow className="bg-muted/50">
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Judul</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Harga Default</TableHead>
-                      {!readOnly && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[80px]">Aksi</TableHead>}
+                      {hasServicePricelistActions && <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-widest w-[80px]">Aksi</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredPricelists.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={readOnly ? 2 : 3} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={hasServicePricelistActions ? 3 : 2} className="h-24 text-center text-muted-foreground">
                           {pricelistSearch
                             ? "No jasa found matching your search"
                             : "No jasa yet. Click \"Add Jasa\" to add one."}
@@ -804,7 +874,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
                         <TableRow key={pricelist.id} className="border-border/50">
                           <TableCell className="font-medium">{pricelist.title}</TableCell>
                           <TableCell>{formatCurrency(pricelist.defaultPrice)}</TableCell>
-                          {!readOnly && (
+                          {hasServicePricelistActions && (
                             <TableCell>
                               <div className="flex items-center gap-1">
                                 <Button
@@ -835,7 +905,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           )}
         </div>
 
-        {!readOnly && (
+        {permissions.canManageServicePricelists && (
           <ServicePricelistFormDialog
             open={pricelistDialogOpen}
             onOpenChange={setPricelistDialogOpen}
@@ -845,7 +915,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           />
         )}
 
-        {!readOnly && (
+        {permissions.canManageServicePricelists && (
           <ServicePricelistImportDialog
             open={pricelistImportDialogOpen}
             onOpenChange={setPricelistImportDialogOpen}
@@ -863,6 +933,17 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           isLoading={isDeletingPricelist}
         />
       </TabsContent>
+
+      {permissions.canManageRetail && (
+        <TabsContent value="retail">
+          <RetailItemTable
+            tokoId={tokoId}
+            readOnly={false}
+            canRestock={permissions.canRestockSparepart}
+            canImport={permissions.canImportSparepart}
+          />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }

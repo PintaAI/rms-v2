@@ -77,6 +77,7 @@ import {
 } from "@/actions";
 import type { ServiceListItem, WarrantyClaim } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
+import { defaultServiceActionPermissions, type ServiceActionPermissions } from "@/components/dashboard/services/service-action-permissions";
 import { PaymentDialog } from "./payment-dialog";
 import { InvoiceDialog } from "@/components/dashboard/services/service-table/invoice-dialog";
 import type { InvoicePreviewService } from "@/components/dashboard/services/service-table/invoice-dialog";
@@ -238,6 +239,7 @@ export interface ServiceDetailCardProps {
   onOptimisticStatusError?: (serviceId: string) => void;
   onPickupSuccess?: (serviceId: string) => void;
   onRealtimeEvent?: (event: PublishServiceRealtimeEvent) => void;
+  actionPermissions?: ServiceActionPermissions;
 }
 
 export function ServiceDetailCardSkeleton() {
@@ -329,6 +331,7 @@ export function ServiceDetailCard({
   onOptimisticStatusError,
   onPickupSuccess,
   onRealtimeEvent,
+  actionPermissions = defaultServiceActionPermissions,
 }: ServiceDetailCardProps) {
   const isActive = variant === "active";
   const { featureAccess, inventoryEnabled, user: currentUser } = useDashboardScope();
@@ -564,9 +567,11 @@ export function ServiceDetailCard({
   }, [localService]);
 
   const hasCompletedStatus = localService.status === "done" || localService.status === "failed";
-  const canPayInvoice = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.invoice?.paymentStatus === "unpaid" || localService.invoice?.paymentStatus === "dp");
-  const canMarkPickedUp = canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.status === "failed" || localService.invoice?.paymentStatus === "paid");
-  const canUndoCompletedStatus = hasCompletedStatus && !localService.isPickedUp && localService.invoice?.paymentStatus !== "paid";
+  const canMutateRepairItems = showRepairItemActions && actionPermissions.canManageItems && actionPermissions.canManageInvoice;
+  const canUpdateServiceStatus = showCompletionActions && actionPermissions.canUpdateStatus;
+  const canPayInvoice = actionPermissions.canManageInvoice && canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.invoice?.paymentStatus === "unpaid" || localService.invoice?.paymentStatus === "dp");
+  const canMarkPickedUp = actionPermissions.canPickup && canHandleCustomerHandoff && hasCompletedStatus && !localService.isPickedUp && (localService.status === "failed" || localService.invoice?.paymentStatus === "paid");
+  const canUndoCompletedStatus = actionPermissions.canUpdateStatus && hasCompletedStatus && !localService.isPickedUp && localService.invoice?.paymentStatus !== "paid";
   const canContactDuringRepair = (localService.status === "received" || localService.status === "repairing") && Boolean(localService.noWa);
   const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp || Boolean(localService.invoice));
   const warrantyUntilDate = localService.warrantyUntil ? new Date(localService.warrantyUntil) : null;
@@ -846,7 +851,7 @@ export function ServiceDetailCard({
               </div>
             </div>
             <div className="flex w-full justify-end gap-2 sm:w-auto sm:shrink-0">
-              {isActive && showRepairItemActions && localService.invoice?.paymentStatus !== "paid" && (
+              {isActive && canMutateRepairItems && localService.invoice?.paymentStatus !== "paid" && (
                 <Button
                   size="sm"
                   onClick={() => {
@@ -861,7 +866,7 @@ export function ServiceDetailCard({
                   <span className="ml-1 hidden sm:inline">Tambah Sparepart & jasa</span>
                 </Button>
               )}
-              {!isActive && showCompletionActions && canUndoCompletedStatus && (
+              {!isActive && canUpdateServiceStatus && canUndoCompletedStatus && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1048,7 +1053,7 @@ export function ServiceDetailCard({
                         </div>
                         <div className="shrink-0 text-right">
                           <p className="text-sm font-semibold">{formatCurrency(item.price * item.qty)}</p>
-                          {isActive && (
+                          {isActive && canMutateRepairItems && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1078,7 +1083,7 @@ export function ServiceDetailCard({
                         <TableHead>Qty</TableHead>
                         <TableHead>Price</TableHead>
                         <TableHead className="text-right">Total</TableHead>
-                        {isActive && <TableHead></TableHead>}
+                        {isActive && canMutateRepairItems && <TableHead></TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1100,7 +1105,7 @@ export function ServiceDetailCard({
                           <TableCell className="text-right">
                             {formatCurrency(item.price * item.qty)}
                           </TableCell>
-                          {isActive && (
+                          {isActive && canMutateRepairItems && (
                             <TableCell>
                               <Button
                                 variant="ghost"
@@ -1140,7 +1145,7 @@ export function ServiceDetailCard({
               </div>
             )}
 
-            {isActive && showCompletionActions && (
+            {isActive && canUpdateServiceStatus && (
               <div className="pt-4 mt-4">
                 <p className={cn("text-sm font-medium text-center mb-3", roleTone.label)}>
                   Service completion

@@ -164,7 +164,7 @@ export function TeknisiOverview({
 
         <Button
           variant="outline"
-          onClick={() => router.push(`/${tokoId}/teknisi/task`)}
+          onClick={() => router.push(`/${tokoId}/service/tasks`)}
           className="shrink-0"
         >
           <RiArrowRightLine className="mr-1.5 h-4 w-4" />
@@ -213,8 +213,8 @@ export function TeknisiOverview({
           isTakingTask={isTakingTask}
           onTakeTask={handleTakeTask}
           onOpenTask={handleOpenTask}
-          onViewAllAvailable={() => router.push(`/${tokoId}/teknisi/task?status=tersedia`)}
-          onViewAllMyTasks={() => router.push(`/${tokoId}/teknisi/task`)}
+          onViewAllAvailable={() => router.push(`/${tokoId}/service/tasks?status=tersedia`)}
+          onViewAllMyTasks={() => router.push(`/${tokoId}/service/tasks`)}
         />
       </section>
 

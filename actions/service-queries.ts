@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth/request-user";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
 import { withScope } from "@/lib/auth/wrapper";
+import { assertPermission } from "@/lib/auth/request-scope";
 import {
   buildTimeFilter,
   getAvailableTaskRecords,
@@ -40,7 +41,9 @@ export async function getServiceList(
     if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
-  return withScope(tokoId, { role: ["admin", "staff"] }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.view");
+
     const timeFilterCondition = buildTimeFilter(timeFilter);
     const statusCondition = statusFilter?.length ? { status: { in: statusFilter } } : {};
 
@@ -80,6 +83,8 @@ export async function getService(
   if (!service) return { success: false, error: "Service tidak ditemukan" };
 
   return withScope(service.tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.view");
+
     if (isTechnicianRole(scope.user.role)) {
       const canReadTask =
         service.technician?.id === scope.user.id || technicianAvailableStatuses.includes(service.status);
@@ -105,7 +110,9 @@ export async function getAvailableTasks(
     if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
-  return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
+  return withScope(tokoId, { feature: "technician.workflow" }, async (scope) => {
+    assertPermission(scope, "service.view");
+
     const services = await getAvailableTaskRecords(tokoId, scope.user.id, limit);
     return services.map(mapServiceToListItem);
   });
@@ -116,7 +123,9 @@ export async function getMyTasks(
   statuses: ServiceStatus[] = technicianAvailableStatuses,
   limit: number = technicianTaskListLimit
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
-  return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
+  return withScope(tokoId, { feature: "technician.workflow" }, async (scope) => {
+    assertPermission(scope, "service.view");
+
     const services = await getMyTaskRecords(tokoId, scope.user.id, statuses, limit);
     return services.map(mapServiceToListItem);
   });
@@ -132,7 +141,9 @@ export async function getTechnicianDashboard(
     if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
-  return withScope(tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
+  return withScope(tokoId, { feature: "technician.workflow" }, async (scope) => {
+    assertPermission(scope, "service.view");
+
     const monthlyStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const [monthlyAssigned, availableCount, inProgressCount, doneCount, availableServices, myTasks] =
@@ -164,7 +175,9 @@ export async function getTechnicianDashboard(
 export async function getTechniciansByToko(
   tokoId: string
 ): Promise<ActionResultWithData<{ id: string; name: string; email: string }[]>> {
-  return withScope(tokoId, { role: ["admin", "staff"], feature: "service.technicianAssignment" }, async () => {
+  return withScope(tokoId, { feature: "service.technicianAssignment" }, async (scope) => {
+    assertPermission(scope, "service.assignTechnician");
+
     const technicians = await prisma.userToko.findMany({
       where: { tokoId, user: { role: "technician" } },
       select: { user: { select: { id: true, name: true, email: true } } },
@@ -175,7 +188,9 @@ export async function getTechniciansByToko(
 }
 
 export async function getServiceStats(tokoId: string): Promise<ActionResultWithData<ServiceStats>> {
-  return withScope(tokoId, { role: ["admin", "staff"] }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.view");
+
     const [serviceStatusCounts, pickedUp, total] = await Promise.all([
       prisma.service.groupBy({
         by: ["status"],
@@ -202,7 +217,9 @@ export async function getServiceStats(tokoId: string): Promise<ActionResultWithD
 export async function getTechnicianTaskStats(
   tokoId: string
 ): Promise<ActionResultWithData<TechnicianTaskStats>> {
-  return withScope(tokoId, { role: ["admin", "technician"] }, async (scope) => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.view");
+
     const [tersedia, repairing, selesai, gagal, history, total] = await Promise.all([
       prisma.service.count({
         where: { tokoId, status: { in: technicianAvailableStatuses }, OR: [{ technicianId: null }, { technicianId: { not: scope.user.id } }] },

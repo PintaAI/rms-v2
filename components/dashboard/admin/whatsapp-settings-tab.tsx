@@ -44,10 +44,12 @@ interface TemplateTokenEditorProps {
   previewValues?: Partial<Record<(typeof MESSAGE_VARIABLES)[number]["token"], string>>;
   onChange: (value: string) => void;
   onReset: () => void;
+  disabled?: boolean;
 }
 
 interface WhatsappSettingsTabProps {
   tokoId: string;
+  canManageSettings?: boolean;
 }
 
 function findQrValue(value: unknown): string | null {
@@ -176,11 +178,13 @@ function renderHighlightedTemplate(template: string) {
   return parts.length > 0 ? parts : " ";
 }
 
-function TemplateTokenEditor({ id, label, subtitle, value, previewValues, onChange, onReset }: TemplateTokenEditorProps) {
+function TemplateTokenEditor({ id, label, subtitle, value, previewValues, onChange, onReset, disabled = false }: TemplateTokenEditorProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const highlightRef = React.useRef<HTMLDivElement>(null);
 
   const insertVariable = (display: string) => {
+    if (disabled) return;
+
     const textarea = textareaRef.current;
     const start = textarea?.selectionStart ?? value.length;
     const end = textarea?.selectionEnd ?? value.length;
@@ -210,6 +214,7 @@ function TemplateTokenEditor({ id, label, subtitle, value, previewValues, onChan
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Backspace") return;
+    if (disabled) return;
 
     const textarea = event.currentTarget;
     const cursor = textarea.selectionStart;
@@ -235,7 +240,7 @@ function TemplateTokenEditor({ id, label, subtitle, value, previewValues, onChan
           <FieldLabel htmlFor={id}>{label}</FieldLabel>
           <FieldDescription>{subtitle}</FieldDescription>
         </div>
-        <Button type="button" variant="secondary" size="sm" onClick={onReset}>
+        <Button type="button" variant="secondary" size="sm" onClick={onReset} disabled={disabled}>
           Reset ke default
         </Button>
       </div>
@@ -255,12 +260,13 @@ function TemplateTokenEditor({ id, label, subtitle, value, previewValues, onChan
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
           onScroll={syncHighlightScroll}
+          disabled={disabled}
           className="relative min-h-28 resize-y bg-transparent text-transparent caret-foreground selection:bg-primary/20"
         />
       </div>
       <div className="flex flex-wrap gap-2">
         {MESSAGE_VARIABLES.map((variable) => (
-          <Button key={`${id}-${variable.display}`} type="button" variant="outline" size="sm" onClick={() => insertVariable(variable.display)}>
+          <Button key={`${id}-${variable.display}`} type="button" variant="outline" size="sm" onClick={() => insertVariable(variable.display)} disabled={disabled}>
             {variable.label}
           </Button>
         ))}
@@ -273,8 +279,8 @@ function TemplateTokenEditor({ id, label, subtitle, value, previewValues, onChan
   );
 }
 
-export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
-  const { user, tokoList } = useAuth();
+export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: WhatsappSettingsTabProps) {
+  const { tokoList } = useAuth();
   const currentToko = tokoList.find((t) => t.id === tokoId);
   const [setting, setSetting] = React.useState<TokoWhatsappSettingData | null>(null);
   const [liveState, setLiveState] = React.useState<WhatsappLiveState | null>(null);
@@ -351,6 +357,8 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
   }, [hasQrResponse, liveState?.state, tokoId, applySetting]);
 
   const handleConnect = async () => {
+    if (!canManageSettings) return;
+
     setIsConnecting(true);
     setQrData(null);
     setHasQrResponse(false);
@@ -371,6 +379,8 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
   };
 
   const handleResetConnection = async () => {
+    if (!canManageSettings) return;
+
     setIsConnecting(true);
     setQrData(null);
     setHasQrResponse(false);
@@ -391,6 +401,8 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
   };
 
   const handleDisconnect = async () => {
+    if (!canManageSettings) return;
+
     if (!window.confirm("Yakin ingin memutuskan koneksi WhatsApp?\n\nPerangkat akan dilepas dari WhatsApp toko dan perlu menyambungkan ulang dengan QR.")) return;
 
     setIsDisconnecting(true);
@@ -408,6 +420,8 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
   };
 
   const handleSave = async () => {
+    if (!canManageSettings) return;
+
     setIsSaving(true);
     const result = await updateTokoWhatsappSetting(tokoId, {
       enabled,
@@ -426,21 +440,14 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
   };
 
   const handleEnabledChange = (checked: boolean) => {
+    if (!canManageSettings) return;
+
     setEnabled(checked);
     if (!checked) {
       setNotifyDone(false);
       setNotifyFailed(false);
     }
   };
-
-  if (user?.role !== "admin") {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <RiLockLine className="mb-4 size-12 text-muted-foreground/50" />
-        <p className="text-muted-foreground">Only admins can manage WhatsApp settings.</p>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (
@@ -489,19 +496,19 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               {currentState !== "open" && (
-                <Button size="sm" onClick={handleConnect} disabled={isConnecting}>
+                <Button size="sm" onClick={handleConnect} disabled={isConnecting || !canManageSettings}>
                   {isConnecting ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiQrCodeLine data-icon="inline-start" />}
                   Connect
                 </Button>
               )}
               {currentState && currentState !== "close" && currentState !== "closed" && currentState !== "open" && (
-                <Button size="sm" variant="outline" onClick={handleResetConnection} disabled={isConnecting}>
+                <Button size="sm" variant="outline" onClick={handleResetConnection} disabled={isConnecting || !canManageSettings}>
                   {isConnecting ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiRefreshLine data-icon="inline-start" />}
                   QR Baru
                 </Button>
               )}
               {currentState === "open" && (
-                <Button size="sm" variant="destructive" onClick={handleDisconnect} disabled={isDisconnecting}>
+                <Button size="sm" variant="destructive" onClick={handleDisconnect} disabled={isDisconnecting || !canManageSettings}>
                   {isDisconnecting ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : <RiLinkUnlinkM data-icon="inline-start" />}
                   Disconnect
                 </Button>
@@ -541,6 +548,13 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
         )}  {/* end CardContent conditional */}
       </Card>
 
+      {!canManageSettings && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+          <RiLockLine className="mt-0.5 size-4 shrink-0" />
+          <p>Mode lihat saja. Anda dapat melihat status WhatsApp, tetapi tidak dapat mengubah koneksi atau template.</p>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Aturan Notifikasi</CardTitle>
@@ -553,21 +567,21 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
                 <FieldTitle>Aktifkan notifikasi WhatsApp</FieldTitle>
                 <FieldDescription>Matikan untuk menahan semua notifikasi otomatis dari toko ini.</FieldDescription>
               </FieldContent>
-              <Switch checked={enabled} onCheckedChange={handleEnabledChange} />
+              <Switch checked={enabled} onCheckedChange={handleEnabledChange} disabled={!canManageSettings} />
             </Field>
             <Field orientation="horizontal">
               <FieldContent>
                 <FieldTitle>Kirim saat service selesai</FieldTitle>
                 <FieldDescription>Kirim pesan saat status service menjadi selesai.</FieldDescription>
               </FieldContent>
-              <Switch checked={notifyDone} onCheckedChange={setNotifyDone} disabled={!enabled} />
+              <Switch checked={notifyDone} onCheckedChange={setNotifyDone} disabled={!enabled || !canManageSettings} />
             </Field>
             <Field orientation="horizontal">
               <FieldContent>
                 <FieldTitle>Kirim saat service gagal</FieldTitle>
                 <FieldDescription>Kirim pesan saat status service menjadi gagal.</FieldDescription>
               </FieldContent>
-              <Switch checked={notifyFailed} onCheckedChange={setNotifyFailed} disabled={!enabled} />
+              <Switch checked={notifyFailed} onCheckedChange={setNotifyFailed} disabled={!enabled || !canManageSettings} />
             </Field>
             <TemplateTokenEditor
               id="done-message-template"
@@ -577,6 +591,7 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
               previewValues={templatePreviewValues}
               onChange={setDoneTemplate}
               onReset={() => setDoneTemplate(toDisplayTemplate(DEFAULT_DONE_MESSAGE))}
+              disabled={!canManageSettings}
             />
             <TemplateTokenEditor
               id="failed-message-template"
@@ -586,8 +601,9 @@ export function WhatsappSettingsTab({ tokoId }: WhatsappSettingsTabProps) {
               previewValues={templatePreviewValues}
               onChange={setFailedTemplate}
               onReset={() => setFailedTemplate(toDisplayTemplate(DEFAULT_FAILED_MESSAGE))}
+              disabled={!canManageSettings}
             />
-            <Button onClick={handleSave} disabled={isSaving}>
+            <Button onClick={handleSave} disabled={isSaving || !canManageSettings}>
               {isSaving ? <RiLoader4Line data-icon="inline-start" className="animate-spin" /> : null}
               Simpan Pengaturan WhatsApp
             </Button>

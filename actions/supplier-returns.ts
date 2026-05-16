@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import prisma from "@/lib/prisma"
 import { createActivityLog } from "@/lib/activity-log"
+import { assertPermission } from "@/lib/auth/request-scope"
 import { withScope } from "@/lib/auth/wrapper"
 import { revalidateInventoryPaths, revalidateServicePaths } from "@/lib/revalidation"
 import type { ActionResult, ActionResultWithData } from "@/lib/auth/authorization"
@@ -97,8 +98,7 @@ function getMonthRange(date = new Date()) {
 }
 
 function revalidateSupplierReturnPaths(tokoId: string) {
-  revalidatePath(`/${tokoId}/admin/inventory/supplier-returns`)
-  revalidatePath(`/${tokoId}/admin/supplier-returns`)
+  revalidatePath(`/${tokoId}/inventory/supplier-returns`)
 }
 
 function revalidateAfterSupplierReturnMutation(tokoId: string, serviceId?: string | null) {
@@ -133,7 +133,9 @@ export async function getSupplierReturns(
   const validated = getSupplierReturnsFiltersSchema.safeParse(filters)
   if (!validated.success) return { success: false, error: validated.error.issues[0].message }
 
-  return withScope(tokoId, { role: ["admin"], feature: "inventory.management" }, async () => {
+  return withScope(tokoId, { feature: "inventory.management" }, async (scope) => {
+    assertPermission(scope, "supplier_returns.view")
+
     const normalized = validated.data ?? {}
     const page = normalized.page ?? 1
     const pageSize = normalized.pageSize ?? 20
@@ -279,7 +281,9 @@ export async function createSupplierReturn(
     if (!warrantyClaim) return { success: false, error: "Klaim garansi tidak ditemukan" }
   }
 
-  return withScope(validated.data.tokoId, { role: ["admin"], feature: "inventory.management" }, async (scope) => {
+  return withScope(validated.data.tokoId, { feature: "inventory.management" }, async (scope) => {
+    assertPermission(scope, "supplier_returns.create")
+
     const created = await prisma.$transaction(async (tx) => {
       const supplierReturn = await tx.supplierReturn.create({
         data: {
@@ -328,7 +332,9 @@ export async function markSupplierReturnSent(id: string): Promise<ActionResult> 
   if (!supplierReturn) return { success: false, error: "Retur supplier tidak ditemukan" }
   if (supplierReturn.status !== "pending") return { success: false, error: supplierReturn.status === "sent" ? "Retur supplier sudah dikirim" : "Retur supplier sudah selesai" }
 
-  return withScope(supplierReturn.tokoId, { role: ["admin"], feature: "inventory.management" }, async (scope) => {
+  return withScope(supplierReturn.tokoId, { feature: "inventory.management" }, async (scope) => {
+    assertPermission(scope, "supplier_returns.update")
+
     const sentAt = new Date()
     const updated = await prisma.$transaction(async (tx) => {
       const updated = await tx.supplierReturn.updateMany({
@@ -363,7 +369,9 @@ export async function markSupplierReturnReplaced(id: string): Promise<ActionResu
   if (!supplierReturn) return { success: false, error: "Retur supplier tidak ditemukan" }
   if (supplierReturn.status !== "pending" && supplierReturn.status !== "sent") return { success: false, error: "Retur supplier sudah selesai" }
 
-  return withScope(supplierReturn.tokoId, { role: ["admin"], feature: "inventory.management" }, async (scope) => {
+  return withScope(supplierReturn.tokoId, { feature: "inventory.management" }, async (scope) => {
+    assertPermission(scope, "supplier_returns.resolve")
+
     const resolvedAt = new Date()
     const updated = await prisma.$transaction(async (tx) => {
       const updatedReturn = await tx.supplierReturn.updateMany({
@@ -428,7 +436,9 @@ export async function markSupplierReturnRefunded(id: string, refundAmount: numbe
   if (!supplierReturn) return { success: false, error: "Retur supplier tidak ditemukan" }
   if (supplierReturn.status !== "pending" && supplierReturn.status !== "sent") return { success: false, error: "Retur supplier sudah selesai" }
 
-  return withScope(supplierReturn.tokoId, { role: ["admin"], feature: "inventory.management" }, async (scope) => {
+  return withScope(supplierReturn.tokoId, { feature: "inventory.management" }, async (scope) => {
+    assertPermission(scope, "supplier_returns.update")
+
     const resolvedAt = new Date()
     const updated = await prisma.$transaction(async (tx) => {
       const updated = await tx.supplierReturn.updateMany({
@@ -470,7 +480,9 @@ export async function markSupplierReturnRejected(id: string, note?: string): Pro
   if (!supplierReturn) return { success: false, error: "Retur supplier tidak ditemukan" }
   if (supplierReturn.status !== "pending" && supplierReturn.status !== "sent") return { success: false, error: "Retur supplier sudah selesai" }
 
-  return withScope(supplierReturn.tokoId, { role: ["admin"], feature: "inventory.management" }, async (scope) => {
+  return withScope(supplierReturn.tokoId, { feature: "inventory.management" }, async (scope) => {
+    assertPermission(scope, "supplier_returns.update")
+
     const resolvedAt = new Date()
     const nextNote = validated.data.note || supplierReturn.note
     const updated = await prisma.$transaction(async (tx) => {

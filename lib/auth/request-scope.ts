@@ -6,6 +6,14 @@ import { getEffectivePlanForToko } from "./plan";
 import { getDisabledFeaturesForToko as fetchDisabledFeatures } from "@/actions/feature-settings";
 import { FEATURE_REGISTRY, getFeatureLockReason, type FeatureKey, type FeatureAccessMap, type FeatureLockReason, type FeatureMetadata } from "@/lib/features";
 import { getPlanLimit, type SubscriptionPlan, type PlanLimitKey } from "@/lib/plans";
+import { getUserPermissionOverrides } from "@/lib/permission-overrides";
+import {
+  computeAllPermissionAccess,
+  type PermissionAccessMap,
+  type PermissionKey,
+  type PermissionLockReason,
+  type PermissionOverrideInput,
+} from "@/lib/permissions";
 
 export type CapabilityKey = "dashboard.overview" | "toko.manage" | "service.management";
 
@@ -65,6 +73,8 @@ export type RequestScope = {
   subscriptionStatus: AuthUser["subscriptionStatus"];
   disabledFeatures: FeatureKey[];
   featureAccess: FeatureAccessMap;
+  permissionOverrides: PermissionOverrideInput[];
+  permissionAccess: PermissionAccessMap;
   capabilities: CapabilityAccessMap;
 };
 
@@ -72,10 +82,13 @@ export const getRequestScope = cache(async (tokoId: string): Promise<RequestScop
   const user = await requireRequestUser();
   assertTokoAccess(user, tokoId);
 
-  const [plan, disabledFeatures] = await Promise.all([
+  const [plan, disabledFeatures, permissionOverrides] = await Promise.all([
     getScopePlan(user, tokoId),
     getCachedDisabledFeatures(tokoId),
+    getUserPermissionOverrides(tokoId, user.id),
   ]);
+
+  const featureAccess = getFeatureAccessMap(user.role, plan, disabledFeatures);
 
   return {
     user,
@@ -83,10 +96,39 @@ export const getRequestScope = cache(async (tokoId: string): Promise<RequestScop
     plan,
     subscriptionStatus: user.subscriptionStatus,
     disabledFeatures,
-    featureAccess: getFeatureAccessMap(user.role, plan, disabledFeatures),
+    featureAccess,
+    permissionOverrides,
+    permissionAccess: computeAllPermissionAccess(
+      user.role,
+      permissionOverrides,
+      (feature) => featureAccess[feature] === true,
+    ),
     capabilities: getCapabilityAccessMap(user.role),
   };
 });
+
+export function can(scope: RequestScope, permissionKey: PermissionKey): boolean {
+  return scope.permissionAccess[permissionKey]?.allowed === true;
+}
+
+export function getPermissionLockReason(
+  scope: RequestScope,
+  permissionKey: PermissionKey,
+): PermissionLockReason | null {
+  return scope.permissionAccess[permissionKey]?.lockReason ?? "unknown_permission";
+}
+
+export function assertPermission(scope: RequestScope, permissionKey: PermissionKey): void {
+  const access = scope.permissionAccess[permissionKey];
+
+  if (access?.allowed) return;
+
+  if (access?.lockReason === "feature_unavailable" && access.requiredFeature) {
+    assertFeature(scope, access.requiredFeature);
+  }
+
+  throw new AuthError("forbidden", "Anda tidak memiliki izin untuk aksi ini");
+}
 
 export function assertRole(scope: RequestScope, allowedRoles: UserRole[]): void {
   if (!allowedRoles.includes(scope.user.role)) {

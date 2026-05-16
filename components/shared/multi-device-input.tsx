@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useDeviceSearch } from "@/hooks/use-device-search";
 import { getBrandIcon } from "@/lib/brand-icons";
 import { HpCatalogOption } from "@/components/shared/device-input";
@@ -38,6 +38,8 @@ export function MultiDeviceInput({
   isLoadingDevices = false,
   onDeviceCreated,
 }: MultiDeviceInputProps) {
+  const selectedDeviceIds = useMemo(() => value.map((v) => v.id), [value]);
+
   const handleSelect = useCallback(
     (device: HpCatalogOption) => {
       if (value.some((v) => v.id === device.id)) {
@@ -67,7 +69,7 @@ export function MultiDeviceInput({
     devices,
     isLoadingDevices,
     onDeviceCreated,
-    excludeIds: value.map((v) => v.id),
+    excludeIds: selectedDeviceIds,
     onSelect: handleSelect,
   });
 

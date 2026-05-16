@@ -19,9 +19,11 @@ interface RetailItemTableProps {
   initialSearchQuery?: string;
   initialItems?: SparepartWithCompatibilities[];
   readOnly?: boolean;
+  canRestock?: boolean;
+  canImport?: boolean;
 }
 
-export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems, readOnly = false }: RetailItemTableProps) {
+export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems, readOnly = false, canRestock = !readOnly, canImport = !readOnly }: RetailItemTableProps) {
   const [items, setItems] = useState<SparepartWithCompatibilities[]>(initialItems ?? []);
   const [search, setSearch] = useState(initialSearchQuery);
   const [isLoading, setIsLoading] = useState(!initialItems);
@@ -95,14 +97,18 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
           <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Barang Retail</h2>
         </div>
         {!readOnly ? <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => setRestockOpen(true)}>
-            <RiStackLine className="mr-1.5 size-4" />
-            Restock
-          </Button>
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <RiUpload2Line className="mr-1.5 size-4" />
-            Import Excel
-          </Button>
+          {canRestock && (
+            <Button variant="outline" onClick={() => setRestockOpen(true)}>
+              <RiStackLine className="mr-1.5 size-4" />
+              Restock
+            </Button>
+          )}
+          {canImport && (
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <RiUpload2Line className="mr-1.5 size-4" />
+              Import Excel
+            </Button>
+          )}
           <Button
             onClick={() => {
               setEditingItem(null);

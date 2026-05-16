@@ -4,8 +4,19 @@ import prisma from "@/lib/prisma";
 import { ensurePlanLimit } from "@/lib/auth/enforcement";
 import { AuthError } from "@/lib/auth/authorization";
 import { withScope } from "@/lib/auth/wrapper";
+import { assertPermission } from "@/lib/auth/request-scope";
 import { createCredentialUserWithToko } from "@/lib/auth-helpers";
 import { revalidateKaryawanPaths } from "@/lib/revalidation";
+import {
+  getGrantablePermissionsInV1,
+  getPermissionInactiveReason,
+  getPermissionMetadata,
+  getRoleDefaultPermissions,
+  isPermissionKey,
+  type PermissionCategory,
+  type PermissionEffect,
+  type PermissionKey,
+} from "@/lib/permissions";
 import { Prisma } from "@/prisma/generated/prisma/client";
 
 export interface KaryawanPerformance {
@@ -62,6 +73,107 @@ export interface TechnicianPerformanceDetail {
     paidRevenue: number;
   };
   services: TechnicianPerformanceServiceItem[];
+}
+
+export interface KaryawanPermissionCatalogItem {
+  permissionKey: PermissionKey;
+  label: string;
+  description: string;
+  inactiveReason: string;
+  category: PermissionCategory;
+  sensitivity: "operational" | "sensitive" | "ownership";
+  requiredFeature: string | null;
+  requiredFeatureAvailable: boolean;
+  defaultAllowed: boolean;
+}
+
+export interface KaryawanPermissionSettings {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: "staff" | "technician";
+  };
+  permissions: KaryawanPermissionCatalogItem[];
+  overrides: Array<{
+    permissionKey: PermissionKey;
+    effect: PermissionEffect;
+  }>;
+}
+
+export interface SaveKaryawanPermissionOverrideInput {
+  permissionKey: PermissionKey;
+  effect: PermissionEffect;
+}
+
+function isPermissionEffect(value: string): value is PermissionEffect {
+  return value === "allow" || value === "deny";
+}
+
+async function getPermissionTarget(tokoId: string, userId: string) {
+  const assignment = await prisma.userToko.findUnique({
+    where: { userId_tokoId: { userId, tokoId } },
+    select: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+  });
+
+  if (!assignment || (assignment.user.role !== "staff" && assignment.user.role !== "technician")) {
+    throw new AuthError("forbidden", "Karyawan tidak ditemukan di toko ini");
+  }
+
+  return {
+    ...assignment.user,
+    role: assignment.user.role as "staff" | "technician",
+  };
+}
+
+async function buildKaryawanPermissionSettings(
+  tokoId: string,
+  userId: string,
+  scopeFeatureAccess: Record<string, boolean | undefined>
+): Promise<KaryawanPermissionSettings> {
+  const targetUser = await getPermissionTarget(tokoId, userId);
+  const grantablePermissions = getGrantablePermissionsInV1();
+  const defaultPermissions = new Set(getRoleDefaultPermissions(targetUser.role));
+  const overrides = await prisma.tokoUserPermission.findMany({
+    where: { tokoId, userId, permissionKey: { in: grantablePermissions } },
+    select: { permissionKey: true, effect: true },
+    orderBy: { permissionKey: "asc" },
+  });
+
+  return {
+    user: targetUser,
+    permissions: grantablePermissions.map((permissionKey) => {
+      const metadata = getPermissionMetadata(permissionKey);
+
+      return {
+        permissionKey,
+        label: metadata.label,
+        description: metadata.description,
+        inactiveReason: getPermissionInactiveReason(permissionKey),
+        category: metadata.category,
+        sensitivity: metadata.sensitivity,
+        requiredFeature: metadata.requiredFeature,
+        requiredFeatureAvailable: metadata.requiredFeature === null
+          || scopeFeatureAccess[metadata.requiredFeature] === true,
+        defaultAllowed: defaultPermissions.has(permissionKey),
+      };
+    }),
+    overrides: overrides.flatMap((override) => {
+      if (!isPermissionKey(override.permissionKey)) return [];
+      if (!isPermissionEffect(override.effect)) return [];
+
+      return [{ permissionKey: override.permissionKey, effect: override.effect }];
+    }),
+  };
 }
 
 async function getKaryawanPerformanceMap(
@@ -162,7 +274,8 @@ export async function getKaryawanList(tokoId: string): Promise<{
   data?: KaryawanItem[];
   error?: string;
 }> {
-  return withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "karyawan.view");
     const assignments = await prisma.userToko.findMany({
       where: { tokoId },
       include: {
@@ -203,7 +316,8 @@ export async function getKaryawanList(tokoId: string): Promise<{
 const emptyKaryawanStats: KaryawanStats = { staff: 0, technician: 0, total: 0 };
 
 export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
-  const result = await withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async () => {
+  const result = await withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "karyawan.view");
     const [staff, technician] = await Promise.all([
       prisma.userToko.count({ where: { tokoId, user: { role: "staff" } } }),
       prisma.userToko.count({ where: { tokoId, user: { role: "technician" } } }),
@@ -219,7 +333,8 @@ export async function getTechnicianPerformanceDetail(
   tokoId: string,
   technicianId: string
 ): Promise<{ success: boolean; data?: TechnicianPerformanceDetail; error?: string }> {
-  return withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async () => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "karyawan.view");
     const assignment = await prisma.userToko.findFirst({
     where: {
       tokoId,
@@ -311,6 +426,90 @@ export async function getTechnicianPerformanceDetail(
   });
 }
 
+export async function getKaryawanPermissionSettings(
+  tokoId: string,
+  userId: string
+): Promise<{ success: boolean; data?: KaryawanPermissionSettings; error?: string }> {
+  return withScope(tokoId, { feature: "karyawan.management" }, async (scope) => {
+    assertPermission(scope, "karyawan.managePermissions");
+
+    return buildKaryawanPermissionSettings(tokoId, userId, scope.featureAccess);
+  });
+}
+
+export async function saveKaryawanPermissionOverrides(
+  tokoId: string,
+  userId: string,
+  overrides: SaveKaryawanPermissionOverrideInput[]
+): Promise<{ success: boolean; data?: KaryawanPermissionSettings; error?: string }> {
+  return withScope(tokoId, { feature: "karyawan.management" }, async (scope) => {
+    assertPermission(scope, "karyawan.managePermissions");
+
+    await getPermissionTarget(tokoId, userId);
+    const grantablePermissions = new Set(getGrantablePermissionsInV1());
+    const normalizedOverrides = new Map<PermissionKey, PermissionEffect>();
+
+    for (const override of overrides) {
+      if (!isPermissionKey(override.permissionKey) || !grantablePermissions.has(override.permissionKey)) {
+        throw new AuthError("forbidden", "Permission tidak dapat diubah");
+      }
+      if (!isPermissionEffect(override.effect)) {
+        throw new AuthError("forbidden", "Effect permission tidak valid");
+      }
+
+      const metadata = getPermissionMetadata(override.permissionKey);
+      if (metadata.requiredFeature && scope.featureAccess[metadata.requiredFeature] !== true) {
+        throw new AuthError("feature_locked", "Permission ini tidak tersedia untuk toko ini");
+      }
+
+      normalizedOverrides.set(override.permissionKey, override.effect);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.tokoUserPermission.deleteMany({
+        where: { tokoId, userId, permissionKey: { in: Array.from(grantablePermissions) } },
+      });
+
+      if (normalizedOverrides.size > 0) {
+        await tx.tokoUserPermission.createMany({
+          data: Array.from(normalizedOverrides.entries()).map(([permissionKey, effect]) => ({
+            tokoId,
+            userId,
+            permissionKey,
+            effect,
+          })),
+        });
+      }
+    });
+
+    revalidateKaryawanPaths(tokoId);
+
+    return buildKaryawanPermissionSettings(tokoId, userId, scope.featureAccess);
+  });
+}
+
+export async function resetKaryawanPermissionOverrides(
+  tokoId: string,
+  userId: string
+): Promise<{ success: boolean; data?: KaryawanPermissionSettings; error?: string }> {
+  return withScope(tokoId, { feature: "karyawan.management" }, async (scope) => {
+    assertPermission(scope, "karyawan.managePermissions");
+    await getPermissionTarget(tokoId, userId);
+
+    await prisma.tokoUserPermission.deleteMany({
+      where: {
+        tokoId,
+        userId,
+        permissionKey: { in: getGrantablePermissionsInV1() },
+      },
+    });
+
+    revalidateKaryawanPaths(tokoId);
+
+    return buildKaryawanPermissionSettings(tokoId, userId, scope.featureAccess);
+  });
+}
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const sanitizeForEmail = (str: string) =>
@@ -364,7 +563,8 @@ export async function createKaryawan(
     return { success: false, error: "Password must be at least 4 characters" };
   }
 
-  return withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async (scope) => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "karyawan.create");
     const { email: _generatedEmail, error: emailError } = await generateKaryawanEmail(input.name, input.role, tokoId);
     if (emailError || !_generatedEmail) {
       throw new AuthError("forbidden", emailError ?? "Could not generate email");
@@ -414,7 +614,8 @@ export async function deleteKaryawan(
   tokoId: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  return withScope(tokoId, { role: ["admin"], feature: "karyawan.management" }, async (scope) => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "karyawan.deactivate");
     if (userId === scope.user.id) return { success: false, error: "Cannot delete yourself" };
 
   const targetUser = await prisma.user.findUnique({

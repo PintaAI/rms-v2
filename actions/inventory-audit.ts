@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createActivityLog } from "@/lib/activity-log";
 import prisma from "@/lib/prisma";
 import { actionError, type ActionResult, type ActionResultWithData } from "@/lib/auth/authorization";
-import { assertFeature, assertRole, getRequestScope } from "@/lib/auth/request-scope";
+import { assertFeature, assertPermission, getRequestScope } from "@/lib/auth/request-scope";
 import { revalidateInventoryPaths } from "@/lib/revalidation";
 import { Prisma } from "@/prisma/generated/prisma/client";
 
@@ -84,11 +84,11 @@ export type InventoryAuditOverview = {
   recentSessions: InventoryAuditSessionData[];
 };
 
-async function getInventoryAuditUser(tokoId: string, requireWriteAccess = false) {
+async function getInventoryAuditUser(tokoId: string) {
   try {
     const scope = await getRequestScope(tokoId);
-    if (requireWriteAccess) assertRole(scope, ["admin"]);
     assertFeature(scope, "inventory.audit");
+    assertPermission(scope, "inventory.audit");
 
     return { success: true as const, user: scope.user, scope };
   } catch (error) {
@@ -272,7 +272,7 @@ export async function startInventoryAudit(
 ): Promise<ActionResultWithData<InventoryAuditSessionData>> {
   try {
     const validatedTokoId = tokoIdSchema.parse(tokoId);
-    const access = await getInventoryAuditUser(validatedTokoId, true);
+    const access = await getInventoryAuditUser(validatedTokoId);
     if (!access.success) return access;
 
     const session = await prisma.$transaction(
@@ -373,7 +373,7 @@ export async function updateInventoryAuditItem(
       return { success: false, error: "Inventory audit item not found" };
     }
 
-    const access = await getInventoryAuditUser(item.session.tokoId, true);
+    const access = await getInventoryAuditUser(item.session.tokoId);
     if (!access.success) return access;
 
     if (item.session.status !== "active") {
@@ -450,7 +450,7 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
       return { success: false, error: "Inventory audit session not found" };
     }
 
-    const access = await getInventoryAuditUser(session.tokoId, true);
+    const access = await getInventoryAuditUser(session.tokoId);
     if (!access.success) return access;
 
     if (session.status !== "active") {
@@ -635,7 +635,7 @@ export async function cancelInventoryAudit(sessionId: string): Promise<ActionRes
       return { success: false, error: "Inventory audit session not found" };
     }
 
-    const access = await getInventoryAuditUser(session.tokoId, true);
+    const access = await getInventoryAuditUser(session.tokoId);
     if (!access.success) return access;
 
     if (session.status !== "active") {

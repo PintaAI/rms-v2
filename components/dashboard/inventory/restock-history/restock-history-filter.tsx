@@ -118,7 +118,7 @@ export function RestockHistoryFilter({
       <Button type="submit" className={buttonClassName}>Terapkan</Button>
       {hasActiveFilter && (
         <Button asChild variant="outline">
-          <Link href={`/${tokoId}/admin/inventory/restock-history`}>Reset</Link>
+          <Link href={`/${tokoId}/inventory/restock-history`}>Reset</Link>
         </Button>
       )}
     </div>
@@ -147,7 +147,7 @@ export function RestockHistoryFilter({
             </div>
             {hasActiveFilter && (
               <Button asChild variant="outline">
-                <Link href={`/${tokoId}/admin/inventory/restock-history`}>Reset</Link>
+                <Link href={`/${tokoId}/inventory/restock-history`}>Reset</Link>
               </Button>
             )}
           </div>

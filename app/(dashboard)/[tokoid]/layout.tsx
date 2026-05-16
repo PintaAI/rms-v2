@@ -62,6 +62,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
           },
           tokoId: tokoid,
           featureAccess: scope.featureAccess,
+          permissionAccess: scope.permissionAccess,
           capabilities: scope.capabilities,
           disabledFeatures: scope.disabledFeatures,
         }}
@@ -70,6 +71,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
           <AppSidebar
             tokoid={tokoid}
             featureAccess={scope.featureAccess}
+            permissionAccess={scope.permissionAccess}
             capabilities={scope.capabilities}
             disabledFeatures={scope.disabledFeatures}
             serviceStats={serviceStats}

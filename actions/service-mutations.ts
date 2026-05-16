@@ -9,9 +9,8 @@ import { sendServiceStatusWhatsappNotification } from "@/lib/service-whatsapp-no
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
 import { getRequestUser } from "@/lib/auth/request-user";
 import { withScope } from "@/lib/auth/wrapper";
-import { assertFeature } from "@/lib/auth/request-scope";
+import { assertFeature, assertPermission, type RequestScope } from "@/lib/auth/request-scope";
 import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
-import type { SubscriptionPlan } from "@/lib/features";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import {
   getStatusActivityTitle,
@@ -83,16 +82,30 @@ const payInvoiceSchema = z.object({
   paymentMethod: z.enum(["cash", "transfer", "qris", "debit"]).optional(),
 });
 
-async function updateInvoiceIfAllowed(user: { plan: SubscriptionPlan; id: string }, serviceId: string, tokoId: string): Promise<void> {
-  const limitError = await ensureMonthlyActivityLimit(user, "maxInvoicesMonthly", "invoice_created", tokoId);
+async function assertInvoiceMutationPermissions(scope: RequestScope, serviceId: string): Promise<void> {
+  assertPermission(scope, "service.manageItems");
+  assertPermission(scope, "service.manageInvoice");
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { serviceId },
+    select: { id: true },
+  });
+
+  if (!invoice) {
+    assertPermission(scope, "service.createInvoice");
+  }
+}
+
+async function updateInvoiceIfAllowed(scope: RequestScope, serviceId: string): Promise<void> {
+  const limitError = await ensureMonthlyActivityLimit(scope.user, "maxInvoicesMonthly", "invoice_created", scope.tokoId);
   if (limitError) throw new Error(limitError.error);
 
   const invoiceResult = await updateInvoiceTotal(serviceId);
 
   if (invoiceResult.created) {
     await createActivityLog(prisma, {
-      tokoId,
-      userId: user.id,
+      tokoId: scope.tokoId,
+      userId: scope.user.id,
       serviceId,
       type: "invoice_created",
       title: "Invoice created",
@@ -114,7 +127,13 @@ export async function createService(
     if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
-  return withScope(tokoId, { role: ["admin", "staff"] }, async (scope) => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.create");
+    if (validated.data.dpAmount && validated.data.dpAmount > 0) {
+      assertPermission(scope, "service.createInvoice");
+      assertPermission(scope, "service.manageInvoice");
+    }
+
     const limitError = await ensureMonthlyActivityLimit(scope.user, "maxServicesMonthly", "service_created", scope.tokoId);
     if (limitError) throw new Error(limitError.error);
 
@@ -200,7 +219,9 @@ export async function updateService(
   if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
 
-  return withScope(service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
+  return withScope(service.tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.update");
+
     const hpCatalog = await prisma.hpCatalog.findUnique({
       where: { id: validated.data.hpCatalogId },
     });
@@ -222,10 +243,15 @@ export async function updateService(
       });
 
       if (validated.data.dpAmount && validated.data.dpAmount > 0) {
+        assertPermission(scope, "service.manageInvoice");
         const existingInvoice = await tx.invoice.findUnique({
           where: { serviceId },
           select: { id: true },
         });
+
+        if (!existingInvoice) {
+          assertPermission(scope, "service.createInvoice");
+        }
 
         if (existingInvoice) {
           await tx.invoice.update({
@@ -293,7 +319,9 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
     return { success: false, error: "Tidak dapat menghapus service dengan invoice lunas" };
   }
 
-  return withScope(service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
+  return withScope(service.tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.delete");
+
     const serviceItems = await prisma.serviceItem.findMany({
       where: { serviceId },
       select: {
@@ -363,7 +391,9 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
     return { success: false, error: "Service tidak tersedia untuk diambil alih" };
   }
 
-  return withScope(service.tokoId, { role: ["admin", "technician"], feature: "technician.workflow" }, async (scope) => {
+  return withScope(service.tokoId, { feature: "technician.workflow" }, async (scope) => {
+    assertPermission(scope, "service.takeOverTask");
+
     if (service.technicianId === scope.user.id) {
       return { success: false, error: "Service sudah ditugaskan kepada Anda" };
     }
@@ -438,9 +468,8 @@ export async function updateStatus(
     return { success: false, error: "Tanggal garansi tidak valid" };
   }
 
-  return withScope(service.tokoId, { role: ["admin", "staff", "technician"] }, async (scope) => {
-    if (scope.user.role === "staff") assertFeature(scope, "staff.workflow");
-    if (isTechnicianRole(scope.user.role)) assertFeature(scope, "technician.workflow");
+  return withScope(service.tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.updateStatus");
 
     if (isTechnicianRole(scope.user.role) && service.technicianId !== scope.user.id) {
       throw new Error("Access denied");
@@ -515,7 +544,9 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
     return { success: false, error: "Hanya service selesai yang dapat ditandai diambil" };
   }
 
-  return withScope(service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
+  return withScope(service.tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.pickup");
+
     const pickedUpAt = new Date();
 
     await prisma.$transaction(async (tx) => {
@@ -556,7 +587,9 @@ export async function assignTechnician(
   if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
 
-  return withScope(service.tokoId, { role: ["admin", "staff"], feature: "service.technicianAssignment" }, async (scope) => {
+  return withScope(service.tokoId, { feature: "service.technicianAssignment" }, async (scope) => {
+    assertPermission(scope, "service.assignTechnician");
+
     if (technicianId) {
       const technician = await prisma.user.findUnique({
         where: { id: technicianId },
@@ -624,9 +657,8 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
     return { success: false, error: "Item jasa tidak dapat menggunakan sparepart" };
   }
 
-  return withScope(service.tokoId, { role: ["admin", "staff", "technician"] }, async (scope) => {
-    if (scope.user.role === "staff") assertFeature(scope, "staff.workflow");
-    if (isTechnicianRole(scope.user.role)) assertFeature(scope, "technician.workflow");
+  return withScope(service.tokoId, {}, async (scope) => {
+    await assertInvoiceMutationPermissions(scope, validated.data.serviceId);
 
     let createdItem: { id: string; type: string; name: string; qty: number; price: number } | null = null;
     const actorTechnicianId = isTechnicianRole(scope.user.role) ? scope.user.id : null;
@@ -724,7 +756,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
       });
     }
 
-    await updateInvoiceIfAllowed(scope.user, validated.data.serviceId, scope.tokoId);
+    await updateInvoiceIfAllowed(scope, validated.data.serviceId);
     revalidateServicePaths(scope.tokoId);
 
     return createdItem!;
@@ -743,7 +775,11 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
   if (item.service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
   if (item.service.invoice?.paymentStatus === "paid") return { success: false, error: "Tidak dapat memperbarui item pada invoice lunas" };
 
-  return withScope(item.service.tokoId, { role: ["admin", "staff", "technician"] }, async (scope) => {
+  return withScope(item.service.tokoId, {}, async (scope) => {
+    await assertInvoiceMutationPermissions(scope, item.serviceId);
+    assertPermission(scope, "service.manageItems");
+    assertPermission(scope, "service.manageInvoice");
+
     if (isTechnicianRole(scope.user.role) && item.service.technicianId !== scope.user.id) {
       throw new Error("Access denied");
     }
@@ -785,7 +821,7 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
       await prisma.serviceItem.delete({ where: { id: itemId } });
     }
 
-    await updateInvoiceIfAllowed(scope.user, item.serviceId, scope.tokoId);
+    await updateInvoiceIfAllowed(scope, item.serviceId);
     revalidateServicePaths(scope.tokoId);
 
     return { success: true };
@@ -816,7 +852,9 @@ export async function payInvoice(invoiceId: string, data: z.infer<typeof payInvo
   const maxDiscount = Math.max(invoice.grandTotal - invoice.dpAmount, 0);
   if (discountAmount > maxDiscount) return { success: false, error: "Diskon tidak boleh melebihi sisa total invoice" };
 
-  return withScope(invoice.service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
+  return withScope(invoice.service.tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.manageInvoice");
+
     const paidAt = new Date();
 
     await prisma.$transaction(async (tx) => {
@@ -856,7 +894,9 @@ export async function markDpInvoice(invoiceId: string, dpAmount: number): Promis
   if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "dp") return { success: false, error: "Invoice sudah memiliki DP atau lunas" };
   if (dpAmount <= 0) return { success: false, error: "Jumlah DP harus lebih dari nol" };
 
-  return withScope(invoice.service.tokoId, { role: ["admin", "staff"] }, async (scope) => {
+  return withScope(invoice.service.tokoId, {}, async (scope) => {
+    assertPermission(scope, "service.manageInvoice");
+
     await prisma.$transaction(async (tx) => {
       await tx.invoice.update({
         where: { id: invoiceId },

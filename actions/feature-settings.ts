@@ -11,6 +11,7 @@ import {
 } from "@/lib/features";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { revalidatePath } from "next/cache";
+import { assertPermission } from "@/lib/auth/request-scope";
 import { withScope } from "@/lib/auth/wrapper";
 
 export interface TokoFeatureSettingsData {
@@ -55,6 +56,8 @@ export async function getTokoFeatureSettingsWithStatus(
   tokoId: string
 ): Promise<ActionResultWithData<FeatureSettingsStatusData>> {
   return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "features.view");
+
     const toko = await prisma.toko.findUnique({
       where: { id: tokoId },
       select: { name: true },
@@ -126,7 +129,9 @@ export async function updateTokoFeatureSettings(
   tokoId: string,
   disabledFeatures: FeatureKey[]
 ): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  return withScope(tokoId, { role: ["admin"] }, async (scope) => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "features.manage");
+
     for (const feature of disabledFeatures) {
       const metadata = FEATURE_REGISTRY[feature];
       if (!metadata) throw new Error(`Invalid feature: ${feature}`);
@@ -149,7 +154,9 @@ export async function setTokoFeatureEnabled(
   feature: FeatureKey,
   enabled: boolean
 ): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  return withScope(tokoId, { role: ["admin"] }, async (scope) => {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "features.manage");
+
     if (!isFeatureKey(feature)) throw new Error("Invalid feature");
 
     const metadata = FEATURE_REGISTRY[feature];

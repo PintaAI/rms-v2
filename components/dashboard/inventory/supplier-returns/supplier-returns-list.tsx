@@ -29,7 +29,7 @@ const buildSupplierReturnsHref = (tokoId: string, params: SupplierReturnsFilters
   if (params.to) search.set("to", params.to)
   if (params.page && params.page > 1) search.set("page", String(params.page))
   const query = search.toString()
-  return `/${tokoId}/admin/inventory/supplier-returns${query ? `?${query}` : ""}`
+  return `/${tokoId}/inventory/supplier-returns${query ? `?${query}` : ""}`
 }
 
 export function SupplierReturnsList({ tokoId, data, filters }: SupplierReturnsListProps) {
@@ -163,7 +163,7 @@ function renderClaimContext(tokoId: string, item: SupplierReturnRow) {
       <div className="truncate font-medium">{item.warrantyClaim.customerName || "Customer"}</div>
       <div className="truncate text-xs text-muted-foreground">{item.warrantyClaim.deviceName}</div>
       <Button asChild variant="link" className="h-auto p-0 text-xs">
-        <Link href={`/${tokoId}/admin/service?serviceId=${encodeURIComponent(item.warrantyClaim.serviceId)}`}>
+        <Link href={`/${tokoId}/service?serviceId=${encodeURIComponent(item.warrantyClaim.serviceId)}`}>
           <RiExternalLinkLine data-icon="inline-start" />
           Lihat service
         </Link>

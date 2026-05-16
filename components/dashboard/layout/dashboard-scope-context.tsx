@@ -3,6 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { FeatureAccessMap, FeatureKey } from "@/lib/features";
 import type { CapabilityAccessMap } from "@/lib/auth/request-scope";
+import type { PermissionAccessMap } from "@/lib/permissions";
 import type { SubscriptionPlan } from "@/lib/plans";
 import type { UserRole } from "@/lib/auth/request-user";
 
@@ -16,6 +17,7 @@ export interface DashboardScopeContextValue {
   };
   tokoId: string;
   featureAccess: FeatureAccessMap;
+  permissionAccess: PermissionAccessMap;
   capabilities: CapabilityAccessMap;
   disabledFeatures: FeatureKey[];
   inventoryEnabled: boolean;
@@ -33,6 +35,10 @@ export function useDashboardScope(): DashboardScopeContextValue {
     throw new Error("useDashboardScope must be used within a DashboardScopeProvider");
   }
   return context;
+}
+
+export function useOptionalDashboardScope(): DashboardScopeContextValue | null {
+  return useContext(DashboardScopeContext);
 }
 
 interface DashboardScopeProviderProps {

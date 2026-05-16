@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { withScope, type RequestScope } from "@/lib/auth/wrapper";
+import { assertPermission, can } from "@/lib/auth/request-scope";
 import { fuzzyScore } from "@/lib/fuzzy-search";
 import { mapServiceToListItem, serviceSelectBase, technicianAvailableStatuses } from "./service-shared";
 import type { ActionResultWithData, ServiceListItem } from "./service-types";
@@ -17,24 +18,14 @@ export interface GlobalSearchResult {
   keywords: string[];
 }
 
-function roleSegment(role: string) {
-  return role === "technician" ? "teknisi" : role;
-}
-
-function resultHref(tokoId: string, role: string, type: GlobalSearchResultType, query: string) {
+function resultHref(tokoId: string, type: GlobalSearchResultType, query: string) {
   const encodedQuery = encodeURIComponent(query);
-  const segment = roleSegment(role);
 
-  if (type === "service") {
-    return role === "technician"
-      ? `/${tokoId}/teknisi/task?q=${encodedQuery}`
-      : `/${tokoId}/${segment}/service?q=${encodedQuery}`;
-  }
-
-  if (type === "karyawan") return `/${tokoId}/admin/karyawan?q=${encodedQuery}`;
-  if (type === "retail_item") return `/${tokoId}/admin/inventory/retail?q=${encodedQuery}`;
-  if (type === "jasa") return `/${tokoId}/admin/inventory?tab=jasa&q=${encodedQuery}`;
-  return `/${tokoId}/${segment}/inventory?q=${encodedQuery}`;
+  if (type === "service") return `/${tokoId}/service?q=${encodedQuery}`;
+  if (type === "karyawan") return `/${tokoId}/karyawan?q=${encodedQuery}`;
+  if (type === "jasa") return `/${tokoId}/inventory?tab=jasa&q=${encodedQuery}`;
+  if (type === "retail_item") return `/${tokoId}/inventory?tab=retail&q=${encodedQuery}`;
+  return `/${tokoId}/inventory?q=${encodedQuery}`;
 }
 
 function bestScore(query: string, targets: Array<string | null | undefined>) {
@@ -58,23 +49,26 @@ function rankResults(query: string, results: GlobalSearchResult[], limit = 8) {
 }
 
 function canSearchServices(scope: RequestScope) {
-  if (scope.user.role === "admin") return scope.capabilities["service.management"];
-  if (scope.user.role === "staff") {
-    return scope.capabilities["service.management"] && scope.featureAccess["staff.workflow"] === true;
-  }
-  if (scope.user.role === "technician") return scope.featureAccess["technician.workflow"] === true;
-  return false;
+  return can(scope, "service.view");
 }
 
 function canSearchInventory(scope: RequestScope) {
-  if (scope.featureAccess["inventory.management"] !== true) return false;
-  if (scope.user.role === "admin") return true;
-  if (scope.user.role === "staff") return scope.featureAccess["staff.workflow"] === true;
-  if (scope.user.role === "technician") return scope.featureAccess["technician.workflow"] === true;
-  return false;
+  return can(scope, "inventory.view");
 }
 
-function mapServiceResult(tokoId: string, role: string, query: string, service: ServiceListItem): GlobalSearchResult {
+function canSearchKaryawan(scope: RequestScope) {
+  return can(scope, "karyawan.view");
+}
+
+function canSearchJasa(scope: RequestScope) {
+  return can(scope, "inventory.manageServicePricelists");
+}
+
+function canSearchRetailItems(scope: RequestScope) {
+  return can(scope, "inventory.manageRetail");
+}
+
+function mapServiceResult(tokoId: string, query: string, service: ServiceListItem): GlobalSearchResult {
   const deviceName = `${service.hpCatalog.brand.name} ${service.hpCatalog.modelName}`;
   const title = service.customerName || service.noWa || deviceName;
   const subtitle = `${deviceName} - ${service.status}`;
@@ -84,7 +78,7 @@ function mapServiceResult(tokoId: string, role: string, query: string, service: 
     type: "service",
     title,
     subtitle,
-    href: resultHref(tokoId, role, "service", query),
+    href: resultHref(tokoId, "service", query),
     keywords: [
       service.noWa,
       service.complaint,
@@ -109,10 +103,12 @@ export async function searchDashboard(
   if (trimmedQuery.length < 2) return { success: true, data: [] };
 
   return withScope(tokoId, {}, async (scope) => {
-    const role = scope.user.role;
-    const results: GlobalSearchResult[] = [];
+    assertPermission(scope, "dashboard.search");
 
-    if ((role === "admin" || role === "staff") && canSearchServices(scope)) {
+    const results: GlobalSearchResult[] = [];
+    const shouldLimitToAssignedTasks = can(scope, "service.takeOverTask") && !can(scope, "service.create");
+
+    if (canSearchServices(scope) && !shouldLimitToAssignedTasks) {
       const services = await prisma.service.findMany({
         where: {
           tokoId,
@@ -136,10 +132,10 @@ export async function searchDashboard(
         select: serviceSelectBase,
       });
 
-      results.push(...rankResults(trimmedQuery, services.map(mapServiceToListItem).map((service) => mapServiceResult(tokoId, role, trimmedQuery, service)), 6));
+      results.push(...rankResults(trimmedQuery, services.map(mapServiceToListItem).map((service) => mapServiceResult(tokoId, trimmedQuery, service)), 6));
     }
 
-    if (role === "technician" && canSearchServices(scope)) {
+    if (canSearchServices(scope) && shouldLimitToAssignedTasks) {
       const services = await prisma.service.findMany({
         where: {
           tokoId,
@@ -170,10 +166,10 @@ export async function searchDashboard(
         select: serviceSelectBase,
       });
 
-      results.push(...rankResults(trimmedQuery, services.map(mapServiceToListItem).map((service) => mapServiceResult(tokoId, role, trimmedQuery, service)), 6));
+      results.push(...rankResults(trimmedQuery, services.map(mapServiceToListItem).map((service) => mapServiceResult(tokoId, trimmedQuery, service)), 6));
     }
 
-    if (role === "admin" && scope.featureAccess["karyawan.management"]) {
+    if (canSearchKaryawan(scope)) {
       const assignments = await prisma.userToko.findMany({
         where: {
           tokoId,
@@ -194,7 +190,7 @@ export async function searchDashboard(
         type: "karyawan" as const,
         title: user.name,
         subtitle: `${user.role} - ${user.email}`,
-        href: resultHref(tokoId, role, "karyawan", trimmedQuery),
+        href: resultHref(tokoId, "karyawan", trimmedQuery),
         keywords: [user.email, user.role, user.role === "technician" ? "teknisi" : "staff"],
       })), 5));
     }
@@ -219,12 +215,12 @@ export async function searchDashboard(
         type: "sparepart" as const,
         title: sparepart.name,
         subtitle: `${sparepart.barcode} - Stok ${sparepart.stock}`,
-        href: resultHref(tokoId, role, "sparepart", trimmedQuery),
+        href: resultHref(tokoId, "sparepart", trimmedQuery),
         keywords: [sparepart.barcode, String(sparepart.defaultPrice)],
       })), 6));
     }
 
-    if (role === "admin" && canSearchInventory(scope) && scope.featureAccess["retail.sales"]) {
+    if (canSearchRetailItems(scope)) {
       const retailItems = await prisma.sparepart.findMany({
         where: {
           tokoId,
@@ -246,12 +242,12 @@ export async function searchDashboard(
         type: "retail_item" as const,
         title: item.name,
         subtitle: `${item.barcode} - Stok ${item.stock}`,
-        href: resultHref(tokoId, role, "retail_item", trimmedQuery),
+        href: resultHref(tokoId, "retail_item", trimmedQuery),
         keywords: [item.barcode, item.supplierName, item.category?.name, String(item.defaultPrice)].filter((value): value is string => Boolean(value)),
       })), 6));
     }
 
-    if (role === "admin" && canSearchInventory(scope)) {
+    if (canSearchJasa(scope)) {
       const pricelists = await prisma.servicePricelist.findMany({
         where: { tokoId, title: { contains: trimmedQuery, mode: "insensitive" } },
         select: { id: true, title: true, defaultPrice: true },
@@ -264,7 +260,7 @@ export async function searchDashboard(
         type: "jasa" as const,
         title: pricelist.title,
         subtitle: `Jasa - Rp${pricelist.defaultPrice.toLocaleString("id-ID")}`,
-        href: resultHref(tokoId, role, "jasa", trimmedQuery),
+        href: resultHref(tokoId, "jasa", trimmedQuery),
         keywords: [String(pricelist.defaultPrice), "jasa", "service pricelist"],
       })), 6));
     }
