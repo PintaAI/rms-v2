@@ -126,6 +126,7 @@ const supplierReturnStatusLabels: Record<string, string> = {
 };
 
 const undoTargetStatus = "repairing" as const;
+const newWarrantyClaimDialogId = "__new_warranty_claim__";
 
 const warrantyPresets = [
   { label: "1 Minggu", days: 7 },
@@ -520,10 +521,8 @@ export function ServiceDetailCard({
   const [isPayingInvoice, setIsPayingInvoice] = useState(false);
   const [isPickingUp, setIsPickingUp] = useState(false);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
-  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [claimReason, setClaimReason] = useState("");
   const [claimCustomerNote, setClaimCustomerNote] = useState("");
-  const [isCreatingClaim, setIsCreatingClaim] = useState(false);
   const [resolveClaimId, setResolveClaimId] = useState<string | null>(null);
   const [claimResolution, setClaimResolution] = useState("free_repair");
   const [claimRefundAmount, setClaimRefundAmount] = useState("");
@@ -719,34 +718,21 @@ export function ServiceDetailCard({
     setIsPickingUp(false);
   }
 
-  function openClaimDialog() {
+  function openNewClaimDialog() {
+    setResolveClaimId(newWarrantyClaimDialogId);
     setClaimReason("");
     setClaimCustomerNote("");
-    setClaimDialogOpen(true);
-  }
-
-  async function handleCreateWarrantyClaim() {
-    if (!claimReason.trim()) return;
-    setIsCreatingClaim(true);
-    const result = await createWarrantyClaim({
-      serviceId: localServiceRef.current.id,
-      reason: claimReason.trim(),
-      customerNote: claimCustomerNote.trim() || undefined,
-    });
-    setIsCreatingClaim(false);
-
-    if (!result.success) {
-      toast.error(result.error || "Gagal membuat klaim garansi");
-      return;
-    }
-
-    toast.success("Klaim garansi dibuat");
-    setClaimDialogOpen(false);
-    onRefresh?.();
+    resetResolveClaimForm();
   }
 
   function openResolveClaimDialog(claimId: string) {
     setResolveClaimId(claimId);
+    setClaimReason("");
+    setClaimCustomerNote("");
+    resetResolveClaimForm();
+  }
+
+  function resetResolveClaimForm() {
     setClaimResolution("free_repair");
     setClaimRefundAmount("");
     setClaimTechnicianNote("");
@@ -765,9 +751,31 @@ export function ServiceDetailCard({
 
   async function handleResolveWarrantyClaim() {
     if (!resolveClaimId) return;
+    if (resolveClaimId === newWarrantyClaimDialogId && claimReason.trim().length < 3) return;
     setIsResolvingClaim(true);
+    let claimId = resolveClaimId;
+    let createdClaimInThisSubmit = false;
+
+    if (resolveClaimId === newWarrantyClaimDialogId) {
+      const claimResult = await createWarrantyClaim({
+        serviceId: localServiceRef.current.id,
+        reason: claimReason.trim(),
+        customerNote: claimCustomerNote.trim() || undefined,
+      });
+
+      if (!claimResult.success || !claimResult.data) {
+        setIsResolvingClaim(false);
+        toast.error(claimResult.error || "Gagal membuat klaim garansi");
+        return;
+      }
+
+      claimId = claimResult.data.id;
+      createdClaimInThisSubmit = true;
+      setResolveClaimId(claimId);
+    }
+
     const result = await resolveWarrantyClaim({
-      claimId: resolveClaimId,
+      claimId,
       resolution: claimResolution as "free_repair" | "replace_part" | "cash_refund" | "no_action",
       refundAmount: claimResolution === "cash_refund" && claimRefundAmount ? parseCurrencyInput(claimRefundAmount) : undefined,
       technicianNote: claimTechnicianNote.trim() || undefined,
@@ -788,6 +796,7 @@ export function ServiceDetailCard({
     setIsResolvingClaim(false);
 
     if (!result.success) {
+      if (createdClaimInThisSubmit) onRefresh?.();
       toast.error(result.error || "Gagal menyelesaikan klaim");
       return;
     }
@@ -920,9 +929,9 @@ export function ServiceDetailCard({
                     </p>
                   </div>
                   {canCreateWarrantyClaim && (
-                    <Button size="sm" variant="outline" onClick={openClaimDialog}>
+                    <Button size="sm" variant="outline" onClick={openNewClaimDialog}>
                       <RiShieldCheckLine className="h-4 w-4" />
-                      <span className="ml-1">Buat Klaim</span>
+                      <span className="ml-1">Proses Klaim</span>
                     </Button>
                   )}
                 </div>
@@ -1422,52 +1431,41 @@ export function ServiceDetailCard({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Buat Klaim Garansi</DialogTitle>
-            <DialogDescription>
-              Klaim ini tersimpan terpisah dari invoice service lama.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="claim-reason">Alasan klaim</Label>
-              <Textarea
-                id="claim-reason"
-                value={claimReason}
-                onChange={(event) => setClaimReason(event.target.value)}
-                placeholder="Contoh: layar kembali bergaris setelah 3 hari"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="claim-customer-note">Catatan customer (optional)</Label>
-              <Textarea
-                id="claim-customer-note"
-                value={claimCustomerNote}
-                onChange={(event) => setClaimCustomerNote(event.target.value)}
-                placeholder="Keluhan tambahan atau kondisi unit saat dibawa kembali"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setClaimDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateWarrantyClaim} disabled={isCreatingClaim || !claimReason.trim()}>
-              {isCreatingClaim ? "Menyimpan..." : "Buat Klaim"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={Boolean(resolveClaimId)} onOpenChange={(open) => { if (!open) setResolveClaimId(null); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Tutup Klaim Garansi</DialogTitle>
             <DialogDescription>
-              Pilih penyelesaian klaim. Refund dicatat sebagai pengurang laporan, bukan mengubah invoice lama.
+              {resolveClaimId === newWarrantyClaimDialogId
+                ? "Isi alasan dan pilih penyelesaian klaim. Refund dicatat sebagai pengurang laporan, bukan mengubah invoice lama."
+                : "Pilih penyelesaian klaim. Refund dicatat sebagai pengurang laporan, bukan mengubah invoice lama."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4">
+            {resolveClaimId === newWarrantyClaimDialogId && (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="claim-reason">Alasan klaim</Label>
+                  <Textarea
+                    id="claim-reason"
+                    value={claimReason}
+                    onChange={(event) => setClaimReason(event.target.value)}
+                    placeholder="Contoh: layar kembali bergaris setelah 3 hari"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="claim-customer-note">Catatan customer (optional)</Label>
+                  <Textarea
+                    id="claim-customer-note"
+                    value={claimCustomerNote}
+                    onChange={(event) => setClaimCustomerNote(event.target.value)}
+                    placeholder="Keluhan tambahan atau kondisi unit saat dibawa kembali"
+                  />
+                </div>
+              </>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <Label>Solusi</Label>
               <Select value={claimResolution} onValueChange={(value) => {
@@ -1725,6 +1723,7 @@ export function ServiceDetailCard({
               onClick={handleResolveWarrantyClaim}
               disabled={
                 isResolvingClaim
+                || (resolveClaimId === newWarrantyClaimDialogId && claimReason.trim().length < 3)
                 || (claimResolution === "cash_refund" && parseCurrencyInput(claimRefundAmount) <= 0)
                 || (claimResolution === "replace_part" && !claimSparepartId)
                 || claimSparepartStockInsufficient
