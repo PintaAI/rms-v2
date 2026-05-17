@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import { signIn, signUp } from "@/lib/auth-client";
 import { attachPendingReferralToCurrentUser, attachReferralToCurrentUser, storePendingReferralCode, type ReferralCodePreview } from "@/actions/affiliate";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldDescription, FieldError, FieldGroup, FieldContent } from "@/components/ui/field";
@@ -22,41 +24,41 @@ interface ValidationErrors {
 
 function validateEmail(email: string): string | undefined {
   if (!email.trim()) {
-    return "Email is required";
+    return "Email wajib diisi";
   }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    return "Please enter a valid email address";
+    return "Masukkan alamat email yang valid";
   }
   return undefined;
 }
 
 function validatePassword(password: string): string | undefined {
   if (!password) {
-    return "Password is required";
+    return "Password wajib diisi";
   }
   if (password.length < 4) {
-    return "Password must be at least 4 characters";
+    return "Password minimal 4 karakter";
   }
   return undefined;
 }
 
 function validateName(name: string): string | undefined {
   if (!name.trim()) {
-    return "Name is required";
+    return "Nama wajib diisi";
   }
   if (name.trim().length < 2) {
-    return "Name must be at least 2 characters";
+    return "Nama minimal 2 karakter";
   }
   return undefined;
 }
 
 function validateConfirmPassword(password: string, confirmPassword: string): string | undefined {
   if (!confirmPassword) {
-    return "Please confirm your password";
+    return "Konfirmasi password wajib diisi";
   }
   if (password !== confirmPassword) {
-    return "Passwords do not match";
+    return "Password tidak sama";
   }
   return undefined;
 }
@@ -101,6 +103,8 @@ export function AuthCard({
   const [referralCode, setReferralCode] = useState("");
   const [referralPreview, setReferralPreview] = useState<ReferralCodePreview | null>(null);
   const [referralMessage, setReferralMessage] = useState<string | undefined>();
+  const [tabBodyHeight, setTabBodyHeight] = useState<number>();
+  const tabBodyRef = React.useRef<HTMLDivElement>(null);
 
   // Touch tracking for real-time validation
   const [loginTouched, setLoginTouched] = useState<{ email: boolean; password: boolean }>({
@@ -173,6 +177,19 @@ export function AuthCard({
     };
   }, [referralCode]);
 
+  React.useLayoutEffect(() => {
+    const element = tabBodyRef.current;
+    if (!element) return;
+
+    const updateHeight = () => setTabBodyHeight(element.offsetHeight);
+    updateHeight();
+
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(element);
+
+    return () => resizeObserver.disconnect();
+  }, [activeTab]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginServerError(undefined);
@@ -196,7 +213,7 @@ export function AuthCard({
       });
 
       if (result.error) {
-        setLoginServerError(result.error.message || "Login failed. Please try again.");
+        setLoginServerError(result.error.message || "Login gagal. Silakan coba lagi.");
         return;
       }
 
@@ -208,7 +225,7 @@ export function AuthCard({
       }
     } catch (error) {
       console.error("Login error:", error);
-      setLoginServerError("An unexpected error occurred. Please try again.");
+      setLoginServerError("Terjadi error yang tidak terduga. Silakan coba lagi.");
     } finally {
       setLoginIsLoading(false);
     }
@@ -240,7 +257,7 @@ export function AuthCard({
       });
 
       if (result.error) {
-        setRegisterServerError(result.error.message || "Registration failed. Please try again.");
+        setRegisterServerError(result.error.message || "Register gagal. Silakan coba lagi.");
         return;
       }
 
@@ -256,7 +273,7 @@ export function AuthCard({
         window.location.href = redirectAfterRegister;
       }
     } catch {
-      setRegisterServerError("An unexpected error occurred. Please try again.");
+      setRegisterServerError("Terjadi error yang tidak terduga. Silakan coba lagi.");
     } finally {
       setRegisterIsLoading(false);
     }
@@ -274,10 +291,10 @@ export function AuthCard({
       });
 
       if (result.error) {
-        setLoginServerError(result.error.message || "Google sign in failed.");
+        setLoginServerError(result.error.message || "Login dengan Google gagal.");
       }
     } catch {
-      setLoginServerError("An unexpected error occurred with Google sign in.");
+      setLoginServerError("Terjadi error saat login dengan Google.");
     }
   };
 
@@ -294,23 +311,46 @@ export function AuthCard({
   };
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="text-center text-xl">Welcome</CardTitle>
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut", layout: { duration: 0.3 } }}
+    >
+      <Card className={className}>
+      <CardHeader className="items-center text-center">
+        <div className="mb-2 flex justify-center">
+          <Image src="/rms.png" alt="RMS" width={56} height={56} className="size-14" priority />
+        </div>
+        <CardTitle className="text-xl">Selamat datang</CardTitle>
         <CardDescription className="text-center">
-          Sign in to your account or create a new one
+          Login ke account RMS atau register account baru
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full">
-            <TabsTrigger value="login">Sign In</TabsTrigger>
-            <TabsTrigger value="register">Sign Up</TabsTrigger>
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="register">Register</TabsTrigger>
           </TabsList>
 
-          {/* Login Form */}
-          <TabsContent value="login">
-            <form onSubmit={handleLogin} className="space-y-8">
+          <motion.div
+            animate={{ height: tabBodyHeight ?? "auto" }}
+            transition={{ duration: 0.28, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div ref={tabBodyRef} className="relative">
+              <AnimatePresence mode="popLayout" initial={false}>
+                {activeTab === "login" ? (
+              <motion.form
+                key="login-form"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onSubmit={handleLogin}
+                className="space-y-8"
+              >
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="login-email">Email</FieldLabel>
@@ -340,7 +380,7 @@ export function AuthCard({
                       <Input
                         id="login-password"
                         type={showLoginPassword ? "text" : "password"}
-                        placeholder="Enter your password"
+                        placeholder="Masukkan password"
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         onBlur={() => setLoginTouched((prev) => ({ ...prev, password: true }))}
@@ -377,59 +417,31 @@ export function AuthCard({
                 {loginIsLoading ? (
                   <>
                     <RiLoader4Line className="size-4 animate-spin" />
-                    Signing in...
+                    Sedang login...
                   </>
                 ) : (
-                  "Sign In"
+                  "Login"
                 )}
               </Button>
-            </form>
-
-            {showGoogleAuth && (
-              <>
-                <div className="relative my-6">
-                  <Separator />
-                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                    or continue with
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleGoogleSignIn}
-                  disabled={loginIsLoading}
-                >
-                  <RiGoogleFill className="size-4" />
-                  Continue with Google
-                </Button>
-              </>
-            )}
-
-              <p className="mt-4 text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <button
-                type="button"
-                onClick={switchToRegister}
-                className="text-primary hover:underline font-medium"
-              >
-                Sign up
-              </button>
-            </p>
-          </TabsContent>
-
-          {/* Register Form */}
-          <TabsContent value="register">
-            <form onSubmit={handleRegister} className="space-y-4">
+              </motion.form>
+                ) : (
+                  <motion.div
+                    key="register-wrapper"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <form onSubmit={handleRegister} className="space-y-4">
               <FieldGroup>
                 <Field>
-                  <FieldLabel htmlFor="register-name">Full Name</FieldLabel>
+                  <FieldLabel htmlFor="register-name">Nama lengkap</FieldLabel>
                   <FieldContent>
                     <div className="relative">
                       <Input
                         id="register-name"
                         type="text"
-                        placeholder="John Doe"
+                        placeholder="Budi Santoso"
                         value={registerName}
                         onChange={(e) => setRegisterName(e.target.value)}
                         onBlur={() => setRegisterTouched((prev) => ({ ...prev, name: true }))}
@@ -471,7 +483,7 @@ export function AuthCard({
                       <Input
                         id="register-password"
                         type={showRegisterPassword ? "text" : "password"}
-                        placeholder="Create a strong password"
+                        placeholder="Buat password"
                         value={registerPassword}
                         onChange={(e) => setRegisterPassword(e.target.value)}
                         onBlur={() => setRegisterTouched((prev) => ({ ...prev, password: true }))}
@@ -495,19 +507,19 @@ export function AuthCard({
                     </div>
                     <FieldError errors={registerErrors.password ? [{ message: registerErrors.password }] : []} />
                     <FieldDescription>
-                      Must be at least 8 characters with uppercase, lowercase, and a number
+                      Gunakan minimal 4 karakter. Semakin panjang, semakin aman.
                     </FieldDescription>
                   </FieldContent>
                 </Field>
 
                 <Field>
-                  <FieldLabel htmlFor="register-confirm-password">Confirm Password</FieldLabel>
+                  <FieldLabel htmlFor="register-confirm-password">Konfirmasi password</FieldLabel>
                   <FieldContent>
                     <div className="relative">
                       <Input
                         id="register-confirm-password"
                         type={showRegisterConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm your password"
+                        placeholder="Ulangi password"
                         value={registerConfirmPassword}
                         onChange={(e) => setRegisterConfirmPassword(e.target.value)}
                         onBlur={() => setRegisterTouched((prev) => ({ ...prev, confirmPassword: true }))}
@@ -564,20 +576,23 @@ export function AuthCard({
                 {registerIsLoading ? (
                   <>
                     <RiLoader4Line className="size-4 animate-spin" />
-                    Creating account...
+                    Membuat account...
                   </>
                 ) : (
-                  "Create Account"
+                  "Buat Account"
                 )}
               </Button>
-            </form>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            {showGoogleAuth && (
-              <>
+              {showGoogleAuth && (
+                <>
                 <div className="relative my-6">
                   <Separator />
                   <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                    or continue with
+                    atau lanjutkan dengan
                   </span>
                 </div>
                 <Button
@@ -585,33 +600,35 @@ export function AuthCard({
                   variant="outline"
                   className="w-full"
                   onClick={handleGoogleSignIn}
-                  disabled={registerIsLoading}
+                  disabled={activeTab === "login" ? loginIsLoading : registerIsLoading}
                 >
                   <RiGoogleFill className="size-4" />
-                  Continue with Google
+                  Lanjutkan dengan Google
                 </Button>
               </>
             )}
 
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
+              {activeTab === "login" ? "Belum punya account?" : "Sudah punya account?"}{" "}
               <button
                 type="button"
-                onClick={switchToLogin}
+                onClick={activeTab === "login" ? switchToRegister : switchToLogin}
                 className="text-primary hover:underline font-medium"
               >
-                Sign in
+                {activeTab === "login" ? "Register" : "Login"}
               </button>
             </p>
-          </TabsContent>
+            </div>
+          </motion.div>
         </Tabs>
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-xs text-muted-foreground text-center">
-          By continuing, you agree to our Terms of Service and Privacy Policy
+          Dengan lanjut, kamu menyetujui Terms of Service dan Privacy Policy RMS
         </p>
       </CardFooter>
-    </Card>
+      </Card>
+    </motion.div>
   );
 }
 
