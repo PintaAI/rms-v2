@@ -52,6 +52,7 @@ interface AddRepairItemFormProps {
 }
 
 type SparepartOption = AddRepairItemFormProps["spareparts"][number];
+type RepairItemType = "sparepart" | "service";
 
 export function AddRepairItemForm({
   open,
@@ -69,7 +70,7 @@ export function AddRepairItemForm({
   onSparepartCreated,
   onPricelistCreated,
 }: AddRepairItemFormProps) {
-  const [itemType, setItemType] = useState<"sparepart" | "service">("sparepart");
+  const [itemType, setItemType] = useState<RepairItemType>("sparepart");
   const [sparepartQtys, setSparepartQtys] = useState<Record<string, number>>({});
   const [serviceQtys, setServiceQtys] = useState<Record<string, number>>({});
   const [manualName, setManualName] = useState("");
@@ -80,9 +81,9 @@ export function AddRepairItemForm({
   const [pricelistFormOpen, setPricelistFormOpen] = useState(false);
 
   const isManualFilled = manualName.trim().length > 0 && !!manualPrice && parseInt(manualPrice, 10) >= 0;
-  const hasItemsSelected = itemType === "sparepart"
-    ? Object.values(sparepartQtys).some((q) => q > 0)
-    : Object.values(serviceQtys).some((q) => q > 0);
+  const hasSparepartsSelected = Object.values(sparepartQtys).some((q) => q > 0);
+  const hasServicesSelected = Object.values(serviceQtys).some((q) => q > 0);
+  const hasItemsSelected = hasSparepartsSelected || hasServicesSelected;
 
   const filteredSpareparts = spareparts.filter((sp) =>
     sp.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -100,7 +101,7 @@ export function AddRepairItemForm({
   const manualTotal = isManualFilled
     ? parseInt(manualPrice, 10) * (parseInt(manualQty, 10) || 1)
     : 0;
-  const totalWithQuantity = (itemType === "sparepart" ? sparepartsTotal : servicesTotal) + manualTotal;
+  const totalWithQuantity = sparepartsTotal + servicesTotal + manualTotal;
   const canSubmit = isManualFilled || hasItemsSelected;
 
   const handleMobileScan = useCallback((value: string) => {
@@ -186,33 +187,33 @@ export function AddRepairItemForm({
     }
 
     const manualItems = isManualFilled
-      ? [{ id: "", name: manualName.trim(), defaultPrice: parseInt(manualPrice, 10), qty: parseInt(manualQty, 10) || 1 }]
+      ? [{ type: itemType, id: "", name: manualName.trim(), defaultPrice: parseInt(manualPrice, 10), qty: parseInt(manualQty, 10) || 1 }]
       : [];
 
-    const selectedItems = itemType === "sparepart"
-      ? spareparts
-          .filter((sp) => (sparepartQtys[sp.id] ?? 0) > 0)
-          .map((sp) => ({ ...sp, qty: sparepartQtys[sp.id] }))
-      : servicePricelists
-          .filter((sp) => (serviceQtys[sp.id] ?? 0) > 0)
-          .map((sp) => ({ ...sp, qty: serviceQtys[sp.id] }));
+    const selectedSpareparts = spareparts
+      .filter((sp) => (sparepartQtys[sp.id] ?? 0) > 0)
+      .map((sp) => ({ type: "sparepart" as const, ...sp, qty: sparepartQtys[sp.id] }));
+    const selectedServices = servicePricelists
+      .filter((sp) => (serviceQtys[sp.id] ?? 0) > 0)
+      .map((sp) => ({ type: "service" as const, ...sp, qty: serviceQtys[sp.id] }));
 
-    const itemsToAdd = [...manualItems, ...selectedItems];
+    const itemsToAdd = [...manualItems, ...selectedSpareparts, ...selectedServices];
     const pendingItems = itemsToAdd.map((item) => {
-      const isManual = "id" in item && item.id === "";
+      const isManual = item.id === "";
       const itemNameToUse = isManual
         ? manualName.trim()
         : "name" in item
           ? item.name
           : (item as typeof item & { title: string }).title;
       const itemPriceToUse = isManual ? parseInt(manualPrice, 10) : item.defaultPrice;
+      const itemTypeToUse = item.type;
       const tempId = `temp-${crypto.randomUUID()}`;
 
       return {
         tempId,
         newItem: {
           id: tempId,
-          type: itemType,
+          type: itemTypeToUse,
           name: itemNameToUse || "",
           qty: item.qty,
           price: itemPriceToUse,
@@ -220,9 +221,9 @@ export function AddRepairItemForm({
         },
         payload: {
           serviceId,
-          type: itemType,
-          sparepartId: itemType === "sparepart" && !isManual ? item.id : undefined,
-          servicePricelistId: itemType === "service" && !isManual ? item.id : undefined,
+          type: itemTypeToUse,
+          sparepartId: itemTypeToUse === "sparepart" && !isManual ? item.id : undefined,
+          servicePricelistId: itemTypeToUse === "service" && !isManual ? item.id : undefined,
           name: itemNameToUse || "",
           qty: item.qty,
           price: itemPriceToUse,
