@@ -3,7 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { getCurrentUserAffiliateDashboard, type AffiliatePortalData } from "@/actions/affiliate";
-import { DEFAULT_ENTERPRISE_COMMISSION, DEFAULT_PREMIUM_COMMISSION } from "@/lib/affiliate";
+import { DEFAULT_ENTERPRISE_COMMISSION_PERCENT, DEFAULT_PRO_RECURRING_COMMISSION_PERCENT, DEFAULT_REGISTER_COMMISSION } from "@/lib/affiliate";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,12 +78,12 @@ function AffiliateCta() {
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border bg-muted/30 p-3">
-              <div className="text-xs text-muted-foreground">Komisi Pro</div>
-              <div className="mt-1 text-lg font-bold text-foreground">{formatCurrency(DEFAULT_PREMIUM_COMMISSION)}</div>
+              <div className="text-xs text-muted-foreground">Komisi Registrasi</div>
+              <div className="mt-1 text-lg font-bold text-foreground">{formatCurrency(DEFAULT_REGISTER_COMMISSION)}</div>
             </div>
             <div className="rounded-xl border bg-muted/30 p-3">
-              <div className="text-xs text-muted-foreground">Komisi Enterprise</div>
-              <div className="mt-1 text-lg font-bold text-foreground">{formatCurrency(DEFAULT_ENTERPRISE_COMMISSION)}</div>
+              <div className="text-xs text-muted-foreground">Pro / Enterprise</div>
+              <div className="mt-1 text-lg font-bold text-foreground">{DEFAULT_PRO_RECURRING_COMMISSION_PERCENT}% / {DEFAULT_ENTERPRISE_COMMISSION_PERCENT}%</div>
             </div>
           </div>
           <Button asChild className="w-fit">

@@ -10,12 +10,13 @@ import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { getPlanMonthlyPrice, type SubscriptionPlan } from "@/lib/plans";
 import {
   AFFILIATE_PENDING_REFERRAL_COOKIE,
-  DEFAULT_ENTERPRISE_COMMISSION,
-  DEFAULT_PREMIUM_COMMISSION,
+  DEFAULT_ENTERPRISE_COMMISSION_PERCENT,
+  DEFAULT_PRO_RECURRING_COMMISSION_PERCENT,
+  DEFAULT_REGISTER_COMMISSION,
   generateAffiliatorCode,
   generatePortalToken,
   buildAffiliateLinks,
-  getCommissionAmount,
+  getPercentageCommissionAmount,
   getReferralLink,
   maskEmail,
   normalizeReferralCode,
@@ -23,6 +24,7 @@ import {
 
 type AffiliatorStatus = "active" | "inactive";
 type AffiliateCommissionStatus = "pending" | "approved" | "paid" | "rejected";
+type AffiliateCommissionKind = "registration_bonus" | "pro_recurring" | "enterprise_one_time";
 
 export interface AffiliatorRow {
   id: string;
@@ -55,7 +57,11 @@ export interface AffiliateCommissionRow {
   affiliatorName: string;
   customerName: string;
   customerEmail: string;
-  plan: Exclude<SubscriptionPlan, "free">;
+  plan: SubscriptionPlan;
+  kind: AffiliateCommissionKind;
+  commissionBaseAmount: number | null;
+  periodStart: Date | null;
+  periodEnd: Date | null;
   amount: number;
   status: AffiliateCommissionStatus;
   createdAt: Date;
@@ -79,6 +85,17 @@ export interface AffiliateDashboardData {
   affiliators: AffiliatorRow[];
   commissions: AffiliateCommissionRow[];
   linkableUsers: Array<{ id: string; name: string; email: string }>;
+  referrals: AffiliateReferralRow[];
+}
+
+export interface AffiliateReferralRow {
+  id: string;
+  affiliatorName: string;
+  customerName: string;
+  customerEmail: string;
+  registrationCommissionAmount: number;
+  createdAt: Date;
+  convertedAt: Date | null;
 }
 
 export interface ReferralCodePreview {
@@ -113,7 +130,8 @@ export interface AffiliatePortalData {
   commissions: Array<{
     id: string;
     customer: string;
-    plan: Exclude<SubscriptionPlan, "free">;
+    plan: SubscriptionPlan;
+    kind: AffiliateCommissionKind;
     amount: number;
     status: AffiliateCommissionStatus;
     createdAt: Date;
@@ -278,11 +296,135 @@ function customerDisplay(user: { id: string; email: string | null; name?: string
   return `Customer #${user.id.slice(0, 6)}`;
 }
 
+function commissionPeriodKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function toCommissionRow(commission: {
+  id: string;
+  affiliator: { name: string };
+  user: { name: string; email: string };
+  plan: SubscriptionPlan;
+  kind: AffiliateCommissionKind;
+  commissionBaseAmount: number | null;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  amount: number;
+  status: AffiliateCommissionStatus;
+  createdAt: Date;
+  approvedAt: Date | null;
+  paidAt: Date | null;
+  rejectedAt: Date | null;
+  notes: string | null;
+}): AffiliateCommissionRow {
+  return {
+    id: commission.id,
+    affiliatorName: commission.affiliator.name,
+    customerName: commission.user.name,
+    customerEmail: commission.user.email,
+    plan: commission.plan,
+    kind: commission.kind,
+    commissionBaseAmount: commission.commissionBaseAmount,
+    periodStart: commission.periodStart,
+    periodEnd: commission.periodEnd,
+    amount: commission.amount,
+    status: commission.status,
+    createdAt: commission.createdAt,
+    approvedAt: commission.approvedAt,
+    paidAt: commission.paidAt,
+    rejectedAt: commission.rejectedAt,
+    notes: commission.notes,
+  };
+}
+
+async function syncAffiliateCommissions(): Promise<void> {
+  const registrationReferrals = await prisma.referral.findMany({
+    where: { affiliator: { status: "active" } },
+    select: { id: true, affiliatorId: true, referredUserId: true, registrationCommissionAmount: true },
+  });
+
+  await Promise.all(registrationReferrals.map((referral) => prisma.affiliateCommission.upsert({
+    where: {
+      referralId_plan_kind_periodKey: {
+        referralId: referral.id,
+        plan: "free",
+        kind: "registration_bonus",
+        periodKey: "registration",
+      },
+    },
+    create: {
+      affiliatorId: referral.affiliatorId,
+      referralId: referral.id,
+      userId: referral.referredUserId,
+      plan: "free",
+      kind: "registration_bonus",
+      periodKey: "registration",
+      amount: referral.registrationCommissionAmount,
+    },
+    update: {},
+  })));
+
+  const referrals = await prisma.referral.findMany({
+    where: {
+      affiliator: { status: "active" },
+      referredUser: { subscription: { is: { plan: "premium", status: "active", currentPeriodStart: { not: null } } } },
+    },
+    include: {
+      affiliator: { select: { id: true, premiumCommissionValue: true } },
+      referredUser: {
+        select: {
+          id: true,
+          subscription: { select: { currentPeriodStart: true, currentPeriodEnd: true } },
+          subscriptionInvoices: {
+            where: { plan: "premium", status: "paid" },
+            orderBy: { paidAt: "desc" },
+            take: 1,
+            select: { amount: true },
+          },
+        },
+      },
+    },
+  });
+
+  await Promise.all(referrals.map(async (referral) => {
+    const periodStart = referral.referredUser.subscription?.currentPeriodStart;
+    if (!periodStart) return;
+
+    const baseAmount = referral.referredUser.subscriptionInvoices[0]?.amount ?? getPlanMonthlyPrice("premium") ?? 0;
+    const amount = getPercentageCommissionAmount(baseAmount, referral.affiliator.premiumCommissionValue);
+
+    await prisma.affiliateCommission.upsert({
+      where: {
+        referralId_plan_kind_periodKey: {
+          referralId: referral.id,
+          plan: "premium",
+          kind: "pro_recurring",
+          periodKey: commissionPeriodKey(periodStart),
+        },
+      },
+      create: {
+        affiliatorId: referral.affiliatorId,
+        referralId: referral.id,
+        userId: referral.referredUserId,
+        plan: "premium",
+        kind: "pro_recurring",
+        periodKey: commissionPeriodKey(periodStart),
+        periodStart,
+        periodEnd: referral.referredUser.subscription?.currentPeriodEnd,
+        commissionBaseAmount: baseAmount,
+        amount,
+      },
+      update: {},
+    });
+  }));
+}
+
 export async function getSuperuserAffiliateDashboard(): Promise<ActionResultWithData<AffiliateDashboardData>> {
   try {
     await requireSuperuser();
+    await syncAffiliateCommissions();
 
-    const [affiliators, commissions, linkableUsers] = await Promise.all([
+    const [affiliators, commissions, linkableUsers, referrals] = await Promise.all([
       prisma.affiliator.findMany({
         include: {
           referrals: { select: { convertedAt: true } },
@@ -304,22 +446,21 @@ export async function getSuperuserAffiliateDashboard(): Promise<ActionResultWith
         orderBy: { createdAt: "desc" },
         take: 100,
       }),
+      prisma.referral.findMany({
+        include: {
+          affiliator: { select: { name: true } },
+          referredUser: { select: { name: true, email: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
     ]);
 
     const rows = affiliators.map(toAffiliatorRow);
-    const commissionRows: AffiliateCommissionRow[] = commissions.map((commission) => ({
-      id: commission.id,
-      affiliatorName: commission.affiliator.name,
-      customerName: commission.user.name,
-      customerEmail: commission.user.email,
-      plan: commission.plan as Exclude<SubscriptionPlan, "free">,
-      amount: commission.amount,
+    const commissionRows: AffiliateCommissionRow[] = commissions.map((commission) => toCommissionRow({
+      ...commission,
+      kind: commission.kind as AffiliateCommissionKind,
       status: commission.status as AffiliateCommissionStatus,
-      createdAt: commission.createdAt,
-      approvedAt: commission.approvedAt,
-      paidAt: commission.paidAt,
-      rejectedAt: commission.rejectedAt,
-      notes: commission.notes,
     }));
 
     return {
@@ -338,6 +479,15 @@ export async function getSuperuserAffiliateDashboard(): Promise<ActionResultWith
         affiliators: rows,
         commissions: commissionRows,
         linkableUsers,
+        referrals: referrals.map((referral) => ({
+          id: referral.id,
+          affiliatorName: referral.affiliator.name,
+          customerName: referral.referredUser.name,
+          customerEmail: referral.referredUser.email,
+          registrationCommissionAmount: referral.registrationCommissionAmount,
+          createdAt: referral.createdAt,
+          convertedAt: referral.convertedAt,
+        })),
       },
     };
   } catch (error) {
@@ -360,8 +510,8 @@ export async function createExternalAffiliator(input: CreateExternalAffiliatorIn
         phone: normalizeOptionalString(input.phone),
         code: await createUniqueAffiliatorCode(name),
         portalToken: generatePortalToken(),
-        premiumCommissionValue: parseCommissionValue(input.premiumCommissionValue, DEFAULT_PREMIUM_COMMISSION),
-        enterpriseCommissionValue: parseCommissionValue(input.enterpriseCommissionValue, DEFAULT_ENTERPRISE_COMMISSION),
+        premiumCommissionValue: parseCommissionValue(input.premiumCommissionValue, DEFAULT_PRO_RECURRING_COMMISSION_PERCENT),
+        enterpriseCommissionValue: parseCommissionValue(input.enterpriseCommissionValue, DEFAULT_ENTERPRISE_COMMISSION_PERCENT),
         payoutInfo: parsePayoutInfo(input.payoutInfo),
         notes: normalizeOptionalString(input.notes),
       },
@@ -395,8 +545,8 @@ export async function createUserAffiliator(input: CreateUserAffiliatorInput): Pr
         email: existingUser.email,
         code: await createUniqueAffiliatorCode(existingUser.name),
         portalToken: generatePortalToken(),
-        premiumCommissionValue: parseCommissionValue(input.premiumCommissionValue, DEFAULT_PREMIUM_COMMISSION),
-        enterpriseCommissionValue: parseCommissionValue(input.enterpriseCommissionValue, DEFAULT_ENTERPRISE_COMMISSION),
+        premiumCommissionValue: parseCommissionValue(input.premiumCommissionValue, DEFAULT_PRO_RECURRING_COMMISSION_PERCENT),
+        enterpriseCommissionValue: parseCommissionValue(input.enterpriseCommissionValue, DEFAULT_ENTERPRISE_COMMISSION_PERCENT),
         payoutInfo: parsePayoutInfo(input.payoutInfo),
         notes: normalizeOptionalString(input.notes),
       },
@@ -425,8 +575,8 @@ export async function updateAffiliator(input: UpdateAffiliatorInput): Promise<Ac
         email: normalizeOptionalString(input.email) ?? null,
         phone: normalizeOptionalString(input.phone) ?? null,
         status: input.status,
-        premiumCommissionValue: parseCommissionValue(input.premiumCommissionValue, DEFAULT_PREMIUM_COMMISSION),
-        enterpriseCommissionValue: parseCommissionValue(input.enterpriseCommissionValue, DEFAULT_ENTERPRISE_COMMISSION),
+        premiumCommissionValue: parseCommissionValue(input.premiumCommissionValue, DEFAULT_PRO_RECURRING_COMMISSION_PERCENT),
+        enterpriseCommissionValue: parseCommissionValue(input.enterpriseCommissionValue, DEFAULT_ENTERPRISE_COMMISSION_PERCENT),
         payoutInfo: parsePayoutInfo(input.payoutInfo) ?? undefined,
         notes: normalizeOptionalString(input.notes) ?? null,
       },
@@ -553,9 +703,30 @@ export async function attachReferralToCurrentUser(
       return { success: true, data: null };
     }
 
-    const referral = await prisma.referral.create({
-      data: { affiliatorId: affiliator.id, referredUserId: currentUser.id, referralCode: normalizedCode },
-      select: { id: true },
+    const referral = await prisma.$transaction(async (tx) => {
+      const createdReferral = await tx.referral.create({
+        data: {
+          affiliatorId: affiliator.id,
+          referredUserId: currentUser.id,
+          referralCode: normalizedCode,
+          registrationCommissionAmount: DEFAULT_REGISTER_COMMISSION,
+        },
+        select: { id: true, affiliatorId: true, referredUserId: true, registrationCommissionAmount: true },
+      });
+
+      await tx.affiliateCommission.create({
+        data: {
+          affiliatorId: createdReferral.affiliatorId,
+          referralId: createdReferral.id,
+          userId: createdReferral.referredUserId,
+          plan: "free",
+          kind: "registration_bonus",
+          periodKey: "registration",
+          amount: createdReferral.registrationCommissionAmount,
+        },
+      });
+
+      return createdReferral;
     });
 
     if (shouldClearCookie) await clearPendingReferralCookie();
@@ -571,29 +742,40 @@ export async function createCommissionForPaidPlanActivation(input: {
   userId: string;
   previousPlan: SubscriptionPlan | null;
   nextPlan: SubscriptionPlan;
+  subscriptionAmount?: number;
 }): Promise<void> {
   if (!PAID_PLANS.has(input.nextPlan)) return;
-  if (input.previousPlan && PAID_PLANS.has(input.previousPlan)) return;
 
   const referral = await prisma.referral.findUnique({
     where: { referredUserId: input.userId },
-    include: { affiliator: true },
+    include: { affiliator: true, referredUser: { select: { subscription: true } } },
   });
   if (!referral || referral.affiliator.status !== "active") return;
 
   const plan = input.nextPlan as Exclude<SubscriptionPlan, "free">;
-  const amount = getCommissionAmount({
-    plan,
-    commissionType: referral.affiliator.commissionType,
-    premiumCommissionValue: referral.affiliator.premiumCommissionValue,
-    enterpriseCommissionValue: referral.affiliator.enterpriseCommissionValue,
-    subscriptionPrice: getPlanMonthlyPrice(plan) ?? 0,
-  });
+  const periodStart = referral.referredUser.subscription?.currentPeriodStart ?? new Date();
+  const periodEnd = referral.referredUser.subscription?.currentPeriodEnd ?? null;
+  const baseAmount = input.subscriptionAmount ?? getPlanMonthlyPrice(plan) ?? 0;
+  const kind: AffiliateCommissionKind = plan === "premium" ? "pro_recurring" : "enterprise_one_time";
+  const percentage = plan === "premium" ? referral.affiliator.premiumCommissionValue : referral.affiliator.enterpriseCommissionValue;
+  const amount = getPercentageCommissionAmount(baseAmount, percentage);
+  const periodKey = plan === "premium" ? commissionPeriodKey(periodStart) : "enterprise";
 
   await prisma.$transaction(async (tx) => {
     await tx.affiliateCommission.upsert({
-      where: { referralId_plan: { referralId: referral.id, plan } },
-      create: { affiliatorId: referral.affiliatorId, referralId: referral.id, userId: input.userId, plan, amount },
+      where: { referralId_plan_kind_periodKey: { referralId: referral.id, plan, kind, periodKey } },
+      create: {
+        affiliatorId: referral.affiliatorId,
+        referralId: referral.id,
+        userId: input.userId,
+        plan,
+        kind,
+        periodKey,
+        periodStart: plan === "premium" ? periodStart : null,
+        periodEnd: plan === "premium" ? periodEnd : null,
+        commissionBaseAmount: baseAmount,
+        amount,
+      },
       update: {},
     });
 
@@ -641,18 +823,11 @@ export async function updateAffiliateCommissionStatus(input: {
     return {
       success: true,
       data: {
-        id: commission.id,
-        affiliatorName: commission.affiliator.name,
-        customerName: commission.user.name,
-        customerEmail: commission.user.email,
-        plan: commission.plan as Exclude<SubscriptionPlan, "free">,
-        amount: commission.amount,
-        status: commission.status as AffiliateCommissionStatus,
-        createdAt: commission.createdAt,
-        approvedAt: commission.approvedAt,
-        paidAt: commission.paidAt,
-        rejectedAt: commission.rejectedAt,
-        notes: commission.notes,
+        ...toCommissionRow({
+          ...commission,
+          kind: commission.kind as AffiliateCommissionKind,
+          status: commission.status as AffiliateCommissionStatus,
+        }),
       },
     };
   } catch (error) {
@@ -662,10 +837,62 @@ export async function updateAffiliateCommissionStatus(input: {
   }
 }
 
+export async function updateReferralRegistrationCommission(input: {
+  referralId: string;
+  amount: number;
+}): Promise<ActionResultWithData<AffiliateReferralRow>> {
+  try {
+    await requireSuperuser();
+    const amount = parseCommissionValue(input.amount, DEFAULT_REGISTER_COMMISSION);
+
+    const referral = await prisma.$transaction(async (tx) => {
+      const updatedReferral = await tx.referral.update({
+        where: { id: input.referralId },
+        data: { registrationCommissionAmount: amount },
+        include: {
+          affiliator: { select: { name: true } },
+          referredUser: { select: { name: true, email: true } },
+        },
+      });
+
+      await tx.affiliateCommission.updateMany({
+        where: {
+          referralId: input.referralId,
+          kind: "registration_bonus",
+          status: { in: ["pending", "approved"] },
+        },
+        data: { amount },
+      });
+
+      return updatedReferral;
+    });
+
+    revalidatePath("/superuser");
+    return {
+      success: true,
+      data: {
+        id: referral.id,
+        affiliatorName: referral.affiliator.name,
+        customerName: referral.referredUser.name,
+        customerEmail: referral.referredUser.email,
+        registrationCommissionAmount: referral.registrationCommissionAmount,
+        createdAt: referral.createdAt,
+        convertedAt: referral.convertedAt,
+      },
+    };
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Failed to update referral registration commission:", error);
+    return { success: false, error: "Failed to update referral registration commission" };
+  }
+}
+
 export async function getAffiliatePortalData(input: {
   code: string;
   token: string;
 }): Promise<ActionResultWithData<AffiliatePortalData>> {
+  await syncAffiliateCommissions();
+
   const code = normalizeReferralCode(input.code);
   const affiliator = await prisma.affiliator.findFirst({
     where: { code, portalToken: input.token },
@@ -687,6 +914,7 @@ export async function getAffiliatePortalData(input: {
   const paidConversions = affiliator.referrals.filter((referral) => referral.convertedAt).length;
   const typedCommissions = affiliator.commissions.map((commission) => ({
     ...commission,
+    kind: commission.kind as AffiliateCommissionKind,
     status: commission.status as AffiliateCommissionStatus,
   }));
 
@@ -713,7 +941,8 @@ export async function getAffiliatePortalData(input: {
       commissions: typedCommissions.map((commission) => ({
         id: commission.id,
         customer: customerDisplay(commission.user),
-        plan: commission.plan as Exclude<SubscriptionPlan, "free">,
+        plan: commission.plan,
+        kind: commission.kind,
         amount: commission.amount,
         status: commission.status,
         createdAt: commission.createdAt,
@@ -727,6 +956,7 @@ export async function getAffiliatePortalData(input: {
 export async function getCurrentUserAffiliateDashboard(): Promise<ActionResultWithData<AffiliatePortalData | null>> {
   const currentUser = await getRequestUser();
   if (!currentUser) return { success: false, error: "Silakan login terlebih dahulu" };
+  await syncAffiliateCommissions();
 
   const affiliator = await prisma.affiliator.findUnique({
     where: { userId: currentUser.id },
@@ -748,6 +978,7 @@ export async function getCurrentUserAffiliateDashboard(): Promise<ActionResultWi
   const paidConversions = affiliator.referrals.filter((referral) => referral.convertedAt).length;
   const typedCommissions = affiliator.commissions.map((commission) => ({
     ...commission,
+    kind: commission.kind as AffiliateCommissionKind,
     status: commission.status as AffiliateCommissionStatus,
   }));
 
@@ -774,7 +1005,8 @@ export async function getCurrentUserAffiliateDashboard(): Promise<ActionResultWi
       commissions: typedCommissions.map((commission) => ({
         id: commission.id,
         customer: customerDisplay(commission.user),
-        plan: commission.plan as Exclude<SubscriptionPlan, "free">,
+        plan: commission.plan,
+        kind: commission.kind,
         amount: commission.amount,
         status: commission.status,
         createdAt: commission.createdAt,

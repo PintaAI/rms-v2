@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCurrency } from "@/lib/utils";
 import { PLAN_REGISTRY, type SubscriptionPlan } from "@/lib/plans";
 import { getFeaturesForPlan, FEATURE_REGISTRY, type FeatureKey } from "@/lib/features";
-import { getReferralLink, DEFAULT_REGISTER_COMMISSION, DEFAULT_ENTERPRISE_COMMISSION } from "@/lib/affiliate";
+import { getReferralLink, DEFAULT_ENTERPRISE_COMMISSION_PERCENT, DEFAULT_PRO_RECURRING_COMMISSION_PERCENT, DEFAULT_REGISTER_COMMISSION } from "@/lib/affiliate";
 import {
   RiCheckDoubleLine,
   RiBarChartBoxLine,
@@ -494,7 +494,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
             <Card className="border-emerald-500/20 bg-emerald-500/5">
               <CardContent>
                 <p className="text-xs font-medium text-emerald-500">Komisi Registrasi</p>
-                <div className="mt-2 text-3xl font-bold">{formatCurrency(DEFAULT_REGISTER_COMMISSION)} - {formatCurrency(100_000)}</div>
+                <div className="mt-2 text-3xl font-bold">{formatCurrency(DEFAULT_REGISTER_COMMISSION)}</div>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Setiap referral yang daftar — besaran komisi menyesuaikan potensi dan skala target customer.
                 </p>
@@ -503,16 +503,16 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
             <Card className="border-blue-500/20 bg-blue-500/5">
               <CardContent>
                 <p className="text-xs font-medium text-blue-500">Komisi Pro</p>
-                <div className="mt-2 text-3xl font-bold">Diskusi</div>
+                <div className="mt-2 text-3xl font-bold">Pasif</div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Akan ditentukan setelah tahap <strong>testing</strong> selesai — harga Pro masih dalam evaluasi.
+                  Dapatkan kesempatan <strong>pasif income</strong> perbulan dari setiap referral Pro yang aktif.
                 </p>
               </CardContent>
             </Card>
             <Card className="border-violet-500/20 bg-violet-500/5">
               <CardContent>
                 <p className="text-xs font-medium text-violet-500">Komisi Enterprise</p>
-                <div className="mt-2 text-3xl font-bold">Hingga {formatCurrency(DEFAULT_ENTERPRISE_COMMISSION)}</div>
+                <div className="mt-2 text-3xl font-bold">{DEFAULT_ENTERPRISE_COMMISSION_PERCENT}%</div>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Setiap deal <strong>Enterprise</strong> yang berhasil direferensikan (harga custom).
                 </p>
@@ -532,7 +532,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
                     <p className="text-xs font-semibold text-emerald-500">Registrasi</p>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                      Customer daftar lewat <strong>link referral</strong> Anda — komisi registrasi <strong>{formatCurrency(DEFAULT_REGISTER_COMMISSION)} - {formatCurrency(100_000)}</strong> (menyesuaikan potensi target).
+                      Customer daftar lewat <strong>link referral</strong> Anda — komisi registrasi default <strong>{formatCurrency(DEFAULT_REGISTER_COMMISSION)}</strong> dan bisa disesuaikan super admin.
                     </p>
                   </div>
                 </div>
@@ -544,7 +544,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
                   <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.04] p-4">
                     <p className="text-xs font-semibold text-violet-500">Upgrade</p>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                      Customer <strong>upgrade ke Enterprise</strong> — komisi tambahan hingga <strong>{formatCurrency(DEFAULT_ENTERPRISE_COMMISSION)}</strong>. Komisi Pro akan ditentukan setelah tahap testing.
+                        Customer <strong>upgrade ke Enterprise</strong> — komisi satu kali <strong>{DEFAULT_ENTERPRISE_COMMISSION_PERCENT}%</strong>. Komisi Pro <strong>{DEFAULT_PRO_RECURRING_COMMISSION_PERCENT}%</strong> bersifat pasif per bulan selama customer aktif.
                     </p>
                   </div>
                 </div>

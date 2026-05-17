@@ -209,6 +209,12 @@ enum AffiliateCommissionStatus {
   rejected
 }
 
+enum AffiliateCommissionKind {
+  registration_bonus
+  pro_recurring
+  enterprise_one_time
+}
+
 //////////////////////
 // MODELS
 //////////////////////
@@ -446,9 +452,9 @@ model Affiliator {
   portalToken String           @unique
   status      AffiliatorStatus @default(active)
 
-  commissionType            AffiliateCommissionType @default(fixed)
-  premiumCommissionValue    Int                     @default(100000)
-  enterpriseCommissionValue Int                     @default(200000)
+  commissionType            AffiliateCommissionType @default(percentage)
+  premiumCommissionValue    Int                     @default(10)
+  enterpriseCommissionValue Int                     @default(10)
 
   payoutInfo Json?
   notes      String?
@@ -466,12 +472,13 @@ model Affiliator {
 }
 
 model Referral {
-  id             String    @id @default(uuid())
-  affiliatorId   String
-  referredUserId String    @unique
-  referralCode   String
-  convertedAt    DateTime?
-  createdAt      DateTime  @default(now())
+  id                           String    @id @default(uuid())
+  affiliatorId                 String
+  referredUserId               String    @unique
+  referralCode                 String
+  registrationCommissionAmount Int       @default(50000)
+  convertedAt                  DateTime?
+  createdAt                    DateTime  @default(now())
 
   affiliator   Affiliator @relation(fields: [affiliatorId], references: [id])
   referredUser User       @relation(fields: [referredUserId], references: [id])
@@ -485,26 +492,32 @@ model Referral {
 }
 
 model AffiliateCommission {
-  id           String                    @id @default(uuid())
-  affiliatorId String
-  referralId   String
-  userId       String
-  plan         SubscriptionPlan
-  amount       Int
-  status       AffiliateCommissionStatus @default(pending)
-  createdAt    DateTime                  @default(now())
-  approvedAt   DateTime?
-  paidAt       DateTime?
-  rejectedAt   DateTime?
-  notes        String?
+  id                   String                    @id @default(uuid())
+  affiliatorId         String
+  referralId           String
+  userId               String
+  plan                 SubscriptionPlan
+  kind                 AffiliateCommissionKind   @default(registration_bonus)
+  periodKey            String                    @default("legacy")
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  commissionBaseAmount Int?
+  amount               Int
+  status               AffiliateCommissionStatus @default(pending)
+  createdAt            DateTime                  @default(now())
+  approvedAt           DateTime?
+  paidAt               DateTime?
+  rejectedAt           DateTime?
+  notes                String?
 
   affiliator Affiliator @relation(fields: [affiliatorId], references: [id])
   referral   Referral   @relation(fields: [referralId], references: [id])
   user       User       @relation(fields: [userId], references: [id])
 
-  @@unique([referralId, plan])
+  @@unique([referralId, plan, kind, periodKey])
   @@index([affiliatorId])
   @@index([userId])
+  @@index([kind])
   @@index([status])
   @@index([createdAt])
   @@map("affiliate_commission")

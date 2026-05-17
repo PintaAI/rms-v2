@@ -2,8 +2,8 @@ import { customAlphabet } from "nanoid";
 import type { SubscriptionPlan } from "@/lib/plans";
 
 export const DEFAULT_REGISTER_COMMISSION = 50_000;
-export const DEFAULT_PREMIUM_COMMISSION = 100_000;
-export const DEFAULT_ENTERPRISE_COMMISSION = 1_000_000;
+export const DEFAULT_PRO_RECURRING_COMMISSION_PERCENT = 10;
+export const DEFAULT_ENTERPRISE_COMMISSION_PERCENT = 10;
 export const AFFILIATE_PENDING_REFERRAL_COOKIE = "rms_pending_referral";
 
 const codeSuffix = customAlphabet("23456789ABCDEFGHJKLMNPQRSTUVWXYZ", 4);
@@ -43,6 +43,10 @@ export function getCommissionAmount(input: {
   }
 
   return value;
+}
+
+export function getPercentageCommissionAmount(baseAmount: number, percentage: number): number {
+  return Math.floor((Math.max(0, baseAmount) * Math.max(0, percentage)) / 100);
 }
 
 export function maskEmail(email: string): string {

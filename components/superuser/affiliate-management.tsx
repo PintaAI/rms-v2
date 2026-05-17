@@ -8,6 +8,7 @@ import {
   regenerateAffiliatorPortalToken,
   updateAffiliateCommissionStatus,
   updateAffiliatorStatus,
+  updateReferralRegistrationCommission,
   type AffiliateCommissionRow,
   type AffiliateDashboardData,
   type AffiliatorRow,
@@ -32,8 +33,8 @@ const emptyExternalForm = {
   name: "",
   email: "",
   phone: "",
-  premiumCommissionValue: "100000",
-  enterpriseCommissionValue: "200000",
+  premiumCommissionValue: "10",
+  enterpriseCommissionValue: "10",
   payoutInfo: "",
   notes: "",
 };
@@ -44,6 +45,9 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [externalForm, setExternalForm] = useState(emptyExternalForm);
   const [linkUserId, setLinkUserId] = useState("");
+  const [referralAmounts, setReferralAmounts] = useState<Record<string, string>>(() => Object.fromEntries(
+    data.referrals.map((referral) => [referral.id, String(referral.registrationCommissionAmount)])
+  ));
 
   const copyText = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
@@ -113,6 +117,20 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
     });
   };
 
+  const saveReferralAmount = (referralId: string) => {
+    startTransition(async () => {
+      const result = await updateReferralRegistrationCommission({
+        referralId,
+        amount: Number(referralAmounts[referralId] ?? 0),
+      });
+      if (!result.success) {
+        toast.error(result.error || "Failed to update referral commission");
+        return;
+      }
+      toast.success("Registration commission updated");
+    });
+  };
+
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -145,11 +163,11 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
                 </Field>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="premium-commission">Pro commission</FieldLabel>
+                    <FieldLabel htmlFor="premium-commission">Pro monthly %</FieldLabel>
                     <FieldContent><Input id="premium-commission" inputMode="numeric" value={externalForm.premiumCommissionValue} onChange={(event) => setExternalForm({ ...externalForm, premiumCommissionValue: event.target.value })} /></FieldContent>
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="enterprise-commission">Enterprise commission</FieldLabel>
+                    <FieldLabel htmlFor="enterprise-commission">Enterprise one-time %</FieldLabel>
                     <FieldContent><Input id="enterprise-commission" inputMode="numeric" value={externalForm.enterpriseCommissionValue} onChange={(event) => setExternalForm({ ...externalForm, enterpriseCommissionValue: event.target.value })} /></FieldContent>
                   </Field>
                 </div>
@@ -262,7 +280,9 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
                 <TableRow>
                   <TableHead>Affiliator</TableHead>
                   <TableHead>Customer</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Plan</TableHead>
+                  <TableHead>Base</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -274,7 +294,9 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
                   <TableRow key={commission.id}>
                     <TableCell>{commission.affiliatorName}</TableCell>
                     <TableCell><div>{commission.customerName}</div><div className="text-xs text-muted-foreground">{commission.customerEmail}</div></TableCell>
+                    <TableCell>{commissionKindLabel(commission.kind)}</TableCell>
                     <TableCell className="capitalize">{commission.plan}</TableCell>
+                    <TableCell>{commission.commissionBaseAmount ? formatCurrency(commission.commissionBaseAmount) : "-"}</TableCell>
                     <TableCell>{formatCurrency(commission.amount)}</TableCell>
                     <TableCell><Badge variant="outline">{commission.status}</Badge></TableCell>
                     <TableCell>{new Date(commission.createdAt).toLocaleDateString()}</TableCell>
@@ -296,8 +318,53 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
           </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Referral Registration Bonus</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Affiliator</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Joined</TableHead>
+                  <TableHead>Bonus</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.referrals.map((referral) => (
+                  <TableRow key={referral.id}>
+                    <TableCell>{referral.affiliatorName}</TableCell>
+                    <TableCell><div>{referral.customerName}</div><div className="text-xs text-muted-foreground">{referral.customerEmail}</div></TableCell>
+                    <TableCell>{new Date(referral.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Input
+                        className="w-36"
+                        inputMode="numeric"
+                        value={referralAmounts[referral.id] ?? String(referral.registrationCommissionAmount)}
+                        onChange={(event) => setReferralAmounts({ ...referralAmounts, [referral.id]: event.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="outline" disabled={isPending} onClick={() => saveReferralAmount(referral.id)}>Save</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </section>
   );
+}
+
+function commissionKindLabel(kind: AffiliateCommissionRow["kind"]) {
+  if (kind === "registration_bonus") return "Registration";
+  if (kind === "pro_recurring") return "Pro monthly";
+  return "Enterprise one-time";
 }
 
 function AffiliateStatCard({ title, value, detail }: { title: string; value: string | number; detail: string }) {

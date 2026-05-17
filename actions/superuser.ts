@@ -334,6 +334,7 @@ export async function approveSubscriptionPayment(paymentId: string): Promise<Act
     userId: payment.invoice.userId,
     previousPlan: payment.invoice.subscription.status === "trialing" ? "free" : payment.invoice.subscription.plan as SubscriptionPlan,
     nextPlan: "premium",
+    subscriptionAmount: payment.invoice.amount,
   });
 
   revalidatePath("/superuser");
@@ -377,7 +378,8 @@ export async function rejectSubscriptionPayment(paymentId: string, rejectionReas
 
 export async function updateUserSubscription(
   userId: string,
-  plan: SubscriptionPlan
+  plan: SubscriptionPlan,
+  enterpriseAmount?: number
 ): Promise<ActionResultWithData<{ userId: string; plan: SubscriptionPlan }>> {
   const user = await requireRequestUser();
   if (user.role !== "superuser") {
@@ -410,6 +412,7 @@ export async function updateUserSubscription(
       userId,
       previousPlan: existingSubscription?.status === "trialing" ? "free" : (existingSubscription?.plan as SubscriptionPlan | undefined) ?? null,
       nextPlan: plan,
+      subscriptionAmount: plan === "enterprise" ? enterpriseAmount : undefined,
     });
 
     revalidatePath("/superuser");
