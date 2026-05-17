@@ -925,13 +925,17 @@ export function ServiceDetailCard({
                   <div>
                     <Label className="text-muted-foreground">Garansi & Klaim</Label>
                     <p className="text-sm text-muted-foreground">
-                      Catat refund, ganti sparepart, servis ulang, atau klaim yang ditolak tanpa mengubah invoice lama.
+                      Unit sudah diambil. Jika customer kembali karena garansi, proses klaim dari sini.
                     </p>
                   </div>
                   {canCreateWarrantyClaim && (
-                    <Button size="sm" variant="outline" onClick={openNewClaimDialog}>
+                    <Button
+                      size="sm"
+                      onClick={openNewClaimDialog}
+                      className="w-full border border-amber-400 bg-amber-500 text-white shadow-sm shadow-amber-500/25 hover:bg-amber-600 sm:w-auto dark:border-amber-500 dark:bg-amber-600 dark:hover:bg-amber-700"
+                    >
                       <RiShieldCheckLine className="h-4 w-4" />
-                      <span className="ml-1">Proses Klaim</span>
+                      <span className="ml-1">Claim Garansi</span>
                     </Button>
                   )}
                 </div>

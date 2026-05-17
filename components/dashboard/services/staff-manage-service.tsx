@@ -652,12 +652,12 @@ export function StaffManageService({
       />
 
       <Drawer open={detailDialogOpen} onOpenChange={setDetailDialogOpen} direction="bottom">
-        <DrawerContent className="mx-auto h-dvh max-h-dvh w-full min-w-0 max-w-4xl overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-auto sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-auto sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
+        <DrawerContent className="mx-auto flex h-dvh max-h-dvh w-full min-w-0 max-w-4xl flex-col overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-[90dvh] sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
           <div className="shrink-0 border-b bg-popover px-4 pb-4 pt-3">
             <DrawerTitle className="font-bold">Detail servis</DrawerTitle>
             <DrawerDescription>kelola pembayaran dan pengambilan</DrawerDescription>
           </div>
-          <ScrollArea className="h-[calc(100dvh-4.75rem)] min-w-0 overflow-hidden sm:h-auto sm:max-h-[calc(90dvh-4.75rem)]">
+          <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-hidden">
             <div className="min-w-0 p-2">
               {isLoadingDetail && (
                 <ServiceDetailCardSkeleton />
