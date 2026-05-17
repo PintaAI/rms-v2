@@ -31,12 +31,13 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
 
   const handlePlanChange = (userId: string, plan: SubscriptionPlan) => {
     startTransition(async () => {
-      const enterpriseAmount = plan === "enterprise"
-        ? Number(window.prompt("Enterprise subscription amount for 10% affiliate commission", "0") ?? 0)
-        : undefined;
-      if (plan === "enterprise" && (!Number.isFinite(enterpriseAmount) || enterpriseAmount <= 0)) {
-        toast.error("Enterprise amount is required");
-        return;
+      let enterpriseAmount: number | undefined;
+      if (plan === "enterprise") {
+        enterpriseAmount = Number(window.prompt("Enterprise subscription amount for 10% affiliate commission", "0") ?? 0);
+        if (!Number.isFinite(enterpriseAmount) || enterpriseAmount <= 0) {
+          toast.error("Enterprise amount is required");
+          return;
+        }
       }
 
       const result = await updateUserSubscription(userId, plan, enterpriseAmount);
