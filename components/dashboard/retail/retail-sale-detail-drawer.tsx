@@ -284,8 +284,8 @@ export function RetailSaleDetailDrawer({
                 </div>
 
                 <ScrollArea className="min-h-0 rounded-xl border lg:flex-1 [&>[data-slot=scroll-area-viewport]]:max-h-[260px] lg:[&>[data-slot=scroll-area-viewport]]:max-h-none">
-                  <div className="min-w-[800px]">
-                    <Table>
+                  <div className="size-full overflow-auto">
+                    <Table className="min-w-[800px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Item</TableHead>

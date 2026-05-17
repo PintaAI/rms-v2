@@ -365,16 +365,16 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
             <DrawerDescription>{cart.length} jenis barang siap checkout.</DrawerDescription>
           </div>
 
-          <ScrollArea className="min-h-0 w-full max-w-full flex-1 overflow-x-hidden [&>[data-slot=scroll-area-viewport]]:max-w-full [&>[data-slot=scroll-area-viewport]]:overflow-x-hidden">
+          <ScrollArea className="min-h-0 w-full max-w-full flex-1 [&>[data-slot=scroll-area-viewport]]:max-w-full">
             <div className="flex w-full max-w-full min-w-0 flex-col gap-5 p-4 sm:p-6">
-              <div className="max-h-48 w-full max-w-[calc(100vw-2rem)] shrink-0 overflow-y-auto sm:max-h-72 sm:max-w-full">
+              <div className="w-full max-w-[calc(100vw-2rem)] shrink-0 sm:max-w-full">
                 <div className="flex w-full max-w-full min-w-0 flex-col gap-3">
                   {cart.length === 0 ? (
                     <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                       Keranjang masih kosong.
                     </div>
                   ) : (
-                    <div className="w-full max-w-full min-w-0 overflow-x-auto rounded-md border">
+                    <div className="max-h-48 w-full max-w-full min-w-0 overflow-auto rounded-md border sm:max-h-72">
                       <Table className="min-w-[720px]">
                         <TableHeader>
                           <TableRow>

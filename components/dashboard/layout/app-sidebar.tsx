@@ -3,6 +3,8 @@
 import {
   Sidebar,
   SidebarContent,
+  SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebarHeader } from "./app-sidebar-header";
@@ -38,11 +40,18 @@ interface AppSidebarProps {
 
 export function AppSidebar({ tokoid, featureAccess, permissionAccess, capabilities, disabledFeatures, serviceStats, technicianTaskStats }: AppSidebarProps) {
   const { user, tokoList } = useAuth();
+  const { isMobile, open, setOpen } = useSidebar();
   const optimisticServiceStats = useOptimisticServiceStats(tokoid, serviceStats ?? emptyServiceStats);
+
+  function handleMouseEnter() {
+    if (!isMobile && !open) {
+      setOpen(true);
+    }
+  }
 
   return (
     <TooltipProvider>
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" onMouseEnter={handleMouseEnter}>
       <AppSidebarHeader
         tokoid={tokoid}
         userRole={user?.role || ""}
@@ -53,6 +62,7 @@ export function AppSidebar({ tokoid, featureAccess, permissionAccess, capabiliti
         {user?.role === "staff" && <StaffNav tokoid={tokoid} featureAccess={featureAccess} permissionAccess={permissionAccess} capabilities={capabilities} disabledFeatures={disabledFeatures} serviceStats={optimisticServiceStats} />}
         {user?.role === "technician" && <TeknisiNav tokoid={tokoid} featureAccess={featureAccess} permissionAccess={permissionAccess} disabledFeatures={disabledFeatures} taskStats={technicianTaskStats} />}
       </SidebarContent>
+      <SidebarRail />
     </Sidebar>
     </TooltipProvider>
   );

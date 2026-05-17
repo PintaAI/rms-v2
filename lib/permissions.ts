@@ -81,8 +81,8 @@ export const PERMISSION_REGISTRY = {
   },
   "inventory.import": {
     label: "Import inventory",
-    description: "Dapat import massal item inventory dan daftar harga service.",
-    inactiveReason: "Karyawan tidak dapat melakukan import massal inventory atau daftar harga service.",
+    description: "Dapat import massal item inventory dan daftar harga jasa.",
+    inactiveReason: "Karyawan tidak dapat melakukan import massal inventory atau daftar harga jasa.",
     category: "inventory",
     requiredFeature: "inventory.management",
     grantableInV1: true,
@@ -107,9 +107,9 @@ export const PERMISSION_REGISTRY = {
     sensitivity: "operational",
   },
   "inventory.manageServicePricelists": {
-    label: "Kelola daftar harga service",
-    description: "Dapat membuat, mengubah, import, dan menghapus daftar harga service.",
-    inactiveReason: "Karyawan tidak dapat membuat, mengubah, import, atau menghapus daftar harga service.",
+    label: "Kelola daftar harga jasa",
+    description: "Dapat membuat, mengubah, import, dan menghapus daftar harga jasa.",
+    inactiveReason: "Karyawan tidak dapat membuat, mengubah, import, atau menghapus daftar harga jasa.",
     category: "inventory",
     requiredFeature: "inventory.management",
     grantableInV1: true,

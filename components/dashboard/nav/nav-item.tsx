@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import {
@@ -53,10 +53,32 @@ interface NavGroupProps {
   defaultOpen?: boolean;
 }
 
+function getNavGroupStorageKey(title: string) {
+  return `dashboard-nav-group:${title}`;
+}
+
+function usePersistentNavGroupOpen(title: string, defaultOpen: boolean) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [hasLoadedStoredState, setHasLoadedStoredState] = useState(false);
+
+  useEffect(() => {
+    const storedState = window.localStorage.getItem(getNavGroupStorageKey(title));
+    if (storedState != null) setIsOpen(storedState === "true");
+    setHasLoadedStoredState(true);
+  }, [title]);
+
+  useEffect(() => {
+    if (!hasLoadedStoredState) return;
+    window.localStorage.setItem(getNavGroupStorageKey(title), String(isOpen));
+  }, [hasLoadedStoredState, isOpen, title]);
+
+  return [isOpen, setIsOpen] as const;
+}
+
 export function NavGroup({ title, icon, items, defaultOpen = true }: NavGroupProps) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isOpen, setIsOpen] = usePersistentNavGroupOpen(title, defaultOpen);
   const isGroupActive = items.some(
     (item) => pathname === item.href.split("?")[0] || pathname.startsWith(item.href.split("?")[0] + "/")
   );
@@ -128,7 +150,7 @@ export function NavFilterGroup({ title, icon, items, defaultOpen = true }: NavFi
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isOpen, setIsOpen] = usePersistentNavGroupOpen(title, defaultOpen);
 
   const isItemActive = (href: string) => {
     const [hrefPath, hrefQuery] = href.split("?");
