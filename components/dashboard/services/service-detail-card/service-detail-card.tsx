@@ -87,7 +87,7 @@ import { useOptimisticMutation } from "@/hooks/use-optimistic-mutation";
 import { type Role, roleToneClasses } from "@/lib/role-tone";
 import type { PublishServiceRealtimeEvent } from "@/lib/realtime/service-realtime-types";
 import { getServiceRealtimeMeta } from "@/lib/realtime/service-realtime-label";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatCurrencyInput, formatDate, getCurrencyInputDigits, parseCurrencyInput } from "@/lib/utils";
 import { toast } from "sonner";
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -769,7 +769,7 @@ export function ServiceDetailCard({
     const result = await resolveWarrantyClaim({
       claimId: resolveClaimId,
       resolution: claimResolution as "free_repair" | "replace_part" | "cash_refund" | "no_action",
-      refundAmount: claimResolution === "cash_refund" && claimRefundAmount ? Number(claimRefundAmount) : undefined,
+      refundAmount: claimResolution === "cash_refund" && claimRefundAmount ? parseCurrencyInput(claimRefundAmount) : undefined,
       technicianNote: claimTechnicianNote.trim() || undefined,
       resolvedNote: claimResolvedNote.trim() || undefined,
       items: claimResolution === "replace_part" && claimSparepartId
@@ -1492,10 +1492,11 @@ export function ServiceDetailCard({
                 <Label htmlFor="claim-refund">Nominal refund</Label>
                 <Input
                   id="claim-refund"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   min={0}
-                  value={claimRefundAmount}
-                  onChange={(event) => setClaimRefundAmount(event.target.value)}
+                  value={formatCurrencyInput(claimRefundAmount)}
+                  onChange={(event) => setClaimRefundAmount(getCurrencyInputDigits(event.target.value))}
                   placeholder="0"
                 />
               </div>
@@ -1724,7 +1725,7 @@ export function ServiceDetailCard({
               onClick={handleResolveWarrantyClaim}
               disabled={
                 isResolvingClaim
-                || (claimResolution === "cash_refund" && Number(claimRefundAmount) <= 0)
+                || (claimResolution === "cash_refund" && parseCurrencyInput(claimRefundAmount) <= 0)
                 || (claimResolution === "replace_part" && !claimSparepartId)
                 || claimSparepartStockInsufficient
                 || supplierReturnInvalid

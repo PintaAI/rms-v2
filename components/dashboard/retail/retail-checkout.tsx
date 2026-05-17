@@ -14,7 +14,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerTitle } f
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils"
 import {
   RiAddLine,
   RiBankCardLine,
@@ -47,6 +47,7 @@ type FlyingCartItem = {
 }
 
 const AUTO_PRINT_RECEIPT_KEY = "retail-checkout-auto-print-receipt"
+const CASH_SHORTCUT_AMOUNTS = [10000, 20000, 50000, 100000]
 
 interface RetailCheckoutProps {
   tokoId: string
@@ -187,6 +188,10 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
       if (qty < 1) return []
       return [{ ...line, qty: Math.min(qty, line.stock) }]
     }))
+  }
+
+  const addCashReceived = (amount: number) => {
+    setCashReceived((current) => String(toNumber(current) + amount))
   }
 
   const updateAutoPrintReceipt = (checked: boolean) => {
@@ -491,14 +496,14 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                       )}
                       <Input
                         id="retail-discount"
-                        value={discountValue}
-                        onChange={(event) => setDiscountValue(event.target.value)}
+                        value={discountType === "percent" ? discountValue : formatCurrencyInput(discountValue)}
+                        onChange={(event) => setDiscountValue(discountType === "percent" ? event.target.value : getCurrencyInputDigits(event.target.value))}
                         disabled={readOnly}
                         inputMode="numeric"
                         min={0}
                         max={discountType === "percent" ? 100 : subtotal}
                         placeholder="0"
-                        type="number"
+                        type={discountType === "percent" ? "number" : "text"}
                         className={discountType === "percent" ? "pr-8" : "pl-8"}
                       />
                       {discountType === "percent" && (
@@ -530,17 +535,42 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                       <Input
                         ref={cashReceivedRef}
                         id="retail-cash-received"
-                        value={cashReceived}
-                        onChange={(event) => setCashReceived(event.target.value)}
+                        value={formatCurrencyInput(cashReceived)}
+                        onChange={(event) => setCashReceived(getCurrencyInputDigits(event.target.value))}
                         disabled={readOnly}
                         aria-invalid={cashIsInsufficient || undefined}
                         inputMode="numeric"
                         min={0}
                         placeholder="0"
-                        type="number"
+                        type="text"
                         className="pl-8"
                       />
                     </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {CASH_SHORTCUT_AMOUNTS.map((amount) => (
+                        <Button
+                          key={amount}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="tabular-nums"
+                          onClick={() => addCashReceived(amount)}
+                          disabled={readOnly}
+                        >
+                          + {formatCurrency(amount)}
+                        </Button>
+                      ))}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-muted-foreground"
+                      onClick={() => setCashReceived("")}
+                      disabled={readOnly || cashReceived.length === 0}
+                    >
+                      Reset uang diterima
+                    </Button>
                     {cashIsInsufficient ? <FieldError>Uang diterima kurang dari total bayar.</FieldError> : null}
                   </Field>
                 ) : null}

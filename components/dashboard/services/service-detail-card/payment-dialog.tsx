@@ -22,7 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatCurrencyInput, getCurrencyInputDigits, parseCurrencyInput } from "@/lib/utils";
 import {
   RiBankCardLine,
   RiCashLine,
@@ -63,8 +63,7 @@ interface PaymentDialogProps {
 }
 
 function parseAmount(value: string) {
-  const parsed = Number.parseInt(value || "0", 10);
-  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+  return parseCurrencyInput(value);
 }
 
 function FieldLabelIcon({ icon: Icon }: { icon: typeof RiWallet3Line }) {
@@ -222,10 +221,10 @@ export function PaymentDialog({
                     min={0}
                     max={usePercentDiscount ? 100 : remainingTotal}
                     placeholder="0"
-                    type="number"
-                    value={discountInput}
+                    type={usePercentDiscount ? "number" : "text"}
+                    value={usePercentDiscount ? discountInput : formatCurrencyInput(discountInput)}
                     className={usePercentDiscount ? "pr-8" : "pl-8"}
-                    onChange={(event) => setDiscountInput(event.target.value)}
+                    onChange={(event) => setDiscountInput(usePercentDiscount ? event.target.value : getCurrencyInputDigits(event.target.value))}
                   />
                   {usePercentDiscount && (
                     <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground">
@@ -259,10 +258,10 @@ export function PaymentDialog({
                     inputMode="numeric"
                     min={0}
                     placeholder="0"
-                    type="number"
-                    value={cashInput}
+                    type="text"
+                    value={formatCurrencyInput(cashInput)}
                     className="pl-8"
-                    onChange={(event) => setCashInput(event.target.value)}
+                    onChange={(event) => setCashInput(getCurrencyInputDigits(event.target.value))}
                   />
                 </div>
                 {cashIsInsufficient ? (

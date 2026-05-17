@@ -16,6 +16,7 @@ import {
   updateServicePricelist,
   type ServicePricelist,
 } from "@/actions/inventory";
+import { formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils";
 import { RiLoader4Line, RiPriceTag3Line, RiEditLine } from "@remixicon/react";
 
 interface ServicePricelistFormDialogProps {
@@ -113,9 +114,10 @@ function ServicePricelistFormContent({
             </Label>
             <Input
               id="price"
-              type="number"
-              value={defaultPrice}
-              onChange={(e) => setDefaultPrice(e.target.value)}
+              type="text"
+              inputMode="numeric"
+              value={formatCurrencyInput(defaultPrice)}
+              onChange={(e) => setDefaultPrice(getCurrencyInputDigits(e.target.value))}
               placeholder="0"
               min="0"
               required

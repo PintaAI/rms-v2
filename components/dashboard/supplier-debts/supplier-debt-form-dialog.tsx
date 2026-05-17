@@ -21,6 +21,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { formatCurrencyInput, getCurrencyInputDigits, parseCurrencyInput } from "@/lib/utils"
 import { RiLoader4Line } from "@remixicon/react"
 
 interface SupplierDebtFormDialogProps {
@@ -42,8 +43,7 @@ function toDateValue(value: string) {
 }
 
 function parseAmount(value: string) {
-  const parsed = Number.parseInt(value || "0", 10)
-  return Number.isFinite(parsed) ? parsed : Number.NaN
+  return value.trim() ? parseCurrencyInput(value) : Number.NaN
 }
 
 export function SupplierDebtFormDialog({ open, onOpenChange, tokoId, suppliers, debt, onSaved }: SupplierDebtFormDialogProps) {
@@ -199,11 +199,11 @@ export function SupplierDebtFormDialog({ open, onOpenChange, tokoId, suppliers, 
                 <FieldLabel htmlFor="supplier-total-amount">Total hutang</FieldLabel>
                 <Input
                   id="supplier-total-amount"
-                  type="number"
+                  type="text"
                   min="1"
                   inputMode="numeric"
-                  value={totalAmount}
-                  onChange={(event) => setTotalAmount(event.target.value)}
+                  value={formatCurrencyInput(totalAmount)}
+                  onChange={(event) => setTotalAmount(getCurrencyInputDigits(event.target.value))}
                   disabled={isPending}
                 />
               </Field>
@@ -212,11 +212,11 @@ export function SupplierDebtFormDialog({ open, onOpenChange, tokoId, suppliers, 
                   <FieldLabel htmlFor="supplier-paid-amount">Dibayar awal</FieldLabel>
                   <Input
                     id="supplier-paid-amount"
-                    type="number"
+                    type="text"
                     min="0"
                     inputMode="numeric"
-                    value={paidAmount}
-                    onChange={(event) => setPaidAmount(event.target.value)}
+                    value={formatCurrencyInput(paidAmount)}
+                    onChange={(event) => setPaidAmount(getCurrencyInputDigits(event.target.value))}
                     placeholder="0"
                     disabled={isPending}
                   />

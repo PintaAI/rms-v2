@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { PatternLock } from "@/components/shared/pattern-lock";
 import { DeviceInput, type HpCatalogOption } from "@/components/shared/device-input";
+import { formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils";
 import { RiUserLine, RiToolsLine, RiTicketLine, RiWhatsappLine, RiBox3Line, RiAddLine, RiDeleteBinLine, RiCloseLine, RiMessage3Line } from "@remixicon/react";
 
 interface ServiceFormData {
@@ -111,10 +112,6 @@ function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | 
   };
 }
 
-function formatRupiahAmount(value: string) {
-  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-}
-
 function getRealtimeLabel(customerName: string, device: HpCatalogOption) {
   const deviceName = `${device.brandName} ${device.modelName}`;
   const name = customerName.trim();
@@ -186,7 +183,7 @@ function ServicesFormContent({
   const [patternResetKey, setPatternResetKey] = useState(0);
   const [devices, setDevices] = useState<HpCatalogOption[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(true);
-  const formattedDpAmount = formatRupiahAmount(dpAmount);
+  const formattedDpAmount = formatCurrencyInput(dpAmount);
 
   useEffect(() => {
     let active = true;
@@ -622,7 +619,7 @@ function ServicesFormContent({
                   placeholder="0"
                   disabled={isLoading}
                   value={formattedDpAmount}
-                  onChange={(e) => setDpAmount(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => setDpAmount(getCurrencyInputDigits(e.target.value))}
                   className="pl-9"
                 />
               </div>

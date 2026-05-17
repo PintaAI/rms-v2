@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatCurrencyInput, formatDate, getCurrencyInputDigits, parseCurrencyInput } from "@/lib/utils"
 import { RiLoader4Line } from "@remixicon/react"
 import { SupplierReturnStatusBadge, supplierReturnStatusLabels } from "./supplier-return-status-badge"
 
@@ -45,7 +45,7 @@ export function SupplierReturnActionDialog({ item, action, open, onOpenChange }:
         : action === "refunded"
           ? "Tandai Refund Supplier"
           : "Tolak Retur"
-  const refundValue = Number(refundAmount)
+  const refundValue = parseCurrencyInput(refundAmount)
   const actionDisabled = isPending || (action === "refunded" && refundValue <= 0)
 
   const handleSubmit = () => {
@@ -110,7 +110,7 @@ export function SupplierReturnActionDialog({ item, action, open, onOpenChange }:
           {action === "refunded" && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="supplier-return-refund">Nominal refund supplier</Label>
-              <Input id="supplier-return-refund" type="number" min={1} value={refundAmount} onChange={(event) => setRefundAmount(event.target.value)} placeholder="0" disabled={isPending} />
+              <Input id="supplier-return-refund" type="text" inputMode="numeric" min={1} value={formatCurrencyInput(refundAmount)} onChange={(event) => setRefundAmount(getCurrencyInputDigits(event.target.value))} placeholder="0" disabled={isPending} />
             </div>
           )}
 

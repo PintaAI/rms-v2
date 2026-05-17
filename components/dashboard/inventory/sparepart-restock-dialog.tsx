@@ -33,8 +33,7 @@ import {
   RiDeleteBinLine,
   RiFileList3Line,
 } from "@remixicon/react";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency, formatCurrencyInput, formatDate, getCurrencyInputDigits, parseCurrencyInput } from "@/lib/utils";
 import { toast } from "sonner";
 import { useScannerPairing, ScannerPairingPanel, ScannerToggleButton } from "@/components/shared/scanner-pairing";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -68,11 +67,6 @@ const SCANNER_INPUT_THRESHOLD_MS = 30;
 
 const getRestockPrice = (sparepart: SparepartWithCompatibilities) =>
   sparepart.purchasePrice ?? 0;
-
-const parseCurrencyInput = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  return digits === "" ? 0 : Number(digits);
-};
 
 function SparepartRestockDialogContent({
   tokoId,
@@ -754,8 +748,8 @@ function SparepartRestockDialogContent({
                         id="supplier-total-amount"
                         type="text"
                         inputMode="numeric"
-                        value={debtTotalAmount}
-                        onChange={(event) => setDebtTotalAmount(event.target.value)}
+                        value={formatCurrencyInput(debtTotalAmount)}
+                        onChange={(event) => setDebtTotalAmount(getCurrencyInputDigits(event.target.value))}
                         placeholder={formatCurrency(totalRestockPrice)}
                         disabled={isLoading}
                       />
@@ -770,8 +764,8 @@ function SparepartRestockDialogContent({
                         id="supplier-paid-amount"
                         type="text"
                         inputMode="numeric"
-                        value={debtPaidAmount}
-                        onChange={(event) => setDebtPaidAmount(event.target.value)}
+                        value={formatCurrencyInput(debtPaidAmount)}
+                        onChange={(event) => setDebtPaidAmount(getCurrencyInputDigits(event.target.value))}
                         disabled={isLoading}
                       />
                     </div>

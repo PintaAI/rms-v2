@@ -21,6 +21,7 @@ import {
 } from "@/actions/inventory";
 import { MultiDeviceInput, type HpCatalogOption } from "@/components/shared/multi-device-input";
 import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
+import { formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils";
 import { RiEditLine, RiPriceTag3Line, RiStackLine, RiDeviceLine, RiBox3Line, RiShieldCheckLine } from "@remixicon/react";
 
 interface SparepartFormProps {
@@ -312,9 +313,10 @@ function SparepartFormContent({
                 </div>
                 <Input
                   id="price"
-                  type="number"
-                  value={defaultPrice}
-                  onChange={(e) => setDefaultPrice(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatCurrencyInput(defaultPrice)}
+                  onChange={(e) => setDefaultPrice(getCurrencyInputDigits(e.target.value))}
                   placeholder="0"
                   min="0"
                   disabled={isLoading}
@@ -329,9 +331,10 @@ function SparepartFormContent({
                 </Label>
                 <Input
                   id="purchasePrice"
-                  type="number"
-                  value={purchasePrice}
-                  onChange={(e) => setPurchasePrice(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatCurrencyInput(purchasePrice)}
+                  onChange={(e) => setPurchasePrice(getCurrencyInputDigits(e.target.value))}
                   placeholder="0"
                   min="0"
                   disabled={isLoading}

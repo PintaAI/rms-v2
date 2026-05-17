@@ -14,6 +14,23 @@ export function formatCurrency(value: number): string {
   }).format(value)
 }
 
+export function getCurrencyInputDigits(value: string): string {
+  return value.replace(/\D/g, "")
+}
+
+export function parseCurrencyInput(value: string): number {
+  const digits = getCurrencyInputDigits(value)
+  if (!digits) return 0
+
+  const parsed = Number(digits)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function formatCurrencyInput(value: string | number): string {
+  const amount = typeof value === "number" ? value : parseCurrencyInput(value)
+  return amount > 0 ? new Intl.NumberFormat("id-ID").format(amount) : ""
+}
+
 export function formatDate(date: Date | null | undefined): string {
   if (!date) return "-"
   return new Intl.DateTimeFormat("id-ID", {

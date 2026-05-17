@@ -14,7 +14,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { addItem } from "@/actions";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils";
 import { useScannerPairing, ScannerPairingPanel, ScannerToggleButton } from "@/components/shared/scanner-pairing";
 import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import { toast } from "sonner";
@@ -335,9 +335,10 @@ export function AddRepairItemForm({
                             <Label htmlFor="manual-item-price" className="text-sm">Harga</Label>
                             <Input
                               id="manual-item-price"
-                              type="number"
-                              value={manualPrice}
-                              onChange={(e) => setManualPrice(e.target.value)}
+                              type="text"
+                              inputMode="numeric"
+                              value={formatCurrencyInput(manualPrice)}
+                              onChange={(e) => setManualPrice(getCurrencyInputDigits(e.target.value))}
                               min="0"
                               placeholder="0"
                             />
@@ -504,9 +505,10 @@ export function AddRepairItemForm({
                             <Label htmlFor="manual-item-price" className="text-sm">Harga</Label>
                             <Input
                               id="manual-item-price"
-                              type="number"
-                              value={manualPrice}
-                              onChange={(e) => setManualPrice(e.target.value)}
+                              type="text"
+                              inputMode="numeric"
+                              value={formatCurrencyInput(manualPrice)}
+                              onChange={(e) => setManualPrice(getCurrencyInputDigits(e.target.value))}
                               min="0"
                               placeholder="0"
                             />
