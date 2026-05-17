@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,8 +21,18 @@ import {
 } from "@/actions/inventory";
 import { MultiDeviceInput, type HpCatalogOption } from "@/components/shared/multi-device-input";
 import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
-import { formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils";
-import { RiEditLine, RiPriceTag3Line, RiStackLine, RiDeviceLine, RiBox3Line, RiShieldCheckLine } from "@remixicon/react";
+import { cn, formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils";
+import {
+  RiAddLine,
+  RiBox3Line,
+  RiCheckLine,
+  RiDeviceLine,
+  RiEditLine,
+  RiPriceTag3Line,
+  RiSearchLine,
+  RiShieldCheckLine,
+  RiStackLine,
+} from "@remixicon/react";
 
 interface SparepartFormProps {
   open: boolean;
@@ -79,8 +89,23 @@ function SparepartFormContent({
   const [categories, setCategories] = useState<SparepartCategory[]>([]);
   const [devices, setDevices] = useState<HpCatalogOption[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(true);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const isRetailItem = mode === "retail_item";
   const itemLabel = isRetailItem ? "Barang Retail" : "Sparepart";
+  const trimmedCategoryQuery = categoryName.trim();
+  const exactCategoryMatch = useMemo(
+    () => categories.find((category) => category.name.toLowerCase() === trimmedCategoryQuery.toLowerCase()) ?? null,
+    [categories, trimmedCategoryQuery]
+  );
+  const filteredCategories = useMemo(() => {
+    if (!trimmedCategoryQuery) return categories.slice(0, 20);
+
+    const normalizedQuery = trimmedCategoryQuery.toLowerCase();
+    return categories
+      .filter((category) => category.name.toLowerCase().includes(normalizedQuery))
+      .slice(0, 20);
+  }, [categories, trimmedCategoryQuery]);
 
   useEffect(() => {
     let active = true;
@@ -124,6 +149,17 @@ function SparepartFormContent({
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setShowCategoryDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const handleDeviceCreated = useCallback((device: HpCatalogOption) => {
     setDevices((prev) => {
       const next = prev.some((item) => item.id === device.id)
@@ -135,6 +171,16 @@ function SparepartFormContent({
         return brandCompare === 0 ? a.modelName.localeCompare(b.modelName) : brandCompare;
       });
     });
+  }, []);
+
+  const handleCategoryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setCategoryName(e.target.value);
+    setShowCategoryDropdown(true);
+  }, []);
+
+  const handleCategorySelect = useCallback((category: SparepartCategory) => {
+    setCategoryName(category.name);
+    setShowCategoryDropdown(false);
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -174,10 +220,14 @@ function SparepartFormContent({
     const hpCatalogIds = isRetailItem ? [] : selectedDevices.map((d) => d.id);
     const finalIsUniversal = isRetailItem || hpCatalogIds.length === 0 ? true : isUniversal;
     const trimmedCategoryName = categoryName.trim();
-    const optimisticCategory = trimmedCategoryName
-      ? categories.find((category) => category.name.toLowerCase() === trimmedCategoryName.toLowerCase()) ?? {
+    const existingCategory = trimmedCategoryName
+      ? categories.find((category) => category.name.toLowerCase() === trimmedCategoryName.toLowerCase())
+      : null;
+    const finalCategoryName = existingCategory?.name ?? trimmedCategoryName;
+    const optimisticCategory = finalCategoryName
+      ? existingCategory ?? {
           id: `temp-category-${Date.now()}`,
-          name: trimmedCategoryName,
+          name: finalCategoryName,
           tokoId,
         }
       : null;
@@ -228,7 +278,7 @@ function SparepartFormContent({
           defaultPrice: price,
           purchasePrice: parsedPurchasePrice,
           supplierName: supplierName.trim() || null,
-          categoryName: trimmedCategoryName || null,
+          categoryName: finalCategoryName || null,
           stock: stockValue,
           criticalStock: criticalStockValue,
           warrantyDays: isRetailItem ? warrantyDaysValue : null,
@@ -241,7 +291,7 @@ function SparepartFormContent({
           defaultPrice: price,
           purchasePrice: parsedPurchasePrice,
           supplierName: supplierName.trim() || null,
-          categoryName: trimmedCategoryName || null,
+          categoryName: finalCategoryName || null,
           stock: stockValue,
           criticalStock: criticalStockValue,
           warrantyDays: isRetailItem ? warrantyDaysValue : null,
@@ -392,19 +442,67 @@ function SparepartFormContent({
 
               <div className="flex flex-col gap-1.5 sm:gap-2">
                 <Label htmlFor="categoryName" className="text-xs sm:text-sm">Kategori</Label>
-                <Input
-                  id="categoryName"
-                  list="sparepart-category-options"
-                  value={categoryName}
-                  onChange={(e) => setCategoryName(e.target.value)}
-                  placeholder={isRetailItem ? "Contoh: Aksesoris, HP Second, Charger" : "Contoh: LCD, Baterai, Konektor"}
-                  disabled={isLoading}
-                />
-                <datalist id="sparepart-category-options">
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.name} />
-                  ))}
-                </datalist>
+                <div className="relative" ref={categoryDropdownRef}>
+                  <Input
+                    id="categoryName"
+                    value={categoryName}
+                    onChange={handleCategoryChange}
+                    onFocus={() => setShowCategoryDropdown(true)}
+                    placeholder={isRetailItem ? "Contoh: Aksesoris, HP Second, Charger" : "Contoh: LCD, Baterai, Konektor"}
+                    disabled={isLoading}
+                    autoComplete="off"
+                  />
+
+                  {showCategoryDropdown && !isLoading && (filteredCategories.length > 0 || trimmedCategoryQuery) && (
+                    <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-input bg-background shadow-lg">
+                      {filteredCategories.length > 0 && (
+                        <div className="py-1">
+                          <div className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Kategori yang Sudah Ada
+                          </div>
+                          {filteredCategories.map((category) => (
+                            <button
+                              key={category.id}
+                              type="button"
+                              className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent"
+                              onClick={() => handleCategorySelect(category)}
+                            >
+                              <RiPriceTag3Line className="size-4 text-muted-foreground" />
+                              <span className="min-w-0 flex-1 truncate font-medium">{category.name}</span>
+                              <RiCheckLine
+                                className={cn(
+                                  "size-4 text-muted-foreground transition-opacity",
+                                  exactCategoryMatch?.id === category.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {trimmedCategoryQuery && !exactCategoryMatch && (
+                        <div className="border-t p-4">
+                          {filteredCategories.length === 0 && (
+                            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+                              <RiSearchLine className="size-4" />
+                              Tidak ada kategori yang ditemukan
+                            </div>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowCategoryDropdown(false)}
+                            className="w-full"
+                          >
+                            <RiAddLine className="mr-2 size-4" />
+                            Buat &quot;{trimmedCategoryQuery}&quot;
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <p className="hidden text-xs text-muted-foreground sm:block">Kategori baru akan dibuat otomatis saat disimpan.</p>
               </div>
 
