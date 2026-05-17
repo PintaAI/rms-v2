@@ -1,8 +1,9 @@
 import { customAlphabet } from "nanoid";
 import type { SubscriptionPlan } from "@/lib/plans";
 
+export const DEFAULT_REGISTER_COMMISSION = 50_000;
 export const DEFAULT_PREMIUM_COMMISSION = 100_000;
-export const DEFAULT_ENTERPRISE_COMMISSION = 200_000;
+export const DEFAULT_ENTERPRISE_COMMISSION = 1_000_000;
 export const AFFILIATE_PENDING_REFERRAL_COOKIE = "rms_pending_referral";
 
 const codeSuffix = customAlphabet("23456789ABCDEFGHJKLMNPQRSTUVWXYZ", 4);

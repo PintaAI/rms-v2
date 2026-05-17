@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCurrency } from "@/lib/utils";
 import { PLAN_REGISTRY, type SubscriptionPlan } from "@/lib/plans";
 import { getFeaturesForPlan, FEATURE_REGISTRY, type FeatureKey } from "@/lib/features";
-import { getReferralLink, DEFAULT_PREMIUM_COMMISSION, DEFAULT_ENTERPRISE_COMMISSION } from "@/lib/affiliate";
+import { getReferralLink, DEFAULT_REGISTER_COMMISSION, DEFAULT_ENTERPRISE_COMMISSION } from "@/lib/affiliate";
 import {
   RiCheckDoubleLine,
   RiBarChartBoxLine,
@@ -21,7 +21,6 @@ import {
   RiCustomerService2Line,
   RiLinksLine,
   RiTeamLine,
-  RiUserAddLine,
 } from "@remixicon/react";
 import Link from "next/link";
 
@@ -49,37 +48,77 @@ const featureIcons: Record<string, React.ComponentType<{ className?: string }>> 
   "inventory.audit": RiQrCodeLine,
 };
 
-const steps = [
+const workflowModes = [
   {
-    title: "Terima unit",
-    description: "Front desk membuat ticket, memilih device dari katalog global, dan mencatat keluhan dengan nomor WhatsApp customer.",
+    title: "Solo owner",
+    audience: "Untuk pemilik toko yang merangkap admin, staff, dan teknisi.",
+    icon: RiStore2Line,
+    accent: "bg-primary/10 text-primary",
+    steps: [
+      "Terima unit service dan catat keluhan customer.",
+      "Lakukan perbaikan langsung tanpa assign teknisi.",
+      "Input sparepart yang dipakai dan jasa yang dikerjakan.",
+      "Hubungi customer saat unit siap diambil, lalu final pickup.",
+    ],
   },
   {
-    title: "Kerjakan task",
-    description: "Admin assign teknisi atau teknisi mengambil pekerjaan dari daftar task yang tersedia — semua terlacak tanpa chat.",
+    title: "Team work",
+    audience: "Untuk toko yang memisahkan kontrol admin, input staff, dan pengerjaan teknisi.",
+    icon: RiTeamLine,
+    accent: "bg-chart-3/10 text-chart-3",
+    steps: [
+      "Admin monitoring dan kontrol seluruh aktivitas toko.",
+      "Staff input device, data customer, dan ticket service.",
+      "Teknisi melakukan perbaikan, tambah sparepart, dan tambah jasa.",
+      "Staff tandai selesai, hubungi customer, lalu proses final pickup.",
+    ],
   },
   {
-    title: "Tambah item",
-    description: "Sparepart, jasa, DP, dan total invoice mengikuti pekerjaan yang benar-benar dilakukan teknisi.",
-  },
-  {
-    title: "Pickup final",
-    description: "Saat unit keluar, service dikunci dengan flag pickup agar data tidak berubah setelah customer mengambil unit.",
+    title: "Retail & kasir",
+    audience: "Untuk toko servis yang juga menjual sparepart, aksesoris, atau barang retail.",
+    icon: RiArchiveLine,
+    accent: "bg-emerald-500/10 text-emerald-500",
+    steps: [
+      "Admin atau staff dengan permission retail mengelola inventory.",
+      "Kasir menjual barang retail langsung dari stok toko.",
+      "Stok otomatis berkurang dan transaksi masuk riwayat penjualan.",
+      "Service dan retail tetap tercatat dalam satu sistem operasional.",
+    ],
   },
 ];
 
 const painPoints = [
   {
-    title: "Unit selesai, customer belum dihubungi",
-    description: "RMS mengirim notifikasi WhatsApp otomatis dari akun toko saat status berubah jadi selesai atau gagal.",
+    title: "Alur service tidak jelas",
+    description: "Unit masuk, dikerjakan siapa, statusnya apa, sudah selesai atau belum, dan sudah pickup atau belum tidak lagi tersebar di buku, chat, atau ingatan owner.",
   },
   {
-    title: "Stok di sistem beda dengan stok fisik",
-    description: "Setiap sparepart yang dipakai di servis langsung memengaruhi stok. Audit gudang mencatat alasan selisih stok.",
+    title: "Owner terlalu bergantung pada catatan manual rawan miss kalkulasi",
+    description: "Untuk solo owner, RMS menyimpan dan mengelola keluhan customer, sparepart yang dipakai, harga jasa, DP, total tagihan, dan siapa yang harus dihubungi.",
   },
   {
-    title: "Total invoice tidak mengikuti pekerjaan teknisi",
-    description: "Item jasa, sparepart, dan item manual masuk ke satu invoice. Biaya tidak tercecer antar catatan terpisah.",
+    title: "Koordinasi team berantakan",
+    description: "Staff input unit, teknisi mengerjakan, dan admin memonitor tanpa harus bergantung pada chat internal yang mudah tenggelam atau miss update.",
+  },
+  {
+    title: "Telat hubungi customer",
+    description: "RMS membantu memastikan unit yang sudah selesai bisa segera dikabari ke customer sehingga unit tidak menumpuk dan cashflow tidak tertahan.",
+  },
+  {
+    title: "Invoice tidak mengikuti pekerjaan nyata",
+    description: "Sparepart dan jasa yang dipakai teknisi masuk ke invoice yang sama, sehingga toko tidak kurang tagih atau hitung ulang manual.",
+  },
+  {
+    title: "Stok sparepart tidak sinkron",
+    description: "Sparepart yang dipakai untuk service atau dijual lewat kasir langsung memengaruhi stok, sehingga data sistem lebih dekat dengan stok fisik.",
+  },
+  {
+    title: "Service dan retail terpisah",
+    description: "Toko yang juga menjual sparepart atau aksesoris bisa mengelola service, inventory, kasir, dan riwayat penjualan dalam satu sistem.",
+  },
+  {
+    title: "Admin tidak punya kontrol real-time",
+    description: "Owner atau admin bisa melihat service masuk, pekerjaan teknisi, item yang keluar, dan penjualan retail tanpa harus tanya satu-satu.",
   },
 ];
 
@@ -87,7 +126,9 @@ const differentiators = [
   { title: "Katalog HP global", description: "Device dari berbagai brand sudah tersedia — input unit lebih cepat tanpa ketik ulang per toko." },
   { title: "HP sebagai scanner barcode", description: "Kamera HP dipakai untuk scan barcode saat restock sparepart — tidak perlu alat tambahan." },
   { title: "Audit gudang fisik", description: "Jalankan audit berkala, bandingkan stok sistem vs stok fisik, dan catat alasan selisih." },
-  { title: "Feature toggle", description: "Fitur bisa diaktifkan/nonaktifkan per toko. Toko kecil tidak dipaksa memakai alur yang kompleks." },
+  { title: "Fleksibel untuk solo atau team", description: "Toko kecil bisa berjalan sederhana sebagai solo owner. Toko besar bisa memisahkan role admin, staff, dan teknisi." },
+  { title: "Built-in retail & kasir", description: "RMS tidak hanya untuk service. Toko juga bisa menjual sparepart, aksesoris, atau barang retail langsung dari inventory yang sama." },
+  { title: "Feature toggle & access-controll", description: "Fitur bisa diaktifkan/nonaktifkan per toko. Toko kecil tidak dipaksa memakai alur yang kompleks. bisa juga menentukan apa yang boleh dan tidak boleh dilakukan" },
 ];
 
 const faqs = [
@@ -101,11 +142,11 @@ const faqs = [
   },
   {
     question: "Kapan komisi saya dibayarkan?",
-    answer: "Komisi dibuat otomatis saat referral Anda upgrade ke paket berbayar. Status komisi berubah dari pending → approved → paid setelah diverifikasi oleh tim RMS.",
+    answer: "Komisi registrasi dibuat otomatis saat referral Anda mendaftar lewat link referral. Untuk komisi Enterprise diproses setelah customer menyelesaikan deal. Status komisi berubah dari pending → approved → paid setelah diverifikasi oleh tim RMS.",
   },
   {
     question: "Apakah komisi berlaku berulang setiap bulan?",
-    answer: "Saat ini komisi bersifat satu kali per customer yang upgrade ke paket Pro atau Enterprise. Fitur komisi berulang direncanakan di development selanjutnya.",
+    answer: "Iya, tergantung paket dan deal yang disepakati. Untuk komisi registrasi bersifat 1x (satu kali) per referral.",
   },
   {
     question: "Bisakah saya lihat siapa yang daftar lewat link saya?",
@@ -175,7 +216,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
           <p className="text-sm font-medium text-muted-foreground">
             {isAffiliate ? "Product Knowledge" : "Program Afiliasi"}{" "}&middot;{" "}Product Knowledge
           </p>
-          <h1 className="text-3xl font-black tracking-tight">Kenali RMS yang Anda Pasarkan</h1>
+          <h1 className="text-3xl font-black tracking-tight">RMS Product Knowlage</h1>
           {isAffiliate ? (
             <p className="max-w-2xl text-sm text-muted-foreground">
               Selamat datang, {props.affiliatorName}. Halaman ini membantu Anda memahami produk RMS secara mendalam — dari alur kerja,
@@ -189,33 +230,37 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
           )}
         </header>
 
-        <section className="grid gap-4 lg:grid-cols-2">
+        <section className="flex flex-col gap-4">
           <Card>
             <CardHeader>
-              <div className="inline-flex rounded-2xl bg-primary/10 p-3 text-primary">
-                <RiStore2Line className="size-5" />
+              <div className="flex items-center gap-3">
+                <div className="inline-flex rounded-2xl bg-primary/10 p-3 text-primary">
+                  <RiStore2Line className="size-5" />
+                </div>
+                <CardTitle>Apa itu RMS?</CardTitle>
               </div>
-              <CardTitle className="mt-4">Apa itu RMS?</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground leading-7">
               <p>
                 RMS (Repair Management System) adalah <strong className="text-foreground">software operasional untuk toko servis HP</strong>.
-                RMS menggantikan catatan manual, chat internal yang berantakan, dan spreadsheet terpisah menjadi satu alur kerja terpadu.
+                RMS menggantikan catatan manual yang berantakan, dan spreadsheet terpisah menjadi satu alur kerja terpadu.
               </p>
               <p className="mt-3">
-                Dari unit masuk, teknisi bekerja, sparepart dipakai, invoice dibuat, sampai unit diambil customer — semua tercatat
-                dan terlacak dalam satu dashboard.
+                RMS bisa dipakai sebagai alur solo owner, team work dengan admin-staff-teknisi, atau retail/kasir untuk penjualan langsung.
+                Semua tetap tercatat dan terlacak dalam satu dashboard.
               </p>
             </CardContent>
           </Card>
 
-          {isAffiliate ? (
+          {isAffiliate && (
             <Card>
               <CardHeader>
-                <div className="inline-flex rounded-2xl bg-chart-3/10 p-3 text-chart-3">
-                  <RiLinksLine className="size-5" />
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex rounded-2xl bg-chart-3/10 p-3 text-chart-3">
+                    <RiLinksLine className="size-5" />
+                  </div>
+                  <CardTitle>Referral Link Anda</CardTitle>
                 </div>
-                <CardTitle className="mt-4">Referral Link Anda</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 text-sm">
                 <p className="text-muted-foreground">
@@ -226,48 +271,47 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
                 </code>
               </CardContent>
             </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <div className="inline-flex rounded-2xl bg-emerald-500/10 p-3 text-emerald-500">
-                  <RiUserAddLine className="size-5" />
-                </div>
-                <CardTitle className="mt-4">Jadi Affiliator RMS</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
-                <p>
-                  Dapatkan komisi untuk setiap referral yang upgrade ke paket berbayar. Program affiliate terbuka untuk siapa saja — Anda tidak perlu punya akun RMS.
-                </p>
-                <Button asChild className="w-fit">
-                  <a href={whatsappUrl} target="_blank" rel="noreferrer">
-                    <RiWhatsappLine data-icon="inline-start" />
-                    Daftar via WhatsApp
-                  </a>
-                </Button>
-              </CardContent>
-            </Card>
           )}
         </section>
 
         <section>
           <div className="mb-6">
-            <p className="text-sm font-medium text-primary">Alur kerja</p>
+            <p className="text-sm font-medium text-primary">Workflow</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-              Empat langkah yang mengikuti cara toko servis berjalan.
+              Tiga mode operasional yang mengikuti cara toko berjalan.
             </h2>
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+              RMS tidak memaksa semua toko memakai alur besar. Pemilik toko bisa mulai sendiri, berkembang menjadi team work,
+              lalu menambah use case retail saat inventory dan kasir dibutuhkan.
+            </p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {steps.map((step, index) => (
-              <Card key={step.title} className="group transition-shadow hover:shadow-md">
-                <CardContent className="pt-6">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                    0{index + 1}
-                  </div>
-                  <h3 className="mt-4 text-base font-semibold">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.description}</p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="grid gap-4 lg:grid-cols-3">
+            {workflowModes.map((mode) => {
+              const ModeIcon = mode.icon;
+              return (
+                <Card key={mode.title} className="group transition-shadow hover:shadow-md">
+                  <CardContent>
+                    <div className="flex items-center gap-3">
+                      <div className={`inline-flex rounded-2xl p-3 ${mode.accent}`}>
+                        <ModeIcon className="size-5" />
+                      </div>
+                      <h3 className="text-base font-semibold">{mode.title}</h3>
+                    </div>
+                    <p className="mt-4 text-sm leading-6 text-muted-foreground">{mode.audience}</p>
+                    <div className="mt-4 flex flex-col gap-3">
+                      {mode.steps.map((step, index) => (
+                        <div key={step} className="flex gap-3 text-sm leading-6">
+                          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                            {index + 1}
+                          </div>
+                          <p className="text-muted-foreground">{step}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </section>
 
@@ -282,7 +326,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
             <div className="flex flex-col gap-3">
               {painPoints.map((item, index) => (
                 <Card key={item.title}>
-                  <CardContent className="flex gap-4 pt-6">
+                  <CardContent className="flex gap-4">
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-sm font-semibold text-destructive">
                       0{index + 1}
                     </div>
@@ -306,7 +350,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
             <div className="flex flex-col gap-3">
               {differentiators.map((item) => (
                 <Card key={item.title}>
-                  <CardContent className="flex gap-4 pt-6">
+                  <CardContent className="flex gap-4">
                     <RiCheckDoubleLine className="mt-0.5 size-5 shrink-0 text-primary" />
                     <div>
                       <h3 className="font-semibold">{item.title}</h3>
@@ -346,14 +390,33 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
               <TableBody>
                 {planKeys.map((plan) => {
                   const config = PLAN_REGISTRY[plan];
+                  if (plan === "enterprise") {
+                    return (
+                      <TableRow key={plan}>
+                        <TableCell><PlanLabelBadge plan={plan} /></TableCell>
+                        <TableCell className="font-medium">Custom</TableCell>
+                        <TableCell>Custom</TableCell>
+                        <TableCell>Custom</TableCell>
+                        <TableCell>Custom</TableCell>
+                        <TableCell>Custom</TableCell>
+                        <TableCell>—</TableCell>
+                      </TableRow>
+                    );
+                  }
                   return (
                     <TableRow key={plan}>
                       <TableCell><PlanLabelBadge plan={plan} /></TableCell>
                       <TableCell className="font-medium">
-                        {config.monthlyPrice === null ? "Custom" : formatCurrency(config.monthlyPrice)}
-                        {plan === "premium" && config.additionalTokoPrice ? (
-                          <div className="text-xs text-muted-foreground">+{formatCurrency(config.additionalTokoPrice)}/toko tambahan</div>
-                        ) : null}
+                        {plan === "premium" ? (
+                          <span className="text-xs font-semibold text-emerald-500">Coming soon</span>
+                        ) : (
+                          <>
+                            {formatCurrency(config.monthlyPrice ?? 0)}
+                            {config.additionalTokoPrice ? (
+                              <div className="text-xs text-muted-foreground">+{formatCurrency(config.additionalTokoPrice)}/toko tambahan</div>
+                            ) : null}
+                          </>
+                        )}
                       </TableCell>
                       <TableCell>{limitDisplay(config.includedTokos, " toko")}</TableCell>
                       <TableCell>{limitDisplay(config.limits.maxStaff, " orang")}</TableCell>
@@ -427,42 +490,74 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
             </h2>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Card className="border-emerald-500/20 bg-emerald-500/5">
-              <CardContent className="pt-6">
-                <p className="text-xs font-medium text-emerald-500">Komisi Pro</p>
-                <div className="mt-2 text-3xl font-bold">{formatCurrency(DEFAULT_PREMIUM_COMMISSION)}</div>
+              <CardContent>
+                <p className="text-xs font-medium text-emerald-500">Komisi Registrasi</p>
+                <div className="mt-2 text-3xl font-bold">{formatCurrency(DEFAULT_REGISTER_COMMISSION)} - {formatCurrency(100_000)}</div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Setiap kali referral Anda upgrade ke paket <strong>Pro</strong> (Rp 990.000/bulan).
+                  Setiap referral yang daftar — besaran komisi menyesuaikan potensi dan skala target customer.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-500/20 bg-blue-500/5">
+              <CardContent>
+                <p className="text-xs font-medium text-blue-500">Komisi Pro</p>
+                <div className="mt-2 text-3xl font-bold">Diskusi</div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Akan ditentukan setelah tahap <strong>testing</strong> selesai — harga Pro masih dalam evaluasi.
                 </p>
               </CardContent>
             </Card>
             <Card className="border-violet-500/20 bg-violet-500/5">
-              <CardContent className="pt-6">
+              <CardContent>
                 <p className="text-xs font-medium text-violet-500">Komisi Enterprise</p>
-                <div className="mt-2 text-3xl font-bold">{formatCurrency(DEFAULT_ENTERPRISE_COMMISSION)}</div>
+                <div className="mt-2 text-3xl font-bold">Hingga {formatCurrency(DEFAULT_ENTERPRISE_COMMISSION)}</div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Setiap kali referral Anda upgrade ke paket <strong>Enterprise</strong> (harga custom).
+                  Setiap deal <strong>Enterprise</strong> yang berhasil direferensikan (harga custom).
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          <Card className="mt-4">
-            <CardContent className="pt-6">
+          <Card className="mt-4 border-0 bg-gradient-to-br from-emerald-500/[0.03] via-transparent to-violet-500/[0.03] shadow-none">
+            <CardContent>
               <h3 className="font-semibold">Cara kerja komisi</h3>
-              <div className="mt-3 grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
-                <div className="flex gap-3 rounded-xl border bg-muted/30 p-3">
-                  <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">1</div>
-                  <p>Customer daftar lewat <strong>link referral</strong> Anda.</p>
+              <div className="mt-6 space-y-0">
+                <div className="relative pl-10 pb-8">
+                  <div className="absolute left-0 top-0 flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500 ring-1 ring-emerald-500/20">
+                    <RiLinksLine className="size-4" />
+                  </div>
+                  <div className="absolute left-4 top-8 h-[calc(100%-2rem)] w-px bg-gradient-to-b from-emerald-500/30 to-violet-500/30" />
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
+                    <p className="text-xs font-semibold text-emerald-500">Registrasi</p>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                      Customer daftar lewat <strong>link referral</strong> Anda — komisi registrasi <strong>{formatCurrency(DEFAULT_REGISTER_COMMISSION)} - {formatCurrency(100_000)}</strong> (menyesuaikan potensi target).
+                    </p>
+                  </div>
                 </div>
-                <div className="flex gap-3 rounded-xl border bg-muted/30 p-3">
-                  <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">2</div>
-                  <p>Customer <strong>upgrade ke Pro atau Enterprise</strong>.</p>
+                <div className="relative pl-10 pb-8">
+                  <div className="absolute left-0 top-0 flex size-8 items-center justify-center rounded-full bg-violet-500/10 text-violet-500 ring-1 ring-violet-500/20">
+                    <RiBarChartBoxLine className="size-4" />
+                  </div>
+                  <div className="absolute left-4 top-8 h-[calc(100%-2rem)] w-px bg-gradient-to-b from-violet-500/30 to-blue-500/20" />
+                  <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.04] p-4">
+                    <p className="text-xs font-semibold text-violet-500">Upgrade</p>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                      Customer <strong>upgrade ke Enterprise</strong> — komisi tambahan hingga <strong>{formatCurrency(DEFAULT_ENTERPRISE_COMMISSION)}</strong>. Komisi Pro akan ditentukan setelah tahap testing.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex gap-3 rounded-xl border bg-muted/30 p-3">
-                  <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">3</div>
-                  <p>Komisi dibuat, <strong>diverifikasi tim RMS</strong>, lalu dibayarkan.</p>
+                <div className="relative pl-10">
+                  <div className="absolute left-0 top-0 flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <RiCheckDoubleLine className="size-4" />
+                  </div>
+                  <div className="rounded-xl border bg-muted/30 p-4">
+                    <p className="text-xs font-semibold text-primary">Verifikasi</p>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                      Komisi dibuat, <strong>diverifikasi tim RMS</strong>, lalu dibayarkan.
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -480,7 +575,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
           <div className="grid gap-3">
             {faqs.map((faq) => (
               <Card key={faq.question}>
-                <CardContent className="pt-6">
+                <CardContent>
                   <h3 className="flex items-start gap-3 font-semibold">
                     <RiCustomerService2Line className="mt-0.5 size-5 shrink-0 text-primary" />
                     {faq.question}
@@ -506,7 +601,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {marketingTips.map((tip) => (
               <Card key={tip.title} className="group transition-shadow hover:shadow-md">
-                <CardContent className="pt-6">
+                <CardContent>
                   <div className="inline-flex rounded-2xl bg-amber-500/10 p-3 text-amber-500">
                     <RiLightbulbLine className="size-5" />
                   </div>
