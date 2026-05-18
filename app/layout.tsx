@@ -10,6 +10,7 @@ import { DevTools } from "@/components/debug/dev-tools";
 import { Toaster } from "@/components/ui/sonner";
 import { RiLoader2Fill } from "@remixicon/react";
 import { PwaProvider } from "@/components/providers/pwa-provider";
+import { Analytics } from "@vercel/analytics/next";
 
 const fontSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -103,6 +104,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <PwaProvider />
         <RootProviders>{children}</RootProviders>
+        <Analytics />
       </body>
     </html>
   );
