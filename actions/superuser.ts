@@ -5,6 +5,7 @@ import { requireRequestUser } from "@/lib/auth/request-user";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { revalidatePath } from "next/cache";
 import type { SubscriptionPlan } from "@/lib/features";
+import { fetchWhatsappInstances, deleteWhatsappInstance } from "@/lib/evolution";
 import { createCommissionForPaidPlanActivation } from "@/actions/affiliate";
 import { activatePaidSubscription } from "@/lib/subscription-billing";
 import { addDays, PRO_PERIOD_DAYS, startProTrial } from "@/lib/subscription-billing";
@@ -474,4 +475,186 @@ export async function updateUserRole(
     console.error("Failed to update role:", error);
     return { success: false, error: "Failed to update role" };
   }
+}
+
+// WhatsApp Instance Management
+
+export interface SuperuserWhatsappInstanceRow {
+  instanceName: string;
+  instanceId: string | null;
+  status: string | null;
+  ownerJid: string | null;
+  connectedNumber: string | null;
+  profileName: string | null;
+  tokoId: string | null;
+  tokoName: string | null;
+  dbEnabled: boolean;
+  dbConnectedNumber: string | null;
+}
+
+function parseInstanceStatus(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as Record<string, unknown>;
+  if (typeof rec.state === "string") return rec.state;
+  if (typeof rec.connectionState === "string") return rec.connectionState;
+  if (typeof rec.status === "string") return rec.status;
+  const inst = rec.instance;
+  if (inst && typeof inst === "object") {
+    const irec = inst as Record<string, unknown>;
+    if (typeof irec.state === "string") return irec.state;
+    if (typeof irec.connectionStatus === "string") return irec.connectionStatus;
+    if (typeof irec.status === "string") return irec.status;
+  }
+  return null;
+}
+
+function parseInstanceOwner(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as Record<string, unknown>;
+  if (typeof rec.owner === "string") return rec.owner;
+  if (typeof rec.ownerJid === "string") return rec.ownerJid;
+  if (typeof rec.connectedNumber === "string") return rec.connectedNumber;
+  const inst = rec.instance;
+  if (inst && typeof inst === "object") {
+    const irec = inst as Record<string, unknown>;
+    if (typeof irec.owner === "string") return irec.owner;
+    if (typeof irec.ownerJid === "string") return irec.ownerJid;
+  }
+  return null;
+}
+
+function parseInstanceProfileName(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as Record<string, unknown>;
+  if (typeof rec.profileName === "string") return rec.profileName;
+  if (typeof rec.name === "string") return rec.name;
+  const inst = rec.instance;
+  if (inst && typeof inst === "object") {
+    const irec = inst as Record<string, unknown>;
+    if (typeof irec.profileName === "string") return irec.profileName;
+    if (typeof irec.name === "string") return irec.name;
+  }
+  return null;
+}
+
+function parseInstanceName(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as Record<string, unknown>;
+  if (typeof rec.instanceName === "string") return rec.instanceName;
+  if (typeof rec.name === "string") return rec.name;
+  const inst = rec.instance;
+  if (inst && typeof inst === "object") {
+    const irec = inst as Record<string, unknown>;
+    if (typeof irec.instanceName === "string") return irec.instanceName;
+    if (typeof irec.name === "string") return irec.name;
+  }
+  return null;
+}
+
+function parseInstanceId(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const rec = raw as Record<string, unknown>;
+  if (typeof rec.instanceId === "string") return rec.instanceId;
+  if (typeof rec.id === "string") return rec.id;
+  const inst = rec.instance;
+  if (inst && typeof inst === "object") {
+    const irec = inst as Record<string, unknown>;
+    if (typeof irec.instanceId === "string") return irec.instanceId;
+    if (typeof irec.id === "string") return irec.id;
+  }
+  return null;
+}
+
+function extractNumberFromJid(jid: string): string {
+  return jid.split("@")[0] ?? jid;
+}
+
+export async function getSuperuserWhatsappInstances(): Promise<ActionResultWithData<SuperuserWhatsappInstanceRow[]>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
+
+  try {
+    const [rawInstances, dbSettings] = await Promise.all([
+      fetchWhatsappInstances().catch((error) => {
+        console.error("Failed to fetch Evolution instances:", error);
+        return [] as unknown[];
+      }),
+      prisma.tokoWhatsappSetting.findMany({
+        select: {
+          tokoId: true,
+          instanceName: true,
+          enabled: true,
+          connectedNumber: true,
+          toko: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    const dbMap = new Map(dbSettings.map((s) => [s.instanceName, s]));
+
+    const rows: SuperuserWhatsappInstanceRow[] = rawInstances.flatMap((raw) => {
+      const instanceName = parseInstanceName(raw);
+      if (!instanceName) return [];
+      const instanceId = parseInstanceId(raw);
+      const ownerJid = parseInstanceOwner(raw);
+      const db = dbMap.get(instanceName);
+
+      return {
+        instanceName,
+        instanceId,
+        status: parseInstanceStatus(raw),
+        ownerJid,
+        connectedNumber: ownerJid ? extractNumberFromJid(ownerJid) : db?.connectedNumber ?? null,
+        profileName: parseInstanceProfileName(raw),
+        tokoId: db?.tokoId ?? null,
+        tokoName: db?.toko.name ?? null,
+        dbEnabled: db?.enabled ?? false,
+        dbConnectedNumber: db?.connectedNumber ?? null,
+      };
+    });
+
+    return { success: true, data: rows };
+  } catch (error) {
+    console.error("Failed to get WhatsApp instances:", error);
+    return { success: false, error: "Failed to get WhatsApp instances" };
+  }
+}
+
+export async function revokeSuperuserWhatsappInstance(
+  instanceName: string
+): Promise<ActionResultWithData<{ instanceName: string }>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
+
+  const normalizedInstanceName = instanceName.trim();
+  if (!normalizedInstanceName) {
+    return { success: false, error: "Instance name is required" };
+  }
+
+  const linkedSettings = await prisma.tokoWhatsappSetting.findMany({
+    where: { instanceName: normalizedInstanceName },
+    select: { tokoId: true },
+  });
+
+  try {
+    await deleteWhatsappInstance(normalizedInstanceName);
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (!message.includes("404") && !message.includes("not found")) throw error;
+  }
+
+  await prisma.tokoWhatsappSetting.updateMany({
+    where: { instanceName: normalizedInstanceName },
+    data: { instanceToken: null, connectedNumber: null, connectedProfileName: null },
+  });
+
+  revalidatePath("/superuser");
+  for (const setting of linkedSettings) {
+    revalidatePath(`/${setting.tokoId}/admin`);
+  }
+  return { success: true, data: { instanceName: normalizedInstanceName } };
 }
