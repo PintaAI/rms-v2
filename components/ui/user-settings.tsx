@@ -57,7 +57,13 @@ const baseMenuItems: { id: SettingsTab; label: string; icon: React.ReactNode }[]
 ];
 
 export function UserSettings({ open, onOpenChange, user, initialTab }: UserSettingsProps) {
-  const [activeTab, setActiveTab] = React.useState<SettingsTab>(() => initialTab || "profile");
+  const [tabState, setTabState] = React.useState<{ activeTab: SettingsTab; initialTab?: SettingsTab }>(() => ({ activeTab: initialTab || "profile", initialTab }));
+  const { activeTab } = tabState;
+
+  if (open && initialTab && tabState.initialTab !== initialTab) {
+    setTabState({ activeTab: initialTab, initialTab });
+  }
+
   const isMobile = useIsMobile();
   const { tokoList, user: authUser } = useAuth();
   const dashboardScope = useOptionalDashboardScope();
@@ -120,7 +126,7 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
   }, [activeTab, currentTokoId, open, billingReloadKey]);
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (newOpen && !initialTab) setActiveTab("profile");
+    if (newOpen && !initialTab) setTabState({ activeTab: "profile", initialTab });
     onOpenChange(newOpen);
   };
 
@@ -161,7 +167,7 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
         <div className="px-3 pb-2 pt-3 text-xs text-sidebar-foreground/70 md:h-8 md:px-4 md:py-2">Settings</div>
         <div className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:overflow-x-visible md:px-2 md:pb-2">
           {menuItems.map((item) => (
-            <button key={item.id} type="button" onClick={() => setActiveTab(item.id)} className={cn("relative flex h-9 shrink-0 items-center gap-2 overflow-hidden rounded-lg px-3 text-left text-xs whitespace-nowrap transition-all hover:bg-primary/10 hover:text-primary md:w-full", activeTab === item.id && "bg-gradient-to-r from-primary/10 via-primary/5 to-transparent font-semibold text-foreground shadow-sm", item.id === "premium" && !isPlanAtLeast(normalizePlan(currentPlan), "premium") && "border border-amber-500/30 bg-amber-500/5 font-medium text-amber-600 hover:bg-amber-500/10 hover:text-amber-600")}>
+            <button key={item.id} type="button" onClick={() => setTabState({ activeTab: item.id, initialTab })} className={cn("relative flex h-9 shrink-0 items-center gap-2 overflow-hidden rounded-lg px-3 text-left text-xs whitespace-nowrap transition-all hover:bg-primary/10 hover:text-primary md:w-full", activeTab === item.id && "bg-gradient-to-r from-primary/10 via-primary/5 to-transparent font-semibold text-foreground shadow-sm", item.id === "premium" && !isPlanAtLeast(normalizePlan(currentPlan), "premium") && "border border-amber-500/30 bg-amber-500/5 font-medium text-amber-600 hover:bg-amber-500/10 hover:text-amber-600")}>
               <span className={cn("[&>svg]:size-4 [&>svg]:shrink-0", item.id === "premium" && "[&>svg]:text-amber-500")}>{item.icon}</span>
               <span>{item.label}</span>
               {item.id === "whatsapp" && !isPlanAtLeast(normalizePlan(currentPlan), "premium") && <RiVipCrownLine className="ml-auto size-3.5 text-amber-500" />}

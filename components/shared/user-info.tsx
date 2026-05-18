@@ -26,6 +26,12 @@ const planLabels: Record<SubscriptionPlan, string> = {
   enterprise: "Enterprise",
 };
 
+const settingsTabs = new Set<SettingsTab>(["profile", "features", "whatsapp", "password", "billing", "premium", "appearance", "affiliate"]);
+
+function isSettingsTab(value: string | null): value is SettingsTab {
+  return Boolean(value && settingsTabs.has(value as SettingsTab));
+}
+
 export function UserInfo() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -34,11 +40,12 @@ export function UserInfo() {
   const { user: authUser } = useAuth();
 
   const settingsParam = searchParams.get("settings");
-  const initialTab = settingsParam as SettingsTab | null;
-  const [settingsOpen, setSettingsOpen] = useState(Boolean(settingsParam));
+  const initialTab = isSettingsTab(settingsParam) ? settingsParam : null;
+  const [manualSettingsOpen, setManualSettingsOpen] = useState(false);
+  const settingsOpen = manualSettingsOpen || Boolean(initialTab);
 
   const handleClose = (open: boolean) => {
-    setSettingsOpen(open);
+    setManualSettingsOpen(open);
     if (!open && settingsParam) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.delete("settings");
@@ -117,7 +124,7 @@ export function UserInfo() {
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => setManualSettingsOpen(true)}
             className="cursor-pointer gap-2"
           >
             <div className="size-6 rounded-md bg-muted/50 flex items-center justify-center">

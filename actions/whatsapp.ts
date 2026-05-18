@@ -943,7 +943,7 @@ export async function sendWhatsappInboxMessage(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.toLowerCase().includes("timeout")) {
-        return { success: false, error: "Pengiriman WhatsApp timeout. Coba kirim ulang beberapa saat lagi." };
+        throw new Error("Pengiriman WhatsApp timeout. Coba kirim ulang beberapa saat lagi.");
       }
       throw error;
     }
@@ -954,7 +954,7 @@ export async function sendWhatsappInboxMessage(
       // noop
     }
 
-    const sentMessage = serializedMessage ? { ...serializedMessage, status: "SERVER_ACK" } : {
+    const sentMessage: WhatsappInboxMessage = serializedMessage ? { ...serializedMessage, status: "SERVER_ACK" } : {
       id: `${sentRemoteJid}-${Date.now()}`,
       remoteJid: sentRemoteJid,
       fromMe: true,

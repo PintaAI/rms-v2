@@ -338,14 +338,15 @@ export function WhatsappInboxPopover() {
   React.useEffect(() => {
     if (!canView || !openChatRequest) return;
 
-    setOpen(true);
-
     const targetChat = chats.find((chat) => {
       const targetJids = [openChatRequest.remoteJid, openChatRequest.alternateJid].filter(Boolean);
       return targetJids.includes(chat.remoteJid) || Boolean(chat.alternateJid && targetJids.includes(chat.alternateJid));
     });
 
-    if (targetChat) setSelectedChat(targetChat);
+    queueMicrotask(() => {
+      setOpen(true);
+      if (targetChat) setSelectedChat(targetChat);
+    });
   }, [canView, chats, openChatRequest]);
 
   const scheduleRealtimeRefresh = React.useCallback((eventLabel: string, payload: unknown) => {
@@ -397,7 +398,7 @@ export function WhatsappInboxPopover() {
     if (latestRealtimeEvent.event === "messages.update") {
       const didUpdateStatus = applyRealtimeMessageStatus(latestRealtimeEvent.payload);
       if (didUpdateStatus) {
-        recordDebug(`realtime ${latestRealtimeEvent.event}`, latestRealtimeEvent.payload ?? latestRealtimeEvent);
+        queueMicrotask(() => recordDebug(`realtime ${latestRealtimeEvent.event}`, latestRealtimeEvent.payload ?? latestRealtimeEvent));
         void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
         return;
       }
@@ -423,7 +424,7 @@ export function WhatsappInboxPopover() {
   React.useEffect(() => {
     shouldScrollMessagesToBottomRef.current = Boolean(selectedChat);
     preserveMessagesScrollRef.current = null;
-  }, [selectedChat?.alternateJid, selectedChat?.remoteJid]);
+  }, [selectedChat]);
 
   React.useEffect(() => {
     const viewport = messagesScrollAreaRef.current?.querySelector<HTMLElement>("[data-slot='scroll-area-viewport']");
