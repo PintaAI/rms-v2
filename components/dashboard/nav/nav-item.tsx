@@ -62,9 +62,11 @@ function usePersistentNavGroupOpen(title: string, defaultOpen: boolean) {
   const [hasLoadedStoredState, setHasLoadedStoredState] = useState(false);
 
   useEffect(() => {
-    const storedState = window.localStorage.getItem(getNavGroupStorageKey(title));
-    if (storedState != null) setIsOpen(storedState === "true");
-    setHasLoadedStoredState(true);
+    queueMicrotask(() => {
+      const storedState = window.localStorage.getItem(getNavGroupStorageKey(title));
+      if (storedState != null) setIsOpen(storedState === "true");
+      setHasLoadedStoredState(true);
+    });
   }, [title]);
 
   useEffect(() => {

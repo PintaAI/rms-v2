@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { getRequestUser, requireRequestUser } from "@/lib/auth/request-user";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { getPlanMonthlyPrice, type SubscriptionPlan } from "@/lib/plans";
+import { Prisma } from "@/prisma/generated/prisma/client";
 import {
   AFFILIATE_PENDING_REFERRAL_COOKIE,
   DEFAULT_ENTERPRISE_COMMISSION_PERCENT,
@@ -577,7 +578,7 @@ export async function updateAffiliator(input: UpdateAffiliatorInput): Promise<Ac
         status: input.status,
         premiumCommissionValue: parseCommissionValue(input.premiumCommissionValue, DEFAULT_PRO_RECURRING_COMMISSION_PERCENT),
         enterpriseCommissionValue: parseCommissionValue(input.enterpriseCommissionValue, DEFAULT_ENTERPRISE_COMMISSION_PERCENT),
-        payoutInfo: parsePayoutInfo(input.payoutInfo) ?? undefined,
+        payoutInfo: parsePayoutInfo(input.payoutInfo) ?? Prisma.JsonNull,
         notes: normalizeOptionalString(input.notes) ?? null,
       },
       include: { referrals: { select: { convertedAt: true } }, commissions: { select: { amount: true, status: true } } },
@@ -589,6 +590,33 @@ export async function updateAffiliator(input: UpdateAffiliatorInput): Promise<Ac
     unstable_rethrow(error);
     console.error("Failed to update affiliator:", error);
     return { success: false, error: "Failed to update affiliator" };
+  }
+}
+
+export async function deleteAffiliator(id: string): Promise<ActionResultWithData<{ id: string }>> {
+  try {
+    await requireSuperuser();
+
+    const existing = await prisma.affiliator.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        _count: { select: { referrals: true, commissions: true } },
+      },
+    });
+    if (!existing) return { success: false, error: "Affiliator not found" };
+    if (existing._count.referrals > 0 || existing._count.commissions > 0) {
+      return { success: false, error: "Affiliators with referrals or commissions cannot be deleted. Set the status to inactive instead." };
+    }
+
+    await prisma.affiliator.delete({ where: { id } });
+
+    revalidatePath("/superuser");
+    return { success: true, data: { id } };
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Failed to delete affiliator:", error);
+    return { success: false, error: "Failed to delete affiliator" };
   }
 }
 

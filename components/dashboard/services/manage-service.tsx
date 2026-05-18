@@ -724,7 +724,7 @@ export function ManageService({
       />
 
       <Drawer open={detailDialogOpen} onOpenChange={handleDetailOpenChange} direction="bottom">
-        <DrawerContent className="mx-auto flex h-dvh max-h-dvh w-full min-w-0 max-w-4xl flex-col overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:h-dvh data-[vaul-drawer-direction=bottom]:max-h-dvh sm:h-[90dvh] sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
+        <DrawerContent className="mx-auto grid max-h-dvh w-full min-w-0 max-w-4xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-0 before:inset-0 before:rounded-t-xl before:rounded-b-none data-[vaul-drawer-direction=bottom]:max-h-dvh sm:max-h-[90dvh] sm:data-[vaul-drawer-direction=bottom]:max-h-[90dvh]">
           <div className="shrink-0 border-x bg-popover px-4 pb-4 pt-3">
             <DrawerTitle className="font-bold">Detail servis</DrawerTitle>
           </div>

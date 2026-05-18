@@ -56,10 +56,10 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
         </Card>
 
         <div className="grid gap-4 md:grid-cols-4">
-          <PortalStat title="Referrals" value={data.stats.totalReferrals} />
-          <PortalStat title="Paid conversions" value={data.stats.paidConversions} />
+          <PortalStat title="Referral" value={data.stats.totalReferrals} />
+          <PortalStat title="Konversi paid" value={data.stats.paidConversions} />
           <PortalStat title="Conversion rate" value={`${data.stats.conversionRate}%`} />
-          <PortalStat title="Paid earnings" value={formatCurrency(data.stats.paidAmount)} />
+          <PortalStat title="Commission paid" value={formatCurrency(data.stats.paidAmount)} />
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -69,19 +69,38 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
         </div>
 
         <Card>
-          <CardHeader><CardTitle>Commission History</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>History Commission</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Sistem commission saat ini: bonus registrasi, Pro monthly 10%, dan Enterprise one-time 10%.
+            </p>
+          </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Plan</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Dibuat</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
-                  {data.commissions.map((commission) => (
+                  {data.commissions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">Belum ada commission.</TableCell>
+                    </TableRow>
+                  ) : data.commissions.map((commission) => (
                     <TableRow key={commission.id}>
                       <TableCell>{commission.customer}</TableCell>
-                      <TableCell className="capitalize">{commission.plan}</TableCell>
+                      <TableCell>{commissionKindLabel(commission.kind)}</TableCell>
+                      <TableCell>{planLabel(commission.plan)}</TableCell>
                       <TableCell>{formatCurrency(commission.amount)}</TableCell>
                       <TableCell><Badge variant="outline">{commission.status}</Badge></TableCell>
-                      <TableCell>{new Date(commission.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(commission.createdAt).toLocaleDateString("id-ID")}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -91,17 +110,21 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Referral History</CardTitle></CardHeader>
+          <CardHeader><CardTitle>History Referral</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Joined</TableHead><TableHead>Converted</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Join</TableHead><TableHead>Konversi</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {data.referrals.map((referral) => (
+                  {data.referrals.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-muted-foreground">Belum ada referral.</TableCell>
+                    </TableRow>
+                  ) : data.referrals.map((referral) => (
                     <TableRow key={referral.id}>
                       <TableCell>{referral.customer}</TableCell>
-                      <TableCell>{new Date(referral.joinedAt).toLocaleDateString()}</TableCell>
-                      <TableCell>{referral.convertedAt ? new Date(referral.convertedAt).toLocaleDateString() : "Not yet"}</TableCell>
+                      <TableCell>{new Date(referral.joinedAt).toLocaleDateString("id-ID")}</TableCell>
+                      <TableCell>{referral.convertedAt ? new Date(referral.convertedAt).toLocaleDateString("id-ID") : "Belum"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -110,10 +133,22 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground">Customer details are masked for privacy. Contact RMS support if payout data needs correction.</p>
+        <p className="text-center text-xs text-muted-foreground">Detail customer disamarkan untuk privacy. Hubungi support RMS jika ada data payout yang perlu dikoreksi.</p>
       </div>
     </main>
   );
+}
+
+function commissionKindLabel(kind: AffiliatePortalData["commissions"][number]["kind"]) {
+  if (kind === "registration_bonus") return "Bonus registrasi";
+  if (kind === "pro_recurring") return "Pro monthly";
+  return "Enterprise one-time";
+}
+
+function planLabel(plan: AffiliatePortalData["commissions"][number]["plan"]) {
+  if (plan === "free") return "Registrasi";
+  if (plan === "premium") return "Pro";
+  return "Enterprise";
 }
 
 function PortalStat({ title, value }: { title: string; value: string | number }) {

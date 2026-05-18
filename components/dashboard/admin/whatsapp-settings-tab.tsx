@@ -21,7 +21,8 @@ import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTit
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { RiCheckboxCircleLine, RiCloseCircleLine, RiLinkUnlinkM, RiLoader4Line, RiLockLine, RiQrCodeLine, RiQuestionLine, RiRefreshLine, RiWhatsappLine } from "@remixicon/react";
+import { useDashboardWhatsappRealtime } from "@/components/dashboard/whatsapp/whatsapp-realtime-provider";
+import { RiBroadcastLine, RiCheckboxCircleLine, RiCloseCircleLine, RiLinkUnlinkM, RiLoader4Line, RiLockLine, RiQrCodeLine, RiQuestionLine, RiRefreshLine, RiWhatsappLine } from "@remixicon/react";
 
 const DEFAULT_DONE_MESSAGE =
   "Halo {customerName}, service perangkat {brand} {model} di {tokoName} sudah selesai. Silakan datang ke toko untuk pengambilan. Terima kasih.";
@@ -106,6 +107,14 @@ function statusIcon(state: string | null | undefined) {
   if (state === "connecting") return <RiLoader4Line data-icon="inline-start" className="animate-spin" />;
   if (state === "close" || state === "closed") return <RiCloseCircleLine data-icon="inline-start" />;
   return <RiQuestionLine data-icon="inline-start" />;
+}
+
+function realtimeStatusLabel(status: string) {
+  if (status === "connected") return "Evolution live";
+  if (status === "connecting") return "Menghubungkan realtime";
+  if (status === "error") return "Realtime error";
+  if (status === "disconnected") return "Realtime terputus";
+  return "Realtime off";
 }
 
 function toDisplayTemplate(template: string) {
@@ -307,6 +316,8 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
     setFailedTemplate(toDisplayTemplate(nextSetting?.failedMessageTemplate || DEFAULT_FAILED_MESSAGE));
   }, []);
 
+  const { realtime: whatsappRealtime } = useDashboardWhatsappRealtime();
+
   React.useEffect(() => {
     let active = true;
 
@@ -364,6 +375,7 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
     setHasQrResponse(false);
     const result = await connectTokoWhatsapp(tokoId);
     if (result.success && result.data) {
+      applySetting(result.data.setting);
       const nextQrData = findQrValue(result.data.qr);
       setQrData(nextQrData);
       setHasQrResponse(true);
@@ -386,6 +398,7 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
     setHasQrResponse(false);
     const result = await connectTokoWhatsapp(tokoId);
     if (result.success && result.data) {
+      applySetting(result.data.setting);
       const nextQrData = findQrValue(result.data.qr);
       setQrData(nextQrData);
       setHasQrResponse(true);
@@ -477,6 +490,10 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
                     {statusIcon(currentState)}
                     {statusLabel(currentState)}
                   </Badge>
+                  <Badge variant={whatsappRealtime.status === "error" ? "destructive" : "outline"}>
+                    <RiBroadcastLine data-icon="inline-start" />
+                    {realtimeStatusLabel(whatsappRealtime.status)}
+                  </Badge>
                 </div>
                 <CardDescription>
                   {currentState === "open" && setting?.connectedNumber
@@ -516,6 +533,22 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
             </div>
           </div>
         </CardHeader>
+        {(whatsappRealtime.error || whatsappRealtime.eventHistory.length > 0) && (
+          <CardContent className="border-t pt-4">
+            {whatsappRealtime.error ? (
+              <p className="text-xs text-destructive">{whatsappRealtime.error}</p>
+            ) : (
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span>Event realtime terakhir:</span>
+                {whatsappRealtime.eventHistory.map((event) => (
+                  <Badge key={`${event.event}-${event.sentAt}`} variant="secondary" className="font-normal">
+                    {event.event}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        )}
         {(currentState !== "open" || qrData || hasQrResponse) && (
           <CardContent className="flex flex-col gap-4">
             {currentState !== "open" && (

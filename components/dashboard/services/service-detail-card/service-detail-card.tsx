@@ -74,6 +74,8 @@ import {
   pickupService,
   createWarrantyClaim,
   resolveWarrantyClaim,
+  getWhatsappState,
+  sendWhatsappInboxMessage,
 } from "@/actions";
 import type { ServiceListItem, WarrantyClaim } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
@@ -169,6 +171,15 @@ function parsePatternString(patternStr: string | null): number[] {
     .split("-")
     .map((n) => parseInt(n, 10))
     .filter((n) => !isNaN(n));
+}
+
+function normalizeWhatsappWebNumber(value: string) {
+  return value.replace(/\D/g, "").replace(/^0/, "62");
+}
+
+function getWhatsappRemoteJid(value: string) {
+  const normalized = normalizeWhatsappWebNumber(value);
+  return normalized ? `${normalized}@s.whatsapp.net` : null;
 }
 
 export interface ServiceDetailCardItem {
@@ -335,8 +346,9 @@ export function ServiceDetailCard({
   actionPermissions = defaultServiceActionPermissions,
 }: ServiceDetailCardProps) {
   const isActive = variant === "active";
-  const { featureAccess, inventoryEnabled, user: currentUser } = useDashboardScope();
+  const { featureAccess, permissionAccess, inventoryEnabled, user: currentUser } = useDashboardScope();
   const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
+  const canUseWhatsappIntegration = Boolean(featureAccess["whatsapp.integration"] && permissionAccess["whatsapp.send"]);
   const canHandleCustomerHandoff = viewerRole === "admin" || viewerRole === "staff";
   const canManageWarrantyClaims = canHandleCustomerHandoff;
   const roleTone = roleToneClasses[viewerRole];
@@ -539,6 +551,10 @@ export function ServiceDetailCard({
   const [claimSupplierReturnNote, setClaimSupplierReturnNote] = useState("");
   const [claimSupplierReturnPopoverOpen, setClaimSupplierReturnPopoverOpen] = useState(false);
   const [isResolvingClaim, setIsResolvingClaim] = useState(false);
+  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
+  const [whatsappMessage, setWhatsappMessage] = useState("");
+  const [isCheckingWhatsappIntegration, setIsCheckingWhatsappIntegration] = useState(false);
+  const [isSendingWhatsappMessage, setIsSendingWhatsappMessage] = useState(false);
 
   const viewInvoiceService = useMemo(() => {
     if (!localService.invoice) return null;
@@ -672,9 +688,62 @@ export function ServiceDetailCard({
   }
 
   function openWhatsApp() {
-    const normalized = localService.noWa.replace(/\D/g, "").replace(/^0/, "62");
+    const normalized = normalizeWhatsappWebNumber(localService.noWa);
     if (!normalized) return;
     window.open(`https://wa.me/${normalized}`, "_blank", "noopener,noreferrer");
+  }
+
+  function getDefaultWhatsappMessage() {
+    const customerName = localService.customerName?.trim() || "Pelanggan";
+    const deviceName = `${localService.hpCatalog.brand.name} ${localService.hpCatalog.modelName}`.trim();
+    return `Halo ${customerName}, terkait service perangkat ${deviceName}.`;
+  }
+
+  async function openWhatsAppContact() {
+    if (!localService.noWa) return;
+    if (!canUseWhatsappIntegration) {
+      openWhatsApp();
+      return;
+    }
+
+    setIsCheckingWhatsappIntegration(true);
+    try {
+      const state = await getWhatsappState(localService.tokoId);
+      if (!state.success || state.data?.state !== "open") {
+        openWhatsApp();
+        return;
+      }
+
+      setWhatsappMessage(getDefaultWhatsappMessage());
+      setWhatsappDialogOpen(true);
+    } catch {
+      openWhatsApp();
+    } finally {
+      setIsCheckingWhatsappIntegration(false);
+    }
+  }
+
+  async function handleSendIntegratedWhatsapp() {
+    const text = whatsappMessage.trim();
+    const remoteJid = getWhatsappRemoteJid(localService.noWa);
+    if (!text || !remoteJid) return;
+
+    setIsSendingWhatsappMessage(true);
+    try {
+      const result = await sendWhatsappInboxMessage(localService.tokoId, remoteJid, null, text);
+      if (!result.success) {
+        toast.error(result.error || "Gagal mengirim WhatsApp");
+        return;
+      }
+
+      toast.success("Pesan WhatsApp terkirim");
+      setWhatsappDialogOpen(false);
+      setWhatsappMessage("");
+    } catch {
+      toast.error("Gagal mengirim WhatsApp");
+    } finally {
+      setIsSendingWhatsappMessage(false);
+    }
   }
 
   function openPaidInvoiceDialog() {
@@ -1165,7 +1234,7 @@ export function ServiceDetailCard({
                 </p>
                 <div className={`grid gap-3 ${canContactDuringRepair ? "sm:grid-cols-3" : "grid-cols-2"}`}>
                   {canContactDuringRepair && (
-                    <ActionTile icon={RiWhatsappLine} label="WhatsApp" onClick={openWhatsApp}
+                    <ActionTile icon={RiWhatsappLine} label="WhatsApp" onClick={openWhatsAppContact} disabled={isCheckingWhatsappIntegration}
                       variant="outline" className="border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60" />
                   )}
                   <ActionTile icon={RiCloseCircleLine} label="Gagal Service" onClick={openFailedDialog}
@@ -1187,7 +1256,7 @@ export function ServiceDetailCard({
                       variant="outline" className="flex-1" />
                   )}
                   {localService.noWa && (
-                    <ActionTile icon={RiWhatsappLine} label="WhatsApp" onClick={openWhatsApp}
+                    <ActionTile icon={RiWhatsappLine} label="WhatsApp" onClick={openWhatsAppContact} disabled={isCheckingWhatsappIntegration}
                       variant="outline" className="flex-1 border-emerald-300 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/60" />
                   )}
                   {canPayInvoice && (
@@ -1204,6 +1273,40 @@ export function ServiceDetailCard({
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={whatsappDialogOpen} onOpenChange={setWhatsappDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Kirim WhatsApp</DialogTitle>
+            <DialogDescription>
+              Pesan dikirim melalui integrasi WhatsApp toko. Jika integrasi tidak aktif, tombol WhatsApp akan membuka WhatsApp Web.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor={`whatsapp-message-${localService.id}`}>Pesan</Label>
+            <Textarea
+              id={`whatsapp-message-${localService.id}`}
+              value={whatsappMessage}
+              onChange={(event) => setWhatsappMessage(event.target.value)}
+              rows={4}
+              placeholder="Tulis pesan untuk pelanggan..."
+              disabled={isSendingWhatsappMessage}
+            />
+            <p className="text-xs text-muted-foreground">
+              Tujuan: {localService.noWa}
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setWhatsappDialogOpen(false)} disabled={isSendingWhatsappMessage}>
+              Batal
+            </Button>
+            <Button type="button" onClick={handleSendIntegratedWhatsapp} disabled={isSendingWhatsappMessage || !whatsappMessage.trim()}>
+              <RiWhatsappLine data-icon="inline-start" />
+              {isSendingWhatsappMessage ? "Mengirim..." : "Kirim"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={patternDialogOpen} onOpenChange={setPatternDialogOpen}>
         <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] overflow-y-auto pr-12 sm:max-w-md">

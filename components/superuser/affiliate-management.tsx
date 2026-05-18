@@ -5,8 +5,10 @@ import { toast } from "sonner";
 import {
   createExternalAffiliator,
   createUserAffiliator,
+  deleteAffiliator,
   regenerateAffiliatorPortalToken,
   updateAffiliateCommissionStatus,
+  updateAffiliator,
   updateAffiliatorStatus,
   updateReferralRegistrationCommission,
   type AffiliateCommissionRow,
@@ -17,13 +19,13 @@ import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { RiFileCopyLine, RiLink, RiRefreshLine } from "@remixicon/react";
+import { RiDeleteBinLine, RiEditLine, RiFileCopyLine, RiLink, RiRefreshLine } from "@remixicon/react";
 
 interface AffiliateManagementProps {
   data: AffiliateDashboardData;
@@ -39,11 +41,18 @@ const emptyExternalForm = {
   notes: "",
 };
 
+const emptyEditForm = {
+  ...emptyExternalForm,
+  status: "active" as "active" | "inactive",
+};
+
 export function AffiliateManagement({ data }: AffiliateManagementProps) {
   const [isPending, startTransition] = useTransition();
   const [externalOpen, setExternalOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState<AffiliatorRow | null>(null);
   const [externalForm, setExternalForm] = useState(emptyExternalForm);
+  const [editForm, setEditForm] = useState(emptyEditForm);
   const [linkUserId, setLinkUserId] = useState("");
   const [referralAmounts, setReferralAmounts] = useState<Record<string, string>>(() => Object.fromEntries(
     data.referrals.map((referral) => [referral.id, String(referral.registrationCommissionAmount)])
@@ -81,6 +90,53 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
       toast.success("User linked as affiliator");
       setLinkUserId("");
       setLinkOpen(false);
+    });
+  };
+
+  const openEdit = (row: AffiliatorRow) => {
+    setEditingRow(row);
+    setEditForm({
+      name: row.name,
+      email: row.email ?? "",
+      phone: row.phone ?? "",
+      premiumCommissionValue: String(row.premiumCommissionValue),
+      enterpriseCommissionValue: String(row.enterpriseCommissionValue),
+      payoutInfo: row.payoutInfo,
+      notes: row.notes ?? "",
+      status: row.status,
+    });
+  };
+
+  const submitEdit = () => {
+    if (!editingRow) return;
+
+    startTransition(async () => {
+      const result = await updateAffiliator({
+        id: editingRow.id,
+        ...editForm,
+        premiumCommissionValue: Number(editForm.premiumCommissionValue),
+        enterpriseCommissionValue: Number(editForm.enterpriseCommissionValue),
+      });
+      if (!result.success) {
+        toast.error(result.error || "Failed to update affiliator");
+        return;
+      }
+      toast.success("Affiliator updated");
+      setEditingRow(null);
+      setEditForm(emptyEditForm);
+    });
+  };
+
+  const removeAffiliator = (row: AffiliatorRow) => {
+    if (!window.confirm(`Delete ${row.name}? Affiliators with referrals or commissions will be blocked.`)) return;
+
+    startTransition(async () => {
+      const result = await deleteAffiliator(row.id);
+      if (!result.success) {
+        toast.error(result.error || "Failed to delete affiliator");
+        return;
+      }
+      toast.success("Affiliator deleted");
     });
   };
 
@@ -212,6 +268,20 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
         </div>
       </div>
 
+      <Dialog open={Boolean(editingRow)} onOpenChange={(open) => !open && setEditingRow(null)}>
+        <DialogContent className="max-w-2xl sm:min-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit affiliator</DialogTitle>
+            <DialogDescription>Update contact, payout, commission, and status details.</DialogDescription>
+          </DialogHeader>
+          <AffiliatorForm form={editForm} onChange={setEditForm} includeStatus />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingRow(null)} disabled={isPending}>Cancel</Button>
+            <Button onClick={submitEdit} disabled={isPending}>Save changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="grid gap-4 md:grid-cols-4">
         <AffiliateStatCard title="Affiliators" value={data.stats.totalAffiliators} detail={`${data.stats.activeAffiliators} active`} />
         <AffiliateStatCard title="Referrals" value={data.stats.totalReferrals} detail={`${data.stats.paidConversions} converted`} />
@@ -259,7 +329,9 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
                             <SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger>
                             <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
                           </Select>
+                          <Button size="sm" variant="outline" onClick={() => openEdit(row)} disabled={isPending}><RiEditLine data-icon="inline-start" />Edit</Button>
                           <Button size="sm" variant="ghost" onClick={() => regenerateToken(row)} disabled={isPending}><RiRefreshLine data-icon="inline-start" />Token</Button>
+                          <Button size="sm" variant="ghost" onClick={() => removeAffiliator(row)} disabled={isPending}><RiDeleteBinLine data-icon="inline-start" />Delete</Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -358,6 +430,64 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
         </CardContent>
       </Card>
     </section>
+  );
+}
+
+function AffiliatorForm({
+  form,
+  onChange,
+  includeStatus = false,
+}: {
+  form: typeof emptyEditForm;
+  onChange: (form: typeof emptyEditForm) => void;
+  includeStatus?: boolean;
+}) {
+  return (
+    <FieldGroup>
+      <Field>
+        <FieldLabel htmlFor="edit-affiliate-name">Name</FieldLabel>
+        <FieldContent><Input id="edit-affiliate-name" value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} /></FieldContent>
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="edit-affiliate-email">Email</FieldLabel>
+          <FieldContent><Input id="edit-affiliate-email" value={form.email} onChange={(event) => onChange({ ...form, email: event.target.value })} /></FieldContent>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-affiliate-phone">Phone</FieldLabel>
+          <FieldContent><Input id="edit-affiliate-phone" value={form.phone} onChange={(event) => onChange({ ...form, phone: event.target.value })} /></FieldContent>
+        </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor="edit-premium-commission">Pro monthly %</FieldLabel>
+          <FieldContent><Input id="edit-premium-commission" inputMode="numeric" value={form.premiumCommissionValue} onChange={(event) => onChange({ ...form, premiumCommissionValue: event.target.value })} /></FieldContent>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="edit-enterprise-commission">Enterprise one-time %</FieldLabel>
+          <FieldContent><Input id="edit-enterprise-commission" inputMode="numeric" value={form.enterpriseCommissionValue} onChange={(event) => onChange({ ...form, enterpriseCommissionValue: event.target.value })} /></FieldContent>
+        </Field>
+      </div>
+      {includeStatus ? (
+        <Field>
+          <FieldLabel>Status</FieldLabel>
+          <FieldContent>
+            <Select value={form.status} onValueChange={(value) => onChange({ ...form, status: value as "active" | "inactive" })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
+            </Select>
+          </FieldContent>
+        </Field>
+      ) : null}
+      <Field>
+        <FieldLabel htmlFor="edit-payout-info">Payout info</FieldLabel>
+        <FieldContent><Textarea id="edit-payout-info" value={form.payoutInfo} onChange={(event) => onChange({ ...form, payoutInfo: event.target.value })} /></FieldContent>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="edit-affiliate-notes">Notes</FieldLabel>
+        <FieldContent><Textarea id="edit-affiliate-notes" value={form.notes} onChange={(event) => onChange({ ...form, notes: event.target.value })} /></FieldContent>
+      </Field>
+    </FieldGroup>
   );
 }
 

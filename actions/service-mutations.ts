@@ -6,6 +6,7 @@ import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/act
 import { ensureMonthlyActivityLimit } from "@/lib/auth/enforcement";
 import { revalidateServicePaths } from "@/lib/revalidation";
 import { sendServiceStatusWhatsappNotification } from "@/lib/service-whatsapp-notifications";
+import { syncWhatsappIdentityFromPhone } from "@/lib/whatsapp-identity";
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
 import { getRequestUser } from "@/lib/auth/request-user";
 import { withScope } from "@/lib/auth/wrapper";
@@ -201,6 +202,12 @@ export async function createService(
 
     revalidateServicePaths(scope.tokoId);
 
+    syncWhatsappIdentityFromPhone({
+      tokoId: scope.tokoId,
+      phoneNumber: validated.data.noWa,
+      displayName: validated.data.customerName || null,
+    }).catch((error) => console.warn("[WhatsApp:identity.serviceCreate]", error));
+
     return { id: service.id };
   });
 }
@@ -299,6 +306,12 @@ export async function updateService(
     });
 
     revalidateServicePaths(scope.tokoId);
+
+    syncWhatsappIdentityFromPhone({
+      tokoId: scope.tokoId,
+      phoneNumber: validated.data.noWa,
+      displayName: validated.data.customerName || null,
+    }).catch((error) => console.warn("[WhatsApp:identity.serviceUpdate]", error));
 
     return { success: true };
   });

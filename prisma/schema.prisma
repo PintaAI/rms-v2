@@ -246,6 +246,7 @@ model Toko {
   supplierDebts          SupplierDebt[]
   featureSetting         TokoFeatureSetting?
   whatsappSetting        TokoWhatsappSetting?
+  whatsappIdentities     TokoWhatsappIdentity[]
   userPermissions        TokoUserPermission[]
 
   @@index([status])
@@ -267,6 +268,7 @@ model TokoWhatsappSetting {
   tokoId String @id
 
   instanceName         String  @unique
+  instanceToken        String?
   enabled              Boolean @default(true)
   connectedNumber      String?
   connectedProfileName String?
@@ -283,6 +285,25 @@ model TokoWhatsappSetting {
   toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
 
   @@map("toko_whatsapp_setting")
+}
+
+model TokoWhatsappIdentity {
+  id          String   @id @default(cuid())
+  tokoId      String
+  phoneNumber String
+  phoneJid    String?
+  lidJid      String?
+  displayName String?
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+
+  @@unique([tokoId, phoneNumber])
+  @@index([tokoId, phoneJid])
+  @@index([tokoId, lidJid])
+  @@map("toko_whatsapp_identity")
 }
 
 model User {
@@ -779,6 +800,7 @@ model Service {
   @@index([technicianId])
   @@index([tokoId, status])
   @@index([tokoId, checkinAt])
+  @@index([tokoId, noWa])
   @@map("service")
 }
 
