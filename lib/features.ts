@@ -6,6 +6,7 @@ export type { SubscriptionPlan, PlanLimitKey };
 export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "retail" | "team" | "analytics" | "realtime";
 
 export type FeatureKey =
+  | "service.management"
   | "service.manualItems"
   | "service.technicianAssignment"
   | "inventory.management"
@@ -42,6 +43,15 @@ export interface FeatureAccessInput {
 }
 
 export const FEATURE_REGISTRY = {
+  "service.management": {
+    key: "service.management",
+    label: "Service Management",
+    description: "Kelola data service, status pekerjaan, invoice service, dan klaim warranty.",
+    category: "service",
+    allowedRoles: ["admin", "staff", "technician"],
+    minimumPlan: "free",
+    configurable: true,
+  },
   "service.manualItems": {
     key: "service.manualItems",
     label: "Tambah Invoice Manual",
@@ -66,7 +76,7 @@ export const FEATURE_REGISTRY = {
     description: "Kelola sparepart, jasa, stok, dan daftar harga.",
     category: "inventory",
     allowedRoles: ["admin", "staff", "technician"],
-    minimumPlan: "premium",
+    minimumPlan: "free",
     configurable: true,
   },
   "inventory.staffCreateSparepart": {
@@ -84,7 +94,7 @@ export const FEATURE_REGISTRY = {
     description: "Jual sparepart dan barang retail langsung dari inventory toko.",
     category: "retail",
     allowedRoles: ["admin", "staff", "technician"],
-    minimumPlan: "premium",
+    minimumPlan: "free",
     configurable: true,
   },
   "karyawan.management": {
@@ -163,6 +173,25 @@ export const FEATURE_REGISTRY = {
 
 export const FEATURE_KEYS = Object.keys(FEATURE_REGISTRY) as FeatureKey[];
 
+const SERVICE_DEPENDENT_FEATURES = new Set<FeatureKey>([
+  "service.manualItems",
+  "service.technicianAssignment",
+  "technician.workflow",
+  "whatsapp.integration",
+]);
+
+function isServiceManagementDisabled(input: FeatureAccessInput): boolean {
+  return input.disabledFeatures?.includes("service.management") === true;
+}
+
+function isRetailSalesDisabledForFree(input: FeatureAccessInput): boolean {
+  return (
+    normalizePlan(input.plan) === "free"
+    && !input.disabledFeatures?.includes("service.management")
+    && !input.disabledFeatures?.includes("retail.sales")
+  );
+}
+
 import {
   normalizePlan as _normalizePlan,
   isPlanAtLeast as _isPlanAtLeast,
@@ -203,8 +232,16 @@ export function getFeatureLockReason(input: FeatureAccessInput): FeatureLockReas
     return "role_denied";
   }
 
+  if (input.feature !== "service.management" && SERVICE_DEPENDENT_FEATURES.has(input.feature) && isServiceManagementDisabled(input)) {
+    return "disabled_by_toko";
+  }
+
   if (!isPlanAtLeast(input.plan, feature.minimumPlan)) {
     return "plan_required";
+  }
+
+  if (input.feature === "retail.sales" && isRetailSalesDisabledForFree(input)) {
+    return "disabled_by_toko";
   }
 
   if (input.disabledFeatures?.includes(input.feature)) {

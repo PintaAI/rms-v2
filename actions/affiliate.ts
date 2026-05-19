@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import { getRequestUser, requireRequestUser } from "@/lib/auth/request-user";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
 import { getPlanMonthlyPrice, type SubscriptionPlan } from "@/lib/plans";
+import { startProTrial } from "@/lib/subscription-billing";
 import { Prisma } from "@/prisma/generated/prisma/client";
 import {
   AFFILIATE_PENDING_REFERRAL_COOKIE,
@@ -127,6 +128,10 @@ export interface AffiliatePortalData {
     customer: string;
     joinedAt: Date;
     convertedAt: Date | null;
+    canGrantProTrial: boolean;
+    subscriptionStatus: string | null;
+    trialEndsAt: Date | null;
+    proTrialStartedAt: Date | null;
   }>;
   commissions: Array<{
     id: string;
@@ -299,6 +304,23 @@ function customerDisplay(user: { id: string; email: string | null; name?: string
 
 function commissionPeriodKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function canGrantReferralProTrial(referral: {
+  referredUser: {
+    role: string;
+    subscription: {
+      plan: SubscriptionPlan;
+      status: string;
+      proTrialStartedAt: Date | null;
+    } | null;
+  };
+}): boolean {
+  const subscription = referral.referredUser.subscription;
+  if (referral.referredUser.role !== "admin") return false;
+  if (subscription?.proTrialStartedAt) return false;
+  if (subscription?.plan === "premium" && ["active", "trialing"].includes(subscription.status)) return false;
+  return true;
 }
 
 function toCommissionRow(commission: {
@@ -915,6 +937,59 @@ export async function updateReferralRegistrationCommission(input: {
   }
 }
 
+export async function grantReferralProTrialFromPortal(input: {
+  code: string;
+  token: string;
+  referralId: string;
+}): Promise<ActionResultWithData<{ referralId: string; trialEndsAt: Date | null }>> {
+  try {
+    const code = normalizeReferralCode(input.code);
+    const affiliator = await prisma.affiliator.findFirst({
+      where: { code, portalToken: input.token },
+      select: {
+        id: true,
+        status: true,
+        referrals: {
+          where: { id: input.referralId },
+          select: {
+            id: true,
+            referredUserId: true,
+            referredUser: {
+              select: {
+                role: true,
+                subscription: {
+                  select: {
+                    plan: true,
+                    status: true,
+                    proTrialStartedAt: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!affiliator) return { success: false, error: "Invalid affiliate portal link" };
+    if (affiliator.status !== "active") return { success: false, error: "Affiliate account is inactive" };
+
+    const referral = affiliator.referrals[0];
+    if (!referral) return { success: false, error: "Referral not found for this tracking link" };
+    if (!canGrantReferralProTrial(referral)) return { success: false, error: "This customer is not eligible for Pro trial" };
+
+    // Trial approval is intentionally not a paid conversion and must not create affiliate commission.
+    const subscription = await startProTrial(referral.referredUserId);
+
+    revalidatePath(`/affiliate/portal/${encodeURIComponent(code)}`);
+    return { success: true, data: { referralId: referral.id, trialEndsAt: subscription?.trialEndsAt ?? null } };
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Failed to grant referral Pro trial:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Failed to grant Pro trial" };
+  }
+}
+
 export async function getAffiliatePortalData(input: {
   code: string;
   token: string;
@@ -926,7 +1001,23 @@ export async function getAffiliatePortalData(input: {
     where: { code, portalToken: input.token },
     include: {
       referrals: {
-        include: { referredUser: { select: { id: true, email: true } } },
+        include: {
+          referredUser: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              subscription: {
+                select: {
+                  plan: true,
+                  status: true,
+                  trialEndsAt: true,
+                  proTrialStartedAt: true,
+                },
+              },
+            },
+          },
+        },
         orderBy: { createdAt: "desc" },
       },
       commissions: {
@@ -965,6 +1056,10 @@ export async function getAffiliatePortalData(input: {
         customer: customerDisplay(referral.referredUser),
         joinedAt: referral.createdAt,
         convertedAt: referral.convertedAt,
+        canGrantProTrial: canGrantReferralProTrial(referral),
+        subscriptionStatus: referral.referredUser.subscription?.status ?? null,
+        trialEndsAt: referral.referredUser.subscription?.trialEndsAt ?? null,
+        proTrialStartedAt: referral.referredUser.subscription?.proTrialStartedAt ?? null,
       })),
       commissions: typedCommissions.map((commission) => ({
         id: commission.id,
@@ -990,7 +1085,23 @@ export async function getCurrentUserAffiliateDashboard(): Promise<ActionResultWi
     where: { userId: currentUser.id },
     include: {
       referrals: {
-        include: { referredUser: { select: { id: true, email: true } } },
+        include: {
+          referredUser: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              subscription: {
+                select: {
+                  plan: true,
+                  status: true,
+                  trialEndsAt: true,
+                  proTrialStartedAt: true,
+                },
+              },
+            },
+          },
+        },
         orderBy: { createdAt: "desc" },
       },
       commissions: {
@@ -1029,6 +1140,10 @@ export async function getCurrentUserAffiliateDashboard(): Promise<ActionResultWi
         customer: customerDisplay(referral.referredUser),
         joinedAt: referral.createdAt,
         convertedAt: referral.convertedAt,
+        canGrantProTrial: canGrantReferralProTrial(referral),
+        subscriptionStatus: referral.referredUser.subscription?.status ?? null,
+        trialEndsAt: referral.referredUser.subscription?.trialEndsAt ?? null,
+        proTrialStartedAt: referral.referredUser.subscription?.proTrialStartedAt ?? null,
       })),
       commissions: typedCommissions.map((commission) => ({
         id: commission.id,

@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import {
   FEATURE_REGISTRY,
   FEATURE_KEYS,
+  getFeatureLockReason,
   isFeatureKey,
   isPlanAtLeast,
   type SubscriptionPlan,
@@ -69,7 +70,8 @@ export async function getTokoFeatureSettingsWithStatus(
 
     const rows: FeatureSettingRow[] = FEATURE_KEYS.map((key) => {
       const metadata = FEATURE_REGISTRY[key];
-      const isPlanAllowed = isPlanAtLeast(scope.plan, metadata.minimumPlan);
+      const lockReason = getFeatureLockReason({ plan: scope.plan, role: scope.user.role, feature: key, disabledFeatures });
+      const isPlanAllowed = lockReason !== "plan_required";
       const isDisabledByToko = disabledFeatures.includes(key);
 
       let status: FeatureSettingRow["status"];
@@ -81,7 +83,7 @@ export async function getTokoFeatureSettingsWithStatus(
       } else if (!metadata.configurable) {
         status = "required";
         enabled = true;
-      } else if (isDisabledByToko) {
+      } else if (isDisabledByToko || lockReason === "disabled_by_toko") {
         status = "disabled_by_toko";
         enabled = false;
       } else {
@@ -125,6 +127,23 @@ async function upsertTokoFeatureSetting(
   return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
 }
 
+function normalizeDisabledFeaturesForPlan(plan: SubscriptionPlan, disabledFeatures: FeatureKey[]): FeatureKey[] {
+  const normalized = new Set(disabledFeatures.filter(isFeatureKey));
+
+  if (plan === "free") {
+    const serviceDisabled = normalized.has("service.management");
+    const retailDisabled = normalized.has("retail.sales");
+
+    if (serviceDisabled && retailDisabled) {
+      normalized.delete("service.management");
+    } else if (!serviceDisabled && !retailDisabled) {
+      normalized.add("retail.sales");
+    }
+  }
+
+  return [...normalized];
+}
+
 export async function updateTokoFeatureSettings(
   tokoId: string,
   disabledFeatures: FeatureKey[]
@@ -141,7 +160,7 @@ export async function updateTokoFeatureSettings(
       }
     }
 
-    const result = await upsertTokoFeatureSetting(tokoId, disabledFeatures.filter(isFeatureKey));
+    const result = await upsertTokoFeatureSetting(tokoId, normalizeDisabledFeaturesForPlan(scope.plan, disabledFeatures));
 
     revalidateFeaturePaths(tokoId);
 
@@ -171,11 +190,21 @@ export async function setTokoFeatureEnabled(
     });
 
     const currentDisabled = existing ? parseDisabledFeatures(existing.disabledFeatures) : [];
-    const newDisabled: FeatureKey[] = enabled
+    let newDisabled: FeatureKey[] = enabled
       ? currentDisabled.filter((f) => f !== feature)
       : currentDisabled.includes(feature)
         ? currentDisabled
         : [...currentDisabled, feature];
+
+    if (scope.plan === "free" && enabled) {
+      if (feature === "service.management") {
+        newDisabled = [...new Set([...newDisabled, "retail.sales"])] as FeatureKey[];
+      } else if (feature === "retail.sales") {
+        newDisabled = [...new Set([...newDisabled, "service.management"])] as FeatureKey[];
+      }
+    }
+
+    newDisabled = normalizeDisabledFeaturesForPlan(scope.plan, newDisabled);
 
     const result = await upsertTokoFeatureSetting(tokoId, newDisabled);
 

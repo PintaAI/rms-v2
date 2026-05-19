@@ -193,12 +193,25 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
 }
 
 function getAllowedDisabledFeatures(features: FeatureKey[], plan: string | null | undefined): FeatureKey[] {
-  return [...new Set(features)].filter((feature) => {
+  const disabledFeatures = new Set([...new Set(features)].filter((feature) => {
     if (!isFeatureKey(feature)) return false;
 
     const metadata = FEATURE_REGISTRY[feature];
     return metadata.configurable && isPlanAtLeast(plan, metadata.minimumPlan);
-  });
+  }));
+
+  if (plan === "free") {
+    const serviceDisabled = disabledFeatures.has("service.management");
+    const retailDisabled = disabledFeatures.has("retail.sales");
+
+    if (serviceDisabled && retailDisabled) {
+      disabledFeatures.delete("service.management");
+    } else if (!serviceDisabled && !retailDisabled) {
+      disabledFeatures.add("retail.sales");
+    }
+  }
+
+  return [...disabledFeatures];
 }
 
 export async function createToko(input: {

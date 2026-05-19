@@ -25,6 +25,7 @@ import { FEATURE_REGISTRY, isPlanAtLeast, type FeatureKey, type SubscriptionPlan
 import {
   getOnboardingPlanRecommendation,
   type BranchPlan,
+  type OperationalMode,
   type TeamSize,
   type TeamAccess,
 } from "@/lib/onboarding-recommendation";
@@ -61,6 +62,7 @@ interface WizardData {
   address: string;
   phone: string;
   branchPlan: BranchPlan;
+  operationalMode: OperationalMode;
   teamSize: TeamSize;
   teamAccess: TeamAccess;
   usesInventory: boolean;
@@ -80,6 +82,7 @@ const initialData: WizardData = {
   address: "",
   phone: "",
   branchPlan: "one",
+  operationalMode: "service",
   teamSize: "ownerOnly",
   teamAccess: "none",
   usesInventory: false,
@@ -108,7 +111,7 @@ const planLabels: Record<SubscriptionPlan, string> = {
 
 export function OnboardingWizard() {
   const router = useRouter();
-  const { user, refetchTokoList } = useAuth();
+  const { user, refetchTokoList, refetchSession } = useAuth();
   const [currentStepKey, setCurrentStepKey] = useState<StepKey>("toko");
   const [data, setData] = useState<WizardData>(initialData);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,11 +123,13 @@ export function OnboardingWizard() {
   } | null>(null);
 
   const currentPlan = user?.plan ?? "free";
+  const subscriptionStatus = user?.subscriptionStatus ?? user?.subscription?.status ?? null;
   const canCreateTeam = isPlanAtLeast(currentPlan, "premium");
   const estimatedTeamCounts = getEstimatedTeamCounts(data.teamSize, data.teamAccess);
   const recommendation = getOnboardingPlanRecommendation(
     {
       branchPlan: data.branchPlan,
+      operationalMode: data.operationalMode,
       teamSize: data.teamSize,
       teamAccess: data.teamAccess,
       usesInventory: data.usesInventory,
@@ -135,7 +140,7 @@ export function OnboardingWizard() {
       staffCount: estimatedTeamCounts.staffCount,
       technicianCount: estimatedTeamCounts.technicianCount,
     },
-    user?.plan
+    currentPlan
   );
   const isRecommendedPlanActive = isPlanAtLeast(currentPlan, recommendation.recommendedPlan);
   const visibleSteps = allSteps.filter((step) => {
@@ -219,6 +224,11 @@ export function OnboardingWizard() {
       }
     }
 
+    if (currentStepKey === "summary" && data.operationalMode === "both" && !isPlanAtLeast(currentPlan, "premium")) {
+      setError("Free hanya bisa memakai Service atau Retail. Upgrade ke Pro atau pilih salah satu mode operasional.");
+      return false;
+    }
+
     return true;
   };
 
@@ -237,6 +247,11 @@ export function OnboardingWizard() {
       setCurrentStepKey(visibleSteps[prevIndex].key);
     }
     setError(null);
+  };
+
+  const refreshPlanStatus = async () => {
+    await refetchSession();
+    router.refresh();
   };
 
   const handleSubmit = async () => {
@@ -315,9 +330,11 @@ export function OnboardingWizard() {
         {currentStepKey === "recommendation" && (
           <RecommendationStep
             currentPlan={currentPlan}
+            subscriptionStatus={subscriptionStatus}
             recommendation={recommendation}
             isRecommendedPlanActive={isRecommendedPlanActive}
             userEmail={user?.email}
+            onRefreshPlanStatus={refreshPlanStatus}
           />
         )}
         {currentStepKey === "team" && (
@@ -534,6 +551,22 @@ function SurveyStep({ data, setData }: WizardStepProps) {
       />
 
       <ChoiceGroup
+        label="Mode operasional apa yang dibutuhkan toko ini?"
+        options={[
+          { value: "service", title: "Service saja", description: "Cocok untuk Free owner-only." },
+          { value: "retail", title: "Retail saja", description: "Kasir retail dengan inventory di Free." },
+          { value: "both", title: "Service dan Retail", description: "Membutuhkan Pro karena Free hanya bisa memilih satu." },
+        ]}
+        value={data.operationalMode}
+        onChange={(operationalMode) => setData((prev) => ({
+          ...prev,
+          operationalMode: operationalMode as OperationalMode,
+          usesInventory: operationalMode === "retail" || operationalMode === "both" ? true : prev.usesInventory,
+          needsInvoices: operationalMode === "retail" ? false : prev.needsInvoices,
+        }))}
+      />
+
+      <ChoiceGroup
         label="Ada berapa banyak orang di bisnismu sekarang?"
         options={[
           { value: "ownerOnly", title: "Hanya saya sendiri", description: "Operasional sederhana" },
@@ -557,15 +590,17 @@ function SurveyStep({ data, setData }: WizardStepProps) {
         />
       )}
 
-      <ChoiceGroup
-        label="Apakah bisnismu butuh manajemen inventory/sparepart?"
-        options={[
-          { value: "true", title: "Ya, perlu stok sparepart", description: "Kelola inventory dan stok" },
-          { value: "false", title: "Tidak, cukup input item manual", description: "Item manual tanpa inventory" },
-        ]}
-        value={data.usesInventory ? "true" : "false"}
-        onChange={(value) => handleUsesInventoryChange(value === "true")}
-      />
+      {data.operationalMode === "service" && (
+        <ChoiceGroup
+          label="Apakah bisnismu butuh manajemen inventory/sparepart?"
+          options={[
+            { value: "true", title: "Ya, perlu stok sparepart", description: "Kelola inventory dan stok" },
+            { value: "false", title: "Tidak, cukup input item manual", description: "Item manual tanpa inventory" },
+          ]}
+          value={data.usesInventory ? "true" : "false"}
+          onChange={(value) => handleUsesInventoryChange(value === "true")}
+        />
+      )}
 
       {data.usesInventory && (
         <ChoiceGroup
@@ -589,35 +624,52 @@ function SurveyStep({ data, setData }: WizardStepProps) {
         onChange={(value) => setData((prev) => ({ ...prev, needsAnalyticsAndLogs: value === "true" }))}
       />
 
-      <ChoiceGroup
-        label="Apakah bisnismu butuh invoice service?"
-        options={[
-          { value: "false", title: "Tidak perlu invoice", description: "Tanpa invoice" },
-          { value: "true", title: "Ya, perlu invoice", description: "Buat dan kelola invoice" },
-        ]}
-        value={data.needsInvoices ? "true" : "false"}
-        onChange={(value) => setData((prev) => ({ ...prev, needsInvoices: value === "true" }))}
-      />
+      {data.operationalMode !== "retail" && (
+        <ChoiceGroup
+          label="Apakah bisnismu butuh invoice service?"
+          options={[
+            { value: "false", title: "Tidak perlu invoice", description: "Tanpa invoice" },
+            { value: "true", title: "Ya, perlu invoice", description: "Buat dan kelola invoice" },
+          ]}
+          value={data.needsInvoices ? "true" : "false"}
+          onChange={(value) => setData((prev) => ({ ...prev, needsInvoices: value === "true" }))}
+        />
+      )}
     </div>
   );
 }
 
 function RecommendationStep({
   currentPlan,
+  subscriptionStatus,
   recommendation,
   isRecommendedPlanActive,
   userEmail,
+  onRefreshPlanStatus,
 }: {
   currentPlan: SubscriptionPlan;
+  subscriptionStatus: string | null;
   recommendation: ReturnType<typeof getOnboardingPlanRecommendation>;
   isRecommendedPlanActive: boolean;
   userEmail?: string | null;
+  onRefreshPlanStatus: () => Promise<void>;
 }) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const isProTrialActive = currentPlan === "premium" && subscriptionStatus === "trialing";
   const whatsappMessage = [
-    "Halo, saya ingin request fitur Pro atau join beta testing RMS.",
+    "Halo, saya ingin request trial Pro RMS untuk melanjutkan onboarding.",
     userEmail ? `Email: ${userEmail}` : null,
   ].filter(Boolean).join("\n");
   const proBetaWhatsappUrl = `https://wa.me/6285728212056?text=${encodeURIComponent(whatsappMessage)}`;
+
+  const refreshStatus = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefreshPlanStatus();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -628,8 +680,20 @@ function RecommendationStep({
             <p className="font-medium">Rekomendasi: {planLabels[recommendation.recommendedPlan]}</p>
           </div>
           <Badge variant={isRecommendedPlanActive ? "success" : "outline"}>
-            Current: {planLabels[currentPlan]}
+            Current: {planLabels[currentPlan]}{isProTrialActive ? " Trial" : ""}
           </Badge>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+          <div className="flex items-start gap-2">
+            <RiVipCrownLine className="mt-0.5 size-4 shrink-0 text-primary" />
+            <div>
+              <p className="font-medium text-foreground">Trial Pro tersedia 30 hari setelah di-approve.</p>
+              <p className="mt-1 text-muted-foreground">
+                Jika affiliator atau tim RMS sudah mengaktifkan trial, klik refresh status di bawah. Setelah status berubah menjadi Pro Trial, onboarding bisa lanjut dengan fitur Pro seperti staff, teknisi, Service dan Retail sekaligus, dan analytics.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="mt-3 grid gap-2 text-sm">
@@ -643,17 +707,31 @@ function RecommendationStep({
 
         <div className="mt-4 rounded-lg bg-muted/30 p-3 text-sm text-muted-foreground">
           {isRecommendedPlanActive
-            ? "Plan aktif Anda sudah sesuai untuk kebutuhan ini."
-            : "Toko tetap bisa dibuat dengan plan aktif saat ini. Jika membutuhkan akses Pro, hubungi kami untuk request fitur atau ikut beta testing."}
+            ? isProTrialActive
+              ? "Trial Pro Anda sudah aktif. Lanjutkan onboarding untuk membuat toko dengan akses fitur Pro selama masa trial."
+              : "Plan aktif Anda sudah sesuai untuk kebutuhan ini."
+            : "Toko tetap bisa dibuat dengan plan aktif saat ini. Jika membutuhkan akses Pro, request trial lalu refresh status sebelum melanjutkan."}
         </div>
       </div>
 
-      <Button asChild className="w-full" size="lg">
-        <a href={proBetaWhatsappUrl} target="_blank" rel="noreferrer">
-          <RiWhatsappLine data-icon="inline-start" />
-          Request fitur Pro / join beta testing
-        </a>
-      </Button>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button asChild className="w-full" size="lg">
+          <a href={proBetaWhatsappUrl} target="_blank" rel="noreferrer">
+            <RiWhatsappLine data-icon="inline-start" />
+            Request Trial Pro
+          </a>
+        </Button>
+        <Button type="button" variant="outline" className="w-full" size="lg" onClick={refreshStatus} disabled={isRefreshing}>
+          {isRefreshing ? (
+            <>
+              <RiLoader4Line className="size-4 animate-spin" />
+              Refreshing...
+            </>
+          ) : (
+            "Refresh plan status"
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -722,6 +800,7 @@ function SummaryStep({
   const planDecisionLabel = isPlanAtLeast(currentPlan, recommendation.recommendedPlan) ? "Plan aktif sudah sesuai" : "Tetap Free";
 
   const branchLabel = data.branchPlan === "one" ? "Satu cabang" : data.branchPlan === "twoToThree" ? "2-3 cabang" : "Lebih dari 3 cabang";
+  const modeLabel = data.operationalMode === "service" ? "Service saja" : data.operationalMode === "retail" ? "Retail saja" : "Service dan Retail";
   const teamLabel = data.teamSize === "ownerOnly" ? "Hanya pemilik" : data.teamAccess === "staffOnly" ? "Staff saja" : data.teamAccess === "technicianOnly" ? "Teknisi saja" : "Staff dan teknisi";
   const inventoryLabel = data.usesInventory ? "Stok sparepart" : "Item manual tanpa inventory";
 
@@ -744,6 +823,7 @@ function SummaryStep({
         <h3 className="text-sm font-medium">Survei Kebutuhan</h3>
         <div className="mt-3 grid gap-2 text-xs">
           <SummaryRow label="Cabang" value={branchLabel} />
+          <SummaryRow label="Mode operasional" value={modeLabel} />
           <SummaryRow label="Tim" value={teamLabel} />
           <SummaryRow label="Inventory" value={inventoryLabel} />
           {data.usesInventory && <SummaryRow label="Audit inventory" value={data.needsAudit ? "Ya" : "Tidak"} />}

@@ -111,7 +111,6 @@ class RetailCheckoutError extends Error {}
 async function assertRetailAccess(tokoId: string, permission: PermissionKey) {
   const scope = await getRequestScope(tokoId)
   assertPermission(scope, permission)
-  assertFeature(scope, "inventory.management")
   assertFeature(scope, "retail.sales")
   return scope
 }

@@ -8,11 +8,13 @@ import {
 } from "@/lib/features";
 
 export type BranchPlan = "one" | "twoToThree" | "moreThanThree";
+export type OperationalMode = "service" | "retail" | "both";
 export type TeamSize = "ownerOnly" | "smallTeam" | "largerTeam";
 export type TeamAccess = "none" | "staffOnly" | "technicianOnly" | "staffAndTechnician";
 
 export interface OnboardingSurveyAnswers {
   branchPlan: BranchPlan;
+  operationalMode: OperationalMode;
   teamSize: TeamSize;
   teamAccess: TeamAccess;
   usesInventory: boolean;
@@ -33,10 +35,11 @@ export interface OnboardingPlanRecommendation {
 }
 
 const optionalFeatureKeys: FeatureKey[] = [
+  "service.management",
   "service.manualItems",
   "service.technicianAssignment",
-  "inventory.management",
   "inventory.staffCreateSparepart",
+  "retail.sales",
   "karyawan.management",
   "staff.workflow",
   "technician.workflow",
@@ -69,6 +72,19 @@ export function getOnboardingPlanRecommendation(
     requirePlan("premium", "Lebih dari 2 cabang bisa memakai Pro dengan biaya tambahan per toko.");
   }
 
+  if (answers.operationalMode === "service" || answers.operationalMode === "both") {
+    neededFeatures.add("service.management");
+  }
+
+  if (answers.operationalMode === "retail" || answers.operationalMode === "both") {
+    neededFeatures.add("retail.sales");
+    neededFeatures.add("inventory.management");
+  }
+
+  if (answers.operationalMode === "both") {
+    requirePlan("premium", "Free hanya bisa memakai Service atau Retail. Pro membuka keduanya sekaligus.");
+  }
+
   if (answers.staffCount > 0 || answers.technicianCount > 0) {
     neededFeatures.add("karyawan.management");
     requirePlan("premium", "Akses staff atau teknisi membutuhkan fitur manajemen karyawan.");
@@ -95,8 +111,7 @@ export function getOnboardingPlanRecommendation(
   if (answers.usesInventory) {
     neededFeatures.add("inventory.management");
     if (answers.staffCount > 0) neededFeatures.add("inventory.staffCreateSparepart");
-    requirePlan("premium", "Manajemen inventory/sparepart membutuhkan Pro.");
-  } else {
+  } else if (answers.operationalMode !== "retail") {
     neededFeatures.add("service.manualItems");
   }
 

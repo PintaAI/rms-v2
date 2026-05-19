@@ -167,6 +167,7 @@ function canUsePermission(permissionAccess: PermissionAccessMap, permission: Per
 
 export function buildAdminNav({
   tokoid,
+  featureAccess,
   permissionAccess,
   capabilities,
   disabledFeatures,
@@ -182,6 +183,7 @@ export function buildAdminNav({
   const inventoryEnabled = canUsePermission(permissionAccess, "inventory.view");
   const retailEnabled = canUsePermission(permissionAccess, "retail.view");
   const retailHistoryEnabled = canUsePermission(permissionAccess, "retail.viewHistory");
+  const retailFeatureEnabled = featureAccess["retail.sales"] ?? false;
   const auditEnabled = canUsePermission(permissionAccess, "inventory.audit");
 
   const entries: DashboardNavEntry[] = [];
@@ -226,7 +228,7 @@ export function buildAdminNav({
     });
   }
 
-  if (!isFeatureDisabled("retail.sales") && (shouldShowPermission(permissionAccess, "retail.view") || shouldShowPermission(permissionAccess, "retail.viewHistory"))) {
+  if (retailFeatureEnabled && !isFeatureDisabled("retail.sales") && (retailEnabled || retailHistoryEnabled)) {
     entries.push({
       type: "group",
       title: "Retail",
@@ -237,13 +239,13 @@ export function buildAdminNav({
           href: `/${tokoid}/retail`,
           icon: "store",
           label: "Kasir",
-          isLocked: !inventoryEnabled || !retailEnabled,
+          isLocked: !retailEnabled,
         },
         {
           href: `/${tokoid}/retail/history`,
           icon: "history",
           label: "Riwayat Penjualan",
-          isLocked: !inventoryEnabled || !retailHistoryEnabled,
+          isLocked: !retailHistoryEnabled,
         },
       ].filter((item) => item.label === "Kasir" ? shouldShowPermission(permissionAccess, "retail.view") : shouldShowPermission(permissionAccess, "retail.viewHistory")),
     });
@@ -380,7 +382,7 @@ export function buildStaffNav({
     });
   }
 
-  if (workflowEnabled && !isFeatureDisabled("retail.sales") && inventoryEnabled && (retailEnabled || retailHistoryEnabled)) {
+  if (workflowEnabled && !isFeatureDisabled("retail.sales") && (retailEnabled || retailHistoryEnabled)) {
     entries.push({
       type: "group",
       title: "Retail",

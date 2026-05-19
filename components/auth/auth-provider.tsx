@@ -24,8 +24,10 @@ interface AuthContextValue {
     subscription?: {
       id: string;
       plan: string;
+      status?: string | null;
     } | null;
     plan: SubscriptionPlan;
+    subscriptionStatus?: string | null;
   } | null;
   tokoList: TokoItem[];
   isLoading: boolean;
@@ -59,6 +61,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const { data: session, isPending, refetch } = useSession();
   const [tokoList, setTokoList] = useState<TokoItem[]>([]);
   const [isTokoLoading, setIsTokoLoading] = useState(true);
+  const [serverUser, setServerUser] = useState<{
+    plan: SubscriptionPlan;
+    subscriptionStatus: string | null;
+  } | null>(null);
 
   const refetchTokoList = useCallback(async () => {
     if (!session?.user) {
@@ -71,6 +77,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const data = await getAuthProviderData();
       setTokoList(data.tokoList);
+      setServerUser(data.user ? { plan: data.user.plan, subscriptionStatus: data.user.subscriptionStatus } : null);
     } catch (error) {
       console.error("Failed to fetch auth provider data:", error);
     } finally {
@@ -80,7 +87,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refetchSession = useCallback(async () => {
     await refetch();
-  }, [refetch]);
+    if (!session?.user) return;
+
+    try {
+      const data = await getAuthProviderData();
+      setTokoList(data.tokoList);
+      setServerUser(data.user ? { plan: data.user.plan, subscriptionStatus: data.user.subscriptionStatus } : null);
+    } catch (error) {
+      console.error("Failed to refresh auth provider data:", error);
+    }
+  }, [refetch, session?.user]);
 
   useEffect(() => {
     let active = true;
@@ -89,6 +105,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!session?.user) {
         if (active) {
           setTokoList([]);
+          setServerUser(null);
           setIsTokoLoading(false);
         }
         return;
@@ -99,6 +116,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const data = await getAuthProviderData();
         if (active) {
           setTokoList(data.tokoList);
+          setServerUser(data.user ? { plan: data.user.plan, subscriptionStatus: data.user.subscriptionStatus } : null);
         }
       } catch (error) {
         console.error("Failed to fetch auth provider data:", error);
@@ -131,10 +149,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
               subscription: session.user.subscription
                 ? {
                     id: session.user.subscription.id,
-                    plan: session.user.subscription.plan,
+                    plan: serverUser?.plan ?? session.user.subscription.plan,
+                    status: serverUser?.subscriptionStatus ?? null,
                   }
                 : null,
-              plan: normalizePlan(session.user.subscription?.plan),
+              plan: serverUser?.plan ?? normalizePlan(session.user.subscription?.plan),
+              subscriptionStatus: serverUser?.subscriptionStatus ?? null,
             }
           : null,
         tokoList,

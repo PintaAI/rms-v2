@@ -14,7 +14,7 @@ export const PLAN_REGISTRY = {
     trialDays: null,
     includedTokos: 1,
     additionalTokoPrice: null,
-    limits: { maxTokos: 1, maxStaff: 1, maxTechnicians: 1, maxServicesMonthly: 20, maxInvoicesMonthly: 50 },
+    limits: { maxTokos: 1, maxStaff: 0, maxTechnicians: 0, maxServicesMonthly: 20, maxInvoicesMonthly: 50 },
   },
   premium: {
     label: "Pro",

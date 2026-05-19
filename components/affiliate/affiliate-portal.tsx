@@ -1,4 +1,5 @@
 import type { AffiliatePortalData } from "@/actions/affiliate";
+import { AffiliateGrantTrialButton } from "@/components/affiliate/affiliate-grant-trial-button";
 import { AffiliateCopyLinkButton } from "@/components/affiliate/affiliate-copy-link-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -114,17 +115,35 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader><TableRow><TableHead>Customer</TableHead><TableHead>Join</TableHead><TableHead>Konversi</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Join</TableHead>
+                    <TableHead>Konversi</TableHead>
+                    <TableHead>Trial Pro</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {data.referrals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground">Belum ada referral.</TableCell>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">Belum ada referral.</TableCell>
                     </TableRow>
                   ) : data.referrals.map((referral) => (
                     <TableRow key={referral.id}>
                       <TableCell>{referral.customer}</TableCell>
                       <TableCell>{new Date(referral.joinedAt).toLocaleDateString("id-ID")}</TableCell>
                       <TableCell>{referral.convertedAt ? new Date(referral.convertedAt).toLocaleDateString("id-ID") : "Belum"}</TableCell>
+                      <TableCell>
+                        <AffiliateGrantTrialButton
+                          code={data.affiliator.code}
+                          token={token}
+                          referralId={referral.id}
+                          canGrantProTrial={referral.canGrantProTrial}
+                          subscriptionStatus={referral.subscriptionStatus}
+                          trialEndsAt={referral.trialEndsAt?.toISOString() ?? null}
+                          proTrialStartedAt={referral.proTrialStartedAt?.toISOString() ?? null}
+                        />
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

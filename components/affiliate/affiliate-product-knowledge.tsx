@@ -35,9 +35,11 @@ const isAffiliateMode = (props: AffiliateProductKnowledgeProps): props is { affi
 const planKeys: SubscriptionPlan[] = ["free", "premium", "enterprise"];
 
 const featureIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  "service.management": RiCustomerService2Line,
   "service.manualItems": RiSettingsLine,
   "service.technicianAssignment": RiUserSearchLine,
   "inventory.management": RiArchiveLine,
+  "retail.sales": RiStore2Line,
   "karyawan.management": RiTeamLine,
   "staff.workflow": RiUserSearchLine,
   "technician.workflow": RiSettingsLine,
@@ -186,6 +188,10 @@ const marketingTips = [
 ];
 
 function PlanFeatureCheck({ plan, featureKey }: { plan: SubscriptionPlan; featureKey: FeatureKey }) {
+  if (plan === "free" && (featureKey === "service.management" || featureKey === "retail.sales")) {
+    return <span className="text-xs font-medium text-emerald-600">Pilih 1</span>;
+  }
+
   const features = getFeaturesForPlan(plan);
   const has = features.some((f) => f.key === featureKey);
   if (!has) return <span className="text-muted-foreground">—</span>;
