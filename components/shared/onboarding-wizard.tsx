@@ -251,7 +251,6 @@ export function OnboardingWizard() {
 
   const refreshPlanStatus = async () => {
     await refetchSession();
-    router.refresh();
   };
 
   const handleSubmit = async () => {
