@@ -84,6 +84,36 @@ export interface PendingSubscriptionPaymentRow {
   submittedAt: Date;
 }
 
+export interface AdminDeletionPreview {
+  admin: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  counts: {
+    tokos: number;
+    services: number;
+    spareparts: number;
+    retailSales: number;
+    warrantyClaims: number;
+    supplierReturns: number;
+    inventoryAuditSessions: number;
+    stockMovements: number;
+    orphanStaff: number;
+    orphanTechnicians: number;
+    referralAsCustomer: number;
+    commissionAsCustomer: number;
+    affiliatorProfiles: number;
+  };
+  affiliateCommissionAmount: {
+    pending: number;
+    approved: number;
+    paid: number;
+    rejected: number;
+  };
+  whatsappInstances: string[];
+}
+
 export interface SuperuserDashboardData {
   stats: SuperuserDashboardStats;
   users: SuperuserUserRow[];
@@ -447,6 +477,231 @@ export async function grantUserProTrial(userId: string): Promise<ActionResultWit
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Failed to grant Pro trial" };
   }
+}
+
+async function getAdminDeletionPreviewData(adminUserId: string): Promise<AdminDeletionPreview | null> {
+  const targetUser = await prisma.user.findUnique({
+    where: { id: adminUserId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      tokoAssignments: { select: { tokoId: true } },
+      affiliatorProfile: { select: { id: true } },
+    },
+  });
+
+  if (!targetUser || targetUser.role !== "admin") return null;
+
+  const tokoIds = targetUser.tokoAssignments.map((assignment) => assignment.tokoId);
+  const tokoWhere = { tokoId: { in: tokoIds } };
+  const [
+    services,
+    spareparts,
+    retailSales,
+    warrantyClaims,
+    supplierReturns,
+    inventoryAuditSessions,
+    stockMovements,
+    assignedKaryawan,
+    referralAsCustomer,
+    commissionAsCustomer,
+    commissions,
+    whatsappSettings,
+  ] = await Promise.all([
+    prisma.service.count({ where: tokoWhere }),
+    prisma.sparepart.count({ where: tokoWhere }),
+    prisma.retailSale.count({ where: tokoWhere }),
+    prisma.warrantyClaim.count({ where: tokoWhere }),
+    prisma.supplierReturn.count({ where: tokoWhere }),
+    prisma.inventoryAuditSession.count({ where: tokoWhere }),
+    prisma.stockMovement.count({ where: tokoWhere }),
+    prisma.user.findMany({
+      where: {
+        role: { in: ["staff", "technician"] },
+        tokoAssignments: { some: { tokoId: { in: tokoIds } } },
+      },
+      select: {
+        role: true,
+        tokoAssignments: { select: { tokoId: true } },
+      },
+    }),
+    prisma.referral.count({ where: { referredUserId: adminUserId } }),
+    prisma.affiliateCommission.count({ where: { userId: adminUserId } }),
+    prisma.affiliateCommission.findMany({
+      where: { userId: adminUserId },
+      select: { amount: true, status: true },
+    }),
+    prisma.tokoWhatsappSetting.findMany({
+      where: { tokoId: { in: tokoIds } },
+      select: { instanceName: true },
+    }),
+  ]);
+
+  const targetTokoSet = new Set(tokoIds);
+  let orphanStaff = 0;
+  let orphanTechnicians = 0;
+  for (const karyawan of assignedKaryawan) {
+    const onlyInDeletedTokos = karyawan.tokoAssignments.every((assignment) => targetTokoSet.has(assignment.tokoId));
+    if (!onlyInDeletedTokos) continue;
+    if (karyawan.role === "staff") orphanStaff += 1;
+    if (karyawan.role === "technician") orphanTechnicians += 1;
+  }
+
+  const affiliateCommissionAmount = {
+    pending: 0,
+    approved: 0,
+    paid: 0,
+    rejected: 0,
+  };
+  for (const commission of commissions) {
+    affiliateCommissionAmount[commission.status as keyof typeof affiliateCommissionAmount] += commission.amount;
+  }
+
+  return {
+    admin: {
+      id: targetUser.id,
+      name: targetUser.name,
+      email: targetUser.email,
+    },
+    counts: {
+      tokos: tokoIds.length,
+      services,
+      spareparts,
+      retailSales,
+      warrantyClaims,
+      supplierReturns,
+      inventoryAuditSessions,
+      stockMovements,
+      orphanStaff,
+      orphanTechnicians,
+      referralAsCustomer,
+      commissionAsCustomer,
+      affiliatorProfiles: targetUser.affiliatorProfile ? 1 : 0,
+    },
+    affiliateCommissionAmount,
+    whatsappInstances: whatsappSettings.map((setting) => setting.instanceName),
+  };
+}
+
+export async function getAdminDeletionPreview(adminUserId: string): Promise<ActionResultWithData<AdminDeletionPreview>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
+
+  const preview = await getAdminDeletionPreviewData(adminUserId);
+  if (!preview) return { success: false, error: "Admin user not found" };
+
+  return { success: true, data: preview };
+}
+
+async function revokeWhatsappInstancesForAdminDeletion(instanceNames: string[]) {
+  for (const instanceName of instanceNames) {
+    try {
+      await deleteWhatsappInstance(instanceName);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      if (!message.includes("404") && !message.includes("not found")) throw error;
+    }
+  }
+}
+
+export async function deleteAdminAccountCascade(
+  adminUserId: string,
+  confirmationEmail: string
+): Promise<ActionResultWithData<{ userId: string }>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
+  if (user.id === adminUserId) {
+    return { success: false, error: "Cannot delete yourself" };
+  }
+
+  const preview = await getAdminDeletionPreviewData(adminUserId);
+  if (!preview) return { success: false, error: "Admin user not found" };
+  if (confirmationEmail.trim().toLowerCase() !== preview.admin.email.toLowerCase()) {
+    return { success: false, error: "Confirmation email does not match" };
+  }
+
+  const tokoIds = await prisma.userToko.findMany({
+    where: { userId: adminUserId },
+    select: { tokoId: true },
+  });
+  const tokoIdValues = tokoIds.map((assignment) => assignment.tokoId);
+  const tokoWhere = { tokoId: { in: tokoIdValues } };
+
+  try {
+    await revokeWhatsappInstancesForAdminDeletion(preview.whatsappInstances);
+
+    await prisma.$transaction(async (tx) => {
+      const orphanKaryawan = await tx.user.findMany({
+        where: {
+          role: { in: ["staff", "technician"] },
+          tokoAssignments: { some: { tokoId: { in: tokoIdValues } } },
+        },
+        select: {
+          id: true,
+          tokoAssignments: { select: { tokoId: true } },
+        },
+      });
+      const targetTokoSet = new Set(tokoIdValues);
+      const orphanKaryawanIds = orphanKaryawan
+        .filter((karyawan) => karyawan.tokoAssignments.every((assignment) => targetTokoSet.has(assignment.tokoId)))
+        .map((karyawan) => karyawan.id);
+
+      await tx.affiliateCommission.deleteMany({ where: { userId: adminUserId } });
+      await tx.referral.deleteMany({ where: { referredUserId: adminUserId } });
+      await tx.affiliator.updateMany({ where: { userId: adminUserId }, data: { userId: null, status: "inactive" } });
+
+      if (tokoIdValues.length > 0) {
+        await tx.activityLog.deleteMany({ where: tokoWhere });
+        await tx.invoiceItem.deleteMany({ where: { invoice: { service: tokoWhere } } });
+        await tx.invoice.deleteMany({ where: { service: tokoWhere } });
+        await tx.serviceItem.deleteMany({ where: { service: tokoWhere } });
+        await tx.warrantyClaimItem.deleteMany({ where: { warrantyClaim: tokoWhere } });
+        await tx.supplierReturn.deleteMany({ where: tokoWhere });
+        await tx.warrantyClaim.deleteMany({ where: tokoWhere });
+        await tx.retailSaleItem.deleteMany({ where: { sale: tokoWhere } });
+        await tx.retailSale.deleteMany({ where: tokoWhere });
+        await tx.supplierDebtPayment.deleteMany({ where: { debt: tokoWhere } });
+        await tx.supplierDebt.deleteMany({ where: tokoWhere });
+        await tx.supplier.deleteMany({ where: tokoWhere });
+        await tx.inventoryAuditItem.deleteMany({ where: { session: tokoWhere } });
+        await tx.inventoryAuditSession.deleteMany({ where: tokoWhere });
+        await tx.stockMovement.deleteMany({ where: tokoWhere });
+        await tx.sparepartCompatibility.deleteMany({ where: { sparepart: tokoWhere } });
+        await tx.service.deleteMany({ where: tokoWhere });
+        await tx.servicePricelist.deleteMany({ where: tokoWhere });
+        await tx.sparepart.deleteMany({ where: tokoWhere });
+        await tx.sparepartCategory.deleteMany({ where: tokoWhere });
+        await tx.tokoWhatsappIdentity.deleteMany({ where: tokoWhere });
+        await tx.tokoWhatsappSetting.deleteMany({ where: tokoWhere });
+        await tx.tokoFeatureSetting.deleteMany({ where: { tokoId: { in: tokoIdValues } } });
+        await tx.tokoUserPermission.deleteMany({ where: tokoWhere });
+        await tx.userToko.deleteMany({ where: { tokoId: { in: tokoIdValues } } });
+        await tx.toko.deleteMany({ where: { id: { in: tokoIdValues } } });
+      }
+
+      if (orphanKaryawanIds.length > 0) {
+        await tx.affiliateCommission.deleteMany({ where: { userId: { in: orphanKaryawanIds } } });
+        await tx.referral.deleteMany({ where: { referredUserId: { in: orphanKaryawanIds } } });
+        await tx.affiliator.updateMany({ where: { userId: { in: orphanKaryawanIds } }, data: { userId: null, status: "inactive" } });
+        await tx.user.deleteMany({ where: { id: { in: orphanKaryawanIds } } });
+      }
+
+      await tx.user.delete({ where: { id: adminUserId } });
+    });
+  } catch (error) {
+    console.error("Failed to delete admin account:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Failed to delete admin account" };
+  }
+
+  revalidatePath("/superuser");
+  revalidatePath("/dashboard");
+  return { success: true, data: { userId: adminUserId } };
 }
 
 export async function updateUserRole(
