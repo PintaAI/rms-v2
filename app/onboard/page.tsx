@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { OnboardingWizard } from "@/components/shared/onboarding-wizard";
+import { UserInfo } from "@/components/shared/user-info";
 import { attachPendingReferralToCurrentUser } from "@/actions/affiliate";
 
 export default function OnboardPage() {
@@ -50,7 +51,10 @@ export default function OnboardPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4 pt-24 sm:pt-4">
+      <div className="absolute right-4 top-4 z-10">
+        <UserInfo />
+      </div>
       <div className="w-full max-w-2xl">
         <OnboardingWizard />
       </div>

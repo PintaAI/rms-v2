@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -94,6 +94,12 @@ const initialData: WizardData = {
   technician: [],
 };
 
+type OnboardingDraft = Omit<WizardData, "logoFile"> & {
+  currentStepKey: StepKey;
+};
+
+const onboardingDraftKey = "rms:onboarding-draft";
+
 const allSteps: { key: StepKey; title: string; description: string }[] = [
   { key: "toko", title: "Toko Info", description: "Masukkan identitas dasar toko." },
   { key: "survey", title: "Survei Kebutuhan", description: "Jawaban ini menentukan rekomendasi fitur dan plan." },
@@ -109,11 +115,43 @@ const planLabels: Record<SubscriptionPlan, string> = {
   enterprise: "Enterprise",
 };
 
+function readOnboardingDraft(): { data: WizardData; currentStepKey: StepKey } {
+  if (typeof window === "undefined") return { data: initialData, currentStepKey: "toko" };
+
+  try {
+    const rawDraft = window.sessionStorage.getItem(onboardingDraftKey);
+    if (!rawDraft) return { data: initialData, currentStepKey: "toko" };
+
+    const draft = JSON.parse(rawDraft) as Partial<OnboardingDraft>;
+    const { currentStepKey: draftStepKey, ...draftData } = draft;
+    const currentStepKey = allSteps.some((step) => step.key === draftStepKey) ? draftStepKey! : "toko";
+
+    return {
+      currentStepKey,
+      data: {
+        ...initialData,
+        ...draftData,
+        logoFile: null,
+        staff: Array.isArray(draftData.staff) ? draftData.staff : [],
+        technician: Array.isArray(draftData.technician) ? draftData.technician : [],
+      },
+    };
+  } catch {
+    return { data: initialData, currentStepKey: "toko" };
+  }
+}
+
+function clearOnboardingDraft() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(onboardingDraftKey);
+}
+
 export function OnboardingWizard() {
   const router = useRouter();
   const { user, refetchTokoList, refetchSession } = useAuth();
-  const [currentStepKey, setCurrentStepKey] = useState<StepKey>("toko");
-  const [data, setData] = useState<WizardData>(initialData);
+  const [initialDraft] = useState(readOnboardingDraft);
+  const [currentStepKey, setCurrentStepKey] = useState<StepKey>(initialDraft.currentStepKey);
+  const [data, setData] = useState<WizardData>(initialDraft.data);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -121,6 +159,26 @@ export function OnboardingWizard() {
     tokoId: string;
     users: Array<{ name: string; email: string; password: string; role: string }>;
   } | null>(null);
+
+  useEffect(() => {
+    const draftData: Omit<WizardData, "logoFile"> = {
+      tokoName: data.tokoName,
+      address: data.address,
+      phone: data.phone,
+      branchPlan: data.branchPlan,
+      operationalMode: data.operationalMode,
+      teamSize: data.teamSize,
+      teamAccess: data.teamAccess,
+      usesInventory: data.usesInventory,
+      needsInvoices: data.needsInvoices,
+      needsAnalyticsAndLogs: data.needsAnalyticsAndLogs,
+      needsAudit: data.needsAudit,
+      hasEmployees: data.hasEmployees,
+      staff: data.staff,
+      technician: data.technician,
+    };
+    window.sessionStorage.setItem(onboardingDraftKey, JSON.stringify({ ...draftData, currentStepKey }));
+  }, [currentStepKey, data]);
 
   const currentPlan = user?.plan ?? "free";
   const subscriptionStatus = user?.subscriptionStatus ?? user?.subscription?.status ?? null;
@@ -282,6 +340,7 @@ export function OnboardingWizard() {
       }
 
       await refetchTokoList();
+      clearOnboardingDraft();
 
       if (result.users && result.users.length > 0) {
         setCreatedCredentials({ tokoId: result.tokoId!, users: result.users });
