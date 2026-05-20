@@ -99,6 +99,7 @@ export interface AdminDeletionPreview {
     supplierReturns: number;
     inventoryAuditSessions: number;
     stockMovements: number;
+    sessions: number;
     orphanStaff: number;
     orphanTechnicians: number;
     referralAsCustomer: number;
@@ -523,6 +524,7 @@ async function getAdminDeletionPreviewData(adminUserId: string): Promise<AdminDe
         tokoAssignments: { some: { tokoId: { in: tokoIds } } },
       },
       select: {
+        id: true,
         role: true,
         tokoAssignments: { select: { tokoId: true } },
       },
@@ -542,12 +544,18 @@ async function getAdminDeletionPreviewData(adminUserId: string): Promise<AdminDe
   const targetTokoSet = new Set(tokoIds);
   let orphanStaff = 0;
   let orphanTechnicians = 0;
+  const orphanKaryawanIds: string[] = [];
   for (const karyawan of assignedKaryawan) {
     const onlyInDeletedTokos = karyawan.tokoAssignments.every((assignment) => targetTokoSet.has(assignment.tokoId));
     if (!onlyInDeletedTokos) continue;
+    orphanKaryawanIds.push(karyawan.id);
     if (karyawan.role === "staff") orphanStaff += 1;
     if (karyawan.role === "technician") orphanTechnicians += 1;
   }
+
+  const sessions = await prisma.session.count({
+    where: { userId: { in: [adminUserId, ...orphanKaryawanIds] } },
+  });
 
   const affiliateCommissionAmount = {
     pending: 0,
@@ -574,6 +582,7 @@ async function getAdminDeletionPreviewData(adminUserId: string): Promise<AdminDe
       supplierReturns,
       inventoryAuditSessions,
       stockMovements,
+      sessions,
       orphanStaff,
       orphanTechnicians,
       referralAsCustomer,
@@ -689,6 +698,11 @@ export async function deleteAdminAccountCascade(
         await tx.affiliateCommission.deleteMany({ where: { userId: { in: orphanKaryawanIds } } });
         await tx.referral.deleteMany({ where: { referredUserId: { in: orphanKaryawanIds } } });
         await tx.affiliator.updateMany({ where: { userId: { in: orphanKaryawanIds } }, data: { userId: null, status: "inactive" } });
+      }
+
+      await tx.session.deleteMany({ where: { userId: { in: [adminUserId, ...orphanKaryawanIds] } } });
+
+      if (orphanKaryawanIds.length > 0) {
         await tx.user.deleteMany({ where: { id: { in: orphanKaryawanIds } } });
       }
 

@@ -231,6 +231,7 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
                   <PreviewItem label="Supplier returns" value={deletionPreview.counts.supplierReturns} />
                   <PreviewItem label="Inventory audits" value={deletionPreview.counts.inventoryAuditSessions} />
                   <PreviewItem label="Stock movements" value={deletionPreview.counts.stockMovements} />
+                  <PreviewItem label="Auth sessions" value={deletionPreview.counts.sessions} />
                   <PreviewItem label="WhatsApp instances" value={deletionPreview.whatsappInstances.length} />
                   <PreviewItem label="Orphan staff" value={deletionPreview.counts.orphanStaff} />
                   <PreviewItem label="Orphan technicians" value={deletionPreview.counts.orphanTechnicians} />
@@ -242,7 +243,7 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
               )}
 
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                This cannot be undone. If the admin is also an affiliator, their affiliator profile is kept but unlinked and set inactive. If the admin was a referred customer, their referral and commission rows are deleted.
+                This cannot be undone. Active auth sessions for deleted users are revoked. If the admin is also an affiliator, their affiliator profile is kept but unlinked and set inactive. If the admin was a referred customer, their referral and commission rows are deleted.
               </div>
 
               <div className="space-y-2">
