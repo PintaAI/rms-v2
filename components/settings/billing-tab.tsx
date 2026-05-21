@@ -18,6 +18,7 @@ export function BillingSettingsTab({ summary, ownerBilling, isLoading, onChanged
   const [isPending, startTransition] = React.useTransition();
   const [method, setMethod] = React.useState("bank_transfer");
   const invoice = ownerBilling?.latestInvoice ?? null;
+  const proMonthlyAmount = summary?.pricing.proMonthlyAmount ?? 990_000;
   const trialRequestUrl = getWhatsAppTrialRequestUrl({ email: userEmail, tokoName });
 
   const handleCreateInvoice = () => {
@@ -93,7 +94,7 @@ export function BillingSettingsTab({ summary, ownerBilling, isLoading, onChanged
           </div>
         )}
         {!invoice || ["paid", "void"].includes(invoice.status) ? (
-          <Button variant="outline" className="w-full" disabled={isPending || isLoading} onClick={handleCreateInvoice}>Buat invoice Pro Rp990.000</Button>
+          <Button variant="outline" className="w-full" disabled={isPending || isLoading} onClick={handleCreateInvoice}>Buat invoice Pro {formatCurrency(proMonthlyAmount)}</Button>
         ) : (
           <InvoicePaymentForm invoice={invoice} ownerBilling={ownerBilling} isPending={isPending} method={method} setMethod={setMethod} onSubmit={handleSubmitPayment} />
         )}

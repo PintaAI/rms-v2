@@ -1,0 +1,27 @@
+{
+  "fetched": [
+    "/devices/by-manufacturer/?manufacturer=Apple&page=1",
+    "/devices/by-manufacturer/?manufacturer=Apple&page=2",
+    "/devices/by-manufacturer/?manufacturer=Apple&page=3",
+    "/devices/by-manufacturer/?manufacturer=Apple&page=4",
+    "/devices/by-year/?page=1&year=2024",
+    "/devices/by-year/?page=1&year=2025",
+    "/devices/by-year/?page=1&year=2026",
+    "/devices/search/?manufacturer=Apple&name=iPhone 11&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 12&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 13&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 14&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 15&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 16&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 17&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 6&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 6s&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 7&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone 8&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone SE&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone X&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone XR&page=1",
+    "/devices/search/?manufacturer=Apple&name=iPhone XS&page=1"
+  ],
+  "updatedAt": "2026-05-21T00:00:00.000Z"
+}

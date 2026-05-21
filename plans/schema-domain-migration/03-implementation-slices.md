@@ -122,6 +122,48 @@ Exit criteria:
 - Seeds use new delegates and enum values.
 - Docs do not describe old internal names unless historical context is needed.
 
+## Slice 6.5: Legacy Import Compatibility
+
+Existing Excel imports must keep working after the rename. Do not require users to download a new template before they can continue importing inventory.
+
+Implementation requirements:
+
+- Rename internal import concepts to inventory item naming, for example `importInventoryItems`, `ImportInventoryItemInput`, and `InventoryItemImportDialog`.
+- Keep the current old action name `importSpareparts` as a thin alias during the migration, or update every caller in the same slice.
+- Keep accepting old item type values at the parser/action boundary.
+- Map old `sparepart` rows to `InventoryItemType.repair_part`.
+- Map old `retail_item` rows to `InventoryItemType.retail_product`.
+- Keep all current `.xlsx` and `.xls` header aliases working.
+- Add optional phone retail columns without making them required.
+- Do not advertise CSV compatibility unless `.csv` parsing and file input support are added in the same slice.
+
+Legacy headers that must continue to parse:
+
+- `Nama`, `Name`, `Nama Sparepart`, `Sparepart`
+- `Harga Jual`, `Harga`, `Harga Default`, `Default Price`, `defaultPrice`
+- `Harga Beli`, `Purchase Price`, `purchasePrice`
+- `Supplier`, `Nama Supplier`, `supplierName`
+- `Kategori`, `Category`, `categoryName`
+- `Stok`, `Stock`
+- `Stok Kritis`, `Critical Stock`, `criticalStock`, `Minimum Stock`, `minimumStock`
+- `Garansi Hari`, `Garansi`, `Warranty Days`, `warrantyDays`
+- `Universal`, `Is Universal`, `isUniversal`
+
+Optional new phone columns:
+
+- `Brand` or `Merek` maps to `DeviceBrand.name`.
+- `Model` or `Model HP` maps to `DeviceModel.modelName`.
+- `Nomor Model` or `Model Number` maps to `DeviceModel.modelNumber`.
+- `IMEI`, `Serial Number`, `Kondisi`, and `Condition` are parsed only if `InventoryUnit` is included in scope.
+
+Exit criteria:
+
+- Old sparepart Excel files import as repair parts.
+- Old retail item Excel files import as retail products.
+- Old headers still work without template changes.
+- Phone columns are optional and do not break legacy files.
+- `.csv` support is either implemented and verified or explicitly deferred.
+
 ## Slice 7: Verification
 
 Run verification only when approved.

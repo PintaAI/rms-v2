@@ -17,6 +17,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -50,10 +61,15 @@ export function DeviceCatalogManagement({ data }: DeviceCatalogManagementProps) 
   const [deviceForm, setDeviceForm] = useState(emptyDeviceForm);
   const [editingBrand, setEditingBrand] = useState<SuperuserBrandRow | null>(null);
   const [editingDevice, setEditingDevice] = useState<SuperuserHpCatalogRow | null>(null);
+  const [brandDeleteTarget, setBrandDeleteTarget] = useState<SuperuserBrandRow | null>(null);
+  const [deviceDeleteTarget, setDeviceDeleteTarget] = useState<SuperuserHpCatalogRow | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setBrands(data.brands);
     setDevices(data.devices);
+    setSelectedDeviceIds((current) => new Set([...current].filter((id) => data.devices.some((device) => device.id === id))));
   }, [data]);
 
   const filteredDevices = useMemo(() => {
@@ -67,6 +83,17 @@ export function DeviceCatalogManagement({ data }: DeviceCatalogManagementProps) 
         .includes(needle)
     );
   }, [devices, query]);
+
+  const selectedDevices = useMemo(
+    () => devices.filter((device) => selectedDeviceIds.has(device.id)),
+    [devices, selectedDeviceIds]
+  );
+
+  const selectedFilteredDeviceIds = filteredDevices
+    .filter((device) => selectedDeviceIds.has(device.id))
+    .map((device) => device.id);
+  const allFilteredSelected = filteredDevices.length > 0 && selectedFilteredDeviceIds.length === filteredDevices.length;
+  const selectAllChecked = allFilteredSelected ? true : selectedFilteredDeviceIds.length > 0 ? "indeterminate" : false;
 
   const openCreateBrand = () => {
     setEditingBrand(null);
@@ -135,31 +162,106 @@ export function DeviceCatalogManagement({ data }: DeviceCatalogManagementProps) 
   };
 
   const removeBrand = (brand: SuperuserBrandRow) => {
-    if (!window.confirm(`Delete brand ${brand.name}?`)) return;
+    setBrandDeleteTarget(brand);
+  };
 
+  const confirmRemoveBrand = () => {
+    const target = brandDeleteTarget;
+    if (!target) return;
     startTransition(async () => {
-      const result = await deleteSuperuserBrand(brand.id);
+      const result = await deleteSuperuserBrand(target.id);
       if (!result.success) {
         toast.error(result.error || "Failed to delete brand");
         return;
       }
 
       toast.success("Brand deleted");
+      setBrandDeleteTarget(null);
       refreshCatalog();
     });
   };
 
   const removeDevice = (device: SuperuserHpCatalogRow) => {
-    if (!window.confirm(`Delete ${device.brandName} ${device.modelName}?`)) return;
+    setDeviceDeleteTarget(device);
+  };
 
+  const confirmRemoveDevice = () => {
+    const target = deviceDeleteTarget;
+    if (!target) return;
     startTransition(async () => {
-      const result = await deleteSuperuserHpCatalog(device.id);
+      const result = await deleteSuperuserHpCatalog(target.id);
       if (!result.success) {
         toast.error(result.error || "Failed to delete HP model");
         return;
       }
 
       toast.success("HP model deleted");
+      setSelectedDeviceIds((current) => {
+        const next = new Set(current);
+        next.delete(target.id);
+        return next;
+      });
+      setDeviceDeleteTarget(null);
+      refreshCatalog();
+    });
+  };
+
+  const toggleDeviceSelection = (deviceId: string, checked: boolean) => {
+    setSelectedDeviceIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(deviceId);
+      } else {
+        next.delete(deviceId);
+      }
+      return next;
+    });
+  };
+
+  const toggleFilteredSelection = (checked: boolean) => {
+    setSelectedDeviceIds((current) => {
+      const next = new Set(current);
+      for (const device of filteredDevices) {
+        if (checked) {
+          next.add(device.id);
+        } else {
+          next.delete(device.id);
+        }
+      }
+      return next;
+    });
+  };
+
+  const confirmBulkRemoveDevices = () => {
+    const targets = selectedDevices;
+    if (targets.length === 0) return;
+
+    startTransition(async () => {
+      const deletedIds = new Set<string>();
+      const failedMessages: string[] = [];
+
+      for (const device of targets) {
+        const result = await deleteSuperuserHpCatalog(device.id);
+        if (result.success) {
+          deletedIds.add(device.id);
+        } else {
+          failedMessages.push(`${device.brandName} ${device.modelName}: ${result.error || "Failed to delete"}`);
+        }
+      }
+
+      if (deletedIds.size > 0) {
+        setSelectedDeviceIds((current) => new Set([...current].filter((id) => !deletedIds.has(id))));
+      }
+
+      if (failedMessages.length > 0) {
+        toast.error(`Deleted ${deletedIds.size} model(s), ${failedMessages.length} failed`, {
+          description: failedMessages[0],
+        });
+      } else {
+        toast.success(`${deletedIds.size} HP model(s) deleted`);
+        setBulkDeleteOpen(false);
+      }
+
       refreshCatalog();
     });
   };
@@ -245,6 +347,10 @@ export function DeviceCatalogManagement({ data }: DeviceCatalogManagementProps) 
                 <RiSearchLine className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input className="pl-8" placeholder="Search models" value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
+              <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)} disabled={isPending || selectedDevices.length === 0}>
+                <RiDeleteBinLine data-icon="inline-start" />
+                Delete selected{selectedDevices.length > 0 ? ` (${selectedDevices.length})` : ""}
+              </Button>
               <Button size="sm" onClick={openCreateDevice} disabled={isPending || brands.length === 0}>
                 <RiAddLine data-icon="inline-start" />
                 HP Model
@@ -255,6 +361,14 @@ export function DeviceCatalogManagement({ data }: DeviceCatalogManagementProps) 
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={selectAllChecked}
+                      onCheckedChange={(checked) => toggleFilteredSelection(checked === true)}
+                      disabled={isPending || filteredDevices.length === 0}
+                      aria-label="Select all HP models"
+                    />
+                  </TableHead>
                   <TableHead>Brand</TableHead>
                   <TableHead>Model</TableHead>
                   <TableHead>Model Number</TableHead>
@@ -265,9 +379,17 @@ export function DeviceCatalogManagement({ data }: DeviceCatalogManagementProps) 
               <TableBody>
                 {filteredDevices.map((device) => (
                   <TableRow key={device.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedDeviceIds.has(device.id)}
+                        onCheckedChange={(checked) => toggleDeviceSelection(device.id, checked === true)}
+                        disabled={isPending}
+                        aria-label={`Select ${device.brandName} ${device.modelName}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{device.brandName}</TableCell>
                     <TableCell>{device.modelName}</TableCell>
-                    <TableCell>{device.modelNumber || <span className="text-muted-foreground">-</span>}</TableCell>
+                    <TableCell className="max-w-[160px] truncate">{device.modelNumber || <span className="text-muted-foreground">-</span>}</TableCell>
                     <TableCell>
                       {device.mobileApiId ? <Badge variant="accent">Mobile API</Badge> : <Badge variant="outline">Manual</Badge>}
                     </TableCell>
@@ -354,6 +476,59 @@ export function DeviceCatalogManagement({ data }: DeviceCatalogManagementProps) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={Boolean(brandDeleteTarget)} onOpenChange={(open) => !open && setBrandDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete brand?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {brandDeleteTarget ? `This will permanently delete ${brandDeleteTarget.name}.` : "This brand will be permanently deleted."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmRemoveBrand} disabled={isPending}>
+              {isPending ? "Deleting..." : "Delete brand"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={Boolean(deviceDeleteTarget)} onOpenChange={(open) => !open && setDeviceDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete HP model?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deviceDeleteTarget
+                ? `This will permanently delete ${deviceDeleteTarget.brandName} ${deviceDeleteTarget.modelName}.`
+                : "This HP model will be permanently deleted."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmRemoveDevice} disabled={isPending}>
+              {isPending ? "Deleting..." : "Delete model"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete selected HP models?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedDevices.length} selected HP model(s). Models used by services or sparepart compatibility will be skipped by the server.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmBulkRemoveDevices} disabled={isPending || selectedDevices.length === 0}>
+              {isPending ? "Deleting..." : "Delete selected"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

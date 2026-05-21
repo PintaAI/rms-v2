@@ -86,6 +86,11 @@ Manual smoke checks:
 - Create or update repair invoice.
 - Create inventory item.
 - Restock inventory item.
+- Import old sparepart `.xlsx` file and verify it becomes `repair_part`.
+- Import old retail item `.xlsx` file and verify it becomes `retail_product`.
+- Import file using legacy headers `Nama Sparepart`, `Sparepart`, and `Universal`.
+- Import phone row with optional `Brand` and `Model` columns and verify `deviceModelId` is linked.
+- Confirm `.csv` is either supported and tested or still clearly unsupported in the UI.
 - Complete inventory audit adjustment.
 - Create retail sale.
 - Void retail sale if feature exists.

@@ -44,10 +44,10 @@ function DeviceAvatar({ device, className }: { device: Pick<HpCatalogOption, "br
   const imageSrc = getDeviceImageSrc(device.imageB64);
 
   return (
-    <div className={cn("flex items-center justify-center overflow-hidden bg-muted/50", className)}>
+    <div className={cn("flex items-center justify-center overflow-hidden bg-muted/50", className, imageSrc && "rounded-sm")}>
       {imageSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageSrc} alt="" className="size-full object-contain" />
+        <img src={imageSrc} alt="" className="size-full object-cover" />
       ) : getBrandIcon(device.brandName)}
     </div>
   );

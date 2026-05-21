@@ -386,6 +386,7 @@ model Subscription {
   currentPeriodEnd   DateTime?
   graceEndsAt        DateTime?
   cancelledAt        DateTime?
+  monthlyPriceOverride Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

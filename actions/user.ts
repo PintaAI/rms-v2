@@ -76,6 +76,8 @@ export type BillingPlanSummary = {
     includedTokos: number | null;
     additionalTokoPrice: number | null;
     estimatedMonthlyAmount: number | null;
+    proMonthlyAmount: number | null;
+    monthlyPriceOverride: number | null;
   };
   includedFeatures: BillingFeatureSummary[];
   lockedFeatures: BillingFeatureSummary[];
@@ -90,7 +92,11 @@ export async function getBillingPlanSummary(tokoId?: string): Promise<ActionResu
 
   const targetTokoId = tokoId && user.tokoIds.includes(tokoId) ? tokoId : user.tokoIds[0] ?? null;
 
-  const [staff, technicians] = targetTokoId
+  const subscriptionPromise = prisma.subscription.findUnique({
+    where: { userId: user.id },
+    select: { monthlyPriceOverride: true },
+  });
+  const [staff, technicians, subscription] = targetTokoId
     ? await Promise.all([
         prisma.userToko.count({
           where: {
@@ -104,8 +110,17 @@ export async function getBillingPlanSummary(tokoId?: string): Promise<ActionResu
             user: { role: "technician" },
           },
         }),
+        subscriptionPromise,
       ])
-    : [0, 0];
+    : [0, 0, await subscriptionPromise] as const;
+
+  const defaultEstimatedMonthlyAmount = calculateMonthlyPlanAmount(user.plan, user.tokoIds.length);
+  const estimatedMonthlyAmount = user.plan !== "free" && subscription?.monthlyPriceOverride !== null && subscription?.monthlyPriceOverride !== undefined
+    ? subscription.monthlyPriceOverride
+    : defaultEstimatedMonthlyAmount;
+  const proMonthlyAmount = subscription?.monthlyPriceOverride !== null && subscription?.monthlyPriceOverride !== undefined
+    ? subscription.monthlyPriceOverride
+    : calculateMonthlyPlanAmount("premium", user.tokoIds.length);
 
   const features = FEATURE_KEYS.map((featureKey) => {
     const feature = FEATURE_REGISTRY[featureKey];
@@ -137,7 +152,9 @@ export async function getBillingPlanSummary(tokoId?: string): Promise<ActionResu
         monthlyPrice: getPlanMonthlyPrice(user.plan),
         includedTokos: getPlanIncludedTokos(user.plan),
         additionalTokoPrice: getPlanAdditionalTokoPrice(user.plan),
-        estimatedMonthlyAmount: calculateMonthlyPlanAmount(user.plan, user.tokoIds.length),
+        estimatedMonthlyAmount,
+        proMonthlyAmount,
+        monthlyPriceOverride: subscription?.monthlyPriceOverride ?? null,
       },
       includedFeatures: features.filter((feature) => isPlanAtLeast(user.plan, feature.minimumPlan)),
       lockedFeatures: features.filter((feature) => !isPlanAtLeast(user.plan, feature.minimumPlan)),

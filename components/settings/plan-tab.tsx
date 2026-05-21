@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { BillingPlanSummary } from "@/actions";
-import { getWhatsAppEnterpriseUrl, getWhatsAppProBetaRequestUrl, planLabels } from "./helpers";
+import { formatCurrency, getWhatsAppEnterpriseUrl, getWhatsAppProBetaRequestUrl, planLabels } from "./helpers";
 import type { PlanTabProps } from "./types";
 
 export function PlanSettingsTab({ summary, ownerBilling, isLoading, onChanged, userEmail, tokoName }: PlanTabProps) {
@@ -17,6 +17,7 @@ export function PlanSettingsTab({ summary, ownerBilling, isLoading, onChanged, u
   const proBetaRequestUrl = getWhatsAppProBetaRequestUrl({ email: userEmail, tokoName, context: "Upgrade ke Pro dari User Settings" });
   const enterpriseContactUrl = getWhatsAppEnterpriseUrl({ email: userEmail, tokoName });
   const latestInvoice = ownerBilling?.latestInvoice ?? null;
+  const proMonthlyAmount = summary?.pricing.proMonthlyAmount ?? 990_000;
   const hasOpenProInvoice = latestInvoice?.plan === "premium" && !["paid", "void"].includes(latestInvoice.status);
   const allFeatures = [...(summary?.includedFeatures ?? []), ...(summary?.lockedFeatures ?? [])];
 
@@ -36,7 +37,7 @@ export function PlanSettingsTab({ summary, ownerBilling, isLoading, onChanged, u
     <div className="space-y-4">
       {plan === "free" ? (
         <>
-          <ProUpgradeCard isLoading={isLoading} isCreatingInvoice={isCreatingInvoice} hasOpenProInvoice={Boolean(hasOpenProInvoice)} latestInvoice={latestInvoice} proBetaRequestUrl={proBetaRequestUrl} onCreateInvoice={handleCreateProInvoice} />
+          <ProUpgradeCard isLoading={isLoading} isCreatingInvoice={isCreatingInvoice} hasOpenProInvoice={Boolean(hasOpenProInvoice)} latestInvoice={latestInvoice} proMonthlyAmount={proMonthlyAmount} proBetaRequestUrl={proBetaRequestUrl} onCreateInvoice={handleCreateProInvoice} />
           <EnterpriseCard contactUrl={enterpriseContactUrl} />
         </>
       ) : plan === "premium" ? (
@@ -58,7 +59,7 @@ export function PlanSettingsTab({ summary, ownerBilling, isLoading, onChanged, u
   );
 }
 
-function ProUpgradeCard({ isLoading, isCreatingInvoice, hasOpenProInvoice, latestInvoice, proBetaRequestUrl, onCreateInvoice }: { isLoading: boolean; isCreatingInvoice: boolean; hasOpenProInvoice: boolean; latestInvoice: PlanTabProps["ownerBilling"] extends infer T ? T extends { latestInvoice: infer I } ? I : never : never; proBetaRequestUrl: string; onCreateInvoice: () => void }) {
+function ProUpgradeCard({ isLoading, isCreatingInvoice, hasOpenProInvoice, latestInvoice, proMonthlyAmount, proBetaRequestUrl, onCreateInvoice }: { isLoading: boolean; isCreatingInvoice: boolean; hasOpenProInvoice: boolean; latestInvoice: PlanTabProps["ownerBilling"] extends infer T ? T extends { latestInvoice: infer I } ? I : never : never; proMonthlyAmount: number | null; proBetaRequestUrl: string; onCreateInvoice: () => void }) {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-[radial-gradient(circle_at_8%_0%,hsl(var(--primary)/0.28),transparent_34%),radial-gradient(circle_at_100%_8%,hsl(var(--primary)/0.16),transparent_28%),linear-gradient(145deg,hsl(var(--card))_0%,hsl(var(--background))_58%,hsl(var(--primary)/0.08)_100%)] p-4 shadow-sm sm:p-5">
       <div className="pointer-events-none absolute -right-5 top-4 hidden h-28 w-28 bg-[radial-gradient(circle,hsl(var(--primary)/0.34)_1px,transparent_1px)] [background-size:9px_9px] opacity-45 sm:block" />
@@ -68,7 +69,7 @@ function ProUpgradeCard({ isLoading, isCreatingInvoice, hasOpenProInvoice, lates
           <div className="min-w-0 space-y-1"><p className="text-xl font-black tracking-tight sm:text-2xl">Upgrade ke <span className="text-primary">Pro</span></p><p className="max-w-md text-sm text-muted-foreground">Fitur operasional lengkap untuk manajemen toko servis yang lebih efisien dan terorganisir.</p></div>
         </div>
         <div className="grid gap-3 lg:grid-cols-[0.92fr_1.08fr]">
-          <div className="rounded-xl border border-primary/15 bg-background/55 p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-primary">Paket Pro</p><div className="mt-3 flex flex-wrap items-baseline gap-1"><span className="text-sm font-bold text-muted-foreground">Rp</span><span className="text-5xl font-black leading-none tracking-tighter sm:text-6xl">990</span><span className="text-2xl font-black leading-none tracking-tight">.000</span></div><p className="mt-1.5 text-sm text-muted-foreground">/ bulan</p><div className="my-4 h-px bg-primary/20" /><Badge variant="success">Termasuk 2 toko</Badge></div>
+          <div className="rounded-xl border border-primary/15 bg-background/55 p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-primary">Paket Pro</p><div className="mt-3 text-4xl font-black leading-none tracking-tighter sm:text-5xl">{formatCurrency(proMonthlyAmount)}</div><p className="mt-1.5 text-sm text-muted-foreground">/ bulan</p><div className="my-4 h-px bg-primary/20" /><Badge variant="success">Termasuk 2 toko</Badge></div>
           <div className="rounded-xl border bg-background/45 p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Paket ini termasuk</p><div className="mt-3 divide-y divide-border/50"><ProBenefitItem title="2 toko included" description="Kelola hingga 2 toko dalam 1 akun" /><ProBenefitItem title="Staff + Teknisi" description="3 staff + 2 teknisi dengan akses penuh" /><ProBenefitItem title="Service / bulan" description="Hingga 100 service setiap bulan" /></div></div>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background/45 p-3.5"><div className="flex items-center gap-3"><div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><RiAddLine className="size-4.5" /></div><div><p className="text-sm font-semibold">Tambahan toko</p><p className="text-xs text-muted-foreground">Setelah 2 toko included</p></div></div><p className="font-bold tabular-nums">Rp499.000/toko/bulan</p></div>

@@ -103,8 +103,14 @@ export async function refreshSubscriptionStatus(subscriptionId: string) {
 }
 
 export async function calculateOwnerMonthlyAmount(userId: string, plan: SubscriptionPlan = "premium") {
-  const tokoCount = await prisma.userToko.count({ where: { userId } });
-  const amount = calculateMonthlyPlanAmount(plan, tokoCount);
+  const [tokoCount, subscription] = await Promise.all([
+    prisma.userToko.count({ where: { userId } }),
+    prisma.subscription.findUnique({ where: { userId }, select: { monthlyPriceOverride: true } }),
+  ]);
+  const defaultAmount = calculateMonthlyPlanAmount(plan, tokoCount);
+  const amount = plan !== "free" && subscription?.monthlyPriceOverride !== null && subscription?.monthlyPriceOverride !== undefined
+    ? subscription.monthlyPriceOverride
+    : defaultAmount;
   const includedTokos = getPlanIncludedTokos(plan);
   const additionalTokoPrice = getPlanAdditionalTokoPrice(plan);
   const additionalTokos = Math.max(0, tokoCount - (includedTokos ?? tokoCount));

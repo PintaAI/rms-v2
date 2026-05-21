@@ -162,6 +162,85 @@ Navigation, settings, onboarding:
 - `components/dashboard/admin/feature-settings-tab.tsx`
 - `components/shared/onboarding-wizard.tsx`
 
+## Legacy Import Compatibility Checklist
+
+Existing inventory imports are customer-facing behavior and must not regress during the rename.
+
+Files to update or review:
+
+- `components/dashboard/inventory/sparepart-import-dialog.tsx`
+- `actions/inventory.ts`
+- Any renamed inventory import dialog/action files.
+
+Compatibility requirements:
+
+- `.xlsx` and `.xls` imports continue to work.
+- Existing old templates continue to work without changing column names.
+- Do not claim `.csv` support unless the file input accepts `.csv` and parser handles CSV content.
+- Keep accepting legacy item type values `sparepart` and `retail_item` at the import boundary.
+- Convert `sparepart` to `repair_part` before writing `InventoryItem.type`.
+- Convert `retail_item` to `retail_product` before writing `InventoryItem.type`.
+- Existing item names update the matching store inventory item instead of creating duplicates.
+
+Legacy headers to preserve:
+
+```text
+Nama
+Name
+Nama Sparepart
+Sparepart
+Harga Jual
+Harga
+Harga Default
+Default Price
+defaultPrice
+Harga Beli
+Purchase Price
+purchasePrice
+Supplier
+Nama Supplier
+supplierName
+Kategori
+Category
+categoryName
+Stok
+Stock
+Stok Kritis
+Critical Stock
+criticalStock
+Minimum Stock
+minimumStock
+Garansi Hari
+Garansi
+Warranty Days
+warrantyDays
+Universal
+Is Universal
+isUniversal
+```
+
+Optional new phone headers:
+
+```text
+Brand
+Merek
+Model
+Model HP
+Nomor Model
+Model Number
+IMEI
+Serial Number
+Kondisi
+Condition
+```
+
+Phone import rules:
+
+- If `Brand`/`Merek` and `Model`/`Model HP` are present, link the item to `InventoryItem.deviceModelId`.
+- If the device brand/model does not exist, create or import it using the same authorization policy as current device import.
+- If `InventoryUnit` is deferred, ignore or reject IMEI/serial columns with a clear message; do not silently pretend unit tracking exists.
+- Missing phone columns must not fail legacy imports.
+
 ## Seeds And Generated Files
 
 Seed scripts:

@@ -11,11 +11,7 @@ import { activatePaidSubscription } from "@/lib/subscription-billing";
 import { addDays, PRO_PERIOD_DAYS, startProTrial } from "@/lib/subscription-billing";
 import type { SubscriptionInvoiceStatus, SubscriptionPaymentMethod } from "@/prisma/generated/prisma/enums";
 import { z } from "zod";
-
-const SUBSCRIPTION_PRICES: Record<Exclude<SubscriptionPlan, "free">, number> = {
-  premium: 990_000,
-  enterprise: 0,
-};
+import { calculateMonthlyPlanAmount } from "@/lib/plans";
 
 export interface SuperuserDashboardStats {
   users: {
@@ -61,9 +57,20 @@ export interface SuperuserUserRow {
   trialEndsAt: Date | null;
   proTrialStartedAt: Date | null;
   currentPeriodEnd: Date | null;
+  monthlyPriceOverride: number | null;
+  estimatedMonthlyPrice: number | null;
   tokoCount: number;
   staffCount: number;
   technicianCount: number;
+  serviceCount: number;
+  monthlyServiceCount: number;
+  monthlyRevenue: number;
+  totalRevenue: number;
+  tokoSummaries: Array<{
+    id: string;
+    name: string;
+    status: string;
+  }>;
   createdAt: Date;
   lastActivity?: Date | null;
 }
@@ -224,7 +231,6 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
     serviceCounts,
     serviceStatusCounts,
     monthlyServiceCount,
-    monthlySubscriptionCounts,
     users,
     pendingPayments,
   ] = await Promise.all([
@@ -248,11 +254,6 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
     prisma.service.count({
       where: { checkinAt: { gte: monthlyStart } },
     }),
-    prisma.subscription.groupBy({
-      by: ["plan"],
-      where: { createdAt: { gte: monthlyStart } },
-      _count: { plan: true },
-    }),
     prisma.user.findMany({
       where: { role: "admin" },
       select: {
@@ -261,13 +262,24 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
         email: true,
         createdAt: true,
         subscription: {
-          select: { plan: true, status: true, trialEndsAt: true, proTrialStartedAt: true, currentPeriodEnd: true },
+          select: {
+            plan: true,
+            status: true,
+            trialEndsAt: true,
+            proTrialStartedAt: true,
+            currentPeriodEnd: true,
+            monthlyPriceOverride: true,
+            createdAt: true,
+          },
         },
         tokoAssignments: {
           select: {
             tokoId: true,
             toko: {
               select: {
+                id: true,
+                name: true,
+                status: true,
                 userAssignments: {
                   where: { user: { role: { in: ["staff", "technician"] } } },
                   select: {
@@ -300,6 +312,47 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
     }),
   ]);
 
+  const adminDetailStats = new Map(
+    await Promise.all(
+      users.map(async (user) => {
+        const tokoIds = user.tokoAssignments.map((assignment) => assignment.tokoId);
+        if (tokoIds.length === 0) {
+          return [
+            user.id,
+            { serviceCount: 0, monthlyServiceCount: 0, monthlyRevenue: 0, totalRevenue: 0 },
+          ] as const;
+        }
+
+        const [serviceCount, monthlyServiceCount, totalRevenue, monthlyRevenue] = await Promise.all([
+          prisma.service.count({ where: { tokoId: { in: tokoIds } } }),
+          prisma.service.count({ where: { tokoId: { in: tokoIds }, checkinAt: { gte: monthlyStart } } }),
+          prisma.invoice.aggregate({
+            where: { paymentStatus: "paid", service: { tokoId: { in: tokoIds } } },
+            _sum: { grandTotal: true },
+          }),
+          prisma.invoice.aggregate({
+            where: {
+              paymentStatus: "paid",
+              paidAt: { gte: monthlyStart },
+              service: { tokoId: { in: tokoIds } },
+            },
+            _sum: { grandTotal: true },
+          }),
+        ]);
+
+        return [
+          user.id,
+          {
+            serviceCount,
+            monthlyServiceCount,
+            monthlyRevenue: monthlyRevenue._sum.grandTotal ?? 0,
+            totalRevenue: totalRevenue._sum.grandTotal ?? 0,
+          },
+        ] as const;
+      })
+    )
+  );
+
   const usersByRole: Record<string, number> = {};
   for (const row of userCounts) {
     usersByRole[row.role] = row._count.role;
@@ -310,17 +363,6 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
     subscriptionsByPlan[row.plan] = row._count.plan;
   }
 
-  const monthlySubscriptionsByPlan: Record<string, number> = {};
-  for (const row of monthlySubscriptionCounts) {
-    monthlySubscriptionsByPlan[row.plan] = row._count.plan;
-  }
-
-  const totalSubscriptionRevenue =
-    (subscriptionsByPlan["premium"] || 0) * SUBSCRIPTION_PRICES.premium +
-    (subscriptionsByPlan["enterprise"] || 0) * SUBSCRIPTION_PRICES.enterprise;
-  const monthlyNewSubscriptionRevenue =
-    (monthlySubscriptionsByPlan["premium"] || 0) * SUBSCRIPTION_PRICES.premium +
-    (monthlySubscriptionsByPlan["enterprise"] || 0) * SUBSCRIPTION_PRICES.enterprise;
   const paidSubscribers = (subscriptionsByPlan["premium"] || 0) + (subscriptionsByPlan["enterprise"] || 0);
 
   const tokosByStatus: Record<string, number> = {};
@@ -336,6 +378,12 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
   const userRows: SuperuserUserRow[] = users.map((user) => {
     const staffIds = new Set<string>();
     const technicianIds = new Set<string>();
+    const detailStats = adminDetailStats.get(user.id) ?? {
+      serviceCount: 0,
+      monthlyServiceCount: 0,
+      monthlyRevenue: 0,
+      totalRevenue: 0,
+    };
 
     for (const assignment of user.tokoAssignments) {
       for (const relatedAssignment of assignment.toko.userAssignments) {
@@ -349,22 +397,47 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
       }
     }
 
+    const plan = (user.subscription?.plan as SubscriptionPlan) || "free";
+    const estimatedMonthlyPrice = user.subscription?.monthlyPriceOverride ?? calculateMonthlyPlanAmount(plan, user.tokoAssignments.length);
+
     return {
       id: user.id,
       name: user.name,
       email: user.email,
-      plan: (user.subscription?.plan as SubscriptionPlan) || "free",
+      plan,
       subscriptionStatus: user.subscription?.status ?? null,
       trialEndsAt: user.subscription?.trialEndsAt ?? null,
       proTrialStartedAt: user.subscription?.proTrialStartedAt ?? null,
       currentPeriodEnd: user.subscription?.currentPeriodEnd ?? null,
+      monthlyPriceOverride: user.subscription?.monthlyPriceOverride ?? null,
+      estimatedMonthlyPrice,
       tokoCount: user.tokoAssignments.length,
       staffCount: staffIds.size,
       technicianCount: technicianIds.size,
+      serviceCount: detailStats.serviceCount,
+      monthlyServiceCount: detailStats.monthlyServiceCount,
+      monthlyRevenue: detailStats.monthlyRevenue,
+      totalRevenue: detailStats.totalRevenue,
+      tokoSummaries: user.tokoAssignments.map((assignment) => ({
+        id: assignment.toko.id,
+        name: assignment.toko.name,
+        status: assignment.toko.status,
+      })),
       createdAt: user.createdAt,
       lastActivity: user.activities[0]?.createdAt ?? null,
     };
   });
+
+  const totalSubscriptionRevenue = userRows.reduce((sum, row) => {
+    if (row.plan !== "premium" && row.plan !== "enterprise") return sum;
+    return sum + (row.estimatedMonthlyPrice ?? 0);
+  }, 0);
+  const monthlyNewSubscriptionRevenue = userRows.reduce((sum, row) => {
+    if (row.plan !== "premium" && row.plan !== "enterprise") return sum;
+    const user = users.find((candidate) => candidate.id === row.id);
+    if (!user?.subscription?.createdAt || user.subscription.createdAt < monthlyStart) return sum;
+    return sum + (row.estimatedMonthlyPrice ?? 0);
+  }, 0);
 
   const stats: SuperuserDashboardStats = {
     users: {
@@ -712,6 +785,45 @@ export async function updateUserSubscription(
     console.error("Failed to update subscription:", error);
     return { success: false, error: "Failed to update subscription" };
   }
+}
+
+export async function updateUserMonthlyPriceOverride(
+  userId: string,
+  monthlyPriceOverride: number | null
+): Promise<ActionResultWithData<{ userId: string; monthlyPriceOverride: number | null }>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
+
+  if (monthlyPriceOverride !== null && (!Number.isInteger(monthlyPriceOverride) || monthlyPriceOverride <= 0)) {
+    return { success: false, error: "Monthly price must be a positive whole number" };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true },
+  });
+
+  if (!targetUser || targetUser.role !== "admin") {
+    return { success: false, error: "Only admin accounts can have custom monthly pricing" };
+  }
+
+  const subscription = await prisma.subscription.upsert({
+    where: { userId },
+    create: {
+      userId,
+      plan: "free",
+      status: "active",
+      monthlyPriceOverride,
+    },
+    update: { monthlyPriceOverride },
+    select: { userId: true, monthlyPriceOverride: true },
+  });
+
+  revalidatePath("/superuser");
+  revalidatePath("/dashboard");
+  return { success: true, data: subscription };
 }
 
 export async function grantUserProTrial(userId: string): Promise<ActionResultWithData<{ userId: string; trialEndsAt: Date | null }>> {

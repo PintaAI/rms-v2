@@ -14,6 +14,7 @@
     "seed": "bunx prisma db seed",
     "seed:superuser": "bunx tsx prisma/seed-superuser.ts",
     "seed:demo-services": "bunx tsx prisma/seed-demo-services.ts",
+    "seed:devices": "bunx tsx prisma/seed-mobileapi-devices.ts",
     "seed:small": "SEED_SIZE=small bunx prisma db seed",
     "seed:medium": "SEED_SIZE=medium bunx prisma db seed",
     "seed:large": "SEED_SIZE=large bunx prisma db seed",
