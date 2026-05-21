@@ -32,6 +32,7 @@ Used by app features:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `BLOB_READ_WRITE_TOKEN`
+- `MOBILEAPI_API_KEY` for optional MobileAPI.dev device search assist
 
 ## Install
 

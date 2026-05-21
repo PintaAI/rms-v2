@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { createDevice } from "@/actions";
+import { createDevice, importMobileApiDevice, searchMobileApiDevices, type MobileApiDeviceSuggestion } from "@/actions";
 import { upsertStoredDevice } from "@/lib/device-catalog-cache";
 import { fuzzyScore } from "@/lib/fuzzy-search";
 import type { HpCatalogOption } from "@/components/shared/device-input";
@@ -33,6 +33,8 @@ export function useDeviceSearch({
 }: UseDeviceSearchOptions) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<HpCatalogOption[]>([]);
+  const [mobileApiResults, setMobileApiResults] = useState<MobileApiDeviceSuggestion[]>([]);
+  const [isSearchingMobileApi, setIsSearchingMobileApi] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -112,6 +114,45 @@ export function useDeviceSearch({
     };
   }, [query, devices, excludeSet]);
 
+  useEffect(() => {
+    const trimmed = query.trim();
+    const hasLocalMatch = devices.some(
+      (device) => !excludeSet.has(device.id) && fuzzyScore(trimmed, `${device.brandName} ${device.modelName}`) !== null
+    );
+
+    if (trimmed.length < 3 || hasLocalMatch) {
+      setMobileApiResults([]);
+      setIsSearchingMobileApi(false);
+      return;
+    }
+
+    let active = true;
+    const timeout = setTimeout(async () => {
+      setIsSearchingMobileApi(true);
+
+      try {
+        const externalResults = await searchMobileApiDevices(trimmed);
+        if (!active) return;
+
+        const localNames = new Set(
+          devices.map((device) => `${device.brandName} ${device.modelName}`.toLowerCase())
+        );
+        setMobileApiResults(
+          externalResults.filter((device) => !localNames.has(`${device.brandName} ${device.modelName}`.toLowerCase()))
+        );
+      } catch {
+        if (active) setMobileApiResults([]);
+      } finally {
+        if (active) setIsSearchingMobileApi(false);
+      }
+    }, 450);
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [query, devices, excludeSet]);
+
   const selectDevice = useCallback(
     (device: HpCatalogOption) => {
       onSelect(device);
@@ -141,6 +182,21 @@ export function useDeviceSearch({
     }
   }, [query, selectDevice, onDeviceCreated]);
 
+  const handleImportMobileApiDevice = useCallback(async (suggestion: MobileApiDeviceSuggestion) => {
+    setIsCreating(true);
+
+    try {
+      const device = await importMobileApiDevice(suggestion);
+      upsertStoredDevice(device);
+      onDeviceCreated?.(device);
+      selectDevice(device);
+    } catch {
+      // Silently fail - user can retry or create a local device manually.
+    } finally {
+      setIsCreating(false);
+    }
+  }, [selectDevice, onDeviceCreated]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (!showDropdown) return;
@@ -161,6 +217,8 @@ export function useDeviceSearch({
         e.preventDefault();
         if (highlightedIndex >= 0 && results[highlightedIndex]) {
           selectDevice(results[highlightedIndex]);
+        } else if (results.length === 0 && mobileApiResults[0]) {
+          handleImportMobileApiDevice(mobileApiResults[0]);
         } else if (results.length === 0 && query.trim()) {
           handleCreate();
         }
@@ -170,7 +228,7 @@ export function useDeviceSearch({
         setHighlightedIndex(-1);
       }
     },
-    [showDropdown, results, highlightedIndex, handleCreate, query, selectDevice]
+    [showDropdown, results, mobileApiResults, highlightedIndex, handleCreate, handleImportMobileApiDevice, query, selectDevice]
   );
 
   const createLabel = useMemo(() => {
@@ -183,6 +241,8 @@ export function useDeviceSearch({
     query,
     setQuery,
     results,
+    mobileApiResults,
+    isSearchingMobileApi,
     isCreating,
     showDropdown,
     setShowDropdown,
@@ -191,6 +251,7 @@ export function useDeviceSearch({
     dropdownRef,
     inputRef,
     handleCreate,
+    handleImportMobileApiDevice,
     handleKeyDown,
     selectDevice,
     createLabel,

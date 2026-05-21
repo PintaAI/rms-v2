@@ -610,6 +610,8 @@ model HpCatalog {
   brandId     String
   modelName   String
   modelNumber String?
+  mobileApiId String?  @unique
+  metadata    Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -11,6 +11,7 @@ import {
   findWhatsappMessages,
   getEvolutionPublicUrl,
   getWhatsappConnectionState,
+  markWhatsappMessagesAsRead,
   sendWhatsappText,
   setWhatsappWebsocket,
 } from "@/lib/evolution";
@@ -101,6 +102,16 @@ export interface WhatsappInboxMessagesResponse {
 
 export interface WhatsappInboxSendResponse {
   message: WhatsappInboxMessage;
+  raw: unknown;
+}
+
+export interface WhatsappInboxMarkReadMessageInput {
+  id: string;
+  remoteJid: string;
+  fromMe: boolean;
+}
+
+export interface WhatsappInboxMarkReadResponse {
   raw: unknown;
 }
 
@@ -966,6 +977,31 @@ export async function sendWhatsappInboxMessage(
 
     logWhatsappAction("inbox.send", { tokoId, instanceName: setting.instanceName, remoteJid: normalizedRemoteJid, alternateJid: normalizedAlternateJid, sendRemoteJid, textLength: trimmedText.length });
     return { message: sentMessage, raw: WHATSAPP_DEBUG ? redactEvolutionDebugValue(response) : null };
+  });
+}
+
+export async function markWhatsappInboxMessagesAsRead(
+  tokoId: string,
+  messages: WhatsappInboxMarkReadMessageInput[]
+): Promise<ActionResultWithData<WhatsappInboxMarkReadResponse>> {
+  return withScope(tokoId, {}, async (scope) => {
+    assertPermission(scope, "whatsapp.view");
+    const setting = await getSettingByTokoId(tokoId);
+    if (!setting) throw new Error("WhatsApp setting not found");
+
+    const readMessages = messages
+      .filter((message) => !message.fromMe && message.id && message.remoteJid)
+      .map((message) => ({
+        id: message.id,
+        fromMe: false,
+        remoteJid: normalizeRemoteJid(message.remoteJid) ?? message.remoteJid,
+      }));
+
+    if (readMessages.length === 0) return { raw: null };
+
+    const response = await markWhatsappMessagesAsRead({ instanceName: setting.instanceName, readMessages });
+    logWhatsappAction("inbox.markRead", { tokoId, instanceName: setting.instanceName, count: readMessages.length });
+    return { raw: WHATSAPP_DEBUG ? redactEvolutionDebugValue(response) : null };
   });
 }
 

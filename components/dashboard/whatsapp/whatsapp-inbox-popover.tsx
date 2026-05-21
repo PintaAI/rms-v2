@@ -9,8 +9,10 @@ import {
   getWhatsappInboxChats,
   getWhatsappInboxMessages,
   getWhatsappState,
+  markWhatsappInboxMessagesAsRead,
   sendWhatsappInboxMessage,
   type WhatsappInboxChat,
+  type WhatsappInboxChatsResponse,
   type WhatsappInboxLinkedService,
   type WhatsappInboxMessage,
   type WhatsappInboxMessageStatus,
@@ -250,6 +252,7 @@ export function WhatsappInboxPopover() {
   const refreshTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const preserveMessagesScrollRef = React.useRef<{ height: number; top: number } | null>(null);
   const shouldScrollMessagesToBottomRef = React.useRef(false);
+  const markedReadKeysRef = React.useRef<Set<string>>(new Set());
 
   const chatsQueryKey = React.useMemo(() => ["whatsapp", "chats", tokoId] as const, [tokoId]);
   const messagesQueryKey = React.useMemo(
@@ -425,6 +428,56 @@ export function WhatsappInboxPopover() {
     shouldScrollMessagesToBottomRef.current = Boolean(selectedChat);
     preserveMessagesScrollRef.current = null;
   }, [selectedChat]);
+
+  React.useEffect(() => {
+    if (!open || !selectedChat || isLoadingMessages || messages.length === 0) return;
+
+    const incomingMessages = messages.filter((message) => !message.fromMe && message.remoteJid && message.id);
+    if (incomingMessages.length === 0) return;
+
+    const latestIncomingIds = incomingMessages.slice(-50).map((message) => message.id).join("|");
+    const markReadKey = `${getChatIdentityKey(selectedChat)}:${latestIncomingIds}`;
+    if (markedReadKeysRef.current.has(markReadKey)) return;
+    markedReadKeysRef.current.add(markReadKey);
+
+    const markRead = async () => {
+      let result: Awaited<ReturnType<typeof markWhatsappInboxMessagesAsRead>>;
+
+      try {
+        result = await markWhatsappInboxMessagesAsRead(tokoId, incomingMessages.slice(-50).map((message) => ({
+          id: message.id,
+          remoteJid: message.remoteJid,
+          fromMe: message.fromMe,
+        })));
+      } catch (error) {
+        markedReadKeysRef.current.delete(markReadKey);
+        recordDebug("markMessageAsRead exception", error instanceof Error ? error.message : String(error));
+        return;
+      }
+
+      if (!result.success) {
+        markedReadKeysRef.current.delete(markReadKey);
+        recordDebug("markMessageAsRead error", result);
+        return;
+      }
+
+      recordDebug("markMessageAsRead response", result.data?.raw ?? null);
+      setSelectedChat((current) => current && getChatIdentityKey(current) === getChatIdentityKey(selectedChat) ? { ...current, unreadCount: 0 } : current);
+      queryClient.setQueryData<InfiniteData<WhatsappInboxChatsResponse>>(chatsQueryKey, (current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          pages: current.pages.map((page) => ({
+            ...page,
+            items: page.items.map((chat) => getChatIdentityKey(chat) === getChatIdentityKey(selectedChat) ? { ...chat, unreadCount: 0 } : chat),
+          })),
+        };
+      });
+      void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    };
+
+    void markRead();
+  }, [chatsQueryKey, isLoadingMessages, messages, open, queryClient, recordDebug, selectedChat, tokoId]);
 
   React.useEffect(() => {
     const viewport = messagesScrollAreaRef.current?.querySelector<HTMLElement>("[data-slot='scroll-area-viewport']");

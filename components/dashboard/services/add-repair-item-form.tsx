@@ -18,7 +18,7 @@ import { cn, formatCurrency, formatCurrencyInput, getCurrencyInputDigits } from 
 import { useScannerPairing, ScannerPairingPanel, ScannerToggleButton } from "@/components/shared/scanner-pairing";
 import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import { toast } from "sonner";
-import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
+import { SparepartFormDialog } from "@/components/dashboard/inventory/inventory-item-form-dialog";
 import { ServicePricelistFormDialog } from "@/components/dashboard/inventory/service-pricelist-form-dialog";
 import {
   RiAddLine,

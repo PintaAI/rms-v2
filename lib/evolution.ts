@@ -207,6 +207,20 @@ export async function findWhatsappMessages(input: {
   });
 }
 
+export async function markWhatsappMessagesAsRead(input: {
+  instanceName: string;
+  readMessages: Array<{
+    remoteJid: string;
+    fromMe: boolean;
+    id: string;
+  }>;
+}): Promise<unknown> {
+  return evolutionFetch(`/chat/markMessageAsRead/${encodeURIComponent(input.instanceName)}`, {
+    method: "POST",
+    body: JSON.stringify({ readMessages: input.readMessages }),
+  });
+}
+
 export async function findWhatsappContacts(instanceName: string): Promise<unknown> {
   return evolutionFetch(`/chat/findContacts/${encodeURIComponent(instanceName)}`, {
     method: "POST",

@@ -26,7 +26,7 @@ import {
   type SparepartWithCompatibilities,
   type ServicePricelist,
 } from "@/actions/inventory";
-import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
+import { SparepartFormDialog } from "@/components/dashboard/inventory/inventory-item-form-dialog";
 import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/sparepart-label-print-dialog";
 import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepart-restock-dialog";
 import { SparepartImportDialog } from "@/components/dashboard/inventory/sparepart-import-dialog";

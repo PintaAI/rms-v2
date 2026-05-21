@@ -21,6 +21,19 @@ export interface DeviceListItem {
   id: string
   modelName: string
   brandName: string
+  imageB64: string | null
+}
+
+export interface MobileApiDeviceSuggestion {
+  mobileApiId: string
+  brandName: string
+  modelName: string
+  modelNumber: string | null
+  deviceType: string | null
+  imageB64: string | null
+  matchCertainty: string | null
+  matchType: string | null
+  description: string | null
 }
 
 export interface DeviceCatalogPayload {
@@ -34,6 +47,78 @@ async function getDeviceWriteUser() {
   if (user.role !== "admin") throw new Error("Only admins can manage device data")
   return user
 }
+
+async function getDeviceImportUser() {
+  const user = await getRequestUser()
+  if (!user) throw new Error("Unauthorized")
+  if (!["admin", "staff", "superuser"].includes(user.role)) {
+    throw new Error("Only staff can import device data")
+  }
+  return user
+}
+
+function stripBrandPrefix(name: string, brandName: string) {
+  const normalizedName = name.trim()
+  const normalizedBrand = brandName.trim()
+  if (!normalizedBrand) return normalizedName
+
+  return normalizedName.toLowerCase().startsWith(`${normalizedBrand.toLowerCase()} `)
+    ? normalizedName.slice(normalizedBrand.length).trim()
+    : normalizedName
+}
+
+function getMobileApiKey() {
+  return process.env.MOBILEAPI_API_KEY?.trim() || null
+}
+
+function getDeviceImageB64(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object") return null
+  const imageB64 = (metadata as Record<string, unknown>).imageB64
+  return typeof imageB64 === "string" && imageB64.trim() ? imageB64 : null
+}
+
+function toMobileApiSuggestion(value: unknown): MobileApiDeviceSuggestion | null {
+  if (!value || typeof value !== "object") return null
+
+  const record = value as Record<string, unknown>
+  const id = record.id
+  const name = typeof record.name === "string" ? record.name : ""
+  const brandName = typeof record.manufacturer_name === "string"
+    ? record.manufacturer_name
+    : typeof record.brand_name === "string"
+      ? record.brand_name
+      : typeof (record.brand as Record<string, unknown> | undefined)?.name === "string"
+        ? String((record.brand as Record<string, unknown>).name)
+        : ""
+
+  if ((typeof id !== "string" && typeof id !== "number") || !name.trim() || !brandName.trim()) {
+    return null
+  }
+
+  return {
+    mobileApiId: String(id),
+    brandName: brandName.trim(),
+    modelName: stripBrandPrefix(name, brandName),
+    modelNumber: typeof record.model_numbers === "string" ? record.model_numbers : null,
+    deviceType: typeof record.device_type === "string" ? record.device_type : null,
+    imageB64: typeof record.image_b64 === "string" ? record.image_b64 : null,
+    matchCertainty: typeof record.match_certainty === "string" ? record.match_certainty : null,
+    matchType: typeof record.match_type === "string" ? record.match_type : null,
+    description: typeof record.description === "string" ? record.description : null,
+  }
+}
+
+const mobileApiImportSchema = z.object({
+  mobileApiId: z.string().min(1),
+  brandName: z.string().min(1),
+  modelName: z.string().min(1),
+  modelNumber: z.string().nullable().optional(),
+  deviceType: z.string().nullable().optional(),
+  imageB64: z.string().nullable().optional(),
+  matchCertainty: z.string().nullable().optional(),
+  matchType: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+})
 
 export async function getBrandList(): Promise<Brand[]> {
   'use cache'
@@ -110,6 +195,7 @@ export async function getDeviceList(): Promise<DeviceListItem[]> {
     select: {
       id: true,
       modelName: true,
+      metadata: true,
       brand: { select: { id: true, name: true } },
     },
     take: 500,
@@ -119,6 +205,7 @@ export async function getDeviceList(): Promise<DeviceListItem[]> {
     id: d.id,
     modelName: d.modelName,
     brandName: d.brand.name,
+    imageB64: getDeviceImageB64(d.metadata),
   }))
 }
 
@@ -163,6 +250,7 @@ export async function searchDevices(query: string): Promise<DeviceListItem[]> {
       select: {
         id: true,
         modelName: true,
+        metadata: true,
         brand: { select: { name: true } },
       },
       take: 20,
@@ -171,6 +259,7 @@ export async function searchDevices(query: string): Promise<DeviceListItem[]> {
       id: d.id,
       modelName: d.modelName,
       brandName: d.brand.name,
+      imageB64: getDeviceImageB64(d.metadata),
     }))
   }
 
@@ -201,6 +290,7 @@ export async function searchDevices(query: string): Promise<DeviceListItem[]> {
     select: {
       id: true,
       modelName: true,
+      metadata: true,
       brand: { select: { name: true } },
     },
     take: 20,
@@ -210,7 +300,116 @@ export async function searchDevices(query: string): Promise<DeviceListItem[]> {
     id: d.id,
     modelName: d.modelName,
     brandName: d.brand.name,
+    imageB64: getDeviceImageB64(d.metadata),
   }))
+}
+
+export async function searchMobileApiDevices(query: string): Promise<MobileApiDeviceSuggestion[]> {
+  const user = await getRequestUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const apiKey = getMobileApiKey()
+  const trimmed = query.trim()
+  if (!apiKey || trimmed.length < 3) return []
+
+  const params = new URLSearchParams({ name: trimmed, page: "1" })
+  const response = await fetch(`https://api.mobileapi.dev/devices/search/?${params.toString()}`, {
+    headers: {
+      Authorization: `Token ${apiKey}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  })
+
+  if (response.status === 204) return []
+  if (!response.ok) return []
+
+  const payload = await response.json() as { devices?: unknown[] }
+  return (payload.devices ?? [])
+    .map(toMobileApiSuggestion)
+    .filter((item): item is MobileApiDeviceSuggestion => Boolean(item))
+    .slice(0, 8)
+}
+
+export async function importMobileApiDevice(data: MobileApiDeviceSuggestion): Promise<DeviceListItem> {
+  await getDeviceImportUser()
+
+  const validated = mobileApiImportSchema.parse(data)
+  const existingBrand = await prisma.brand.findUnique({
+    where: { name: validated.brandName },
+    select: { id: true, name: true },
+  })
+
+  const brand = existingBrand ?? await prisma.brand.create({
+    data: { name: validated.brandName },
+    select: { id: true, name: true },
+  })
+
+  const metadata = {
+    source: "mobileapi.dev",
+    deviceType: validated.deviceType ?? null,
+    imageB64: validated.imageB64 ?? null,
+    matchCertainty: validated.matchCertainty ?? null,
+    matchType: validated.matchType ?? null,
+    description: validated.description ?? null,
+  }
+
+  const existingDevice = await prisma.hpCatalog.findFirst({
+    where: {
+      OR: [
+        { mobileApiId: validated.mobileApiId },
+        { brandId: brand.id, modelName: validated.modelName },
+      ],
+    },
+    include: { brand: { select: { name: true } } },
+  })
+
+  if (existingDevice) {
+    const updated = await prisma.hpCatalog.update({
+      where: { id: existingDevice.id },
+      data: {
+        brandId: brand.id,
+        modelName: validated.modelName,
+        modelNumber: validated.modelNumber || existingDevice.modelNumber,
+        mobileApiId: validated.mobileApiId,
+        metadata,
+      },
+      include: { brand: { select: { name: true } } },
+    })
+
+    updateTag('devices')
+    updateTag('brands')
+
+    return {
+      id: updated.id,
+      modelName: updated.modelName,
+      brandName: updated.brand.name,
+      imageB64: getDeviceImageB64(updated.metadata),
+    }
+  }
+
+  const device = await prisma.hpCatalog.create({
+    data: {
+      brandId: brand.id,
+      modelName: validated.modelName,
+      modelNumber: validated.modelNumber || null,
+      mobileApiId: validated.mobileApiId,
+      metadata,
+    },
+    include: { brand: { select: { name: true } } },
+  })
+
+  revalidatePath("/dashboard/admin/devices")
+  revalidatePath("/dashboard/staff/services")
+  updateTag('devices')
+  updateTag('brands')
+
+  return {
+    id: device.id,
+    modelName: device.modelName,
+    brandName: device.brand.name,
+    imageB64: getDeviceImageB64(device.metadata),
+  }
 }
 
 export async function getDevice(id: string): Promise<Device> {
@@ -270,6 +469,7 @@ export async function createDevice(
       id: existingDevice.id,
       modelName: existingDevice.modelName,
       brandName: existingDevice.brand.name,
+      imageB64: getDeviceImageB64(existingDevice.metadata),
     }
   }
 
@@ -291,6 +491,7 @@ export async function createDevice(
     id: device.id,
     modelName: device.modelName,
     brandName: device.brand.name,
+    imageB64: getDeviceImageB64(device.metadata),
   }
 }
 

@@ -2,7 +2,6 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   RiDashboardLine,
   RiTeamLine,
@@ -17,6 +16,7 @@ import {
   RiCloseLine,
   RiInboxLine,
   RiWhatsappLine,
+  RiSmartphoneLine,
 } from "@remixicon/react";
 import {
   OverviewStatsCard,
@@ -27,8 +27,9 @@ import { UserManagementTable } from "@/components/superuser/user-management-tabl
 import { SubscriptionPaymentReview } from "@/components/superuser/subscription-payment-review";
 import { AffiliateManagement } from "@/components/superuser/affiliate-management";
 import { WhatsappManagement } from "@/components/superuser/whatsapp-management";
+import { DeviceCatalogManagement } from "@/components/superuser/device-catalog-management";
 import { formatCurrency } from "@/lib/utils";
-import type { SuperuserDashboardStats, SuperuserUserRow, PendingSubscriptionPaymentRow } from "@/actions/superuser";
+import type { SuperuserDashboardStats, SuperuserUserRow, PendingSubscriptionPaymentRow, SuperuserDeviceCatalogData } from "@/actions/superuser";
 import type { AffiliateDashboardData } from "@/actions/affiliate";
 
 interface SuperuserTabsProps {
@@ -36,9 +37,10 @@ interface SuperuserTabsProps {
   users: SuperuserUserRow[];
   pendingPayments: PendingSubscriptionPaymentRow[];
   affiliateData: AffiliateDashboardData;
+  catalogData: SuperuserDeviceCatalogData;
 }
 
-export function SuperuserTabs({ stats, users, pendingPayments, affiliateData }: SuperuserTabsProps) {
+export function SuperuserTabs({ stats, users, pendingPayments, affiliateData, catalogData }: SuperuserTabsProps) {
   return (
     <Tabs defaultValue="overview">
       <TabsList variant="line" className="mb-4 w-full justify-start overflow-x-auto px-1">
@@ -46,6 +48,7 @@ export function SuperuserTabs({ stats, users, pendingPayments, affiliateData }: 
         <TabsTrigger value="users"><RiTeamLine data-icon="inline-start" />Users</TabsTrigger>
         <TabsTrigger value="payments"><RiMoneyDollarCircleLine data-icon="inline-start" />Payments</TabsTrigger>
         <TabsTrigger value="affiliate"><RiLinksLine data-icon="inline-start" />Affiliate</TabsTrigger>
+        <TabsTrigger value="catalog"><RiSmartphoneLine data-icon="inline-start" />HP Katalog</TabsTrigger>
         <TabsTrigger value="whatsapp"><RiWhatsappLine data-icon="inline-start" />WhatsApp</TabsTrigger>
       </TabsList>
 
@@ -276,6 +279,10 @@ export function SuperuserTabs({ stats, users, pendingPayments, affiliateData }: 
 
       <TabsContent value="affiliate">
         <AffiliateManagement data={affiliateData} />
+      </TabsContent>
+
+      <TabsContent value="catalog">
+        <DeviceCatalogManagement data={catalogData} />
       </TabsContent>
 
       <TabsContent value="whatsapp">

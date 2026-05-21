@@ -21,6 +21,7 @@ export interface HpCatalogOption {
   id: string;
   modelName: string;
   brandName: string;
+  imageB64?: string | null;
 }
 
 interface DeviceInputProps {
@@ -31,6 +32,25 @@ interface DeviceInputProps {
   devices?: HpCatalogOption[];
   isLoadingDevices?: boolean;
   onDeviceCreated?: (device: HpCatalogOption) => void;
+}
+
+function getDeviceImageSrc(imageB64?: string | null) {
+  if (!imageB64) return null;
+  if (imageB64.startsWith("data:") || imageB64.startsWith("http")) return imageB64;
+  return `data:image/jpeg;base64,${imageB64}`;
+}
+
+function DeviceAvatar({ device, className }: { device: Pick<HpCatalogOption, "brandName" | "imageB64">; className?: string }) {
+  const imageSrc = getDeviceImageSrc(device.imageB64);
+
+  return (
+    <div className={cn("flex items-center justify-center overflow-hidden bg-muted/50", className)}>
+      {imageSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageSrc} alt="" className="size-full object-contain" />
+      ) : getBrandIcon(device.brandName)}
+    </div>
+  );
 }
 
 export function DeviceInput({
@@ -61,9 +81,12 @@ export function DeviceInput({
     setShowDropdown,
     highlightedIndex,
     setHighlightedIndex,
+    mobileApiResults,
+    isSearchingMobileApi,
     dropdownRef,
     inputRef,
     handleCreate,
+    handleImportMobileApiDevice,
     handleKeyDown,
     createLabel,
   } = useDeviceSearch({
@@ -74,6 +97,9 @@ export function DeviceInput({
   });
 
   const isSelected = !!value;
+  const selectedDevice = value
+    ? { ...value, imageB64: value.imageB64 ?? devices.find((device) => device.id === value.id)?.imageB64 ?? null }
+    : null;
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,14 +134,12 @@ export function DeviceInput({
       </div>
 
       <div className="ml-4 border-l border-border pl-4">
-        {value && !showInput ? (
+        {selectedDevice && !showInput ? (
           <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-              {getBrandIcon(value.brandName)}
-            </div>
+            <DeviceAvatar device={selectedDevice} className="size-10 rounded-lg bg-primary/10" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{value.brandName}</div>
-              <div className="truncate text-sm text-muted-foreground">{value.modelName}</div>
+              <div className="truncate text-sm font-medium">{selectedDevice.brandName}</div>
+              <div className="truncate text-sm text-muted-foreground">{selectedDevice.modelName}</div>
             </div>
             <Button
               type="button"
@@ -151,35 +175,74 @@ export function DeviceInput({
                     <RiLoader4Line className="size-4 animate-spin" />
                     Mencari perangkat...
                   </div>
-                ) : results.length > 0 ? (
+                ) : results.length > 0 || mobileApiResults.length > 0 || isSearchingMobileApi ? (
                   <div className="py-1">
-                    <div className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Perangkat yang Ada
-                    </div>
-                    {results.map((device, index) => (
-                      <button
-                        key={device.id}
-                        type="button"
-                        className={cn(
-                          "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors",
-                          highlightedIndex === index ? "bg-accent" : "hover:bg-accent"
-                        )}
-                        onClick={() => handleSelect(device)}
-                        onMouseEnter={() => setHighlightedIndex(index)}
-                      >
-                        <div className="flex size-8 items-center justify-center rounded-md bg-muted/50">
-                          {getBrandIcon(device.brandName)}
+                    {results.length > 0 ? (
+                      <>
+                        <div className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Perangkat yang Ada
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="font-medium">{device.brandName}</span>
-                          <span className="ml-1 text-muted-foreground">{device.modelName}</span>
+                        {results.map((device, index) => (
+                          <button
+                            key={device.id}
+                            type="button"
+                            className={cn(
+                              "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors",
+                              highlightedIndex === index ? "bg-accent" : "hover:bg-accent"
+                            )}
+                            onClick={() => handleSelect(device)}
+                            onMouseEnter={() => setHighlightedIndex(index)}
+                          >
+                            <DeviceAvatar device={device} className="size-8 rounded-md" />
+                            <div className="min-w-0 flex-1">
+                              <span className="font-medium">{device.brandName}</span>
+                              <span className="ml-1 text-muted-foreground">{device.modelName}</span>
+                            </div>
+                            <RiCheckLine className={cn(
+                              "size-4 text-muted-foreground transition-opacity",
+                              highlightedIndex === index ? "opacity-100" : "opacity-0"
+                            )} />
+                          </button>
+                        ))}
+                      </>
+                    ) : null}
+
+                    {mobileApiResults.length > 0 ? (
+                      <>
+                        <div className="border-t px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Saran MobileAPI
                         </div>
-                        <RiCheckLine className={cn(
-                          "size-4 text-muted-foreground transition-opacity",
-                          highlightedIndex === index ? "opacity-100" : "opacity-0"
-                        )} />
-                      </button>
-                    ))}
+                        {mobileApiResults.map((device) => (
+                          <button
+                            key={device.mobileApiId}
+                            type="button"
+                            className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent disabled:opacity-60"
+                            onClick={() => handleImportMobileApiDevice(device)}
+                            disabled={isCreating}
+                          >
+                            <DeviceAvatar device={device} className="size-8 rounded-md" />
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate">
+                                <span className="font-medium">{device.brandName}</span>
+                                <span className="ml-1 text-muted-foreground">{device.modelName}</span>
+                              </div>
+                              <div className="truncate text-xs text-muted-foreground">
+                                {device.matchCertainty ? `${device.matchCertainty} cocok` : "Import ke katalog lokal"}
+                                {device.modelNumber ? ` · ${device.modelNumber}` : ""}
+                              </div>
+                            </div>
+                            {isCreating ? <RiLoader4Line className="size-4 animate-spin text-muted-foreground" /> : <RiAddLine className="size-4 text-muted-foreground" />}
+                          </button>
+                        ))}
+                      </>
+                    ) : null}
+
+                    {isSearchingMobileApi ? (
+                      <div className="flex items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+                        <RiLoader4Line className="size-3.5 animate-spin" />
+                        Mencari saran MobileAPI...
+                      </div>
+                    ) : null}
                   </div>
                 ) : query.trim() ? (
                   <div className="p-4">

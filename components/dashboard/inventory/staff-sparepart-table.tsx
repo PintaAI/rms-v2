@@ -19,7 +19,7 @@ import {
   deleteSparepart,
   type SparepartWithCompatibilities,
 } from "@/actions/inventory";
-import { SparepartFormDialog } from "@/components/dashboard/inventory/sparepart-form-dialog";
+import { SparepartFormDialog } from "@/components/dashboard/inventory/inventory-item-form-dialog";
 import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/sparepart-label-print-dialog";
 import { SparepartStockBadge } from "@/components/dashboard/inventory/sparepart-stock-badge";
 import { SparepartCompatibilityCell } from "@/components/dashboard/inventory/sparepart-compatibility-cell";

@@ -3,13 +3,14 @@
 import prisma from "@/lib/prisma";
 import { requireRequestUser } from "@/lib/auth/request-user";
 import type { ActionResultWithData } from "@/lib/auth/authorization";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import type { SubscriptionPlan } from "@/lib/features";
 import { fetchWhatsappInstances, deleteWhatsappInstance } from "@/lib/evolution";
 import { createCommissionForPaidPlanActivation } from "@/actions/affiliate";
 import { activatePaidSubscription } from "@/lib/subscription-billing";
 import { addDays, PRO_PERIOD_DAYS, startProTrial } from "@/lib/subscription-billing";
 import type { SubscriptionInvoiceStatus, SubscriptionPaymentMethod } from "@/prisma/generated/prisma/enums";
+import { z } from "zod";
 
 const SUBSCRIPTION_PRICES: Record<Exclude<SubscriptionPlan, "free">, number> = {
   premium: 990_000,
@@ -119,6 +120,92 @@ export interface SuperuserDashboardData {
   stats: SuperuserDashboardStats;
   users: SuperuserUserRow[];
   pendingPayments: PendingSubscriptionPaymentRow[];
+}
+
+export interface SuperuserBrandRow {
+  id: string;
+  name: string;
+  deviceCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SuperuserHpCatalogRow {
+  id: string;
+  brandId: string;
+  brandName: string;
+  modelName: string;
+  modelNumber: string | null;
+  mobileApiId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SuperuserDeviceCatalogData {
+  brands: SuperuserBrandRow[];
+  devices: SuperuserHpCatalogRow[];
+  stats: {
+    brandCount: number;
+    deviceCount: number;
+  };
+}
+
+const brandMutationSchema = z.object({
+  id: z.string().min(1).optional(),
+  name: z.string().trim().min(1, "Brand name is required"),
+});
+
+const hpCatalogMutationSchema = z.object({
+  id: z.string().min(1).optional(),
+  brandId: z.string().min(1, "Brand is required"),
+  modelName: z.string().trim().min(1, "Model name is required"),
+  modelNumber: z.string().trim().optional(),
+});
+
+function mapBrandRow(brand: {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+  _count: { hpCatalogs: number };
+}): SuperuserBrandRow {
+  return {
+    id: brand.id,
+    name: brand.name,
+    deviceCount: brand._count.hpCatalogs,
+    createdAt: brand.createdAt,
+    updatedAt: brand.updatedAt,
+  };
+}
+
+function mapHpCatalogRow(device: {
+  id: string;
+  brandId: string;
+  modelName: string;
+  modelNumber: string | null;
+  mobileApiId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  brand: { name: string };
+}): SuperuserHpCatalogRow {
+  return {
+    id: device.id,
+    brandId: device.brandId,
+    brandName: device.brand.name,
+    modelName: device.modelName,
+    modelNumber: device.modelNumber,
+    mobileApiId: device.mobileApiId,
+    createdAt: device.createdAt,
+    updatedAt: device.updatedAt,
+  };
+}
+
+function revalidateDeviceCatalogManagement() {
+  revalidatePath("/superuser");
+  revalidatePath("/dashboard/admin/devices");
+  revalidatePath("/dashboard/staff/services");
+  updateTag("brands");
+  updateTag("devices");
 }
 
 export async function getSuperuserDashboard(): Promise<ActionResultWithData<SuperuserDashboardData>> {
@@ -340,6 +427,178 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
       })),
     },
   };
+}
+
+export async function getSuperuserDeviceCatalog(): Promise<ActionResultWithData<SuperuserDeviceCatalogData>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") {
+    return { success: false, error: "Superuser access required" };
+  }
+
+  const [brands, devices] = await Promise.all([
+    prisma.brand.findMany({
+      orderBy: { name: "asc" },
+      include: { _count: { select: { hpCatalogs: true } } },
+    }),
+    prisma.hpCatalog.findMany({
+      orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
+      include: { brand: { select: { name: true } } },
+    }),
+  ]);
+
+  return {
+    success: true,
+    data: {
+      brands: brands.map(mapBrandRow),
+      devices: devices.map(mapHpCatalogRow),
+      stats: {
+        brandCount: brands.length,
+        deviceCount: devices.length,
+      },
+    },
+  };
+}
+
+export async function createSuperuserBrand(input: z.infer<typeof brandMutationSchema>): Promise<ActionResultWithData<SuperuserBrandRow>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
+
+  const parsed = brandMutationSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid brand data" };
+
+  try {
+    const brand = await prisma.brand.create({
+      data: { name: parsed.data.name },
+      include: { _count: { select: { hpCatalogs: true } } },
+    });
+
+    revalidateDeviceCatalogManagement();
+    return { success: true, data: mapBrandRow(brand) };
+  } catch (error) {
+    console.error("Failed to create brand:", error);
+    return { success: false, error: "Brand name already exists or could not be created" };
+  }
+}
+
+export async function updateSuperuserBrand(input: z.infer<typeof brandMutationSchema>): Promise<ActionResultWithData<SuperuserBrandRow>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
+
+  const parsed = brandMutationSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid brand data" };
+  if (!parsed.data.id) return { success: false, error: "Brand ID is required" };
+
+  try {
+    const brand = await prisma.brand.update({
+      where: { id: parsed.data.id },
+      data: { name: parsed.data.name },
+      include: { _count: { select: { hpCatalogs: true } } },
+    });
+
+    revalidateDeviceCatalogManagement();
+    return { success: true, data: mapBrandRow(brand) };
+  } catch (error) {
+    console.error("Failed to update brand:", error);
+    return { success: false, error: "Brand name already exists or could not be updated" };
+  }
+}
+
+export async function deleteSuperuserBrand(id: string): Promise<ActionResultWithData<{ id: string }>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
+
+  const deviceCount = await prisma.hpCatalog.count({ where: { brandId: id } });
+  if (deviceCount > 0) {
+    return { success: false, error: "Cannot delete a brand that still has HP catalog entries" };
+  }
+
+  try {
+    await prisma.brand.delete({ where: { id } });
+    revalidateDeviceCatalogManagement();
+    return { success: true, data: { id } };
+  } catch (error) {
+    console.error("Failed to delete brand:", error);
+    return { success: false, error: "Brand could not be deleted" };
+  }
+}
+
+export async function createSuperuserHpCatalog(input: z.infer<typeof hpCatalogMutationSchema>): Promise<ActionResultWithData<SuperuserHpCatalogRow>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
+
+  const parsed = hpCatalogMutationSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid HP catalog data" };
+
+  try {
+    const device = await prisma.hpCatalog.create({
+      data: {
+        brandId: parsed.data.brandId,
+        modelName: parsed.data.modelName,
+        modelNumber: parsed.data.modelNumber || null,
+      },
+      include: { brand: { select: { name: true } } },
+    });
+
+    revalidateDeviceCatalogManagement();
+    return { success: true, data: mapHpCatalogRow(device) };
+  } catch (error) {
+    console.error("Failed to create HP catalog:", error);
+    return { success: false, error: "HP model already exists for this brand or could not be created" };
+  }
+}
+
+export async function updateSuperuserHpCatalog(input: z.infer<typeof hpCatalogMutationSchema>): Promise<ActionResultWithData<SuperuserHpCatalogRow>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
+
+  const parsed = hpCatalogMutationSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid HP catalog data" };
+  if (!parsed.data.id) return { success: false, error: "HP catalog ID is required" };
+
+  try {
+    const device = await prisma.hpCatalog.update({
+      where: { id: parsed.data.id },
+      data: {
+        brandId: parsed.data.brandId,
+        modelName: parsed.data.modelName,
+        modelNumber: parsed.data.modelNumber || null,
+      },
+      include: { brand: { select: { name: true } } },
+    });
+
+    revalidateDeviceCatalogManagement();
+    return { success: true, data: mapHpCatalogRow(device) };
+  } catch (error) {
+    console.error("Failed to update HP catalog:", error);
+    return { success: false, error: "HP model already exists for this brand or could not be updated" };
+  }
+}
+
+export async function deleteSuperuserHpCatalog(id: string): Promise<ActionResultWithData<{ id: string }>> {
+  const user = await requireRequestUser();
+  if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
+
+  const device = await prisma.hpCatalog.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      services: { select: { id: true }, take: 1 },
+      compatibilities: { select: { sparepartId: true }, take: 1 },
+    },
+  });
+
+  if (!device) return { success: false, error: "HP catalog entry not found" };
+  if (device.services.length > 0) return { success: false, error: "Cannot delete HP model used by service records" };
+  if (device.compatibilities.length > 0) return { success: false, error: "Cannot delete HP model used by sparepart compatibility" };
+
+  try {
+    await prisma.hpCatalog.delete({ where: { id } });
+    revalidateDeviceCatalogManagement();
+    return { success: true, data: { id } };
+  } catch (error) {
+    console.error("Failed to delete HP catalog:", error);
+    return { success: false, error: "HP catalog entry could not be deleted" };
+  }
 }
 
 export async function approveSubscriptionPayment(paymentId: string): Promise<ActionResultWithData<{ paymentId: string }>> {

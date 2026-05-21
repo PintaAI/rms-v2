@@ -1,6 +1,6 @@
 import type { DeviceCatalogPayload, DeviceListItem } from "@/actions/device";
 
-const DEVICE_CATALOG_CACHE_KEY = "rms:device-catalog:v1";
+const DEVICE_CATALOG_CACHE_KEY = "rms:device-catalog:v2";
 
 type StoredDeviceCatalog = DeviceCatalogPayload & {
   savedAt: number;
