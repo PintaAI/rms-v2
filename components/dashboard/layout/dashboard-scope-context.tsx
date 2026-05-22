@@ -20,6 +20,7 @@ export interface DashboardScopeContextValue {
   permissionAccess: PermissionAccessMap;
   capabilities: CapabilityAccessMap;
   disabledFeatures: FeatureKey[];
+  hasStoreEmployee: boolean;
   inventoryEnabled: boolean;
   manualItemsEnabled: boolean;
   staffCreateSparepartEnabled: boolean;
@@ -55,8 +56,8 @@ export function DashboardScopeProvider({ children, value }: DashboardScopeProvid
     inventoryEnabled: value.featureAccess["inventory.management"] ?? false,
     manualItemsEnabled: value.featureAccess["service.manualItems"] ?? false,
     staffCreateSparepartEnabled: value.featureAccess["inventory.staffCreateSparepart"] ?? false,
-    realtimeUpdatesEnabled: value.featureAccess["realtime.updates"] ?? false,
-    realtimeMobileScannerEnabled: Boolean(value.featureAccess["realtime.updates"] && value.featureAccess["realtime.mobileScanner"] && value.featureAccess["inventory.management"]),
+    realtimeUpdatesEnabled: Boolean(value.featureAccess["realtime.updates"] && value.hasStoreEmployee),
+    realtimeMobileScannerEnabled: Boolean(value.featureAccess["realtime.updates"] && value.hasStoreEmployee && value.featureAccess["realtime.mobileScanner"] && value.featureAccess["inventory.management"]),
   };
 
   return (

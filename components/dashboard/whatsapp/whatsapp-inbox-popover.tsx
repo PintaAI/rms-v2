@@ -445,11 +445,19 @@ export function WhatsappInboxPopover() {
       let result: Awaited<ReturnType<typeof markWhatsappInboxMessagesAsRead>>;
 
       try {
-        result = await markWhatsappInboxMessagesAsRead(tokoId, incomingMessages.slice(-50).map((message) => ({
-          id: message.id,
-          remoteJid: message.remoteJid,
-          fromMe: message.fromMe,
-        })));
+        const readMessages = incomingMessages.slice(-50).flatMap((message) => {
+          const remoteJids = [message.remoteJid, selectedChat.remoteJid, selectedChat.alternateJid]
+            .filter((jid): jid is string => Boolean(jid));
+          const uniqueRemoteJids = Array.from(new Set(remoteJids));
+
+          return uniqueRemoteJids.map((remoteJid) => ({
+            id: message.id,
+            remoteJid,
+            fromMe: message.fromMe,
+          }));
+        });
+
+        result = await markWhatsappInboxMessagesAsRead(tokoId, readMessages);
       } catch (error) {
         markedReadKeysRef.current.delete(markReadKey);
         recordDebug("markMessageAsRead exception", error instanceof Error ? error.message : String(error));
@@ -463,17 +471,22 @@ export function WhatsappInboxPopover() {
       }
 
       recordDebug("markMessageAsRead response", result.data?.raw ?? null);
+      const selectedChatKey = getChatIdentityKey(selectedChat);
       markChatRead(selectedChat);
-      setSelectedChat((current) => current && getChatIdentityKey(current) === getChatIdentityKey(selectedChat) ? { ...current, unreadCount: 0 } : current);
+      setSelectedChat((current) => current && getChatIdentityKey(current) === selectedChatKey ? { ...current, unreadCount: 0 } : current);
       queryClient.setQueryData<InfiniteData<WhatsappInboxChatsResponse>>(chatsQueryKey, (current) => {
         if (!current) return current;
         return {
           ...current,
           pages: current.pages.map((page) => ({
             ...page,
-            items: page.items.map((chat) => getChatIdentityKey(chat) === getChatIdentityKey(selectedChat) ? { ...chat, unreadCount: 0 } : chat),
+            items: page.items.map((chat) => getChatIdentityKey(chat) === selectedChatKey ? { ...chat, unreadCount: 0 } : chat),
           })),
         };
+      });
+      queryClient.setQueryData<WhatsappInboxChat[]>(["whatsapp", "notification-chats", tokoId], (current) => {
+        if (!current) return current;
+        return current.map((chat) => getChatIdentityKey(chat) === selectedChatKey ? { ...chat, unreadCount: 0 } : chat);
       });
       void queryClient.invalidateQueries({ queryKey: chatsQueryKey });
     };

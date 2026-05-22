@@ -3,6 +3,7 @@ import type { UserRole, AuthUser } from "./request-user";
 import { requireRequestUser } from "./request-user";
 import { AuthError, assertStoreAccess } from "./authorization";
 import { getEffectivePlanForStore } from "./plan";
+import prisma from "@/lib/prisma";
 import { getDisabledFeaturesForStore as fetchDisabledFeatures } from "@/actions/feature-settings";
 import { FEATURE_REGISTRY, getFeatureLockReason, type FeatureKey, type FeatureAccessMap, type FeatureLockReason, type FeatureMetadata } from "@/lib/features";
 import { getPlanLimit, type SubscriptionPlan, type PlanLimitKey } from "@/lib/plans";
@@ -58,6 +59,18 @@ const getCachedDisabledFeatures = cache(async (storeId: string): Promise<Feature
   return fetchDisabledFeatures(storeId);
 });
 
+const getCachedHasStoreEmployee = cache(async (storeId: string): Promise<boolean> => {
+  const employee = await prisma.userStore.findFirst({
+    where: {
+      storeId,
+      user: { role: { in: ["staff", "technician"] } },
+    },
+    select: { userId: true },
+  });
+
+  return Boolean(employee);
+});
+
 function getScopePlan(user: AuthUser, storeId: string): Promise<SubscriptionPlan> | SubscriptionPlan {
   if (user.role === "admin" || (user.storeIds.length === 1 && user.storeIds[0] === storeId)) {
     return user.plan;
@@ -76,16 +89,18 @@ export type RequestScope = {
   permissionOverrides: PermissionOverrideInput[];
   permissionAccess: PermissionAccessMap;
   capabilities: CapabilityAccessMap;
+  hasStoreEmployee: boolean;
 };
 
 export const getRequestScope = cache(async (storeId: string): Promise<RequestScope> => {
   const user = await requireRequestUser();
   assertStoreAccess(user, storeId);
 
-  const [plan, disabledFeatures, permissionOverrides] = await Promise.all([
+  const [plan, disabledFeatures, permissionOverrides, hasStoreEmployee] = await Promise.all([
     getScopePlan(user, storeId),
     getCachedDisabledFeatures(storeId),
     getUserPermissionOverrides(storeId, user.id),
+    getCachedHasStoreEmployee(storeId),
   ]);
 
   const featureAccess = getFeatureAccessMap(user.role, plan, disabledFeatures);
@@ -104,6 +119,7 @@ export const getRequestScope = cache(async (storeId: string): Promise<RequestSco
       (feature) => featureAccess[feature] === true,
     ),
     capabilities: getCapabilityAccessMap(user.role),
+    hasStoreEmployee,
   };
 });
 

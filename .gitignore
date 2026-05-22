@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /out/
+/.playwright-mcp
 
 # partykit local state
 /.partykit/

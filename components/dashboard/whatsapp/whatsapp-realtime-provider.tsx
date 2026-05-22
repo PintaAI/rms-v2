@@ -151,6 +151,7 @@ export function WhatsappRealtimeProvider({ children }: { children: React.ReactNo
   const hasInitializedPollingRef = React.useRef(false);
   const [openChatRequest, setOpenChatRequest] = React.useState<WhatsappOpenChatRequest | null>(null);
   const [inboxOpen, setInboxOpen] = React.useState(false);
+  const [readMarkerVersion, setReadMarkerVersion] = React.useState(0);
   const canView = Boolean(featureAccess["whatsapp.integration"] && permissionAccess["whatsapp.view"]);
   const whatsappRealtime = useWhatsappEvolutionRealtime({ tokoId, enabled: canView && inboxOpen });
   const latestRealtimeEvent = whatsappRealtime.eventHistory[0];
@@ -159,10 +160,11 @@ export function WhatsappRealtimeProvider({ children }: { children: React.ReactNo
   }, []);
   const markChatRead = React.useCallback((chat: WhatsappInboxChat) => {
     readChatMarkersRef.current.set(getChatIdentityKey(chat), getChatNotificationKey(chat));
+    setReadMarkerVersion((version) => version + 1);
   }, []);
   const isChatRead = React.useCallback((chat: WhatsappInboxChat) => {
     return readChatMarkersRef.current.get(getChatIdentityKey(chat)) === getChatNotificationKey(chat);
-  }, []);
+  }, [readMarkerVersion]);
 
   const notificationChatsQuery = useQuery({
     queryKey: ["whatsapp", "notification-chats", tokoId],
@@ -195,6 +197,10 @@ export function WhatsappRealtimeProvider({ children }: { children: React.ReactNo
     for (const chat of notificationChatsQuery.data) {
       const notificationKey = getChatNotificationKey(chat);
       if (seenChatKeysRef.current.has(notificationKey)) continue;
+      if (chat.unreadCount <= 0) {
+        seenChatKeysRef.current.add(notificationKey);
+        continue;
+      }
       if (isChatRead(chat)) {
         seenChatKeysRef.current.add(notificationKey);
         continue;

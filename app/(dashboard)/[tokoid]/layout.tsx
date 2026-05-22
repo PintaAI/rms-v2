@@ -68,6 +68,7 @@ export default async function DashboardLayout({ children, params }: DashboardLay
           permissionAccess: scope.permissionAccess,
           capabilities: scope.capabilities,
           disabledFeatures: scope.disabledFeatures,
+          hasStoreEmployee: scope.hasStoreEmployee,
         }}
       >
         <QueryProvider>
