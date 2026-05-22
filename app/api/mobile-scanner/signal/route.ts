@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     const session = await createMobileScannerSession({
-      tokoId: payload.tokoId,
+      storeId: payload.tokoId as string,
       ownerUserId: scope.user.id,
     });
 

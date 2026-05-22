@@ -93,7 +93,7 @@ export function DashboardRealtimeProvider({ children }: { children: ReactNode })
     const handleMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        if (!isServiceRealtimeEvent(data) || data.tokoId !== tokoId) return;
+        if (!isServiceRealtimeEvent(data) || data.storeId !== tokoId) return;
 
         recordEvent(data);
         refreshFromServer();
@@ -122,7 +122,7 @@ export function DashboardRealtimeProvider({ children }: { children: ReactNode })
 
     const payload: ServiceRealtimeEvent = {
       type: "service.changed",
-      tokoId,
+      storeId: tokoId,
       ...event,
       actor: {
         id: user.id,
@@ -194,7 +194,7 @@ export function DashboardRealtimeIndicator() {
   const connected = status === "connected";
   const isWorking = status === "connecting" || isRefreshing;
   const hasHistory = eventHistory.length > 0;
-  const lastEventKey = lastEvent ? `${lastEvent.sentAt}-${lastEvent.serviceId}-${lastEvent.action}` : null;
+  const lastEventKey = lastEvent ? `${lastEvent.sentAt}-${lastEvent.repairOrderId}-${lastEvent.action}` : null;
 
   const openHistory = useCallback(() => {
     if (closeHistoryTimerRef.current) {
@@ -270,7 +270,7 @@ export function DashboardRealtimeIndicator() {
         </div>
         <div className="space-y-2">
           {eventHistory.map((event) => (
-            <div key={`${event.sentAt}-${event.serviceId}-${event.action}`} className="flex min-w-0 items-start gap-2 rounded-md px-1.5 py-1">
+            <div key={`${event.sentAt}-${event.repairOrderId}-${event.action}`} className="flex min-w-0 items-start gap-2 rounded-md px-1.5 py-1">
               <span className="mt-0.5 shrink-0 text-[10px] text-muted-foreground">
                 {formatEventTime(event.sentAt)}
               </span>
@@ -300,7 +300,7 @@ function RealtimeEventMessage({ event, className }: { event: ServiceRealtimeEven
       {event.reason ? <span className="shrink-0">{event.reason} di</span> : null}
       <span className="inline-flex min-w-0 items-center gap-1 font-medium text-foreground/90">
         {serviceIcon ? <span className="shrink-0 text-foreground/70 [&>svg]:size-3.5">{serviceIcon}</span> : null}
-        <span className="truncate">{event.serviceLabel ?? event.serviceId}</span>
+        <span className="truncate">{event.serviceLabel ?? event.repairOrderId}</span>
       </span>
     </span>
   );

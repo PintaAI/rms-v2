@@ -163,7 +163,7 @@ export function ServicePricelistImportDialog({ open, onOpenChange, tokoId, onSuc
 
     setIsImporting(true);
     const result = await importServicePricelists({
-      tokoId,
+      storeId: tokoId,
       rows: validRows.map((row) => ({
         rowNumber: row.rowNumber,
         title: row.title,

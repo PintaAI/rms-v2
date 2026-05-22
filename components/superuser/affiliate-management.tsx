@@ -366,7 +366,7 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
                   <TableRow key={commission.id}>
                     <TableCell>{commission.affiliatorName}</TableCell>
                     <TableCell><div>{commission.customerName}</div><div className="text-xs text-muted-foreground">{commission.customerEmail}</div></TableCell>
-                    <TableCell>{commissionKindLabel(commission.kind)}</TableCell>
+                    <TableCell>{commissionKindLabel(commission.type)}</TableCell>
                     <TableCell className="capitalize">{commission.plan}</TableCell>
                     <TableCell>{commission.commissionBaseAmount ? formatCurrency(commission.commissionBaseAmount) : "-"}</TableCell>
                     <TableCell>{formatCurrency(commission.amount)}</TableCell>
@@ -491,7 +491,7 @@ function AffiliatorForm({
   );
 }
 
-function commissionKindLabel(kind: AffiliateCommissionRow["kind"]) {
+function commissionKindLabel(kind: AffiliateCommissionRow["type"]) {
   if (kind === "registration_bonus") return "Registration";
   if (kind === "pro_recurring") return "Pro monthly";
   return "Enterprise one-time";

@@ -82,18 +82,18 @@ async function ensureCredentialUser(input: { name: string; email: string; role: 
   return user;
 }
 
-async function ensureDemoToko(adminId: string) {
-  const existing = await prisma.toko.findFirst({
+async function ensureDemoStore(adminId: string) {
+  const existing = await prisma.store.findFirst({
     where: { name: DEMO_TOKO_NAME },
     select: { id: true, name: true },
   });
-  const toko = existing
-    ? await prisma.toko.update({
+  const store = existing
+    ? await prisma.store.update({
         where: { id: existing.id },
         data: { address: "Jl. Demo Seed No. 1", phone: "081234567890", status: "active" },
         select: { id: true, name: true },
       })
-    : await prisma.toko.create({
+    : await prisma.store.create({
         data: {
           name: DEMO_TOKO_NAME,
           address: "Jl. Demo Seed No. 1",
@@ -103,28 +103,28 @@ async function ensureDemoToko(adminId: string) {
         select: { id: true, name: true },
       });
 
-  await prisma.userToko.upsert({
-    where: { userId_tokoId: { userId: adminId, tokoId: toko.id } },
+  await prisma.userStore.upsert({
+    where: { userId_storeId: { userId: adminId, storeId: store.id } },
     update: { role: "owner" },
-    create: { userId: adminId, tokoId: toko.id, role: "owner" },
+    create: { userId: adminId, storeId: store.id, role: "owner" },
   });
 
-  return toko;
+  return store;
 }
 
-async function ensureUserToko(userId: string, tokoId: string) {
-  await prisma.userToko.upsert({
-    where: { userId_tokoId: { userId, tokoId } },
+async function ensureUserStore(userId: string, storeId: string) {
+  await prisma.userStore.upsert({
+    where: { userId_storeId: { userId, storeId } },
     update: { role: "owner" },
-    create: { userId, tokoId, role: "owner" },
+    create: { userId, storeId, role: "owner" },
   });
 }
 
 async function ensureHpCatalog() {
-  const hpCatalogIds: string[] = [];
+  const deviceModelIds: string[] = [];
 
   for (const entry of demoCatalog) {
-    const brand = await prisma.brand.upsert({
+    const brand = await prisma.deviceBrand.upsert({
       where: { name: entry.brand },
       update: {},
       create: { name: entry.brand },
@@ -132,17 +132,17 @@ async function ensureHpCatalog() {
     });
 
     for (const modelName of entry.models) {
-      const hp = await prisma.hpCatalog.upsert({
+      const hp = await prisma.deviceModel.upsert({
         where: { brandId_modelName: { brandId: brand.id, modelName } },
         update: {},
         create: { brandId: brand.id, modelName },
         select: { id: true },
       });
-      hpCatalogIds.push(hp.id);
+      deviceModelIds.push(hp.id);
     }
   }
 
-  return hpCatalogIds;
+  return deviceModelIds;
 }
 
 function randomServiceStatus(index: number) {
@@ -157,19 +157,19 @@ function chance(probability: number) {
 }
 
 async function seedServices(input: {
-  tokoId: string;
+  storeId: string;
   adminId: string;
   staffId: string;
   technicianId: string;
-  hpCatalogIds: string[];
+  deviceModelIds: string[];
 }) {
-  const existingCount = await prisma.service.count({ where: { tokoId: input.tokoId } });
+  const existingCount = await prisma.repairOrder.count({ where: { storeId: input.storeId } });
   const remaining = Math.max(TARGET_SERVICE_COUNT - existingCount, 0);
 
   if (remaining === 0) return { created: 0, total: existingCount };
 
   const now = new Date();
-  const services: Prisma.ServiceCreateManyInput[] = [];
+  const services: Prisma.RepairOrderCreateManyInput[] = [];
 
   for (let index = 0; index < remaining; index += 1) {
     const absoluteIndex = existingCount + index;
@@ -186,8 +186,8 @@ async function seedServices(input: {
       : null;
 
     services.push({
-      tokoId: input.tokoId,
-      hpCatalogId: faker.helpers.arrayElement(input.hpCatalogIds),
+      storeId: input.storeId,
+      deviceModelId: faker.helpers.arrayElement(input.deviceModelIds),
       createdById: absoluteIndex % 4 === 0 ? input.adminId : input.staffId,
       technicianId: status === "received" ? null : input.technicianId,
       imei: faker.string.numeric(15),
@@ -222,14 +222,14 @@ async function seedServices(input: {
   }
 
   for (let index = 0; index < services.length; index += 100) {
-    await prisma.service.createMany({ data: services.slice(index, index + 100) });
+    await prisma.repairOrder.createMany({ data: services.slice(index, index + 100) });
   }
 
   return { created: remaining, total: existingCount + remaining };
 }
 
 async function writeLoginMarkdown(input: {
-  toko: { id: string; name: string };
+  store: { id: string; name: string };
   users: Array<{ name: string; email: string; role: string }>;
   services: { created: number; total: number };
 }) {
@@ -253,8 +253,8 @@ async function writeLoginMarkdown(input: {
     "DEMO_SERVICE_COUNT=2000 DEMO_SEED_PASSWORD=test1234 bun run seed:demo-services",
     "```",
     "",
-    `Toko: ${input.toko.name}`,
-    `Toko ID: ${input.toko.id}`,
+  `Toko: ${input.store.name}`,
+  `Toko ID: ${input.store.id}`,
     `Services created this run: ${input.services.created}`,
     `Services total in toko: ${input.services.total}`,
     "",
@@ -273,21 +273,21 @@ async function main() {
   console.log("Starting non-destructive demo service seed");
 
   const [admin, staff, technician] = await Promise.all(demoUsers.map((user) => ensureCredentialUser(user)));
-  const toko = await ensureDemoToko(admin.id);
-  await Promise.all([ensureUserToko(staff.id, toko.id), ensureUserToko(technician.id, toko.id)]);
+  const store = await ensureDemoStore(admin.id);
+  await Promise.all([ensureUserStore(staff.id, store.id), ensureUserStore(technician.id, store.id)]);
 
-  const hpCatalogIds = await ensureHpCatalog();
+  const deviceModelIds = await ensureHpCatalog();
   const services = await seedServices({
-    tokoId: toko.id,
+    storeId: store.id,
     adminId: admin.id,
     staffId: staff.id,
     technicianId: technician.id,
-    hpCatalogIds,
+    deviceModelIds,
   });
-  const loginDocPath = await writeLoginMarkdown({ toko, users: [admin, staff, technician], services });
+  const loginDocPath = await writeLoginMarkdown({ store, users: [admin, staff, technician], services });
 
   console.log("Demo service seed complete");
-  console.log(`Toko: ${toko.name} (${toko.id})`);
+  console.log(`Toko: ${store.name} (${store.id})`);
   console.log(`Services created: ${services.created}`);
   console.log(`Services total: ${services.total}`);
   console.log(`Password for all demo users: ${DEMO_PASSWORD}`);

@@ -37,33 +37,33 @@ const hpCatalog = [
 async function resetDatabase() {
   await prisma.$transaction(async (tx) => {
     await tx.activityLog.deleteMany();
-    await tx.invoiceItem.deleteMany();
-    await tx.invoice.deleteMany();
-    await tx.serviceItem.deleteMany();
+    await tx.repairInvoiceItem.deleteMany();
+    await tx.repairInvoice.deleteMany();
+    await tx.repairOrderItem.deleteMany();
     await tx.warrantyClaim.deleteMany();
-    await tx.service.deleteMany();
+    await tx.repairOrder.deleteMany();
     await tx.inventoryAuditItem.deleteMany();
     await tx.inventoryAuditSession.deleteMany();
-    await tx.sparepartCompatibility.deleteMany();
-    await tx.sparepart.deleteMany();
-    await tx.sparepartCategory.deleteMany();
-    await tx.servicePricelist.deleteMany();
+    await tx.partCompatibility.deleteMany();
+    await tx.inventoryItem.deleteMany();
+    await tx.inventoryCategory.deleteMany();
+    await tx.serviceCatalogItem.deleteMany();
     await tx.subscriptionPayment.deleteMany();
     await tx.subscriptionInvoice.deleteMany();
     await tx.affiliateCommission.deleteMany();
     await tx.referral.deleteMany();
     await tx.affiliator.deleteMany();
-    await tx.userToko.deleteMany();
+    await tx.userStore.deleteMany();
     await tx.subscription.deleteMany();
     await tx.verification.deleteMany();
     await tx.session.deleteMany();
     await tx.account.deleteMany();
     await tx.user.deleteMany();
-    await tx.tokoWhatsappSetting.deleteMany();
-    await tx.tokoFeatureSetting.deleteMany();
-    await tx.toko.deleteMany();
-    await tx.hpCatalog.deleteMany();
-    await tx.brand.deleteMany();
+    await tx.storeWhatsappSetting.deleteMany();
+    await tx.storeFeatureSetting.deleteMany();
+    await tx.store.deleteMany();
+    await tx.deviceModel.deleteMany();
+    await tx.deviceBrand.deleteMany();
   }, { timeout: 120_000 });
 }
 
@@ -71,14 +71,14 @@ async function seedHpCatalog() {
   let deviceCount = 0;
 
   for (const entry of hpCatalog) {
-    const brand = await prisma.brand.create({
+    const deviceBrand = await prisma.deviceBrand.create({
       data: { name: entry.brand },
       select: { id: true },
     });
 
-    await prisma.hpCatalog.createMany({
+    await prisma.deviceModel.createMany({
       data: entry.models.map((modelName) => ({
-        brandId: brand.id,
+        brandId: deviceBrand.id,
         modelName,
       })),
     });

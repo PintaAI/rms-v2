@@ -46,7 +46,7 @@ export function AdminOverviewActions({ tokoId }: AdminOverviewActionsProps) {
           setServicesFormOpen(false);
           publish({
             action: result?.action ?? "created",
-            serviceId: result?.serviceId ?? "new-service",
+            repairOrderId: result?.serviceId ?? "new-service",
             serviceLabel: result?.serviceLabel ?? "Service baru",
             serviceBrand: result?.serviceBrand,
             reason: result?.reason,

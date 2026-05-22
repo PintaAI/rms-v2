@@ -1,9 +1,9 @@
 import Image from "next/image"
-import type { RetailSaleDetail } from "@/actions/retail"
+import type { SalesOrderDetail } from "@/actions/retail"
 import { Separator } from "@/components/ui/separator"
 import { formatCurrency, formatDate } from "@/lib/utils"
 
-const paymentLabels: Record<RetailSaleDetail["paymentMethod"], string> = {
+const paymentLabels: Record<SalesOrderDetail["paymentMethod"], string> = {
   cash: "Cash",
   transfer: "Transfer",
   qris: "QRIS",
@@ -18,17 +18,17 @@ function formatWarrantyDate(date: Date | string) {
   }).format(new Date(date))
 }
 
-export function RetailReceipt({ sale }: { sale: RetailSaleDetail }) {
+export function RetailReceipt({ sale }: { sale: SalesOrderDetail }) {
   return (
     <div className="mx-auto w-full max-w-sm bg-background p-5 text-sm text-foreground" data-retail-receipt>
       <div className="flex flex-col items-center gap-2 text-center">
-        {sale.toko.logoUrl ? (
-          <Image src={sale.toko.logoUrl} alt={sale.toko.name} width={48} height={48} className="size-12 rounded-xl object-cover" unoptimized />
+        {sale.store.logoUrl ? (
+          <Image src={sale.store.logoUrl} alt={sale.store.name} width={48} height={48} className="size-12 rounded-xl object-cover" unoptimized />
         ) : null}
         <div>
-          <h2 className="text-lg font-bold tracking-tight">{sale.toko.name}</h2>
-          {sale.toko.address ? <p className="text-xs text-muted-foreground">{sale.toko.address}</p> : null}
-          {sale.toko.phone ? <p className="text-xs text-muted-foreground">{sale.toko.phone}</p> : null}
+          <h2 className="text-lg font-bold tracking-tight">{sale.store.name}</h2>
+          {sale.store.address ? <p className="text-xs text-muted-foreground">{sale.store.address}</p> : null}
+          {sale.store.phone ? <p className="text-xs text-muted-foreground">{sale.store.phone}</p> : null}
         </div>
       </div>
 
@@ -110,10 +110,10 @@ export function RetailReceipt({ sale }: { sale: RetailSaleDetail }) {
         ) : null}
       </div>
 
-      {sale.toko.invoiceTerms ? (
+      {sale.store.invoiceTerms ? (
         <>
           <Separator className="my-4" />
-          <p className="whitespace-pre-line text-center text-xs text-muted-foreground">{sale.toko.invoiceTerms}</p>
+          <p className="whitespace-pre-line text-center text-xs text-muted-foreground">{sale.store.invoiceTerms}</p>
         </>
       ) : null}
     </div>

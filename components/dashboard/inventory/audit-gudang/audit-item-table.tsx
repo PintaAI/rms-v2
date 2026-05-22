@@ -42,7 +42,7 @@ export function AuditItemTable({ items, reviewAttempted, onItemChange }: AuditIt
   )
 
   const filteredItems = items.filter((item) => {
-    const matchesSearch = item.sparepartName.toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = item.inventoryItemName.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = status === "all" || item.status === status
     return matchesSearch && matchesStatus
   })
@@ -122,7 +122,7 @@ export function AuditItemTable({ items, reviewAttempted, onItemChange }: AuditIt
               return (
                 <TableRow key={item.id} className={cn(shouldHighlight && "border-destructive/50 bg-destructive/10 hover:bg-destructive/15")}>
                   <TableCell className="min-w-48 whitespace-normal">
-                    <div className="font-medium">{item.sparepartName}</div>
+                    <div className="font-medium">{item.inventoryItemName}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       <Badge variant={item.status === "matched" ? "success" : item.status === "discrepancy" ? "warning" : "outline"}>
                         {item.status === "matched" ? "Cocok" : item.status === "discrepancy" ? "Mismatch" : "Pending"}

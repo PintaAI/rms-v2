@@ -6,14 +6,14 @@ import type { ServiceTableItem } from "@/components/dashboard/services/service-t
 const mockServices: ServiceTableItem[] = [
   {
     id: "demo-1",
-    hpCatalogId: "hp-1",
+    deviceModelId: "hp-1",
     customerName: "Ahmad",
     noWa: "08123456789",
     complaint: "LCD pecah, tidak bisa dilihat",
     includedItems: ["Charger", "SIM tray", "Dus"],
     status: "received",
     checkinAt: new Date("2024-01-15T10:00:00"),
-    hpCatalog: {
+    deviceModel: {
       modelName: "Galaxy A12",
       brand: { name: "Samsung" },
     },
@@ -22,14 +22,14 @@ const mockServices: ServiceTableItem[] = [
   },
   {
     id: "demo-2",
-    hpCatalogId: "hp-2",
+    deviceModelId: "hp-2",
     customerName: "Budi",
     noWa: "08234567890",
     complaint: "Baterai boros, hanya bertahan 1 jam",
     note: "Customer bilang sudah 2 tahun pakai",
     status: "repairing",
     checkinAt: new Date("2024-01-14T14:30:00"),
-    hpCatalog: {
+    deviceModel: {
       modelName: "iPhone 11",
       brand: { name: "Apple" },
     },
@@ -42,14 +42,14 @@ const mockServices: ServiceTableItem[] = [
   },
   {
     id: "demo-3",
-    hpCatalogId: "hp-3",
+    deviceModelId: "hp-3",
     customerName: "Citra",
     noWa: "08345678901",
     complaint: "Port charge rusak, tidak bisa charging",
     status: "done",
     checkinAt: new Date("2024-01-13T09:00:00"),
     doneAt: new Date("2024-01-13T16:00:00"),
-    hpCatalog: {
+    deviceModel: {
       modelName: "Redmi Note 10",
       brand: { name: "Xiaomi" },
     },
@@ -62,7 +62,7 @@ const mockServices: ServiceTableItem[] = [
   },
   {
     id: "demo-4",
-    hpCatalogId: "hp-4",
+    deviceModelId: "hp-4",
     customerName: "Dina",
     noWa: "08456789012",
     complaint: "Software error, bootloop",
@@ -70,7 +70,7 @@ const mockServices: ServiceTableItem[] = [
     status: "failed",
     checkinAt: new Date("2024-01-12T11:00:00"),
     doneAt: new Date("2024-01-12T15:00:00"),
-    hpCatalog: {
+    deviceModel: {
       modelName: "A15",
       brand: { name: "OPPO" },
     },
@@ -79,7 +79,7 @@ const mockServices: ServiceTableItem[] = [
   },
   {
     id: "demo-5",
-    hpCatalogId: "hp-5",
+    deviceModelId: "hp-5",
     customerName: "Eka",
     noWa: "08567890123",
     complaint: "Speaker tidak berbunyi",
@@ -88,7 +88,7 @@ const mockServices: ServiceTableItem[] = [
     checkinAt: new Date("2024-01-10T08:00:00"),
     doneAt: new Date("2024-01-10T12:00:00"),
     checkoutAt: new Date("2024-01-11T10:00:00"),
-    hpCatalog: {
+    deviceModel: {
       modelName: "Y12",
       brand: { name: "Vivo" },
     },
@@ -103,7 +103,7 @@ const mockServices: ServiceTableItem[] = [
   },
   {
     id: "demo-6",
-    hpCatalogId: "hp-6",
+    deviceModelId: "hp-6",
     customerName: "Fajar",
     noWa: "08678901234",
     complaint: "LCD pecah, touchscreen tidak responsif",
@@ -112,7 +112,7 @@ const mockServices: ServiceTableItem[] = [
     checkinAt: new Date("2024-01-08T09:00:00"),
     doneAt: new Date("2024-01-08T15:00:00"),
     checkoutAt: new Date("2024-01-09T14:00:00"),
-    hpCatalog: {
+    deviceModel: {
       modelName: "Galaxy A12",
       brand: { name: "Samsung" },
     },

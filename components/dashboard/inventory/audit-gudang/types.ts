@@ -13,8 +13,8 @@ export type InventoryAuditStatus = "active" | "completed" | "cancelled"
 export type InventoryAuditItem = {
   id: string
   sessionId: string
-  sparepartId: string
-  sparepartName: string
+  inventoryItemId: string
+  inventoryItemName: string
   systemStock: number
   physicalStock: number | null
   difference: number
@@ -31,7 +31,7 @@ export type InventoryAuditItem = {
 
 export type InventoryAuditSession = {
   id: string
-  tokoId: string
+  storeId: string
   createdById: string
   status: InventoryAuditStatus
   startedAt: string | Date

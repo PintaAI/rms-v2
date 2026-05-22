@@ -88,7 +88,7 @@ export function SupplierReturnActionDialog({ item, action, open, onOpenChange }:
             <span className="text-xs text-muted-foreground">ID: {item.id}</span>
           </div>
           <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 text-sm sm:grid-cols-2">
-            <DetailItem label="Sparepart" value={item.sparepart.name} />
+            <DetailItem label="Sparepart" value={item.inventoryItem.name} />
             <DetailItem label="Qty" value={item.qty} />
             <DetailItem label="Supplier" value={item.supplierName || "-"} />
             <DetailItem label="Dibuat" value={`${formatDate(item.createdAt)} oleh ${item.createdBy.name}`} />

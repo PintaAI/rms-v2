@@ -63,7 +63,7 @@ export function BillingSettingsTab({ summary, ownerBilling, isLoading, onChanged
           <span className="text-muted-foreground">Estimasi tagihan bulanan</span>
           <span className="font-semibold">{summary ? formatCurrency(summary.pricing.estimatedMonthlyAmount) : "-"}</span>
         </div>
-        {summary?.plan === "premium" && <p className="mt-1 text-xs text-muted-foreground">Pro termasuk {summary.pricing.includedTokos ?? 2} toko. Tambahan toko {formatCurrency(summary.pricing.additionalTokoPrice)}/toko/bulan.</p>}
+        {summary?.plan === "premium" && <p className="mt-1 text-xs text-muted-foreground">Pro termasuk {summary.pricing.includedStores ?? 2} toko. Tambahan toko {formatCurrency(summary.pricing.additionalStorePrice)}/toko/bulan.</p>}
         {summary?.plan === "free" && <p className="mt-1 text-xs text-muted-foreground">Free permanen dengan 1 toko dan 20 service/bulan.</p>}
         {summary?.plan === "enterprise" && <p className="mt-1 text-xs text-muted-foreground">Enterprise memakai harga custom dan diaktifkan manual oleh super admin.</p>}
       </div>
@@ -116,7 +116,7 @@ function InvoicePaymentForm({ invoice, ownerBilling, isPending, method, setMetho
         <div><p className="font-semibold">{invoice.invoiceNumber}</p><p className="text-xs text-muted-foreground">Jatuh tempo {new Date(invoice.dueAt).toLocaleDateString("id-ID")}</p></div>
         <Badge variant={invoice.status === "pending_review" ? "warning" : invoice.status === "rejected" ? "destructive" : "outline"}>{invoice.status}</Badge>
       </div>
-      <div className="rounded-md bg-muted/30 p-3 text-sm"><div className="flex justify-between"><span>Total</span><strong>{formatCurrency(invoice.amount)}</strong></div><p className="mt-1 text-xs text-muted-foreground">{invoice.tokoCount} toko · {invoice.additionalTokos} toko tambahan</p></div>
+      <div className="rounded-md bg-muted/30 p-3 text-sm"><div className="flex justify-between"><span>Total</span><strong>{formatCurrency(invoice.amount)}</strong></div><p className="mt-1 text-xs text-muted-foreground">{invoice.storeCount} toko · {invoice.additionalStores} toko tambahan</p></div>
       <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">Transfer ke {ownerBilling?.instructions.bankName} · {ownerBilling?.instructions.accountNumber} a.n. {ownerBilling?.instructions.accountName}, atau QRIS RMS.</div>
       {invoice.status !== "pending_review" && (
         <form action={onSubmit} className="space-y-3">

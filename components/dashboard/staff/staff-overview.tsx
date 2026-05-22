@@ -39,7 +39,7 @@ interface StaffOverviewProps {
 function mapRecentServiceToTableItem(service: StaffOverviewData["recentServices"][number]): ServiceTableItem {
   return {
     id: service.id,
-    hpCatalogId: service.hpCatalog.id,
+    deviceModelId: service.deviceModel.id,
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
@@ -50,7 +50,7 @@ function mapRecentServiceToTableItem(service: StaffOverviewData["recentServices"
     doneAt: service.doneAt,
     warrantyUntil: service.warrantyUntil,
     checkoutAt: service.checkoutAt,
-    hpCatalog: service.hpCatalog,
+    deviceModel: service.deviceModel,
     technician: service.technician,
     invoice: service.invoice,
     createdBy: service.createdBy ?? undefined,

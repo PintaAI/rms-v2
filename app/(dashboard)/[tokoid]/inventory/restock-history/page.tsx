@@ -64,7 +64,7 @@ export default async function RestockHistoryPage({ params, searchParams }: Resto
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 
   const [toko, historyResult] = await Promise.all([
-    prisma.toko.findUnique({
+    prisma.store.findUnique({
       where: { id: tokoid },
       select: { id: true, name: true, logoUrl: true },
     }),

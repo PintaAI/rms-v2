@@ -11,7 +11,7 @@ export type RetailCheckoutItem = {
   id: string
   barcode: string
   name: string
-  kind: "sparepart" | "retail_item"
+  kind: "repair_part" | "retail_product" | "phone_unit"
   defaultPrice: number
   purchasePrice: number | null
   warrantyDays: number | null
@@ -19,13 +19,25 @@ export type RetailCheckoutItem = {
   categoryName: string | null
 }
 
-export type RetailSaleResult = {
+export type PhoneUnitCheckoutItem = {
+  id: string
+  deviceModelName: string
+  deviceBrandName: string
+  imei: string | null
+  serialNumber: string | null
+  condition: string
+  sellingPrice: number
+  purchasePrice: number
+  warrantyDays: number | null
+}
+
+export type SalesOrderResult = {
   id: string
   grandTotal: number
   paidAt: Date
 }
 
-export type RetailSalesFilters = {
+export type SalesOrdersFilters = {
   q?: string
   cashierId?: string
   paymentMethod?: "cash" | "transfer" | "qris" | "debit" | "all"
@@ -36,7 +48,7 @@ export type RetailSalesFilters = {
   pageSize?: number
 }
 
-export type RetailSaleHistoryItem = {
+export type SalesOrderHistoryItem = {
   id: string
   paidAt: Date
   status: "paid" | "void"
@@ -53,8 +65,8 @@ export type RetailSaleHistoryItem = {
   totalQty: number
 }
 
-export type RetailSalesResult = {
-  items: RetailSaleHistoryItem[]
+export type SalesOrdersResult = {
+  items: SalesOrderHistoryItem[]
   cashiers: Array<{ id: string; name: string }>
   totalItems: number
   totalGross: number
@@ -65,8 +77,8 @@ export type RetailSalesResult = {
   totalPages: number
 }
 
-export type RetailSaleDetail = RetailSaleHistoryItem & {
-  toko: {
+export type SalesOrderDetail = SalesOrderHistoryItem & {
+  store: {
     id: string
     name: string
     address: string | null
@@ -76,10 +88,10 @@ export type RetailSaleDetail = RetailSaleHistoryItem & {
   }
   items: Array<{
     id: string
-    sparepartId: string | null
+    inventoryItemId: string | null
     name: string
     barcode: string | null
-    kind: "sparepart" | "retail_item"
+    kind: "repair_part" | "retail_product" | "phone_unit"
     qty: number
     unitPrice: number
     unitCostSnapshot: number | null
@@ -89,12 +101,12 @@ export type RetailSaleDetail = RetailSaleHistoryItem & {
   }>
 }
 
-const createRetailSaleSchema = z.object({
-  tokoId: z.string().min(1, "Toko wajib diisi"),
+const createSalesOrderSchema = z.object({
+  storeId: z.string().min(1, "Toko wajib diisi"),
   customerName: z.string().trim().optional().nullable(),
   customerPhone: z.string().trim().optional().nullable(),
   items: z.array(z.object({
-    sparepartId: z.string().min(1, "Barang wajib dipilih"),
+    inventoryItemId: z.string().min(1, "Barang wajib dipilih"),
     qty: z.number().int().min(1, "Qty minimal 1"),
   })).min(1, "Keranjang masih kosong"),
   discountType: z.enum(["flat", "percent"]).optional(),
@@ -104,18 +116,18 @@ const createRetailSaleSchema = z.object({
   cashReceived: z.number().int().min(0, "Uang diterima harus 0 atau lebih").optional().nullable(),
 })
 
-export type CreateRetailSaleInput = z.infer<typeof createRetailSaleSchema>
+export type CreateSalesOrderInput = z.infer<typeof createSalesOrderSchema>
 
 class RetailCheckoutError extends Error {}
 
-async function assertRetailAccess(tokoId: string, permission: PermissionKey) {
-  const scope = await getRequestScope(tokoId)
+async function assertRetailAccess(storeId: string, permission: PermissionKey) {
+  const scope = await getRequestScope(storeId)
   assertPermission(scope, permission)
   assertFeature(scope, "retail.sales")
   return scope
 }
 
-function normalizeRetailSalesFilters(filters?: RetailSalesFilters) {
+function normalizeSalesOrdersFilters(filters?: SalesOrdersFilters) {
   const rawPageSize = Number.isFinite(filters?.pageSize) ? filters?.pageSize ?? 20 : 20
   const rawPage = Number.isFinite(filters?.page) ? filters?.page ?? 1 : 1
   const pageSize = Math.min(Math.max(rawPageSize, 1), 100)
@@ -153,7 +165,7 @@ function toRetailHistoryItem(sale: {
   changeAmount: number | null
   createdBy: { id: string; name: string }
   items: Array<{ qty: number }>
-}): RetailSaleHistoryItem {
+}): SalesOrderHistoryItem {
   return {
     id: sale.id,
     paidAt: sale.paidAt,
@@ -184,16 +196,16 @@ function addDays(date: Date, days: number) {
 }
 
 export async function getRetailCheckoutItems(
-  tokoId: string,
+  storeId: string,
   query?: string
 ): Promise<ActionResultWithData<RetailCheckoutItem[]>> {
   try {
-    await assertRetailAccess(tokoId, "retail.view")
+    await assertRetailAccess(storeId, "retail.view")
 
     const search = query?.trim()
-    const items = await prisma.sparepart.findMany({
+    const items = await prisma.inventoryItem.findMany({
       where: {
-        tokoId,
+        storeId,
         stock: { gt: 0 },
         ...(search
           ? {
@@ -205,13 +217,13 @@ export async function getRetailCheckoutItems(
             }
           : {}),
       },
-      orderBy: [{ kind: "desc" }, { name: "asc" }],
+      orderBy: [{ type: "desc" }, { name: "asc" }],
       take: 50,
       select: {
         id: true,
         barcode: true,
         name: true,
-        kind: true,
+        type: true,
         defaultPrice: true,
         purchasePrice: true,
         warrantyDays: true,
@@ -226,7 +238,7 @@ export async function getRetailCheckoutItems(
         id: item.id,
         barcode: item.barcode,
         name: item.name,
-        kind: item.kind,
+        kind: item.type,
         defaultPrice: item.defaultPrice,
         purchasePrice: item.purchasePrice,
         warrantyDays: item.warrantyDays,
@@ -239,19 +251,240 @@ export async function getRetailCheckoutItems(
   }
 }
 
-export async function getRetailSales(
-  tokoId: string,
-  filters?: RetailSalesFilters
-): Promise<ActionResultWithData<RetailSalesResult>> {
+export async function getPhoneUnitsForCheckout(
+  storeId: string,
+  query?: string
+): Promise<ActionResultWithData<PhoneUnitCheckoutItem[]>> {
   try {
-    await assertRetailAccess(tokoId, "retail.viewHistory")
-    const normalized = normalizeRetailSalesFilters(filters)
+    await assertRetailAccess(storeId, "retail.view")
+
+    const search = query?.trim()
+    const units = await prisma.inventoryUnit.findMany({
+      where: {
+        storeId,
+        status: "available",
+        ...(search
+          ? {
+              OR: [
+                { imei: { contains: search, mode: "insensitive" as const } },
+                { serialNumber: { contains: search, mode: "insensitive" as const } },
+                { deviceModel: { modelName: { contains: search, mode: "insensitive" as const } } },
+                { deviceModel: { brand: { name: { contains: search, mode: "insensitive" as const } } } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { acquiredAt: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        imei: true,
+        serialNumber: true,
+        condition: true,
+        sellingPrice: true,
+        purchasePrice: true,
+        warrantyDays: true,
+        deviceModel: {
+          select: {
+            modelName: true,
+            brand: { select: { name: true } },
+          },
+        },
+      },
+    })
+
+    return {
+      success: true,
+      data: units.map((unit) => ({
+        id: unit.id,
+        deviceModelName: unit.deviceModel.modelName,
+        deviceBrandName: unit.deviceModel.brand.name,
+        imei: unit.imei,
+        serialNumber: unit.serialNumber,
+        condition: unit.condition,
+        sellingPrice: unit.sellingPrice,
+        purchasePrice: unit.purchasePrice,
+        warrantyDays: unit.warrantyDays,
+      })),
+    }
+  } catch (error) {
+    return actionError(error) as ActionResultWithData<PhoneUnitCheckoutItem[]>
+  }
+}
+
+export type CreatePhoneUnitSalesOrderInput = {
+  storeId: string
+  customerName?: string | null
+  customerPhone?: string | null
+  inventoryUnitIds: string[]
+  discountType?: "flat" | "percent"
+  discountAmount?: number
+  discountPercent?: number
+  paymentMethod: "cash" | "transfer" | "qris" | "debit"
+  cashReceived?: number | null
+}
+
+const createPhoneUnitSalesOrderSchema = z.object({
+  storeId: z.string().min(1, "Toko wajib diisi"),
+  customerName: z.string().trim().optional().nullable(),
+  customerPhone: z.string().trim().optional().nullable(),
+  inventoryUnitIds: z.array(z.string().min(1)).min(1, "Pilih minimal satu unit"),
+  discountType: z.enum(["flat", "percent"]).optional(),
+  discountAmount: z.number().int().min(0, "Diskon harus 0 atau lebih").optional(),
+  discountPercent: z.number().min(0, "Diskon persen minimal 0").max(100, "Diskon persen maksimal 100").optional(),
+  paymentMethod: z.enum(["cash", "transfer", "qris", "debit"]),
+  cashReceived: z.number().int().min(0, "Uang diterima harus 0 atau lebih").optional().nullable(),
+})
+
+export async function createPhoneUnitSalesOrder(
+  input: CreatePhoneUnitSalesOrderInput
+): Promise<ActionResultWithData<SalesOrderResult>> {
+  try {
+    const validated = createPhoneUnitSalesOrderSchema.parse(input)
+    const scope = await assertRetailAccess(validated.storeId, "retail.sell")
+
+    const sale = await prisma.$transaction(async (tx) => {
+      const units = await tx.inventoryUnit.findMany({
+        where: {
+          id: { in: validated.inventoryUnitIds },
+          storeId: scope.storeId,
+          status: "available",
+        },
+        select: {
+          id: true,
+          deviceModelId: true,
+          imei: true,
+          serialNumber: true,
+          condition: true,
+          sellingPrice: true,
+          purchasePrice: true,
+          warrantyDays: true,
+          deviceModel: {
+            select: {
+              modelName: true,
+              brand: { select: { name: true } },
+            },
+          },
+        },
+      })
+
+      if (units.length !== validated.inventoryUnitIds.length) {
+        throw new RetailCheckoutError("Ada unit yang tidak ditemukan atau sudah terjual")
+      }
+
+      for (const unit of units) {
+        if (unit.sellingPrice <= 0) {
+          throw new RetailCheckoutError(`Unit ${unit.deviceModel.brand.name} ${unit.deviceModel.modelName} belum punya harga jual`)
+        }
+      }
+
+      let subtotal = units.reduce((sum, unit) => sum + unit.sellingPrice, 0)
+
+      const discountAmount = validated.discountType === "percent"
+        ? Math.floor(subtotal * ((validated.discountPercent ?? 0) / 100))
+        : validated.discountAmount ?? 0
+
+      if (discountAmount > subtotal) throw new RetailCheckoutError("Diskon tidak boleh melebihi subtotal")
+
+      const grandTotal = subtotal - discountAmount
+      const paidAt = new Date()
+      let cashReceived: number | null = null
+      let changeAmount: number | null = null
+
+      if (validated.paymentMethod === "cash") {
+        cashReceived = validated.cashReceived ?? 0
+        changeAmount = cashReceived - grandTotal
+      }
+
+      if (cashReceived !== null && cashReceived < grandTotal) {
+        throw new RetailCheckoutError("Uang diterima kurang dari total belanja")
+      }
+
+      const createdSale = await tx.salesOrder.create({
+        data: {
+          storeId: scope.storeId,
+          createdById: scope.user.id,
+          customerName: normalizeOptionalText(validated.customerName),
+          customerPhone: normalizeOptionalText(validated.customerPhone),
+          subtotal,
+          discountAmount,
+          grandTotal,
+          paymentMethod: validated.paymentMethod,
+          cashReceived,
+          changeAmount,
+          paidAt,
+          items: {
+            create: units.map((unit) => ({
+              inventoryItemId: null,
+              inventoryUnitId: unit.id,
+              name: `${unit.deviceModel.brand.name} ${unit.deviceModel.modelName}`,
+              barcode: unit.imei || unit.serialNumber || null,
+              kind: "phone_unit",
+              qty: 1,
+              unitPrice: unit.sellingPrice,
+              unitCostSnapshot: unit.purchasePrice,
+              warrantyDaysSnapshot: unit.warrantyDays,
+              warrantyUntil: unit.warrantyDays ? addDays(paidAt, unit.warrantyDays) : null,
+              lineTotal: unit.sellingPrice,
+            })),
+          },
+        },
+        select: { id: true, grandTotal: true, paidAt: true },
+      })
+
+      for (const unit of units) {
+        await tx.inventoryUnit.update({
+          where: { id: unit.id },
+          data: {
+            status: "sold",
+            soldAt: paidAt,
+          },
+        })
+
+        await tx.inventoryMovement.create({
+          data: {
+            storeId: scope.storeId,
+            inventoryItemId: null,
+            inventoryUnitId: unit.id,
+            type: "unit_sold",
+            qtyChange: -1,
+            stockBefore: 1,
+            stockAfter: 0,
+            unitCostSnapshot: unit.purchasePrice,
+            unitPriceSnapshot: unit.sellingPrice,
+            referenceType: "sales_order",
+            referenceId: createdSale.id,
+            createdById: scope.user.id,
+          },
+        })
+      }
+
+      return createdSale
+    })
+
+    revalidateRetailPaths(scope.storeId)
+
+    return { success: true, data: sale }
+  } catch (error) {
+    if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message }
+    if (error instanceof RetailCheckoutError) return { success: false, error: error.message }
+    return actionError(error) as ActionResultWithData<SalesOrderResult>
+  }
+}
+
+export async function getSalesOrders(
+  storeId: string,
+  filters?: SalesOrdersFilters
+): Promise<ActionResultWithData<SalesOrdersResult>> {
+  try {
+    await assertRetailAccess(storeId, "retail.viewHistory")
+    const normalized = normalizeSalesOrdersFilters(filters)
     const paidAtFilter = {
       ...(normalized.from ? { gte: new Date(`${normalized.from}T00:00:00.000`) } : {}),
       ...(normalized.to ? { lte: new Date(`${normalized.to}T23:59:59.999`) } : {}),
     }
     const where = {
-      tokoId,
+      storeId,
       ...(normalized.cashierId ? { createdById: normalized.cashierId } : {}),
       ...(normalized.paymentMethod ? { paymentMethod: normalized.paymentMethod } : {}),
       ...(normalized.status ? { status: normalized.status } : {}),
@@ -269,7 +502,7 @@ export async function getRetailSales(
     }
 
     const [sales, totalItems, totals, cashiers] = await Promise.all([
-      prisma.retailSale.findMany({
+      prisma.salesOrder.findMany({
         where,
         orderBy: { paidAt: "desc" },
         skip: (normalized.page - 1) * normalized.pageSize,
@@ -290,13 +523,13 @@ export async function getRetailSales(
           items: { select: { qty: true } },
         },
       }),
-      prisma.retailSale.count({ where }),
-      prisma.retailSale.aggregate({
+      prisma.salesOrder.count({ where }),
+      prisma.salesOrder.aggregate({
         where: { ...where, status: "paid" },
         _sum: { subtotal: true, discountAmount: true, grandTotal: true },
       }),
       prisma.user.findMany({
-        where: { retailSales: { some: { tokoId } } },
+        where: { salesOrders: { some: { storeId } } },
         orderBy: { name: "asc" },
         select: { id: true, name: true },
       }),
@@ -317,17 +550,17 @@ export async function getRetailSales(
       },
     }
   } catch (error) {
-    return actionError(error) as ActionResultWithData<RetailSalesResult>
+    return actionError(error) as ActionResultWithData<SalesOrdersResult>
   }
 }
 
-export async function getRetailSale(saleId: string): Promise<ActionResultWithData<RetailSaleDetail>> {
+export async function getSalesOrder(salesOrderId: string): Promise<ActionResultWithData<SalesOrderDetail>> {
   try {
-    const sale = await prisma.retailSale.findUnique({
-      where: { id: saleId },
+    const sale = await prisma.salesOrder.findUnique({
+      where: { id: salesOrderId },
       select: {
         id: true,
-        tokoId: true,
+        storeId: true,
         paidAt: true,
         status: true,
         customerName: true,
@@ -339,12 +572,12 @@ export async function getRetailSale(saleId: string): Promise<ActionResultWithDat
         cashReceived: true,
         changeAmount: true,
         createdBy: { select: { id: true, name: true } },
-        toko: { select: { id: true, name: true, address: true, phone: true, logoUrl: true, invoiceTerms: true } },
+        store: { select: { id: true, name: true, address: true, phone: true, logoUrl: true, invoiceTerms: true } },
         items: {
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
-            sparepartId: true,
+            inventoryItemId: true,
             name: true,
             barcode: true,
             kind: true,
@@ -360,42 +593,42 @@ export async function getRetailSale(saleId: string): Promise<ActionResultWithDat
     })
 
     if (!sale) return { success: false, error: "Penjualan retail tidak ditemukan" }
-    await assertRetailAccess(sale.tokoId, "retail.viewHistory")
+    await assertRetailAccess(sale.storeId, "retail.viewHistory")
 
     return {
       success: true,
       data: {
         ...toRetailHistoryItem(sale),
-        toko: sale.toko,
+        store: sale.store,
         items: sale.items,
       },
     }
   } catch (error) {
-    return actionError(error) as ActionResultWithData<RetailSaleDetail>
+    return actionError(error) as ActionResultWithData<SalesOrderDetail>
   }
 }
 
-export async function createRetailSale(input: CreateRetailSaleInput): Promise<ActionResultWithData<RetailSaleResult>> {
+export async function createSalesOrder(input: CreateSalesOrderInput): Promise<ActionResultWithData<SalesOrderResult>> {
   try {
-    const validated = createRetailSaleSchema.parse(input)
-    const scope = await assertRetailAccess(validated.tokoId, "retail.sell")
+    const validated = createSalesOrderSchema.parse(input)
+    const scope = await assertRetailAccess(validated.storeId, "retail.sell")
 
     const qtyBySparepartId = new Map<string, number>()
     for (const item of validated.items) {
-      qtyBySparepartId.set(item.sparepartId, (qtyBySparepartId.get(item.sparepartId) ?? 0) + item.qty)
+      qtyBySparepartId.set(item.inventoryItemId, (qtyBySparepartId.get(item.inventoryItemId) ?? 0) + item.qty)
     }
 
     const sale = await prisma.$transaction(async (tx) => {
-      const inventoryItems = await tx.sparepart.findMany({
+      const inventoryItems = await tx.inventoryItem.findMany({
         where: {
-          tokoId: scope.tokoId,
+          storeId: scope.storeId,
           id: { in: Array.from(qtyBySparepartId.keys()) },
         },
         select: {
           id: true,
           barcode: true,
           name: true,
-          kind: true,
+          type: true,
           defaultPrice: true,
           purchasePrice: true,
           warrantyDays: true,
@@ -435,9 +668,9 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
         throw new RetailCheckoutError("Uang diterima kurang dari total belanja")
       }
 
-      const createdSale = await tx.retailSale.create({
+      const createdSale = await tx.salesOrder.create({
         data: {
-          tokoId: scope.tokoId,
+          storeId: scope.storeId,
           createdById: scope.user.id,
           customerName: normalizeOptionalText(validated.customerName),
           customerPhone: normalizeOptionalText(validated.customerPhone),
@@ -453,10 +686,10 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
               const qty = qtyBySparepartId.get(item.id) ?? 0
               const warrantyUntil = item.warrantyDays ? addDays(paidAt, item.warrantyDays) : null
               return {
-                sparepartId: item.id,
+                inventoryItemId: item.id,
                 name: item.name,
                 barcode: item.barcode,
-                kind: item.kind,
+                kind: item.type,
                 qty,
                 unitPrice: item.defaultPrice,
                 unitCostSnapshot: item.purchasePrice,
@@ -472,10 +705,10 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
 
       for (const item of inventoryItems) {
         const qty = qtyBySparepartId.get(item.id) ?? 0
-        const updated = await tx.sparepart.updateMany({
+        const updated = await tx.inventoryItem.updateMany({
           where: {
             id: item.id,
-            tokoId: scope.tokoId,
+            storeId: scope.storeId,
             stock: { gte: qty },
           },
           data: { stock: { decrement: qty } },
@@ -483,17 +716,17 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
 
         if (updated.count !== 1) throw new RetailCheckoutError(`Stok ${item.name} tidak cukup`)
 
-        await tx.stockMovement.create({
+        await tx.inventoryMovement.create({
           data: {
-            tokoId: scope.tokoId,
-            sparepartId: item.id,
-            type: "retail_sale",
+            storeId: scope.storeId,
+            inventoryItemId: item.id,
+            type: "sales_order",
             qtyChange: -qty,
             stockBefore: item.stock,
             stockAfter: item.stock - qty,
             unitCostSnapshot: item.purchasePrice,
             unitPriceSnapshot: item.defaultPrice,
-            referenceType: "retail_sale",
+            referenceType: "sales_order",
             referenceId: createdSale.id,
             createdById: scope.user.id,
           },
@@ -503,12 +736,23 @@ export async function createRetailSale(input: CreateRetailSaleInput): Promise<Ac
       return createdSale
     })
 
-    revalidateRetailPaths(scope.tokoId)
+    revalidateRetailPaths(scope.storeId)
 
     return { success: true, data: sale }
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message }
     if (error instanceof RetailCheckoutError) return { success: false, error: error.message }
-    return actionError(error) as ActionResultWithData<RetailSaleResult>
+    return actionError(error) as ActionResultWithData<SalesOrderResult>
   }
 }
+
+export type RetailSaleResult = SalesOrderResult
+export type RetailSalesFilters = SalesOrdersFilters
+export type RetailSaleHistoryItem = SalesOrderHistoryItem
+export type RetailSalesResult = SalesOrdersResult
+export type RetailSaleDetail = SalesOrderDetail
+export type CreateRetailSaleInput = CreateSalesOrderInput
+
+export const getRetailSales = getSalesOrders
+export const getRetailSale = getSalesOrder
+export const createRetailSale = createSalesOrder

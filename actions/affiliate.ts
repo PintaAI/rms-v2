@@ -60,7 +60,7 @@ export interface AffiliateCommissionRow {
   customerName: string;
   customerEmail: string;
   plan: SubscriptionPlan;
-  kind: AffiliateCommissionKind;
+  type: AffiliateCommissionKind;
   commissionBaseAmount: number | null;
   periodStart: Date | null;
   periodEnd: Date | null;
@@ -137,7 +137,7 @@ export interface AffiliatePortalData {
     id: string;
     customer: string;
     plan: SubscriptionPlan;
-    kind: AffiliateCommissionKind;
+    type: AffiliateCommissionKind;
     amount: number;
     status: AffiliateCommissionStatus;
     createdAt: Date;
@@ -346,7 +346,7 @@ function toCommissionRow(commission: {
     customerName: commission.user.name,
     customerEmail: commission.user.email,
     plan: commission.plan,
-    kind: commission.kind,
+    type: commission.kind,
     commissionBaseAmount: commission.commissionBaseAmount,
     periodStart: commission.periodStart,
     periodEnd: commission.periodEnd,
@@ -806,20 +806,20 @@ export async function createCommissionForPaidPlanActivation(input: {
   const periodStart = referral.referredUser.subscription?.currentPeriodStart ?? new Date();
   const periodEnd = referral.referredUser.subscription?.currentPeriodEnd ?? null;
   const baseAmount = input.subscriptionAmount ?? getPlanMonthlyPrice(plan) ?? 0;
-  const kind: AffiliateCommissionKind = plan === "premium" ? "pro_recurring" : "enterprise_one_time";
+  const type: AffiliateCommissionKind = plan === "premium" ? "pro_recurring" : "enterprise_one_time";
   const percentage = plan === "premium" ? referral.affiliator.premiumCommissionValue : referral.affiliator.enterpriseCommissionValue;
   const amount = getPercentageCommissionAmount(baseAmount, percentage);
   const periodKey = plan === "premium" ? commissionPeriodKey(periodStart) : "enterprise";
 
   await prisma.$transaction(async (tx) => {
     await tx.affiliateCommission.upsert({
-      where: { referralId_plan_kind_periodKey: { referralId: referral.id, plan, kind, periodKey } },
+      where: { referralId_plan_kind_periodKey: { referralId: referral.id, plan, kind: type, periodKey } },
       create: {
         affiliatorId: referral.affiliatorId,
         referralId: referral.id,
         userId: input.userId,
         plan,
-        kind,
+        kind: type,
         periodKey,
         periodStart: plan === "premium" ? periodStart : null,
         periodEnd: plan === "premium" ? periodEnd : null,
@@ -1065,7 +1065,7 @@ export async function getAffiliatePortalData(input: {
         id: commission.id,
         customer: customerDisplay(commission.user),
         plan: commission.plan,
-        kind: commission.kind,
+        type: commission.kind,
         amount: commission.amount,
         status: commission.status,
         createdAt: commission.createdAt,
@@ -1149,7 +1149,7 @@ export async function getCurrentUserAffiliateDashboard(): Promise<ActionResultWi
         id: commission.id,
         customer: customerDisplay(commission.user),
         plan: commission.plan,
-        kind: commission.kind,
+        type: commission.kind,
         amount: commission.amount,
         status: commission.status,
         createdAt: commission.createdAt,

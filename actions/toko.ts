@@ -36,7 +36,7 @@ interface CreateTokoInput {
 
 interface CreateTokoResult {
   success: boolean;
-  tokoId?: string;
+  storeId?: string;
   error?: string;
   users?: CreatedUserCredential[];
 }
@@ -102,7 +102,7 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
     return { success: false, error: "Only admins can create toko" };
   }
 
-  const tokoLimitError = ensurePlanLimit(user, "maxTokos", user.tokoIds.length);
+  const tokoLimitError = ensurePlanLimit(user, "maxTokos", user.storeIds.length);
   if (tokoLimitError) return tokoLimitError;
 
   const staffLimitError = ensurePlanLimit(user, "maxStaff", 0, input.staff.length);
@@ -115,8 +115,8 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const tokoCount = await tx.userToko.count({ where: { userId: user.id } });
-      const tokoLimitError = ensurePlanLimit(user, "maxTokos", tokoCount);
+      const storeCount = await tx.userStore.count({ where: { userId: user.id } });
+      const tokoLimitError = ensurePlanLimit(user, "maxTokos", storeCount);
       if (tokoLimitError) throw new Error(tokoLimitError.error);
 
       const staffLimitError = ensurePlanLimit(user, "maxStaff", 0, input.staff.length);
@@ -125,7 +125,7 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
       const technicianLimitError = ensurePlanLimit(user, "maxTechnicians", 0, input.technician.length);
       if (technicianLimitError) throw new Error(technicianLimitError.error);
 
-      const toko = await tx.toko.create({
+      const toko = await tx.store.create({
         data: {
           name: input.name,
           logoUrl: input.logoUrl,
@@ -135,18 +135,18 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
         },
       });
 
-      await tx.userToko.create({
+      await tx.userStore.create({
         data: {
           userId: user.id,
-          tokoId: toko.id,
+          storeId: toko.id,
           role: "owner",
         },
       });
 
       if (disabledFeatures.length > 0) {
-        await tx.tokoFeatureSetting.create({
+        await tx.storeFeatureSetting.create({
           data: {
-            tokoId: toko.id,
+            storeId: toko.id,
             disabledFeatures: JSON.stringify(disabledFeatures),
           },
         });
@@ -162,7 +162,7 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
           email,
           password: staff.password,
           role: "staff",
-          tokoId: toko.id,
+          storeId: toko.id,
         });
         createdUsers.push({ name: staff.name, email, password: staff.password, role: "staff" });
       }
@@ -174,15 +174,15 @@ export async function createTokoWithUsers(input: CreateTokoInput): Promise<Creat
           email,
           password: tech.password,
           role: "technician",
-          tokoId: toko.id,
+          storeId: toko.id,
         });
         createdUsers.push({ name: tech.name, email, password: tech.password, role: "technician" });
       }
 
-      return { tokoId: toko.id, users: createdUsers };
+      return { storeId: toko.id, users: createdUsers };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    return { success: true, tokoId: result.tokoId, users: result.users };
+    return { success: true, storeId: result.storeId, users: result.users };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Your ")) {
       return { success: false, error: error.message };
@@ -234,16 +234,16 @@ export async function createToko(input: {
     return { success: false, error: "Toko name must be at least 2 characters" };
   }
 
-  const tokoLimitError = ensurePlanLimit(user, "maxTokos", user.tokoIds.length);
+  const tokoLimitError = ensurePlanLimit(user, "maxTokos", user.storeIds.length);
   if (tokoLimitError) return tokoLimitError;
 
   try {
     const toko = await prisma.$transaction(async (tx) => {
-      const tokoCount = await tx.userToko.count({ where: { userId: user.id } });
-      const tokoLimitError = ensurePlanLimit(user, "maxTokos", tokoCount);
+      const storeCount = await tx.userStore.count({ where: { userId: user.id } });
+      const tokoLimitError = ensurePlanLimit(user, "maxTokos", storeCount);
       if (tokoLimitError) throw new Error(tokoLimitError.error);
 
-      const createdToko = await tx.toko.create({
+      const createdToko = await tx.store.create({
         data: {
           name: input.name.trim(),
           logoUrl: input.logoUrl?.trim(),
@@ -253,10 +253,10 @@ export async function createToko(input: {
         },
       });
 
-      await tx.userToko.create({
+      await tx.userStore.create({
         data: {
           userId: user.id,
-          tokoId: createdToko.id,
+          storeId: createdToko.id,
           role: "owner",
         },
       });
@@ -266,7 +266,7 @@ export async function createToko(input: {
 
     revalidatePath("/dashboard");
 
-    return { success: true, tokoId: toko.id };
+    return { success: true, storeId: toko.id };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Your ")) {
       return { success: false, error: error.message };
@@ -276,12 +276,12 @@ export async function createToko(input: {
   }
 }
 
-export async function getTokoById(tokoId: string): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
-  return withScope(tokoId, {}, async (scope) => {
+export async function getTokoById(storeId: string): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "toko.viewSettings");
 
-    const toko = await prisma.toko.findUnique({
-      where: { id: tokoId },
+    const toko = await prisma.store.findUnique({
+      where: { id: storeId },
       select: {
         id: true,
         name: true,
@@ -303,18 +303,18 @@ export async function getTokoById(tokoId: string): Promise<{ success: boolean; d
 }
 
 export async function updateToko(
-  tokoId: string,
+  storeId: string,
   input: UpdateTokoInput
 ): Promise<{ success: boolean; data?: TokoDetail; error?: string }> {
   if (input.name && input.name.trim().length < 2) {
     return { success: false, error: "Toko name must be at least 2 characters" };
   }
 
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "toko.viewSettings");
 
-    const toko = await prisma.toko.update({
-      where: { id: tokoId },
+    const toko = await prisma.store.update({
+      where: { id: storeId },
       data: {
         name: input.name?.trim(),
         address: input.address?.trim(),
@@ -338,13 +338,13 @@ export async function updateToko(
       },
     });
 
-    revalidateTokoPaths(tokoId);
+    revalidateTokoPaths(storeId);
 
     return toko;
   });
 }
 
-export async function getTokoInvoiceSettings(tokoId: string): Promise<{
+export async function getTokoInvoiceSettings(storeId: string): Promise<{
   success: boolean;
   data?: {
     name: string;
@@ -356,9 +356,9 @@ export async function getTokoInvoiceSettings(tokoId: string): Promise<{
   };
   error?: string;
 }> {
-  return withScope(tokoId, {}, async () => {
-    const toko = await prisma.toko.findUnique({
-      where: { id: tokoId },
+  return withScope(storeId, {}, async () => {
+    const toko = await prisma.store.findUnique({
+      where: { id: storeId },
       select: {
         name: true,
         address: true,
@@ -382,16 +382,16 @@ export async function getTokoInvoiceSettings(tokoId: string): Promise<{
   });
 }
 
-export async function deleteToko(tokoId: string): Promise<{ success: boolean; error?: string }> {
-  return withScope(tokoId, {}, async (scope) => {
+export async function deleteToko(storeId: string): Promise<{ success: boolean; error?: string }> {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "toko.manageOperational");
 
-    if (scope.user.tokoIds.length === 1) {
+    if (scope.user.storeIds.length === 1) {
       return { success: false, error: "Cannot delete the last toko. You must have at least one toko." };
     }
 
-    await prisma.toko.delete({
-      where: { id: tokoId },
+    await prisma.store.delete({
+      where: { id: storeId },
     });
 
     revalidatePath("/dashboard");

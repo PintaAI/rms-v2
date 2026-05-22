@@ -1,49 +1,49 @@
 import { revalidatePath } from "next/cache";
 
-export function revalidateServicePaths(tokoId: string, includeTeknisi = false): void {
-  revalidatePath(`/${tokoId}/service`);
-  revalidatePath(`/${tokoId}/service/tasks`);
-  revalidatePath(`/${tokoId}/admin`);
+export function revalidateServicePaths(storeId: string, includeTeknisi = false): void {
+  revalidatePath(`/${storeId}/service`);
+  revalidatePath(`/${storeId}/service/tasks`);
+  revalidatePath(`/${storeId}/admin`);
   if (includeTeknisi) {
-    revalidatePath(`/${tokoId}/teknisi`);
+    revalidatePath(`/${storeId}/teknisi`);
   }
 }
 
-export function revalidateInventoryPaths(tokoId?: string, includeStaff = true): void {
-  if (!tokoId) {
+export function revalidateInventoryPaths(storeId?: string, includeStaff = true): void {
+  if (!storeId) {
     revalidatePath("/dashboard");
     return;
   }
 
-  revalidatePath(`/${tokoId}/inventory`);
-  revalidatePath(`/${tokoId}/inventory/audit-gudang`);
-  revalidatePath(`/${tokoId}/inventory/reports`);
-  revalidatePath(`/${tokoId}/inventory/restock-history`);
-  revalidatePath(`/${tokoId}/inventory/supplier-returns`);
-  revalidatePath(`/${tokoId}/admin`);
+  revalidatePath(`/${storeId}/inventory`);
+  revalidatePath(`/${storeId}/inventory/audit-gudang`);
+  revalidatePath(`/${storeId}/inventory/reports`);
+  revalidatePath(`/${storeId}/inventory/restock-history`);
+  revalidatePath(`/${storeId}/inventory/supplier-returns`);
+  revalidatePath(`/${storeId}/admin`);
   if (includeStaff) {
-    revalidatePath(`/${tokoId}/staff`);
-    revalidatePath(`/${tokoId}/teknisi`);
+    revalidatePath(`/${storeId}/staff`);
+    revalidatePath(`/${storeId}/teknisi`);
   }
 }
 
-export function revalidateRetailPaths(tokoId: string): void {
-  revalidatePath(`/${tokoId}/retail`);
-  revalidatePath(`/${tokoId}/retail/history`);
-  revalidateInventoryPaths(tokoId);
+export function revalidateRetailPaths(storeId: string): void {
+  revalidatePath(`/${storeId}/retail`);
+  revalidatePath(`/${storeId}/retail/history`);
+  revalidateInventoryPaths(storeId);
 }
 
-export function revalidateTokoPaths(tokoId: string): void {
-  revalidatePath(`/${tokoId}/admin/toko`);
-  revalidatePath(`/${tokoId}/admin`);
+export function revalidateTokoPaths(storeId: string): void {
+  revalidatePath(`/${storeId}/admin/toko`);
+  revalidatePath(`/${storeId}/admin`);
 }
 
-export function revalidateAnalyticsPaths(tokoId: string): void {
-  revalidatePath(`/${tokoId}/analytics`);
-  revalidatePath(`/${tokoId}/admin`);
+export function revalidateAnalyticsPaths(storeId: string): void {
+  revalidatePath(`/${storeId}/analytics`);
+  revalidatePath(`/${storeId}/admin`);
 }
 
-export function revalidateKaryawanPaths(tokoId: string): void {
-  revalidatePath(`/${tokoId}/karyawan`);
-  revalidatePath(`/${tokoId}/admin`);
+export function revalidateKaryawanPaths(storeId: string): void {
+  revalidatePath(`/${storeId}/karyawan`);
+  revalidatePath(`/${storeId}/admin`);
 }

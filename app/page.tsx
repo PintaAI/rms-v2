@@ -184,7 +184,7 @@ async function getLandingPhoneCatalog() {
   cacheLife({ revalidate: 3600 });
 
   try {
-    const devices = await prisma.hpCatalog.findMany({
+    const devices = await prisma.deviceModel.findMany({
       orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
       select: {
         modelName: true,

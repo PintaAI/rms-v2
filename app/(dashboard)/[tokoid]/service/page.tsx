@@ -46,7 +46,7 @@ export default async function SharedServicePage({ params, searchParams }: Shared
   const pageSize = 15;
 
   const [toko, servicesResult, statsResult] = await Promise.all([
-    prisma.toko.findUnique({
+    prisma.store.findUnique({
       where: { id: tokoid },
       select: { id: true, name: true, logoUrl: true },
     }),

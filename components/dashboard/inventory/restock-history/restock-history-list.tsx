@@ -92,10 +92,10 @@ export function RestockHistoryList({ tokoId, history, filters }: RestockHistoryL
                         </div>
                       </TableCell>
                       <TableCell className="min-w-52">
-                        <div className="font-medium">{item.sparepartName || "Sparepart"}</div>
+                        <div className="font-medium">{item.inventoryItemName || "Sparepart"}</div>
                         <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
                           <RiBarcodeLine className="size-3" />
-                          <span className="truncate">{item.sparepartBarcode || item.sparepartId}</span>
+                          <span className="truncate">{item.inventoryItemBarcode || item.inventoryItemId}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -127,10 +127,10 @@ export function RestockHistoryList({ tokoId, history, filters }: RestockHistoryL
                 <div key={item.id} className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-medium">{item.sparepartName || "Sparepart"}</div>
+                      <div className="font-medium">{item.inventoryItemName || "Sparepart"}</div>
                       <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <RiBarcodeLine className="size-3" />
-                        <span className="truncate">{item.sparepartBarcode || item.sparepartId}</span>
+                        <span className="truncate">{item.inventoryItemBarcode || item.inventoryItemId}</span>
                       </div>
                     </div>
                     <Badge variant="outline" className="border-primary/20 bg-primary/10 text-primary">

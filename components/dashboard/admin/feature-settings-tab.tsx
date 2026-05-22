@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import {
-  getTokoFeatureSettingsWithStatus,
+  getStoreFeatureSettingsWithStatus,
   setTokoFeatureEnabled,
   type FeatureSettingsStatusData,
   type FeatureSettingRow,
@@ -54,10 +54,10 @@ export function FeatureSettingsTab({ tokoId }: FeatureSettingsTabProps) {
   useEffect(() => {
     async function fetchFeatures() {
       setIsLoading(true);
-      const result = await getTokoFeatureSettingsWithStatus(tokoId);
+      const result = await getStoreFeatureSettingsWithStatus(tokoId);
       if (result.success && result.data) {
         setFeatures(result.data.features);
-        setSettingsInfo({ tokoId: result.data.tokoId, tokoName: result.data.tokoName, plan: result.data.plan });
+        setSettingsInfo({ storeId: result.data.storeId, tokoName: result.data.tokoName, plan: result.data.plan });
       } else {
         toast.error(result.error || "Failed to load feature settings");
       }
@@ -68,10 +68,10 @@ export function FeatureSettingsTab({ tokoId }: FeatureSettingsTabProps) {
 
   const loadFeatures = useCallback(async () => {
     setIsLoading(true);
-    const result = await getTokoFeatureSettingsWithStatus(tokoId);
+    const result = await getStoreFeatureSettingsWithStatus(tokoId);
     if (result.success && result.data) {
       setFeatures(result.data.features);
-      setSettingsInfo({ tokoId: result.data.tokoId, tokoName: result.data.tokoName, plan: result.data.plan });
+      setSettingsInfo({ storeId: result.data.storeId, tokoName: result.data.tokoName, plan: result.data.plan });
     } else {
       toast.error(result.error || "Failed to load feature settings");
     }

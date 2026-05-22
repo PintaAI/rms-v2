@@ -30,7 +30,7 @@ export function AdminDetailCard({ admin }: AdminDetailCardProps) {
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <DetailMetric label="Toko" value={admin.tokoCount} />
+          <DetailMetric label="Toko" value={admin.storeCount} />
           <DetailMetric label="Staff" value={admin.staffCount} />
           <DetailMetric label="Teknisi" value={admin.technicianCount} />
           <DetailMetric label="Total servis" value={admin.serviceCount} />

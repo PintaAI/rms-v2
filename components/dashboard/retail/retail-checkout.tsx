@@ -1,7 +1,7 @@
 "use client"
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from "react"
-import { createRetailSale, getRetailCheckoutItems, getRetailSale, type RetailCheckoutItem, type RetailSaleDetail } from "@/actions/retail"
+import { createSalesOrder, getRetailCheckoutItems, getSalesOrder, type RetailCheckoutItem, type SalesOrderDetail } from "@/actions/retail"
 import { RetailSaleDetailDrawer } from "@/components/dashboard/retail/retail-sale-detail-drawer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -84,7 +84,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
   const [cashReceived, setCashReceived] = useState("")
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
-  const [selectedSale, setSelectedSale] = useState<RetailSaleDetail | null>(null)
+  const [selectedSale, setSelectedSale] = useState<SalesOrderDetail | null>(null)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [autoPrintReceipt, setAutoPrintReceipt] = useState(() => {
     if (typeof window === "undefined") return false
@@ -208,11 +208,11 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
 
     setIsCheckingOut(true)
     void (async () => {
-      const result = await createRetailSale({
-        tokoId,
+      const result = await createSalesOrder({
+        storeId: tokoId,
         customerName,
         customerPhone,
-        items: cart.map((item) => ({ sparepartId: item.id, qty: item.qty })),
+        items: cart.map((item) => ({ inventoryItemId: item.id, qty: item.qty })),
         discountType,
         discountAmount: discountType === "flat" ? toNumber(discountValue) : undefined,
         discountPercent: discountType === "percent" ? toNumber(discountValue) : undefined,
@@ -226,7 +226,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
         return
       }
 
-      const saleResult = await getRetailSale(result.data.id)
+      const saleResult = await getSalesOrder(result.data.id)
       if (saleResult.success && saleResult.data) {
         setSelectedSale(saleResult.data)
         setReceiptOpen(true)
@@ -314,8 +314,8 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                       <div className="truncate font-medium">{item.name}</div>
                       <div className="text-xs text-muted-foreground">{item.barcode}</div>
                     </div>
-                    <Badge variant={item.kind === "retail_item" ? "secondary" : "outline"}>
-                      {item.kind === "retail_item" ? "Retail" : "Sparepart"}
+                    <Badge variant={item.kind === "retail_product" ? "secondary" : "outline"}>
+                      {item.kind === "retail_product" ? "Retail" : "Sparepart"}
                     </Badge>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3 text-sm">
@@ -391,7 +391,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                           {cart.map((item) => (
                             <TableRow key={item.id}>
                               <TableCell>
-                                <Badge variant="outline">{item.kind === "retail_item" ? "Retail" : "Sparepart"}</Badge>
+                                <Badge variant="outline">{item.kind === "retail_product" ? "Retail" : "Sparepart"}</Badge>
                               </TableCell>
                               <TableCell className="font-medium">{item.name}</TableCell>
                               <TableCell>{item.warrantyDays ? `${item.warrantyDays} hari` : "-"}</TableCell>

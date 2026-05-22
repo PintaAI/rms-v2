@@ -1,15 +1,15 @@
 import type { ServiceListItem } from "@/actions/service";
 
-export function getServiceRealtimeLabel(service?: Pick<ServiceListItem, "customerName" | "hpCatalog"> | null) {
+export function getServiceRealtimeLabel(service?: Pick<ServiceListItem, "customerName" | "deviceModel"> | null) {
   if (!service) return undefined;
 
-  const deviceName = `${service.hpCatalog.brand.name} ${service.hpCatalog.modelName}`;
+  const deviceName = `${service.deviceModel.brand.name} ${service.deviceModel.modelName}`;
   return service.customerName ? `${service.customerName} - ${deviceName}` : deviceName;
 }
 
-export function getServiceRealtimeMeta(service?: Pick<ServiceListItem, "customerName" | "hpCatalog"> | null) {
+export function getServiceRealtimeMeta(service?: Pick<ServiceListItem, "customerName" | "deviceModel"> | null) {
   return {
     serviceLabel: getServiceRealtimeLabel(service),
-    serviceBrand: service?.hpCatalog.brand.name,
+    serviceBrand: service?.deviceModel.brand.name,
   };
 }

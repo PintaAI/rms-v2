@@ -217,8 +217,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
     if (result.success) {
       setCreateDialogOpen(false);
       await refetchTokoList();
-      if (result.tokoId) {
-        router.push(`/${result.tokoId}/admin`);
+      if (result.storeId) {
+        router.push(`/${result.storeId}/admin`);
       }
       router.refresh();
     } else {

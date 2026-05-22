@@ -15,8 +15,8 @@ import { revalidatePath } from "next/cache";
 import { assertPermission } from "@/lib/auth/request-scope";
 import { withScope } from "@/lib/auth/wrapper";
 
-export interface TokoFeatureSettingsData {
-  tokoId: string;
+export interface StoreFeatureSettingsData {
+  storeId: string;
   disabledFeatures: FeatureKey[];
 }
 
@@ -32,35 +32,35 @@ export interface FeatureSettingRow {
 }
 
 export interface FeatureSettingsStatusData {
-  tokoId: string;
+  storeId: string;
   tokoName: string;
   plan: SubscriptionPlan;
   features: FeatureSettingRow[];
 }
 
-export async function getTokoFeatureSettings(
-  tokoId: string
-): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  return withScope(tokoId, {}, async () => {
-    const setting = await prisma.tokoFeatureSetting.findUnique({
-      where: { tokoId },
-      select: { tokoId: true, disabledFeatures: true },
+export async function getStoreFeatureSettings(
+  storeId: string
+): Promise<ActionResultWithData<StoreFeatureSettingsData>> {
+  return withScope(storeId, {}, async () => {
+    const setting = await prisma.storeFeatureSetting.findUnique({
+      where: { storeId },
+      select: { storeId: true, disabledFeatures: true },
     });
 
-    if (!setting) return { tokoId, disabledFeatures: [] };
+    if (!setting) return { storeId, disabledFeatures: [] };
 
-    return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
+    return { storeId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
   });
 }
 
-export async function getTokoFeatureSettingsWithStatus(
-  tokoId: string
+export async function getStoreFeatureSettingsWithStatus(
+  storeId: string
 ): Promise<ActionResultWithData<FeatureSettingsStatusData>> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "features.view");
 
-    const toko = await prisma.toko.findUnique({
-      where: { id: tokoId },
+    const toko = await prisma.store.findUnique({
+      where: { id: storeId },
       select: { name: true },
     });
 
@@ -103,28 +103,28 @@ export async function getTokoFeatureSettingsWithStatus(
       };
     });
 
-    return { tokoId, tokoName: toko.name, plan: scope.plan, features: rows };
+    return { storeId, tokoName: toko.name, plan: scope.plan, features: rows };
   });
 }
 
-function revalidateFeaturePaths(tokoId: string) {
-  revalidatePath(`/${tokoId}/admin`);
-  revalidatePath(`/${tokoId}/admin/toko`);
-  revalidatePath(`/${tokoId}/staff`);
-  revalidatePath(`/${tokoId}/teknisi`);
+function revalidateFeaturePaths(storeId: string) {
+  revalidatePath(`/${storeId}/admin`);
+  revalidatePath(`/${storeId}/admin/toko`);
+  revalidatePath(`/${storeId}/staff`);
+  revalidatePath(`/${storeId}/teknisi`);
 }
 
-async function upsertTokoFeatureSetting(
-  tokoId: string,
+async function upsertStoreFeatureSetting(
+  storeId: string,
   disabledFeatures: FeatureKey[]
-): Promise<TokoFeatureSettingsData> {
-  const setting = await prisma.tokoFeatureSetting.upsert({
-    where: { tokoId },
-    create: { tokoId, disabledFeatures: JSON.stringify(disabledFeatures) },
+): Promise<StoreFeatureSettingsData> {
+  const setting = await prisma.storeFeatureSetting.upsert({
+    where: { storeId },
+    create: { storeId, disabledFeatures: JSON.stringify(disabledFeatures) },
     update: { disabledFeatures: JSON.stringify(disabledFeatures) },
-    select: { tokoId: true, disabledFeatures: true },
+    select: { storeId: true, disabledFeatures: true },
   });
-  return { tokoId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
+  return { storeId, disabledFeatures: parseDisabledFeatures(setting.disabledFeatures) };
 }
 
 function normalizeDisabledFeaturesForPlan(plan: SubscriptionPlan, disabledFeatures: FeatureKey[]): FeatureKey[] {
@@ -144,11 +144,11 @@ function normalizeDisabledFeaturesForPlan(plan: SubscriptionPlan, disabledFeatur
   return [...normalized];
 }
 
-export async function updateTokoFeatureSettings(
-  tokoId: string,
+export async function updateStoreFeatureSettings(
+  storeId: string,
   disabledFeatures: FeatureKey[]
-): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  return withScope(tokoId, {}, async (scope) => {
+): Promise<ActionResultWithData<StoreFeatureSettingsData>> {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "features.manage");
 
     for (const feature of disabledFeatures) {
@@ -160,20 +160,20 @@ export async function updateTokoFeatureSettings(
       }
     }
 
-    const result = await upsertTokoFeatureSetting(tokoId, normalizeDisabledFeaturesForPlan(scope.plan, disabledFeatures));
+    const result = await upsertStoreFeatureSetting(storeId, normalizeDisabledFeaturesForPlan(scope.plan, disabledFeatures));
 
-    revalidateFeaturePaths(tokoId);
+    revalidateFeaturePaths(storeId);
 
     return result;
   });
 }
 
 export async function setTokoFeatureEnabled(
-  tokoId: string,
+  storeId: string,
   feature: FeatureKey,
   enabled: boolean
-): Promise<ActionResultWithData<TokoFeatureSettingsData>> {
-  return withScope(tokoId, {}, async (scope) => {
+): Promise<ActionResultWithData<StoreFeatureSettingsData>> {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "features.manage");
 
     if (!isFeatureKey(feature)) throw new Error("Invalid feature");
@@ -184,8 +184,8 @@ export async function setTokoFeatureEnabled(
       throw new Error(`${metadata.label} requires ${metadata.minimumPlan} plan`);
     }
 
-    const existing = await prisma.tokoFeatureSetting.findUnique({
-      where: { tokoId },
+    const existing = await prisma.storeFeatureSetting.findUnique({
+      where: { storeId },
       select: { disabledFeatures: true },
     });
 
@@ -206,17 +206,17 @@ export async function setTokoFeatureEnabled(
 
     newDisabled = normalizeDisabledFeaturesForPlan(scope.plan, newDisabled);
 
-    const result = await upsertTokoFeatureSetting(tokoId, newDisabled);
+    const result = await upsertStoreFeatureSetting(storeId, newDisabled);
 
-    revalidateFeaturePaths(tokoId);
+    revalidateFeaturePaths(storeId);
 
     return result;
   });
 }
 
-export async function getDisabledFeaturesForToko(tokoId: string): Promise<FeatureKey[]> {
-  const setting = await prisma.tokoFeatureSetting.findUnique({
-    where: { tokoId },
+export async function getDisabledFeaturesForStore(storeId: string): Promise<FeatureKey[]> {
+  const setting = await prisma.storeFeatureSetting.findUnique({
+    where: { storeId },
     select: { disabledFeatures: true },
   });
 

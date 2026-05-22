@@ -18,7 +18,7 @@ const mismatchReasons = [
   "other",
 ] as const;
 
-const tokoIdSchema = z.string().min(1, "Toko is required");
+const storeIdSchema = z.string().min(1, "Toko is required");
 const sessionIdSchema = z.string().min(1, "Audit session is required");
 
 const updateInventoryAuditItemSchema = z.object({
@@ -38,8 +38,8 @@ export type InventoryAuditMismatchReason = (typeof mismatchReasons)[number];
 export type InventoryAuditItemData = {
   id: string;
   sessionId: string;
-  sparepartId: string;
-  sparepartName: string;
+  inventoryItemId: string;
+  inventoryItemName: string;
   systemStock: number;
   physicalStock: number | null;
   snapshotPrice: number;
@@ -56,7 +56,7 @@ export type InventoryAuditItemData = {
 
 export type InventoryAuditSessionData = {
   id: string;
-  tokoId: string;
+  storeId: string;
   createdById: string;
   status: "active" | "completed" | "cancelled";
   startedAt: Date;
@@ -84,9 +84,9 @@ export type InventoryAuditOverview = {
   recentSessions: InventoryAuditSessionData[];
 };
 
-async function getInventoryAuditUser(tokoId: string) {
+async function getInventoryAuditUser(storeId: string) {
   try {
-    const scope = await getRequestScope(tokoId);
+    const scope = await getRequestScope(storeId);
     assertFeature(scope, "inventory.audit");
     assertPermission(scope, "inventory.audit");
 
@@ -150,8 +150,8 @@ function mapSession(session: SessionWithItems): InventoryAuditSessionData {
   const items = session.items.map((item) => ({
     id: item.id,
     sessionId: item.sessionId,
-    sparepartId: item.sparepartId,
-    sparepartName: item.sparepartName,
+    inventoryItemId: item.inventoryItemId,
+    inventoryItemName: item.inventoryItemName,
     systemStock: item.systemStock,
     physicalStock: item.physicalStock,
     snapshotPrice: item.snapshotPrice,
@@ -168,7 +168,7 @@ function mapSession(session: SessionWithItems): InventoryAuditSessionData {
 
   return {
     id: session.id,
-    tokoId: session.tokoId,
+    storeId: session.storeId,
     createdById: session.createdById,
     status: session.status,
     startedAt: session.startedAt,
@@ -183,7 +183,7 @@ function mapSession(session: SessionWithItems): InventoryAuditSessionData {
 function mapSessionSummary(session: SessionWithSummary): InventoryAuditSessionData {
   return {
     id: session.id,
-    tokoId: session.tokoId,
+    storeId: session.storeId,
     createdById: session.createdById,
     status: session.status,
     startedAt: session.startedAt,
@@ -205,20 +205,20 @@ function mapSessionSummary(session: SessionWithSummary): InventoryAuditSessionDa
   };
 }
 
-function findActiveAuditSession(tokoId: string) {
+function findActiveAuditSession(storeId: string) {
   return prisma.inventoryAuditSession.findFirst({
-    where: { tokoId, status: "active" },
+    where: { storeId, status: "active" },
     orderBy: { startedAt: "desc" },
     include: {
       createdBy: { select: { id: true, name: true } },
-      items: { orderBy: { sparepartName: "asc" } },
+      items: { orderBy: { inventoryItemName: "asc" } },
     },
   });
 }
 
-function findRecentAuditSessions(tokoId: string) {
+function findRecentAuditSessions(storeId: string) {
   return prisma.inventoryAuditSession.findMany({
-    where: { tokoId, status: { not: "active" } },
+    where: { storeId, status: { not: "active" } },
     orderBy: { startedAt: "desc" },
     take: 10,
     include: {
@@ -239,10 +239,10 @@ function findRecentAuditSessions(tokoId: string) {
 }
 
 export async function getInventoryAuditOverview(
-  tokoId: string
+  storeId: string
 ): Promise<ActionResultWithData<InventoryAuditOverview>> {
   try {
-    const validatedTokoId = tokoIdSchema.parse(tokoId);
+    const validatedTokoId = storeIdSchema.parse(storeId);
     const access = await getInventoryAuditUser(validatedTokoId);
     if (!access.success) return access;
 
@@ -268,17 +268,17 @@ export async function getInventoryAuditOverview(
 }
 
 export async function startInventoryAudit(
-  tokoId: string
+  storeId: string
 ): Promise<ActionResultWithData<InventoryAuditSessionData>> {
   try {
-    const validatedTokoId = tokoIdSchema.parse(tokoId);
+    const validatedTokoId = storeIdSchema.parse(storeId);
     const access = await getInventoryAuditUser(validatedTokoId);
     if (!access.success) return access;
 
     const session = await prisma.$transaction(
       async (tx) => {
         const activeSession = await tx.inventoryAuditSession.findFirst({
-          where: { tokoId: validatedTokoId, status: "active" },
+          where: { storeId: validatedTokoId, status: "active" },
           select: { id: true },
         });
 
@@ -286,8 +286,8 @@ export async function startInventoryAudit(
           throw new Error("An active inventory audit already exists for this toko");
         }
 
-        const spareparts = await tx.sparepart.findMany({
-          where: { tokoId: validatedTokoId, kind: "sparepart" },
+        const inventoryItems = await tx.inventoryItem.findMany({
+          where: { storeId: validatedTokoId, type: "repair_part" },
           orderBy: { name: "asc" },
           select: {
             id: true,
@@ -300,33 +300,33 @@ export async function startInventoryAudit(
 
         const createdSession = await tx.inventoryAuditSession.create({
           data: {
-            tokoId: validatedTokoId,
+            storeId: validatedTokoId,
             createdById: access.user.id,
           },
           select: { id: true },
         });
 
-        if (spareparts.length > 0) {
+        if (inventoryItems.length > 0) {
           await tx.inventoryAuditItem.createMany({
-            data: spareparts.map((sparepart) => ({
+            data: inventoryItems.map((inventoryItem) => ({
               sessionId: createdSession.id,
-              sparepartId: sparepart.id,
-              sparepartName: sparepart.name,
-              systemStock: sparepart.stock,
-              snapshotPrice: sparepart.defaultPrice,
-              snapshotPurchasePrice: sparepart.purchasePrice ?? 0,
+              inventoryItemId: inventoryItem.id,
+              inventoryItemName: inventoryItem.name,
+              systemStock: inventoryItem.stock,
+              snapshotPrice: inventoryItem.defaultPrice,
+              snapshotPurchasePrice: inventoryItem.purchasePrice ?? 0,
             })),
           });
         }
 
         await createActivityLog(tx, {
-          tokoId: validatedTokoId,
+          storeId: validatedTokoId,
           userId: access.user.id,
           type: "inventory_audit_started",
           title: "Inventory audit started",
           payload: {
             sessionId: createdSession.id,
-            totalItems: spareparts.length,
+            totalItems: inventoryItems.length,
           },
         });
 
@@ -334,7 +334,7 @@ export async function startInventoryAudit(
           where: { id: createdSession.id },
           include: {
             createdBy: { select: { id: true, name: true } },
-            items: { orderBy: { sparepartName: "asc" } },
+            items: { orderBy: { inventoryItemName: "asc" } },
           },
         });
 
@@ -366,14 +366,14 @@ export async function updateInventoryAuditItem(
 
     const item = await prisma.inventoryAuditItem.findUnique({
       where: { id: validated.itemId },
-      include: { session: { select: { tokoId: true, status: true } } },
+      include: { session: { select: { storeId: true, status: true } } },
     });
 
     if (!item) {
       return { success: false, error: "Inventory audit item not found" };
     }
 
-    const access = await getInventoryAuditUser(item.session.tokoId);
+    const access = await getInventoryAuditUser(item.session.storeId);
     if (!access.success) return access;
 
     if (item.session.status !== "active") {
@@ -405,15 +405,15 @@ export async function updateInventoryAuditItem(
       },
     });
 
-    revalidateInventoryPaths(item.session.tokoId);
+    revalidateInventoryPaths(item.session.storeId);
 
     return {
       success: true,
       data: {
         id: updated.id,
         sessionId: updated.sessionId,
-        sparepartId: updated.sparepartId,
-        sparepartName: updated.sparepartName,
+        inventoryItemId: updated.inventoryItemId,
+        inventoryItemName: updated.inventoryItemName,
         systemStock: updated.systemStock,
         physicalStock: updated.physicalStock,
         snapshotPrice: updated.snapshotPrice,
@@ -450,7 +450,7 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
       return { success: false, error: "Inventory audit session not found" };
     }
 
-    const access = await getInventoryAuditUser(session.tokoId);
+    const access = await getInventoryAuditUser(session.storeId);
     if (!access.success) return access;
 
     if (session.status !== "active") {
@@ -473,7 +473,7 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
 
     const items = session.items.map((item) => {
       const submitted = submittedItems.get(item.id);
-      if (!submitted) throw new Error(`Missing submitted audit item ${item.sparepartName}`);
+      if (!submitted) throw new Error(`Missing submitted audit item ${item.inventoryItemName}`);
 
       const calculated = submitted.physicalStock === null
         ? {
@@ -531,13 +531,13 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
 
         if (items.length > 0) {
           const updatedStocks = await tx.$queryRaw<{ id: string }[]>`
-            UPDATE "sparepart" AS s
+            UPDATE "inventory_item" AS s
             SET "stock" = v."physicalStock"
             FROM (VALUES ${Prisma.join(
-              items.map((item) => Prisma.sql`(${item.sparepartId}, ${session.tokoId}, ${item.systemStock}, ${item.physicalStock!})`)
-            )}) AS v("id", "tokoId", "systemStock", "physicalStock")
+              items.map((item) => Prisma.sql`(${item.inventoryItemId}, ${session.storeId}, ${item.systemStock}, ${item.physicalStock!})`)
+            )}) AS v("id", "storeId", "systemStock", "physicalStock")
             WHERE s."id" = v."id"
-              AND s."tokoId" = v."tokoId"
+              AND s."storeId" = v."storeId"
               AND s."stock" = v."systemStock"
             RETURNING s."id"
           `;
@@ -549,10 +549,10 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
 
         const adjustedItems = items.filter((item) => item.difference !== 0);
         if (adjustedItems.length > 0) {
-          await tx.stockMovement.createMany({
+          await tx.inventoryMovement.createMany({
             data: adjustedItems.map((item) => ({
-              tokoId: session.tokoId,
-              sparepartId: item.sparepartId,
+              storeId: session.storeId,
+              inventoryItemId: item.inventoryItemId,
               type: "audit_adjustment",
               qtyChange: item.difference,
               stockBefore: item.systemStock,
@@ -568,14 +568,14 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
 
           await tx.activityLog.createMany({
             data: adjustedItems.map((item) => ({
-              tokoId: session.tokoId,
+              storeId: session.storeId,
               userId: access.user.id,
               type: "inventory_audit_stock_adjusted",
               title: "Inventory audit stock adjusted",
               payload: {
                 sessionId: session.id,
-                sparepartId: item.sparepartId,
-                sparepartName: item.sparepartName,
+                inventoryItemId: item.inventoryItemId,
+                inventoryItemName: item.inventoryItemName,
                 systemStock: item.systemStock,
                 physicalStock: item.physicalStock,
                 difference: item.difference,
@@ -593,7 +593,7 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
         const summary = buildSummary(items.map((item) => ({ ...item, status: item.status })));
 
         await createActivityLog(tx, {
-          tokoId: session.tokoId,
+          storeId: session.storeId,
           userId: access.user.id,
           type: "inventory_audit_completed",
           title: "Inventory audit completed",
@@ -607,7 +607,7 @@ export async function completeInventoryAudit(data: z.infer<typeof completeInvent
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
 
-    revalidateInventoryPaths(session.tokoId);
+    revalidateInventoryPaths(session.storeId);
 
     return { success: true };
   } catch (error) {
@@ -628,14 +628,14 @@ export async function cancelInventoryAudit(sessionId: string): Promise<ActionRes
 
     const session = await prisma.inventoryAuditSession.findUnique({
       where: { id: validatedSessionId },
-      select: { id: true, tokoId: true, status: true },
+      select: { id: true, storeId: true, status: true },
     });
 
     if (!session) {
       return { success: false, error: "Inventory audit session not found" };
     }
 
-    const access = await getInventoryAuditUser(session.tokoId);
+    const access = await getInventoryAuditUser(session.storeId);
     if (!access.success) return access;
 
     if (session.status !== "active") {
@@ -651,7 +651,7 @@ export async function cancelInventoryAudit(sessionId: string): Promise<ActionRes
       });
 
       await createActivityLog(tx, {
-        tokoId: session.tokoId,
+        storeId: session.storeId,
         userId: access.user.id,
         type: "inventory_audit_cancelled",
         title: "Inventory audit cancelled",
@@ -662,7 +662,7 @@ export async function cancelInventoryAudit(sessionId: string): Promise<ActionRes
       });
     });
 
-    revalidateInventoryPaths(session.tokoId);
+    revalidateInventoryPaths(session.storeId);
 
     return { success: true };
   } catch (error) {

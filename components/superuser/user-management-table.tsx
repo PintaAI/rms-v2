@@ -242,7 +242,7 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
                     </Button>
                   )}
                 </TableCell>
-                <TableCell>{user.tokoCount}</TableCell>
+                <TableCell>{user.storeCount}</TableCell>
                 <TableCell>{user.staffCount}</TableCell>
                 <TableCell>{user.technicianCount}</TableCell>
                 <TableCell className="text-muted-foreground">
@@ -354,12 +354,12 @@ export function UserManagementTable({ users }: UserManagementTableProps) {
                 <div className="grid gap-3 sm:grid-cols-3">
                   <PreviewItem label="Tokos" value={deletionPreview.counts.tokos} />
                   <PreviewItem label="Services" value={deletionPreview.counts.services} />
-                  <PreviewItem label="Spareparts" value={deletionPreview.counts.spareparts} />
-                  <PreviewItem label="Retail sales" value={deletionPreview.counts.retailSales} />
+                  <PreviewItem label="Spareparts" value={deletionPreview.counts.inventoryItems} />
+                  <PreviewItem label="Retail sales" value={deletionPreview.counts.salesOrders} />
                   <PreviewItem label="Warranty claims" value={deletionPreview.counts.warrantyClaims} />
                   <PreviewItem label="Supplier returns" value={deletionPreview.counts.supplierReturns} />
                   <PreviewItem label="Inventory audits" value={deletionPreview.counts.inventoryAuditSessions} />
-                  <PreviewItem label="Stock movements" value={deletionPreview.counts.stockMovements} />
+                  <PreviewItem label="Stock movements" value={deletionPreview.counts.inventoryMovements} />
                   <PreviewItem label="Auth sessions" value={deletionPreview.counts.sessions} />
                   <PreviewItem label="WhatsApp instances" value={deletionPreview.whatsappInstances.length} />
                   <PreviewItem label="Orphan staff" value={deletionPreview.counts.orphanStaff} />

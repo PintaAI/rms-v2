@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { getSpareparts, type SparepartWithCompatibilities } from "@/actions/inventory";
+import { getInventoryItems, type InventoryItemWithCompatibilities } from "@/actions/inventory";
 import {
   RiLoader4Line,
   RiSearchLine,
@@ -27,7 +27,7 @@ interface TeknisiSparepartTableProps {
 }
 
 export function TeknisiSparepartTable({ tokoId, initialSearchQuery = "" }: TeknisiSparepartTableProps) {
-  const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>([]);
+  const [spareparts, setSpareparts] = useState<InventoryItemWithCompatibilities[]>([]);
   const [sparepartSearch, setSparepartSearch] = useState(initialSearchQuery);
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(true);
 
@@ -36,7 +36,7 @@ export function TeknisiSparepartTable({ tokoId, initialSearchQuery = "" }: Tekni
 
     const load = async () => {
       setIsLoadingSpareparts(true);
-      const result = await getSpareparts(tokoId);
+      const result = await getInventoryItems(tokoId);
       if (!active) return;
       if (result.success && result.data) {
         setSpareparts(result.data);

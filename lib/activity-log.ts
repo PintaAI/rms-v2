@@ -5,17 +5,17 @@ import type { Prisma, PrismaClient } from "@/prisma/generated/prisma/client";
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 type CreateActivityLogInput = {
-  tokoId: string;
+  storeId: string;
   userId: string;
   type: ActivityType;
   title: string;
-  serviceId?: string | null;
+  repairOrderId?: string | null;
   payload?: Prisma.InputJsonValue;
 };
 
 type DeletedServiceSnapshotInput = {
   id: string;
-  tokoId: string;
+  storeId: string;
   customerName: string | null;
   noWa: string;
   complaint: string;
@@ -23,7 +23,7 @@ type DeletedServiceSnapshotInput = {
   status: string;
   imei: string | null;
   note: string | null;
-  hpCatalog: {
+  deviceModel: {
     id: string;
     modelName: string;
     brand: { name: string };
@@ -33,7 +33,7 @@ type DeletedServiceSnapshotInput = {
 function buildDeletedServiceSnapshot(service: DeletedServiceSnapshotInput): Prisma.InputJsonObject {
   return {
     deletedServiceId: service.id,
-    tokoId: service.tokoId,
+    storeId: service.storeId,
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
@@ -41,10 +41,10 @@ function buildDeletedServiceSnapshot(service: DeletedServiceSnapshotInput): Pris
     status: service.status,
     imei: service.imei,
     note: service.note,
-    hpCatalog: {
-      id: service.hpCatalog.id,
-      brandName: service.hpCatalog.brand.name,
-      modelName: service.hpCatalog.modelName,
+    deviceModel: {
+      id: service.deviceModel.id,
+      brandName: service.deviceModel.brand.name,
+      modelName: service.deviceModel.modelName,
     },
     deletedAt: new Date().toISOString(),
   } satisfies Prisma.InputJsonObject;
@@ -52,12 +52,12 @@ function buildDeletedServiceSnapshot(service: DeletedServiceSnapshotInput): Pris
 
 export async function preserveDeletedServiceActivityLogs(
   db: DbClient,
-  serviceId: string,
+  repairOrderId: string,
   service: DeletedServiceSnapshotInput
 ) {
   const deletedServiceSnapshot = buildDeletedServiceSnapshot(service);
   const activities = await db.activityLog.findMany({
-    where: { serviceId },
+    where: { repairOrderId },
     select: { id: true, payload: true },
   });
 
@@ -71,7 +71,7 @@ export async function preserveDeletedServiceActivityLogs(
       return db.activityLog.update({
         where: { id: activity.id },
         data: {
-          serviceId: null,
+          repairOrderId: null,
           payload: {
             ...existingPayload,
             deletedService: deletedServiceSnapshot,
@@ -84,15 +84,15 @@ export async function preserveDeletedServiceActivityLogs(
 
 export async function createActivityLog(
   db: DbClient,
-  { tokoId, userId, type, title, serviceId, payload }: CreateActivityLogInput
+  { storeId, userId, type, title, repairOrderId, payload }: CreateActivityLogInput
 ) {
   return db.activityLog.create({
     data: {
-      tokoId,
+      storeId,
       userId,
       type,
       title,
-      serviceId: serviceId ?? null,
+      repairOrderId: repairOrderId ?? null,
       payload,
     },
   });

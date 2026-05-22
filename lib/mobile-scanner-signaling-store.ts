@@ -6,20 +6,20 @@ export const MOBILE_SCANNER_SESSION_TTL_SECONDS = 90;
 export interface MobileScannerSession {
   code: string;
   token: string;
-  tokoId: string;
+  storeId: string;
   ownerUserId: string;
   expiresAt: number;
 }
 
 interface CreateMobileScannerSessionInput {
-  tokoId: string;
+  storeId: string;
   ownerUserId: string;
 }
 
 interface MobileScannerDevice {
   id: string;
   tokenHash: string;
-  tokoId: string;
+  storeId: string;
   ownerUserId: string;
 }
 
@@ -27,8 +27,8 @@ function sessionKey(code: string) {
   return `mobile-scanner:session:${code}`;
 }
 
-function latestSessionKey(ownerUserId: string, tokoId: string) {
-  return `mobile-scanner:latest:${ownerUserId}:${tokoId}`;
+function latestSessionKey(ownerUserId: string, storeId: string) {
+  return `mobile-scanner:latest:${ownerUserId}:${storeId}`;
 }
 
 function deviceKey(deviceId: string) {
@@ -78,14 +78,14 @@ export async function createMobileScannerSession(input: CreateMobileScannerSessi
     const session: MobileScannerSession = {
       code,
       token,
-      tokoId: input.tokoId,
+      storeId: input.storeId,
       ownerUserId: input.ownerUserId,
       expiresAt,
     };
 
     await Promise.all([
       kv.set(sessionKey(code), session, { ex: MOBILE_SCANNER_SESSION_TTL_SECONDS }),
-      kv.set(latestSessionKey(input.ownerUserId, input.tokoId), code, { ex: MOBILE_SCANNER_SESSION_TTL_SECONDS }),
+      kv.set(latestSessionKey(input.ownerUserId, input.storeId), code, { ex: MOBILE_SCANNER_SESSION_TTL_SECONDS }),
     ]);
 
     return publicMobileScannerSession(session, token);
@@ -115,7 +115,7 @@ export async function createMobileScannerDeviceFromSession(code: string, token: 
   const device: MobileScannerDevice = {
     id: createDeviceId(),
     tokenHash: hashToken(deviceToken),
-    tokoId: session.tokoId,
+    storeId: session.storeId,
     ownerUserId: session.ownerUserId,
   };
 
@@ -131,11 +131,11 @@ export async function getLatestMobileScannerSessionForDevice(deviceId: string, t
     return null;
   }
 
-  const code = await kv.get<string>(latestSessionKey(device.ownerUserId, device.tokoId));
+  const code = await kv.get<string>(latestSessionKey(device.ownerUserId, device.storeId));
   if (!code) return { session: null };
 
   const session = await kv.get<MobileScannerSession>(sessionKey(code));
-  if (!session || session.ownerUserId !== device.ownerUserId || session.tokoId !== device.tokoId || session.expiresAt <= Date.now()) {
+  if (!session || session.ownerUserId !== device.ownerUserId || session.storeId !== device.storeId || session.expiresAt <= Date.now()) {
     return { session: null };
   }
 

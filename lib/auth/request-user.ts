@@ -16,7 +16,7 @@ export interface AuthUser {
   role: UserRole;
   plan: SubscriptionPlan;
   subscriptionStatus: SubscriptionStatus | null;
-  tokoIds: string[];
+  storeIds: string[];
 }
 
 export const getRequestUser = cache(async (): Promise<AuthUser | null> => {
@@ -26,13 +26,13 @@ export const getRequestUser = cache(async (): Promise<AuthUser | null> => {
 
   const role = session.user.role as UserRole;
 
-  const userToko = await prisma.userToko.findMany({
+  const userToko = await prisma.userStore.findMany({
     where: { userId: session.user.id },
-    select: { tokoId: true },
+    select: { storeId: true },
   });
 
-  const tokoIds = userToko.map((t) => t.tokoId);
-  const { plan, status } = await resolveEffectivePlan(session.user.id, role, tokoIds);
+  const storeIds = userToko.map((t) => t.storeId);
+  const { plan, status } = await resolveEffectivePlan(session.user.id, role, storeIds);
 
   return {
     id: session.user.id,
@@ -41,7 +41,7 @@ export const getRequestUser = cache(async (): Promise<AuthUser | null> => {
     role,
     plan,
     subscriptionStatus: status,
-    tokoIds,
+    storeIds,
   };
 });
 

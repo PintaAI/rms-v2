@@ -15,7 +15,7 @@ export function phoneJidFromNumber(phoneNumber: string | null | undefined) {
 }
 
 export async function upsertWhatsappIdentity(input: {
-  tokoId: string;
+  storeId: string;
   phoneNumber?: string | null;
   phoneJid?: string | null;
   lidJid?: string | null;
@@ -27,10 +27,10 @@ export async function upsertWhatsappIdentity(input: {
 
   if (!phoneNumber) return null;
 
-  return prisma.tokoWhatsappIdentity.upsert({
-    where: { tokoId_phoneNumber: { tokoId: input.tokoId, phoneNumber } },
+  return prisma.storeWhatsappIdentity.upsert({
+    where: { storeId_phoneNumber: { storeId: input.storeId, phoneNumber } },
     create: {
-      tokoId: input.tokoId,
+      storeId: input.storeId,
       phoneNumber,
       phoneJid: input.phoneJid ?? phoneJidFromNumber(phoneNumber),
       lidJid: input.lidJid ?? null,
@@ -56,21 +56,21 @@ function getString(record: Record<string, unknown> | null, key: string) {
 }
 
 export async function syncWhatsappIdentityFromPhone(input: {
-  tokoId: string;
+  storeId: string;
   phoneNumber: string;
   displayName?: string | null;
 }) {
   const phoneNumber = normalizeWhatsappNumber(input.phoneNumber);
   if (!phoneNumber) return null;
 
-  const setting = await prisma.tokoWhatsappSetting.findUnique({
-    where: { tokoId: input.tokoId },
+  const setting = await prisma.storeWhatsappSetting.findUnique({
+    where: { storeId: input.storeId },
     select: { instanceName: true, enabled: true },
   });
 
   if (!setting?.enabled) {
     return upsertWhatsappIdentity({
-      tokoId: input.tokoId,
+      storeId: input.storeId,
       phoneNumber,
       phoneJid: phoneJidFromNumber(phoneNumber),
       displayName: input.displayName ?? null,
@@ -85,7 +85,7 @@ export async function syncWhatsappIdentityFromPhone(input: {
   const name = getString(first, "name") ?? input.displayName ?? null;
 
   return upsertWhatsappIdentity({
-    tokoId: input.tokoId,
+    storeId: input.storeId,
     phoneNumber: resolvedNumber,
     phoneJid: jid ?? phoneJidFromNumber(phoneNumber),
     displayName: name,

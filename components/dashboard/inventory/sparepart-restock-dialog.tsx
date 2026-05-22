@@ -13,11 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  restockSparepartsWithDebt,
-  searchSpareparts,
+  restockInventoryItemsWithDebt,
+  searchInventoryItems,
   getStockInHistory,
   type InventoryItemKind,
-  type SparepartWithCompatibilities,
+  type InventoryItemWithCompatibilities,
 } from "@/actions/inventory";
 import { getSuppliers, type SupplierOption } from "@/actions/supplier-debts";
 import {
@@ -43,15 +43,15 @@ interface SparepartRestockDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tokoId: string;
-  itemKind?: InventoryItemKind;
-  onSuccess: (updatedSparepart: SparepartWithCompatibilities) => void;
+  itemType?: InventoryItemKind;
+  onSuccess: (updatedSparepart: InventoryItemWithCompatibilities) => void;
 }
 
 interface StockHistoryItem {
   id: string;
   createdAt: Date;
-  sparepartId: string;
-  sparepartName: string;
+  inventoryItemId: string;
+  inventoryItemName: string;
   previousStock: number;
   addedQty: number;
   newStock: number;
@@ -59,18 +59,18 @@ interface StockHistoryItem {
 }
 
 interface RestockItem {
-  sparepart: SparepartWithCompatibilities;
+  sparepart: InventoryItemWithCompatibilities;
   qty: number;
 }
 
 const SCANNER_INPUT_THRESHOLD_MS = 30;
 
-const getRestockPrice = (sparepart: SparepartWithCompatibilities) =>
+const getRestockPrice = (sparepart: InventoryItemWithCompatibilities) =>
   sparepart.purchasePrice ?? 0;
 
 function SparepartRestockDialogContent({
   tokoId,
-  itemKind = "sparepart",
+  itemType = "repair_part",
   onOpenChange,
   onSuccess,
 }: Omit<SparepartRestockDialogProps, "open">) {
@@ -79,8 +79,8 @@ function SparepartRestockDialogContent({
   const [error, setError] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [qty, setQty] = useState("1");
-  const [foundSparepart, setFoundSparepart] = useState<SparepartWithCompatibilities | null>(null);
-  const [searchResults, setSearchResults] = useState<SparepartWithCompatibilities[]>([]);
+  const [foundSparepart, setFoundSparepart] = useState<InventoryItemWithCompatibilities | null>(null);
+  const [searchResults, setSearchResults] = useState<InventoryItemWithCompatibilities[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [restockItems, setRestockItems] = useState<RestockItem[]>([]);
   const [history, setHistory] = useState<StockHistoryItem[]>([]);
@@ -99,8 +99,8 @@ function SparepartRestockDialogContent({
   const isProcessingScannerRef = useRef(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDev = process.env.NODE_ENV === "development";
-  const itemLabel = itemKind === "retail_item" ? "barang retail" : "sparepart";
-  const titleLabel = itemKind === "retail_item" ? "Barang Retail" : "Sparepart";
+  const itemLabel = itemType === "retail_product" ? "barang retail" : "sparepart";
+  const titleLabel = itemType === "retail_product" ? "Barang Retail" : "Sparepart";
   const totalRestockPrice = restockItems.reduce(
     (total, item) => total + getRestockPrice(item.sparepart) * item.qty,
     0
@@ -188,7 +188,7 @@ function SparepartRestockDialogContent({
       setIsSearching(true);
 
       searchTimeoutRef.current = setTimeout(async () => {
-        const result = await searchSpareparts(tokoId, value, itemKind);
+        const result = await searchInventoryItems(tokoId, value, itemType);
         setIsSearching(false);
 
         if (result.success && result.data) {
@@ -210,7 +210,7 @@ function SparepartRestockDialogContent({
     }
   };
 
-  const addRestockItem = useCallback((sparepart: SparepartWithCompatibilities, qtyValue: number) => {
+  const addRestockItem = useCallback((sparepart: InventoryItemWithCompatibilities, qtyValue: number) => {
     setRestockItems((items) => {
       const existingItem = items.find((item) => item.sparepart.id === sparepart.id);
       if (existingItem) {
@@ -265,8 +265,8 @@ function SparepartRestockDialogContent({
       }
     }
 
-    const result = await restockSparepartsWithDebt({
-      tokoId,
+    const result = await restockInventoryItemsWithDebt({
+      storeId: tokoId,
       items: restockItems.map((item) => ({ id: item.sparepart.id, qty: item.qty })),
       supplierDebt: createSupplierDebt
         ? {
@@ -339,7 +339,7 @@ function SparepartRestockDialogContent({
       }
 
       setIsSearching(true);
-      const result = await searchSpareparts(tokoId, trimmedValue, itemKind);
+      const result = await searchInventoryItems(tokoId, trimmedValue, itemType);
       setIsSearching(false);
 
       if (result.success && result.data && result.data.length > 0) {
@@ -368,7 +368,7 @@ function SparepartRestockDialogContent({
     } finally {
       isProcessingScannerRef.current = false;
     }
-  }, [addRestockItem, foundSparepart, itemKind, itemLabel, qty, titleLabel, tokoId]);
+  }, [addRestockItem, foundSparepart, itemType, itemLabel, qty, titleLabel, tokoId]);
 
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -384,7 +384,7 @@ function SparepartRestockDialogContent({
 
   const scanner = useScannerPairing({ tokoId, onScan: handleMobileScan });
 
-  const handleSelectSparepart = (sparepart: SparepartWithCompatibilities) => {
+  const handleSelectSparepart = (sparepart: InventoryItemWithCompatibilities) => {
     setFoundSparepart(sparepart);
     setSearchResults([]);
     setShowResults(false);
@@ -803,7 +803,7 @@ function SparepartRestockDialogContent({
                   {history.map((item) => (
                     <div key={item.id} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{item.sparepartName || titleLabel}</div>
+                        <div className="truncate text-sm font-medium">{item.inventoryItemName || titleLabel}</div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                           <RiUserLine className="size-3" />
                           <span>{item.userName}</span>

@@ -18,7 +18,7 @@ import { ServiceDetailCard, ServiceDetailCardSkeleton } from "@/components/dashb
 import { defaultServiceActionPermissions, type ServiceActionPermissions } from "@/components/dashboard/services/service-action-permissions";
 import { TakeoverConfirmDialog } from "@/components/dashboard/services/takeover-confirm-dialog";
 import { getService, takeService } from "@/actions";
-import type { ServiceListItem, ServiceDetail } from "@/actions";
+import type { ServiceDetail, ServiceListItem } from "@/actions";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { toServiceTableItems } from "@/components/dashboard/services/service-table/utils";
@@ -76,7 +76,7 @@ export function TeknisiTaskManager({
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const status = searchParams.get("status");
-  const storeTokoId = useServiceOptimisticStore((state) => state.tokoId);
+  const storeTokoId = useServiceOptimisticStore((state) => state.storeId);
   const storeServices = useServiceOptimisticStore((state) => state.services);
   const isStoreHydrated = useServiceOptimisticStore((state) => state.isHydrated);
   const hydrateServices = useServiceOptimisticStore((state) => state.hydrateServices);
@@ -142,7 +142,7 @@ export function TeknisiTaskManager({
       if (shouldPatch) {
         settleMutation();
       }
-      publish({ action: "taken", serviceId, ...getServiceRealtimeMeta(originalTask) });
+      publish({ action: "taken", repairOrderId: serviceId, ...getServiceRealtimeMeta(originalTask) });
       router.refresh();
     } else if (originalTask && shouldPatch) {
       rollbackUpdate(originalTask);
@@ -213,7 +213,7 @@ export function TeknisiTaskManager({
     statusSnapshotsRef.current.delete(serviceId);
     pendingPatchesRef.current.delete(serviceId);
     settleMutation();
-    publish({ action: "status_changed", serviceId, ...getServiceRealtimeMeta(service), reason: status });
+    publish({ action: "status_changed", repairOrderId: serviceId, ...getServiceRealtimeMeta(service), reason: status });
   }, [publish, settleMutation, sourceServices]);
 
   const handleOptimisticStatusError = useCallback((serviceId: string) => {
@@ -441,7 +441,7 @@ export function TeknisiTaskManager({
         onConfirm={handleConfirmTakeover}
         technicianName={pendingTakeoverTask?.technician?.name || "teknisi lain"}
         serviceLabel={pendingTakeoverTask
-          ? `${pendingTakeoverTask.hpCatalog.brand.name} ${pendingTakeoverTask.hpCatalog.modelName}`
+          ? `${pendingTakeoverTask.deviceModel.brand.name} ${pendingTakeoverTask.deviceModel.modelName}`
           : "Task ini"}
         isLoading={pendingTakeoverTask ? isTakingTask === pendingTakeoverTask.id : false}
       />

@@ -6,8 +6,8 @@ import {
   FEATURE_KEYS,
   FEATURE_REGISTRY,
   calculateMonthlyPlanAmount,
-  getPlanAdditionalTokoPrice,
-  getPlanIncludedTokos,
+  getPlanAdditionalStorePrice,
+  getPlanIncludedStores,
   getPlanLimit,
   getPlanMonthlyPrice,
   isPlanAtLeast,
@@ -28,10 +28,10 @@ export async function getAuthProviderData() {
   const user = await getRequestUser();
   if (!user) return { user: null, tokoList: [] };
 
-  const assignments = await prisma.userToko.findMany({
+  const assignments = await prisma.userStore.findMany({
     where: { userId: user.id },
     include: {
-      toko: {
+      store: {
         select: { id: true, name: true, status: true, logoUrl: true, address: true },
       },
     },
@@ -40,12 +40,12 @@ export async function getAuthProviderData() {
   return {
     user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan, subscriptionStatus: user.subscriptionStatus },
     tokoList: assignments.map((a) => ({
-      id: a.toko.id,
-      name: a.toko.name,
-      status: a.toko.status,
+      id: a.store.id,
+      name: a.store.name,
+      status: a.store.status,
       role: a.role,
-      logoUrl: a.toko.logoUrl,
-      address: a.toko.address,
+      logoUrl: a.store.logoUrl,
+      address: a.store.address,
     })),
   };
 }
@@ -60,7 +60,7 @@ export type BillingFeatureSummary = {
 
 export type BillingPlanSummary = {
   plan: SubscriptionPlan;
-  tokoId: string | null;
+  storeId: string | null;
   limits: {
     tokos: number | null;
     staff: number | null;
@@ -73,8 +73,8 @@ export type BillingPlanSummary = {
   };
   pricing: {
     monthlyPrice: number | null;
-    includedTokos: number | null;
-    additionalTokoPrice: number | null;
+    includedStores: number | null;
+    additionalStorePrice: number | null;
     estimatedMonthlyAmount: number | null;
     proMonthlyAmount: number | null;
     monthlyPriceOverride: number | null;
@@ -83,30 +83,30 @@ export type BillingPlanSummary = {
   lockedFeatures: BillingFeatureSummary[];
 };
 
-export async function getBillingPlanSummary(tokoId?: string): Promise<ActionResultWithData<BillingPlanSummary>> {
+export async function getBillingPlanSummary(storeId?: string): Promise<ActionResultWithData<BillingPlanSummary>> {
   const user = await getRequestUser();
 
   if (!user) {
     return { success: false, error: "Unauthorized" };
   }
 
-  const targetTokoId = tokoId && user.tokoIds.includes(tokoId) ? tokoId : user.tokoIds[0] ?? null;
+  const targetStoreId = storeId && user.storeIds.includes(storeId) ? storeId : user.storeIds[0] ?? null;
 
   const subscriptionPromise = prisma.subscription.findUnique({
     where: { userId: user.id },
     select: { monthlyPriceOverride: true },
   });
-  const [staff, technicians, subscription] = targetTokoId
+  const [staff, technicians, subscription] = targetStoreId
     ? await Promise.all([
-        prisma.userToko.count({
+        prisma.userStore.count({
           where: {
-            tokoId: targetTokoId,
+            storeId: targetStoreId,
             user: { role: "staff" },
           },
         }),
-        prisma.userToko.count({
+        prisma.userStore.count({
           where: {
-            tokoId: targetTokoId,
+            storeId: targetStoreId,
             user: { role: "technician" },
           },
         }),
@@ -114,13 +114,13 @@ export async function getBillingPlanSummary(tokoId?: string): Promise<ActionResu
       ])
     : [0, 0, await subscriptionPromise] as const;
 
-  const defaultEstimatedMonthlyAmount = calculateMonthlyPlanAmount(user.plan, user.tokoIds.length);
+  const defaultEstimatedMonthlyAmount = calculateMonthlyPlanAmount(user.plan, user.storeIds.length);
   const estimatedMonthlyAmount = user.plan !== "free" && subscription?.monthlyPriceOverride !== null && subscription?.monthlyPriceOverride !== undefined
     ? subscription.monthlyPriceOverride
     : defaultEstimatedMonthlyAmount;
   const proMonthlyAmount = subscription?.monthlyPriceOverride !== null && subscription?.monthlyPriceOverride !== undefined
     ? subscription.monthlyPriceOverride
-    : calculateMonthlyPlanAmount("premium", user.tokoIds.length);
+    : calculateMonthlyPlanAmount("premium", user.storeIds.length);
 
   const features = FEATURE_KEYS.map((featureKey) => {
     const feature = FEATURE_REGISTRY[featureKey];
@@ -137,21 +137,21 @@ export async function getBillingPlanSummary(tokoId?: string): Promise<ActionResu
     success: true,
     data: {
       plan: user.plan,
-      tokoId: targetTokoId,
+      storeId: targetStoreId,
       limits: {
         tokos: getPlanLimit(user.plan, "maxTokos"),
         staff: getPlanLimit(user.plan, "maxStaff"),
         technicians: getPlanLimit(user.plan, "maxTechnicians"),
       },
       usage: {
-        tokos: user.tokoIds.length,
+        tokos: user.storeIds.length,
         staff,
         technicians,
       },
       pricing: {
         monthlyPrice: getPlanMonthlyPrice(user.plan),
-        includedTokos: getPlanIncludedTokos(user.plan),
-        additionalTokoPrice: getPlanAdditionalTokoPrice(user.plan),
+        includedStores: getPlanIncludedStores(user.plan),
+        additionalStorePrice: getPlanAdditionalStorePrice(user.plan),
         estimatedMonthlyAmount,
         proMonthlyAmount,
         monthlyPriceOverride: subscription?.monthlyPriceOverride ?? null,

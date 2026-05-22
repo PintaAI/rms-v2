@@ -3,9 +3,9 @@
 import { useState, useTransition } from "react"
 import {
   createSupplier,
-  createSupplierDebt,
-  updateSupplierDebt,
-  type SupplierDebtListItem,
+  createSupplierPayable,
+  updateSupplierPayable,
+  type SupplierPayableListItem,
   type SupplierOption,
 } from "@/actions/supplier-debts"
 import { Button } from "@/components/ui/button"
@@ -29,8 +29,8 @@ interface SupplierDebtFormDialogProps {
   onOpenChange: (open: boolean) => void
   tokoId: string
   suppliers: SupplierOption[]
-  debt?: SupplierDebtListItem | null
-  onSaved: (debt: SupplierDebtListItem, supplier?: SupplierOption) => void
+  debt?: SupplierPayableListItem | null
+  onSaved: (debt: SupplierPayableListItem, supplier?: SupplierOption) => void
 }
 
 function toInputDate(date: Date | null | undefined) {
@@ -87,7 +87,7 @@ export function SupplierDebtFormDialog({ open, onOpenChange, tokoId, suppliers, 
       let createdSupplier: SupplierOption | undefined
 
       if (newSupplierName.trim()) {
-        const supplierResult = await createSupplier({ tokoId, name: newSupplierName.trim() })
+        const supplierResult = await createSupplier({ storeId: tokoId, name: newSupplierName.trim() })
         if (!supplierResult.success || !supplierResult.data) {
           setError(supplierResult.error || "Gagal membuat supplier")
           return
@@ -97,7 +97,7 @@ export function SupplierDebtFormDialog({ open, onOpenChange, tokoId, suppliers, 
       }
 
       const result = debt
-        ? await updateSupplierDebt({
+        ? await updateSupplierPayable({
             id: debt.id,
             supplierId: finalSupplierId,
             invoiceNumber: invoiceNumber || null,
@@ -105,8 +105,8 @@ export function SupplierDebtFormDialog({ open, onOpenChange, tokoId, suppliers, 
             totalAmount: parsedTotal,
             dueDate: toDateValue(dueDate),
           })
-        : await createSupplierDebt({
-            tokoId,
+        : await createSupplierPayable({
+            storeId: tokoId,
             supplierId: finalSupplierId,
             invoiceNumber: invoiceNumber || null,
             description: description || null,

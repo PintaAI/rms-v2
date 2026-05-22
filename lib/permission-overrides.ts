@@ -10,18 +10,18 @@ function isPermissionEffect(value: string): value is PermissionEffect {
 }
 
 export async function getUserPermissionOverrides(
-  tokoId: string,
+  storeId: string,
   userId: string,
 ): Promise<PermissionOverrideInput[]> {
-  const membership = await prisma.userToko.findUnique({
-    where: { userId_tokoId: { userId, tokoId } },
+  const membership = await prisma.userStore.findUnique({
+    where: { userId_storeId: { userId, storeId } },
     select: { userId: true },
   });
 
   if (!membership) return [];
 
-  const overrides = await prisma.tokoUserPermission.findMany({
-    where: { tokoId, userId },
+  const overrides = await prisma.storeUserPermission.findMany({
+    where: { storeId, userId },
     select: { permissionKey: true, effect: true },
     orderBy: { permissionKey: "asc" },
   });

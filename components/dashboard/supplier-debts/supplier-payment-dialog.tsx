@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { addSupplierDebtPayment, type SupplierDebtListItem } from "@/actions/supplier-debts"
+import { addSupplierPayablePayment, type SupplierPayableListItem } from "@/actions/supplier-debts"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -21,8 +21,8 @@ import { RiLoader4Line } from "@remixicon/react"
 interface SupplierPaymentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  debt: SupplierDebtListItem | null
-  onSaved: (debt: SupplierDebtListItem) => void
+  debt: SupplierPayableListItem | null
+  onSaved: (debt: SupplierPayableListItem) => void
 }
 
 function todayInputValue() {
@@ -56,8 +56,8 @@ export function SupplierPaymentDialog({ open, onOpenChange, debt, onSaved }: Sup
     }
 
     startTransition(async () => {
-      const result = await addSupplierDebtPayment({
-        debtId: debt.id,
+      const result = await addSupplierPayablePayment({
+        payableId: debt.id,
         amount: parsedAmount,
         paymentDate: paymentDate ? new Date(`${paymentDate}T00:00:00`) : null,
         note: note || null,

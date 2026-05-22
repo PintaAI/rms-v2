@@ -22,12 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { importSpareparts, type ImportSparepartInput, type InventoryItemKind } from "@/actions/inventory";
+import { importInventoryItems, type ImportInventoryItemInput, type InventoryItemKind } from "@/actions/inventory";
 import { RiDownload2Line, RiLoader4Line, RiUpload2Line } from "@remixicon/react";
 
 const MAX_IMPORT_ROWS = 100;
 
-type ParsedRow = ImportSparepartInput & {
+type ParsedRow = ImportInventoryItemInput & {
   error?: string;
 };
 
@@ -35,7 +35,7 @@ interface SparepartImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tokoId: string;
-  itemKind?: InventoryItemKind;
+  itemType?: InventoryItemKind;
   onSuccess: () => void;
 }
 
@@ -136,7 +136,7 @@ function parseWorksheetRows(rawRows: Record<string, unknown>[]) {
     .filter((row): row is ParsedRow => row !== null);
 }
 
-export function SparepartImportDialog({ open, onOpenChange, tokoId, itemKind = "sparepart", onSuccess }: SparepartImportDialogProps) {
+export function SparepartImportDialog({ open, onOpenChange, tokoId, itemType = "repair_part", onSuccess }: SparepartImportDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
@@ -146,7 +146,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, itemKind = "
   const validRows = rows.filter((row) => !row.error);
   const invalidRows = rows.filter((row) => row.error);
   const canImport = validRows.length > 0 && invalidRows.length === 0 && !isParsing && !isImporting;
-  const isRetailItem = itemKind === "retail_item";
+  const isRetailItem = itemType === "retail_product";
   const itemLabel = isRetailItem ? "Barang Retail" : "Sparepart";
   const emptyMessage = isRetailItem ? "Tidak ada data barang retail di file Excel" : "Tidak ada data sparepart di file Excel";
 
@@ -217,8 +217,8 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, itemKind = "
     if (!canImport) return;
 
     setIsImporting(true);
-    const result = await importSpareparts({
-      tokoId,
+    const result = await importInventoryItems({
+      storeId: tokoId,
       rows: validRows.map((row) => ({
         rowNumber: row.rowNumber,
         name: row.name,
@@ -230,7 +230,7 @@ export function SparepartImportDialog({ open, onOpenChange, tokoId, itemKind = "
         criticalStock: row.criticalStock,
         warrantyDays: isRetailItem ? row.warrantyDays ?? null : null,
         isUniversal: row.isUniversal,
-        kind: itemKind,
+        type: itemType,
       })),
     });
     setIsImporting(false);

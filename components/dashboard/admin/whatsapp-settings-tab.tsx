@@ -6,11 +6,11 @@ import { toast } from "sonner";
 import {
   connectTokoWhatsapp,
   disconnectTokoWhatsapp,
-  getTokoWhatsappSetting,
+  getStoreWhatsappSetting,
   getWhatsappState,
   refreshTokoWhatsappConnection,
-  updateTokoWhatsappSetting,
-  type TokoWhatsappSettingData,
+  updateStoreWhatsappSetting,
+  type StoreWhatsappSettingData,
   type WhatsappLiveState,
 } from "@/actions/whatsapp";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -291,7 +291,7 @@ function TemplateTokenEditor({ id, label, subtitle, value, previewValues, onChan
 export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: WhatsappSettingsTabProps) {
   const { tokoList } = useAuth();
   const currentToko = tokoList.find((t) => t.id === tokoId);
-  const [setting, setSetting] = React.useState<TokoWhatsappSettingData | null>(null);
+  const [setting, setSetting] = React.useState<StoreWhatsappSettingData | null>(null);
   const [liveState, setLiveState] = React.useState<WhatsappLiveState | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isConnecting, setIsConnecting] = React.useState(false);
@@ -305,7 +305,7 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
   const [doneTemplate, setDoneTemplate] = React.useState(toDisplayTemplate(DEFAULT_DONE_MESSAGE));
   const [failedTemplate, setFailedTemplate] = React.useState(toDisplayTemplate(DEFAULT_FAILED_MESSAGE));
 
-  const applySetting = React.useCallback((nextSetting: TokoWhatsappSettingData | null) => {
+  const applySetting = React.useCallback((nextSetting: StoreWhatsappSettingData | null) => {
     const isWhatsappEnabled = nextSetting?.enabled ?? true;
 
     setSetting(nextSetting);
@@ -322,7 +322,7 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
     let active = true;
 
     Promise.all([
-      getTokoWhatsappSetting(tokoId),
+      getStoreWhatsappSetting(tokoId),
       getWhatsappState(tokoId),
     ])
       .then(([settingResult, stateResult]) => {
@@ -354,7 +354,7 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
       if (result.success && result.data) {
         setLiveState(result.data);
         if (result.data.state === "open") {
-          const updated = await getTokoWhatsappSetting(tokoId);
+          const updated = await getStoreWhatsappSetting(tokoId);
           if (updated.success) {
             applySetting(updated.data ?? null);
           }
@@ -436,7 +436,7 @@ export function WhatsappSettingsTab({ tokoId, canManageSettings = true }: Whatsa
     if (!canManageSettings) return;
 
     setIsSaving(true);
-    const result = await updateTokoWhatsappSetting(tokoId, {
+    const result = await updateStoreWhatsappSetting(tokoId, {
       enabled,
       notifyDone,
       notifyFailed,

@@ -19,11 +19,15 @@ import {
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { Input } from "@/components/ui/input";
 import {
-  getSpareparts,
+  getInventoryItems,
+
   getServicePricelists,
-  deleteSparepart,
+
+  deleteInventoryItem,
   deleteServicePricelist,
-  type SparepartWithCompatibilities,
+
+  type InventoryItemWithCompatibilities,
+
   type ServicePricelist,
 } from "@/actions/inventory";
 import { SparepartFormDialog } from "@/components/dashboard/inventory/inventory-item-form-dialog";
@@ -35,6 +39,7 @@ import { ServicePricelistImportDialog } from "@/components/dashboard/inventory/s
 import { SparepartStockBadge, getSparepartStockVariant, type StockVariant } from "@/components/dashboard/inventory/sparepart-stock-badge";
 import { SparepartCompatibilityCell } from "@/components/dashboard/inventory/sparepart-compatibility-cell";
 import { RetailItemTable } from "@/components/dashboard/inventory/retail-item-table";
+import { PhoneUnitTable } from "@/components/dashboard/inventory/phone-unit-table";
 import {
   RiAddLine,
   RiEditLine,
@@ -52,6 +57,7 @@ import {
   RiFilter3Line,
   RiCloseLine,
   RiShoppingBag3Line,
+  RiSmartphoneLine,
 } from "@remixicon/react";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -68,14 +74,15 @@ export type InventoryActionPermissions = {
   canManageServicePricelists: boolean;
   canViewRestockHistory: boolean;
   canManageRetail: boolean;
+  canManagePhoneUnits: boolean;
 };
 
 interface InventoryTabsProps {
   tokoId: string;
   readOnly?: boolean;
-  initialSpareparts?: SparepartWithCompatibilities[];
+  initialSpareparts?: InventoryItemWithCompatibilities[];
   initialPricelists?: ServicePricelist[];
-  initialTab?: "sparepart" | "jasa" | "retail";
+  initialTab?: "sparepart" | "jasa" | "retail" | "phone_unit";
   initialSearchQuery?: string;
   actionPermissions?: InventoryActionPermissions;
   showRestockHistoryLink?: boolean;
@@ -92,20 +99,34 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
     canManageServicePricelists: !readOnly,
     canViewRestockHistory: !readOnly,
     canManageRetail: !readOnly,
+    canManagePhoneUnits: !readOnly,
   };
   const resolvedInitialTab =
     initialTab === "retail" && permissions.canManageRetail
       ? "retail"
-      : initialTab === "jasa" && permissions.canViewInventory
-        ? "jasa"
-        : permissions.canViewInventory
-          ? "sparepart"
-          : "retail";
-  const tabListColumns = permissions.canViewInventory && permissions.canManageRetail
-    ? "grid-cols-3"
-    : permissions.canViewInventory
-      ? "grid-cols-2"
-      : "grid-cols-1";
+      : initialTab === "phone_unit" && permissions.canManagePhoneUnits
+        ? "phone_unit"
+        : initialTab === "jasa" && permissions.canViewInventory
+          ? "jasa"
+          : permissions.canViewInventory
+            ? "sparepart"
+            : permissions.canManagePhoneUnits
+              ? "phone_unit"
+              : "retail";
+
+  const tabCount = [
+    permissions.canViewInventory,
+    permissions.canViewInventory,
+    permissions.canManageRetail,
+    permissions.canManagePhoneUnits,
+  ].filter(Boolean).length;
+  const tabListColumns = tabCount === 4
+    ? "grid-cols-4"
+    : tabCount === 3
+      ? "grid-cols-3"
+      : tabCount === 2
+        ? "grid-cols-2"
+        : "grid-cols-1";
   const hasSparepartRowActions = permissions.canUpdateSparepart || permissions.canDeleteSparepart;
   const hasAnySparepartMutation =
     permissions.canCreateSparepart ||
@@ -115,9 +136,9 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
     permissions.canImportSparepart;
   const hasServicePricelistActions = permissions.canManageServicePricelists;
   const hasInitialData = _initialSpareparts !== undefined && _initialPricelists !== undefined;
-  const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>(_initialSpareparts ?? []);
+  const [spareparts, setSpareparts] = useState<InventoryItemWithCompatibilities[]>(_initialSpareparts ?? []);
   const [pricelists, setPricelists] = useState<ServicePricelist[]>(_initialPricelists ?? []);
-  const [activeTab, setActiveTab] = useState<"sparepart" | "jasa" | "retail">(resolvedInitialTab);
+  const [activeTab, setActiveTab] = useState<"sparepart" | "jasa" | "retail" | "phone_unit">(resolvedInitialTab);
   const [sparepartSearch, setSparepartSearch] = useState(resolvedInitialTab === "sparepart" ? initialSearchQuery : "");
   const [sparepartCategoryFilter, setSparepartCategoryFilter] = useState("all");
   const [sparepartStockFilter, setSparepartStockFilter] = useState<StockFilter>("all");
@@ -128,17 +149,17 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
 
   const [sparepartDialogOpen, setSparepartDialogOpen] = useState(false);
   const [pricelistDialogOpen, setPricelistDialogOpen] = useState(false);
-  const [editingSparepart, setEditingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+  const [editingSparepart, setEditingSparepart] = useState<InventoryItemWithCompatibilities | null>(null);
   const [editingPricelist, setEditingPricelist] = useState<ServicePricelist | null>(null);
 
-  const [deleteSparepartDialogOpen, setDeleteSparepartDialogOpen] = useState(false);
+  const [deleteInventoryItemDialogOpen, setDeleteSparepartDialogOpen] = useState(false);
   const [deletePricelistDialogOpen, setDeletePricelistDialogOpen] = useState(false);
-  const [deletingSparepart, setDeletingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+  const [deletingSparepart, setDeletingSparepart] = useState<InventoryItemWithCompatibilities | null>(null);
   const [deletingPricelist, setDeletingPricelist] = useState<ServicePricelist | null>(null);
   const [isDeletingSparepart, setIsDeletingSparepart] = useState(false);
   const [isDeletingPricelist, setIsDeletingPricelist] = useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
-  const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+  const [printingSparepart, setPrintingSparepart] = useState<InventoryItemWithCompatibilities | null>(null);
   const [restockDialogOpen, setRestockDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pricelistImportDialogOpen, setPricelistImportDialogOpen] = useState(false);
@@ -154,7 +175,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
       setIsLoadingPricelists(true);
 
       const [sparepartsResult, pricelistsResult] = await Promise.all([
-        getSpareparts(tokoId),
+        getInventoryItems(tokoId),
         getServicePricelists(tokoId),
       ]);
 
@@ -242,17 +263,17 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
     setSparepartDialogOpen(true);
   };
 
-  const handleEditSparepart = (sparepart: SparepartWithCompatibilities) => {
+  const handleEditSparepart = (sparepart: InventoryItemWithCompatibilities) => {
     setEditingSparepart(sparepart);
     setSparepartDialogOpen(true);
   };
 
-  const handlePrintSparepartLabel = (sparepart: SparepartWithCompatibilities) => {
+  const handlePrintSparepartLabel = (sparepart: InventoryItemWithCompatibilities) => {
     setPrintingSparepart(sparepart);
     setLabelDialogOpen(true);
   };
 
-  const handleSparepartSuccess = (newSparepart?: SparepartWithCompatibilities) => {
+  const handleSparepartSuccess = (newSparepart?: InventoryItemWithCompatibilities) => {
     if (newSparepart) {
       if (editingSparepart) {
         setSpareparts((prev) =>
@@ -265,7 +286,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
     setEditingSparepart(null);
   };
 
-  const handleRestockSuccess = (updatedSparepart: SparepartWithCompatibilities) => {
+  const handleRestockSuccess = (updatedSparepart: InventoryItemWithCompatibilities) => {
     setSpareparts((prev) =>
       prev.map((sp) => (sp.id === updatedSparepart.id ? updatedSparepart : sp))
     );
@@ -273,14 +294,14 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
 
   const handleImportSuccess = async () => {
     setIsLoadingSpareparts(true);
-    const result = await getSpareparts(tokoId);
+    const result = await getInventoryItems(tokoId);
     if (result.success && result.data) {
       setSpareparts(result.data);
     }
     setIsLoadingSpareparts(false);
   };
 
-  const handleDeleteSparepartClick = (sparepart: SparepartWithCompatibilities) => {
+  const handleDeleteSparepartClick = (sparepart: InventoryItemWithCompatibilities) => {
     setDeletingSparepart(sparepart);
     setDeleteSparepartDialogOpen(true);
   };
@@ -288,7 +309,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
   const handleDeleteSparepartConfirm = async () => {
     if (!deletingSparepart) return;
     setIsDeletingSparepart(true);
-    const result = await deleteSparepart(deletingSparepart.id);
+    const result = await deleteInventoryItem(deletingSparepart.id);
     setIsDeletingSparepart(false);
     if (result.success) {
       setSpareparts((prev) => prev.filter((sp) => sp.id !== deletingSparepart.id));
@@ -351,8 +372,11 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
       value={activeTab}
       onValueChange={(value) => {
         if (value === "retail" && permissions.canManageRetail) setActiveTab("retail");
+        else if (value === "phone_unit" && permissions.canManagePhoneUnits) setActiveTab("phone_unit");
         else if (value === "jasa" && permissions.canViewInventory) setActiveTab("jasa");
         else if (permissions.canViewInventory) setActiveTab("sparepart");
+        else if (permissions.canManagePhoneUnits) setActiveTab("phone_unit");
+        else setActiveTab("retail");
       }}
       className="w-full"
     >
@@ -373,6 +397,12 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           <TabsTrigger value="retail" className="gap-1.5">
             <RiShoppingBag3Line className="h-4 w-4" />
             Barang Retail
+          </TabsTrigger>
+        )}
+        {permissions.canManagePhoneUnits && (
+          <TabsTrigger value="phone_unit" className="gap-1.5">
+            <RiSmartphoneLine className="h-4 w-4" />
+            Unit Phone
           </TabsTrigger>
         )}
       </TabsList>
@@ -725,7 +755,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
         )}
 
         <DeleteDialog
-          open={deleteSparepartDialogOpen}
+          open={deleteInventoryItemDialogOpen}
           onOpenChange={setDeleteSparepartDialogOpen}
           title="Hapus Sparepart"
           description={`Apakah Anda yakin ingin menghapus "${deletingSparepart?.name}"? Tindakan ini tidak dapat dibatalkan.`}
@@ -941,6 +971,18 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
             readOnly={false}
             canRestock={permissions.canRestockSparepart}
             canImport={permissions.canImportSparepart}
+          />
+        </TabsContent>
+      )}
+
+      {permissions.canManagePhoneUnits && (
+        <TabsContent value="phone_unit">
+          <PhoneUnitTable
+            tokoId={tokoId}
+            readOnly={readOnly}
+            canCreate={permissions.canCreateSparepart}
+            canUpdate={permissions.canUpdateSparepart}
+            canDelete={permissions.canDeleteSparepart}
           />
         </TabsContent>
       )}

@@ -66,7 +66,7 @@ export default class ServiceRoom implements Party.Server {
     }
 
     if (!isServiceRealtimeEvent(parsed)) return;
-    if (this.room.id !== `toko-${parsed.tokoId}`) return;
+    if (this.room.id !== `toko-${parsed.storeId}`) return;
 
     this.room.broadcast(JSON.stringify(parsed), [sender.id]);
   }

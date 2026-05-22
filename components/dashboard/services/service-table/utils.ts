@@ -69,7 +69,7 @@ export function formatWhatsApp(phone: string): string {
 export function toServiceTableItem(service: ServiceListItem): ServiceTableItem {
   return {
     id: service.id,
-    hpCatalogId: service.hpCatalogId,
+    deviceModelId: service.deviceModelId,
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
@@ -82,7 +82,7 @@ export function toServiceTableItem(service: ServiceListItem): ServiceTableItem {
     doneAt: service.doneAt,
     warrantyUntil: service.warrantyUntil,
     checkoutAt: service.checkoutAt,
-    hpCatalog: service.hpCatalog,
+    deviceModel: service.deviceModel,
     technician: service.technician,
     invoice: service.invoice,
     createdBy: service.createdBy,

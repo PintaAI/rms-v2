@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createDevice, importMobileApiDevice, searchMobileApiDevices, type MobileApiDeviceSuggestion } from "@/actions";
 import { upsertStoredDevice } from "@/lib/device-catalog-cache";
 import { fuzzyScore } from "@/lib/fuzzy-search";
-import type { HpCatalogOption } from "@/components/shared/device-input";
+import type { DeviceModelOption } from "@/components/shared/device-input";
 
 function parseDeviceName(deviceQuery: string) {
   const parts = deviceQuery.trim().split(/\s+/);
@@ -15,14 +15,15 @@ function parseDeviceName(deviceQuery: string) {
 }
 
 interface UseDeviceSearchOptions {
-  devices: HpCatalogOption[];
+  devices: DeviceModelOption[];
   isLoadingDevices?: boolean;
-  onDeviceCreated?: (device: HpCatalogOption) => void;
+  onDeviceCreated?: (device: DeviceModelOption) => void;
   excludeIds?: string[];
-  onSelect: (device: HpCatalogOption) => void;
+  onSelect: (device: DeviceModelOption) => void;
 }
 
 const EMPTY_EXCLUDE_IDS: string[] = [];
+const EMPTY_DEVICES: DeviceModelOption[] = [];
 
 export function useDeviceSearch({
   devices,
@@ -31,8 +32,11 @@ export function useDeviceSearch({
   excludeIds = EMPTY_EXCLUDE_IDS,
   onSelect,
 }: UseDeviceSearchOptions) {
+  const stableDevices = devices.length === 0 ? EMPTY_DEVICES : devices;
+  const stableExcludeIds = excludeIds.length === 0 ? EMPTY_EXCLUDE_IDS : excludeIds;
+  
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<HpCatalogOption[]>([]);
+  const [results, setResults] = useState<DeviceModelOption[]>([]);
   const [mobileApiResults, setMobileApiResults] = useState<MobileApiDeviceSuggestion[]>([]);
   const [isSearchingMobileApi, setIsSearchingMobileApi] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -41,7 +45,7 @@ export function useDeviceSearch({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const excludeSet = useMemo(() => new Set(excludeIds), [excludeIds]);
+  const excludeSet = useMemo(() => new Set(stableExcludeIds), [stableExcludeIds]);
 
   useEffect(() => {
     if (highlightedIndex >= 0 && dropdownRef.current) {
@@ -86,13 +90,13 @@ export function useDeviceSearch({
     searchTimeoutRef.current = setTimeout(() => {
       if (!active) return;
 
-      const filtered = devices
+      const filtered = stableDevices
         .filter((d) => !excludeSet.has(d.id))
         .map((device) => ({
           device,
           score: fuzzyScore(query, `${device.brandName} ${device.modelName}`),
         }))
-        .filter((item): item is { device: HpCatalogOption; score: number } => item.score !== null)
+        .filter((item): item is { device: DeviceModelOption; score: number } => item.score !== null)
         .sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
           const brandCompare = a.device.brandName.localeCompare(b.device.brandName);
@@ -112,11 +116,11 @@ export function useDeviceSearch({
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [query, devices, excludeSet]);
+  }, [query, stableDevices, excludeSet]);
 
   useEffect(() => {
     const trimmed = query.trim();
-    const hasLocalMatch = devices.some(
+    const hasLocalMatch = stableDevices.some(
       (device) => !excludeSet.has(device.id) && fuzzyScore(trimmed, `${device.brandName} ${device.modelName}`) !== null
     );
 
@@ -135,7 +139,7 @@ export function useDeviceSearch({
         if (!active) return;
 
         const localNames = new Set(
-          devices.map((device) => `${device.brandName} ${device.modelName}`.toLowerCase())
+          stableDevices.map((device) => `${device.brandName} ${device.modelName}`.toLowerCase())
         );
         setMobileApiResults(
           externalResults.filter((device) => !localNames.has(`${device.brandName} ${device.modelName}`.toLowerCase()))
@@ -151,10 +155,10 @@ export function useDeviceSearch({
       active = false;
       clearTimeout(timeout);
     };
-  }, [query, devices, excludeSet]);
+  }, [query, stableDevices, excludeSet]);
 
   const selectDevice = useCallback(
-    (device: HpCatalogOption) => {
+    (device: DeviceModelOption) => {
       onSelect(device);
       setQuery("");
       setResults([]);

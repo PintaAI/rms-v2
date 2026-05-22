@@ -1,8 +1,8 @@
 import prisma from "@/lib/prisma";
 import {
   calculateMonthlyPlanAmount,
-  getPlanAdditionalTokoPrice,
-  getPlanIncludedTokos,
+  getPlanAdditionalStorePrice,
+  getPlanIncludedStores,
   PLAN_REGISTRY,
   type SubscriptionPlan,
 } from "@/lib/plans";
@@ -103,24 +103,24 @@ export async function refreshSubscriptionStatus(subscriptionId: string) {
 }
 
 export async function calculateOwnerMonthlyAmount(userId: string, plan: SubscriptionPlan = "premium") {
-  const [tokoCount, subscription] = await Promise.all([
-    prisma.userToko.count({ where: { userId } }),
+  const [storeCount, subscription] = await Promise.all([
+    prisma.userStore.count({ where: { userId } }),
     prisma.subscription.findUnique({ where: { userId }, select: { monthlyPriceOverride: true } }),
   ]);
-  const defaultAmount = calculateMonthlyPlanAmount(plan, tokoCount);
+  const defaultAmount = calculateMonthlyPlanAmount(plan, storeCount);
   const amount = plan !== "free" && subscription?.monthlyPriceOverride !== null && subscription?.monthlyPriceOverride !== undefined
     ? subscription.monthlyPriceOverride
     : defaultAmount;
-  const includedTokos = getPlanIncludedTokos(plan);
-  const additionalTokoPrice = getPlanAdditionalTokoPrice(plan);
-  const additionalTokos = Math.max(0, tokoCount - (includedTokos ?? tokoCount));
+  const includedStores = getPlanIncludedStores(plan);
+  const additionalStorePrice = getPlanAdditionalStorePrice(plan);
+  const additionalStores = Math.max(0, storeCount - (includedStores ?? storeCount));
 
   return {
     amount: amount ?? 0,
-    tokoCount,
-    includedTokos,
-    additionalTokos,
-    additionalTokoPrice,
+    storeCount,
+    includedStores,
+    additionalStores,
+    additionalStorePrice,
   };
 }
 
@@ -148,10 +148,10 @@ export async function ensureOpenProInvoice(userId: string) {
       invoiceNumber: await generateInvoiceNumber(),
       plan: "premium",
       amount: pricing.amount,
-      tokoCount: pricing.tokoCount,
-      includedTokos: pricing.includedTokos,
-      additionalTokos: pricing.additionalTokos,
-      additionalTokoPrice: pricing.additionalTokoPrice,
+      storeCount: pricing.storeCount,
+      includedStores: pricing.includedStores,
+      additionalStores: pricing.additionalStores,
+      additionalStorePrice: pricing.additionalStorePrice,
       status: "issued",
       issuedAt: now,
       dueAt: addDays(now, GRACE_PERIOD_DAYS),
@@ -185,7 +185,7 @@ export async function startProTrial(userId: string) {
   });
 }
 
-export async function activatePaidSubscription(userId: string, subscriptionId: string, invoiceId: string) {
+export async function activatePaidSubscription(userId: string, subscriptionId: string, repairInvoiceId: string) {
   const now = new Date();
   const current = await prisma.subscription.findUnique({ where: { id: subscriptionId } });
   const periodStart = current?.currentPeriodEnd && current.currentPeriodEnd > now ? current.currentPeriodEnd : now;
@@ -205,7 +205,7 @@ export async function activatePaidSubscription(userId: string, subscriptionId: s
       },
     }),
     prisma.subscriptionInvoice.update({
-      where: { id: invoiceId },
+      where: { id: repairInvoiceId },
       data: { status: "paid", paidAt: now },
     }),
   ]);

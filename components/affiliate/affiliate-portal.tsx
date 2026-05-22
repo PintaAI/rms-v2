@@ -97,7 +97,7 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
                   ) : data.commissions.map((commission) => (
                     <TableRow key={commission.id}>
                       <TableCell>{commission.customer}</TableCell>
-                      <TableCell>{commissionKindLabel(commission.kind)}</TableCell>
+                      <TableCell>{commissionKindLabel(commission.type)}</TableCell>
                       <TableCell>{planLabel(commission.plan)}</TableCell>
                       <TableCell>{formatCurrency(commission.amount)}</TableCell>
                       <TableCell><Badge variant="outline">{commission.status}</Badge></TableCell>
@@ -158,7 +158,7 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
   );
 }
 
-function commissionKindLabel(kind: AffiliatePortalData["commissions"][number]["kind"]) {
+function commissionKindLabel(kind: AffiliatePortalData["commissions"][number]["type"]) {
   if (kind === "registration_bonus") return "Bonus registrasi";
   if (kind === "pro_recurring") return "Pro monthly";
   return "Enterprise one-time";

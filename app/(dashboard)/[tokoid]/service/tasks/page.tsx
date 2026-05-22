@@ -3,10 +3,10 @@ import { TeknisiTaskManager } from "@/components/dashboard/services/teknisi-task
 import { ServicePermissionLocked } from "@/components/dashboard/services/service-permission-locked";
 import { assertFeature, can, getPermissionLockReason, getRequestScope } from "@/lib/auth/request-scope";
 import prisma from "@/lib/prisma";
-import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
+import type { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 import { redirect } from "next/navigation";
 
-const ALL_TASK_STATUSES: ServiceStatus[] = ["received", "repairing", "done", "failed"];
+const ALL_TASK_STATUSES: RepairOrderStatus[] = ["received", "repairing", "done", "failed"];
 const taskPageSize = 1000;
 
 function appendSearchParams(path: string, searchParams: Record<string, string | string[] | undefined>) {
@@ -44,7 +44,7 @@ export default async function SharedServiceTasksPage({
   const initialSearchQuery = Array.isArray(query.q) ? query.q[0] ?? "" : query.q ?? "";
 
   const [toko, statsResult, myTasksResult, availableResult] = await Promise.all([
-    prisma.toko.findUnique({ where: { id: tokoid }, select: { id: true, name: true, logoUrl: true } }),
+    prisma.store.findUnique({ where: { id: tokoid }, select: { id: true, name: true, logoUrl: true } }),
     getTechnicianTaskStats(tokoid),
     getMyTasks(tokoid, ALL_TASK_STATUSES, taskPageSize),
     getAvailableTasks(tokoid, taskPageSize),

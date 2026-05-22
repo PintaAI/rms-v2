@@ -11,21 +11,21 @@ export interface TokoItem {
 }
 
 export const getTokoListForUser = cache(async (userId: string): Promise<TokoItem[]> => {
-  const assignments = await prisma.userToko.findMany({
+  const assignments = await prisma.userStore.findMany({
     where: { userId },
     include: {
-      toko: {
+      store: {
         select: { id: true, name: true, status: true, logoUrl: true, address: true },
       },
     },
   });
 
   return assignments.map((a) => ({
-    id: a.toko.id,
-    name: a.toko.name,
-    status: a.toko.status,
+    id: a.store.id,
+    name: a.store.name,
+    status: a.store.status,
     role: a.role,
-    logoUrl: a.toko.logoUrl,
-    address: a.toko.address,
+    logoUrl: a.store.logoUrl,
+    address: a.store.address,
   }));
 });

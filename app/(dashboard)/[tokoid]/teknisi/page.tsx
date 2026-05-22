@@ -10,7 +10,7 @@ export default async function TeknisiOverviewPage({
   params: Promise<{ tokoid: string }>;
 }) {
   const { tokoid } = await params;
-  const toko = await prisma.toko.findUnique({
+  const toko = await prisma.store.findUnique({
     where: { id: tokoid },
     select: { id: true, name: true, logoUrl: true },
   });

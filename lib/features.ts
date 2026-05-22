@@ -3,7 +3,7 @@ export type UserRole = "admin" | "staff" | "technician" | "superuser";
 import type { SubscriptionPlan, PlanLimitKey } from "@/lib/plans";
 export type { SubscriptionPlan, PlanLimitKey };
 
-export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "retail" | "team" | "analytics" | "realtime";
+export type FeatureCategory = "dashboard" | "toko" | "service" | "inventory" | "retail" | "team" | "analytics" | "realtime" | "service_catalog_item";
 
 export type FeatureKey =
   | "service.management"
@@ -136,7 +136,7 @@ export const FEATURE_REGISTRY = {
   "realtime.mobileScanner": {
     key: "realtime.mobileScanner",
     label: "Scan via HP",
-    description: "Hubungkan kamera HP ke desktop untuk scan barcode sparepart secara realtime.",
+    description: "Hubungkan kamera HP ke desktop untuk scan barcode inventoryItem secara realtime.",
     category: "realtime",
     allowedRoles: ["admin", "staff", "technician"],
     minimumPlan: "premium",
@@ -146,7 +146,7 @@ export const FEATURE_REGISTRY = {
     key: "whatsapp.integration",
     label: "WhatsApp Integration",
     description: "Kirim notifikasi status service otomatis ke pelanggan via WhatsApp.",
-    category: "service",
+    category: "service_catalog_item",
     allowedRoles: ["admin", "staff", "technician"],
     minimumPlan: "premium",
     configurable: true,
@@ -184,7 +184,7 @@ function isServiceManagementDisabled(input: FeatureAccessInput): boolean {
   return input.disabledFeatures?.includes("service.management") === true;
 }
 
-function isRetailSalesDisabledForFree(input: FeatureAccessInput): boolean {
+function isSalesOrdersDisabledForFree(input: FeatureAccessInput): boolean {
   return (
     normalizePlan(input.plan) === "free"
     && !input.disabledFeatures?.includes("service.management")
@@ -198,8 +198,8 @@ import {
   isSubscriptionPlan as _isSubscriptionPlan,
   getPlanLimit as _getPlanLimit,
   getPlanMonthlyPrice as _getPlanMonthlyPrice,
-  getPlanIncludedTokos as _getPlanIncludedTokos,
-  getPlanAdditionalTokoPrice as _getPlanAdditionalTokoPrice,
+  getPlanIncludedStores as _getPlanIncludedStores,
+  getPlanAdditionalStorePrice as _getPlanAdditionalStorePrice,
   calculateMonthlyPlanAmount as _calculateMonthlyPlanAmount,
   SUBSCRIPTION_PLANS as _SUBSCRIPTION_PLANS,
   PLAN_LIMIT_KEYS as _PLAN_LIMIT_KEYS,
@@ -212,8 +212,8 @@ export const isSubscriptionPlan = _isSubscriptionPlan;
 export const isPlanAtLeast = _isPlanAtLeast;
 export const getPlanLimit = _getPlanLimit;
 export const getPlanMonthlyPrice = _getPlanMonthlyPrice;
-export const getPlanIncludedTokos = _getPlanIncludedTokos;
-export const getPlanAdditionalTokoPrice = _getPlanAdditionalTokoPrice;
+export const getPlanIncludedStores = _getPlanIncludedStores;
+export const getPlanAdditionalStorePrice = _getPlanAdditionalStorePrice;
 export const calculateMonthlyPlanAmount = _calculateMonthlyPlanAmount;
 
 export function isFeatureKey(feature: string): feature is FeatureKey {
@@ -240,7 +240,7 @@ export function getFeatureLockReason(input: FeatureAccessInput): FeatureLockReas
     return "plan_required";
   }
 
-  if (input.feature === "retail.sales" && isRetailSalesDisabledForFree(input)) {
+  if (input.feature === "retail.sales" && isSalesOrdersDisabledForFree(input)) {
     return "disabled_by_toko";
   }
 

@@ -141,7 +141,7 @@ function getInvoiceItems(service: InvoicePreviewService) {
     {
       id: `${service.invoice?.id || service.id}-summary`,
       type: "Service",
-      name: `Servis ${service.hpCatalog.brand.name} ${service.hpCatalog.modelName}`,
+      name: `Servis ${service.deviceModel.brand.name} ${service.deviceModel.modelName}`,
       qty: 1,
       price: service.invoice?.grandTotal || 0,
     },
@@ -215,7 +215,7 @@ function InvoicePreviewCard({
             />
           ) : (
             <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white [&>*]:h-5 [&>*]:w-5">
-              {getBrandIcon(service.hpCatalog.brand.name)}
+              {getBrandIcon(service.deviceModel.brand.name)}
             </div>
           )}
           <div>
@@ -326,7 +326,7 @@ function InvoicePreviewCard({
             <div className="flex items-center justify-between gap-4">
               <span>Device</span>
               <span className="font-semibold text-right text-black">
-                {service.hpCatalog.brand.name} {service.hpCatalog.modelName}
+                {service.deviceModel.brand.name} {service.deviceModel.modelName}
               </span>
             </div>
             <div className="flex items-center justify-between gap-4">

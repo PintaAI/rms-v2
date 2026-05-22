@@ -35,8 +35,8 @@ const updateWhatsappSettingSchema = z.object({
   failedMessageTemplate: z.string().trim().nullable().optional(),
 });
 
-export interface TokoWhatsappSettingData {
-  tokoId: string;
+export interface StoreWhatsappSettingData {
+  storeId: string;
   tokoName: string;
   instanceName: string;
   enabled: boolean;
@@ -115,10 +115,10 @@ export interface WhatsappInboxMarkReadResponse {
   raw: unknown;
 }
 
-export type UpdateTokoWhatsappSettingInput = z.infer<typeof updateWhatsappSettingSchema>;
+export type UpdateStoreWhatsappSettingInput = z.infer<typeof updateWhatsappSettingSchema>;
 
-function getInstanceName(tokoId: string) {
-  return `rms-store-${tokoId}`;
+function getInstanceName(storeId: string) {
+  return `rms-store-${storeId}`;
 }
 
 function isExistingInstanceError(error: unknown) {
@@ -540,14 +540,14 @@ function mergeChatAliases(chats: WhatsappInboxChat[]) {
   return Array.from(merged.values());
 }
 
-async function attachLinkedServices(tokoId: string, chats: WhatsappInboxChat[]) {
+async function attachLinkedServices(storeId: string, chats: WhatsappInboxChat[]) {
   if (chats.length === 0) return chats;
 
   const phoneNumbers = chats.map((chat) => chat.number).filter((number): number is string => Boolean(number));
   const servicePhoneCandidates = phoneNumbers.flatMap(getPhoneLookupVariants);
-  const services = servicePhoneCandidates.length > 0 ? await prisma.service.findMany({
+  const services = servicePhoneCandidates.length > 0 ? await prisma.repairOrder.findMany({
     where: {
-      tokoId,
+      storeId,
       noWa: { in: servicePhoneCandidates },
     },
     orderBy: { checkinAt: "desc" },
@@ -557,7 +557,7 @@ async function attachLinkedServices(tokoId: string, chats: WhatsappInboxChat[]) 
       noWa: true,
       status: true,
       checkinAt: true,
-      hpCatalog: { select: { modelName: true, brand: { select: { name: true } } } },
+      deviceModel: { select: { modelName: true, brand: { select: { name: true } } } },
     },
   }) : [];
 
@@ -568,7 +568,7 @@ async function attachLinkedServices(tokoId: string, chats: WhatsappInboxChat[]) 
     serviceByPhone.set(phone, {
       id: service.id,
       customerName: service.customerName,
-      deviceName: `${service.hpCatalog.brand.name} ${service.hpCatalog.modelName}`,
+      deviceName: `${service.deviceModel.brand.name} ${service.deviceModel.modelName}`,
       status: service.status,
       checkinAt: service.checkinAt.toISOString(),
     });
@@ -671,8 +671,8 @@ function logWhatsappAction(_action: string, _details: Record<string, unknown>) {
 }
 
 function serializeSetting(setting: {
-  tokoId: string;
-  toko: { name: string };
+  storeId: string;
+  store: { name: string };
   instanceName: string;
   enabled: boolean;
   connectedNumber: string | null;
@@ -683,10 +683,10 @@ function serializeSetting(setting: {
   failedMessageTemplate: string | null;
   createdAt: Date;
   updatedAt: Date;
-}): TokoWhatsappSettingData {
+}): StoreWhatsappSettingData {
   return {
-    tokoId: setting.tokoId,
-    tokoName: setting.toko.name,
+    storeId: setting.storeId,
+    tokoName: setting.store.name,
     instanceName: setting.instanceName,
     enabled: setting.enabled,
     connectedNumber: setting.connectedNumber,
@@ -700,10 +700,10 @@ function serializeSetting(setting: {
   };
 }
 
-async function getSettingByTokoId(tokoId: string) {
-  return prisma.tokoWhatsappSetting.findUnique({
-    where: { tokoId },
-    include: { toko: { select: { name: true } } },
+async function getSettingByTokoId(storeId: string) {
+  return prisma.storeWhatsappSetting.findUnique({
+    where: { storeId },
+    include: { store: { select: { name: true } } },
   });
 }
 
@@ -713,22 +713,22 @@ export interface WhatsappLiveState {
   connectedProfileName: string | null;
 }
 
-export async function getTokoWhatsappSetting(
-  tokoId: string
-): Promise<ActionResultWithData<TokoWhatsappSettingData | null>> {
-  return withScope(tokoId, {}, async (scope) => {
+export async function getStoreWhatsappSetting(
+  storeId: string
+): Promise<ActionResultWithData<StoreWhatsappSettingData | null>> {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.view");
-    const setting = await getSettingByTokoId(tokoId);
+    const setting = await getSettingByTokoId(storeId);
     return setting ? serializeSetting(setting) : null;
   });
 }
 
 export async function getWhatsappState(
-  tokoId: string
+  storeId: string
 ): Promise<ActionResultWithData<WhatsappLiveState>> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.view");
-    const setting = await getSettingByTokoId(tokoId);
+    const setting = await getSettingByTokoId(storeId);
     if (!setting) throw new Error("WhatsApp setting not found");
 
     let stateResponse: unknown;
@@ -755,14 +755,14 @@ export async function getWhatsappState(
 }
 
 export async function connectTokoWhatsapp(
-  tokoId: string
-): Promise<ActionResultWithData<{ qr: unknown; setting: TokoWhatsappSettingData }>> {
-  return withScope(tokoId, {}, async (scope) => {
+  storeId: string
+): Promise<ActionResultWithData<{ qr: unknown; setting: StoreWhatsappSettingData }>> {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.manageSettings");
-    const toko = await prisma.toko.findUnique({ where: { id: tokoId }, select: { id: true } });
+    const toko = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } });
     if (!toko) throw new Error("Toko not found");
 
-    const instanceName = getInstanceName(tokoId);
+    const instanceName = getInstanceName(storeId);
 
     try {
       await deleteWhatsappInstance(instanceName);
@@ -788,28 +788,28 @@ export async function connectTokoWhatsapp(
 
     const connectResponse = await connectWhatsappInstance(instanceName);
 
-    const setting = await prisma.tokoWhatsappSetting.upsert({
-      where: { tokoId },
-      create: { tokoId, instanceName, instanceToken, connectedNumber: null, connectedProfileName: null },
+    const setting = await prisma.storeWhatsappSetting.upsert({
+      where: { storeId },
+      create: { storeId, instanceName, instanceToken, connectedNumber: null, connectedProfileName: null },
       update: { instanceName, instanceToken, connectedNumber: null, connectedProfileName: null },
-      include: { toko: { select: { name: true } } },
+      include: { store: { select: { name: true } } },
     });
 
-    revalidatePath(`/${tokoId}/admin`);
+    revalidatePath(`/${storeId}/admin`);
 
     return { qr: connectResponse, setting: serializeSetting(setting) };
   });
 }
 
 export async function getWhatsappRealtimeConfig(
-  tokoId: string
+  storeId: string
 ): Promise<ActionResultWithData<WhatsappRealtimeConfig | null>> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.view");
-    const setting = await getSettingByTokoId(tokoId);
+    const setting = await getSettingByTokoId(storeId);
 
     if (!setting?.instanceToken) {
-      logWhatsappAction("realtime.config", { tokoId, hasSetting: Boolean(setting), result: "missing-instance-token" });
+      logWhatsappAction("realtime.config", { storeId, hasSetting: Boolean(setting), result: "missing-instance-token" });
       return null;
     }
 
@@ -819,18 +819,18 @@ export async function getWhatsappRealtimeConfig(
       instanceToken: setting.instanceToken,
     };
 
-    logWhatsappAction("realtime.config", { tokoId, instanceName: setting.instanceName, result: "ready" });
+    logWhatsappAction("realtime.config", { storeId, instanceName: setting.instanceName, result: "ready" });
     return config;
   });
 }
 
 export async function getWhatsappInboxChats(
-  tokoId: string,
+  storeId: string,
   input?: { cursor?: number | null; limit?: number }
 ): Promise<ActionResultWithData<WhatsappInboxChatsResponse>> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.view");
-    const setting = await getSettingByTokoId(tokoId);
+    const setting = await getSettingByTokoId(storeId);
     if (!setting) return { items: [], nextCursor: null, raw: null };
 
     const { cursor, limit } = normalizePageInput(input);
@@ -852,24 +852,24 @@ export async function getWhatsappInboxChats(
       .sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? "")))
       .sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""))
       .slice(0, limit);
-    const items = await attachLinkedServices(tokoId, baseItems);
+    const items = await attachLinkedServices(storeId, baseItems);
     const nextCursor = items.length === limit ? cursor + limit : null;
 
     const raw = WHATSAPP_DEBUG ? summarizeChatDebug(response, contactsResponse) : summarizeChatCounts(response, contactsResponse);
-    logWhatsappAction("inbox.chats", { tokoId, instanceName: setting.instanceName, chatCount: items.length, raw });
+    logWhatsappAction("inbox.chats", { storeId, instanceName: setting.instanceName, chatCount: items.length, raw });
     return { items, nextCursor, raw };
   });
 }
 
 export async function getWhatsappInboxMessages(
-  tokoId: string,
+  storeId: string,
   remoteJid: string,
   alternateJid?: string | null,
   input?: { cursor?: number | null; limit?: number }
 ): Promise<ActionResultWithData<WhatsappInboxMessagesResponse>> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.view");
-    const setting = await getSettingByTokoId(tokoId);
+    const setting = await getSettingByTokoId(storeId);
     const normalizedRemoteJid = normalizeRemoteJid(remoteJid);
     const normalizedAlternateJid = normalizeRemoteJid(alternateJid ?? null);
     if (!setting || !normalizedRemoteJid) return { items: [], nextCursor: null, raw: null };
@@ -918,7 +918,7 @@ export async function getWhatsappInboxMessages(
 
     const nextCursor = attempts.some((attempt) => attempt.count === limit) ? cursor + limit : null;
 
-    logWhatsappAction("inbox.messages", { tokoId, instanceName: setting.instanceName, remoteJid: normalizedRemoteJid, alternateJid: normalizedAlternateJid, attempts });
+    logWhatsappAction("inbox.messages", { storeId, instanceName: setting.instanceName, remoteJid: normalizedRemoteJid, alternateJid: normalizedAlternateJid, attempts });
     return {
       items,
       nextCursor,
@@ -928,7 +928,7 @@ export async function getWhatsappInboxMessages(
 }
 
 export async function sendWhatsappInboxMessage(
-  tokoId: string,
+  storeId: string,
   remoteJid: string,
   alternateJid: string | null | undefined,
   text: string
@@ -936,9 +936,9 @@ export async function sendWhatsappInboxMessage(
   const trimmedText = text.trim();
   if (!trimmedText) return { success: false, error: "Pesan tidak boleh kosong" };
 
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.send");
-    const setting = await getSettingByTokoId(tokoId);
+    const setting = await getSettingByTokoId(storeId);
     const normalizedRemoteJid = normalizeRemoteJid(remoteJid);
     const normalizedAlternateJid = normalizeRemoteJid(alternateJid ?? null);
     if (!setting || !normalizedRemoteJid) throw new Error("WhatsApp setting not found");
@@ -975,18 +975,18 @@ export async function sendWhatsappInboxMessage(
       status: "SERVER_ACK",
     };
 
-    logWhatsappAction("inbox.send", { tokoId, instanceName: setting.instanceName, remoteJid: normalizedRemoteJid, alternateJid: normalizedAlternateJid, sendRemoteJid, textLength: trimmedText.length });
+    logWhatsappAction("inbox.send", { storeId, instanceName: setting.instanceName, remoteJid: normalizedRemoteJid, alternateJid: normalizedAlternateJid, sendRemoteJid, textLength: trimmedText.length });
     return { message: sentMessage, raw: WHATSAPP_DEBUG ? redactEvolutionDebugValue(response) : null };
   });
 }
 
 export async function markWhatsappInboxMessagesAsRead(
-  tokoId: string,
+  storeId: string,
   messages: WhatsappInboxMarkReadMessageInput[]
 ): Promise<ActionResultWithData<WhatsappInboxMarkReadResponse>> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.view");
-    const setting = await getSettingByTokoId(tokoId);
+    const setting = await getSettingByTokoId(storeId);
     if (!setting) throw new Error("WhatsApp setting not found");
 
     const readMessages = messages
@@ -1000,17 +1000,17 @@ export async function markWhatsappInboxMessagesAsRead(
     if (readMessages.length === 0) return { raw: null };
 
     const response = await markWhatsappMessagesAsRead({ instanceName: setting.instanceName, readMessages });
-    logWhatsappAction("inbox.markRead", { tokoId, instanceName: setting.instanceName, count: readMessages.length });
+    logWhatsappAction("inbox.markRead", { storeId, instanceName: setting.instanceName, count: readMessages.length });
     return { raw: WHATSAPP_DEBUG ? redactEvolutionDebugValue(response) : null };
   });
 }
 
 export async function refreshTokoWhatsappConnection(
-  tokoId: string
+  storeId: string
 ): Promise<ActionResultWithData<WhatsappLiveState>> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.manageSettings");
-    const setting = await getSettingByTokoId(tokoId);
+    const setting = await getSettingByTokoId(storeId);
     if (!setting) throw new Error("WhatsApp setting not found");
 
     let stateResponse: unknown;
@@ -1032,8 +1032,8 @@ export async function refreshTokoWhatsappConnection(
     const connectedProfileName = getProfileName(stateResponse) ?? setting.connectedProfileName;
 
     if (connectedNumber !== setting.connectedNumber || connectedProfileName !== setting.connectedProfileName) {
-      await prisma.tokoWhatsappSetting.update({
-        where: { tokoId },
+      await prisma.storeWhatsappSetting.update({
+        where: { storeId },
         data: {
           connectedNumber,
           connectedProfileName,
@@ -1041,30 +1041,30 @@ export async function refreshTokoWhatsappConnection(
       });
     }
 
-    revalidatePath(`/${tokoId}/admin`);
+    revalidatePath(`/${storeId}/admin`);
 
     return { state, connectedNumber, connectedProfileName };
   });
 }
 
-export async function updateTokoWhatsappSetting(
-  tokoId: string,
-  input: UpdateTokoWhatsappSettingInput
-): Promise<ActionResultWithData<TokoWhatsappSettingData>> {
+export async function updateStoreWhatsappSetting(
+  storeId: string,
+  input: UpdateStoreWhatsappSettingInput
+): Promise<ActionResultWithData<StoreWhatsappSettingData>> {
   const parsed = updateWhatsappSettingSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.manageSettings");
-    const toko = await prisma.toko.findUnique({ where: { id: tokoId }, select: { id: true } });
+    const toko = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } });
     if (!toko) throw new Error("Toko not found");
 
     const data = parsed.data;
-    const setting = await prisma.tokoWhatsappSetting.upsert({
-      where: { tokoId },
+    const setting = await prisma.storeWhatsappSetting.upsert({
+      where: { storeId },
       create: {
-        tokoId,
-        instanceName: getInstanceName(tokoId),
+        storeId,
+        instanceName: getInstanceName(storeId),
         enabled: data.enabled,
         notifyDone: data.notifyDone,
         notifyFailed: data.notifyFailed,
@@ -1078,22 +1078,22 @@ export async function updateTokoWhatsappSetting(
         doneMessageTemplate: data.doneMessageTemplate || null,
         failedMessageTemplate: data.failedMessageTemplate || null,
       },
-      include: { toko: { select: { name: true } } },
+      include: { store: { select: { name: true } } },
     });
 
-    revalidatePath(`/${tokoId}/admin`);
+    revalidatePath(`/${storeId}/admin`);
 
     return serializeSetting(setting);
   });
 }
 
 export async function disconnectTokoWhatsapp(
-  tokoId: string
-): Promise<ActionResultWithData<TokoWhatsappSettingData>> {
-  return withScope(tokoId, {}, async (scope) => {
+  storeId: string
+): Promise<ActionResultWithData<StoreWhatsappSettingData>> {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "whatsapp.manageSettings");
-    const setting = await getSettingByTokoId(tokoId);
-    const instanceName = setting?.instanceName ?? getInstanceName(tokoId);
+    const setting = await getSettingByTokoId(storeId);
+    const instanceName = setting?.instanceName ?? getInstanceName(storeId);
 
     try {
       await deleteWhatsappInstance(instanceName);
@@ -1102,14 +1102,14 @@ export async function disconnectTokoWhatsapp(
       if (!message.includes("404") && !message.includes("not found")) throw error;
     }
 
-    const updated = await prisma.tokoWhatsappSetting.upsert({
-      where: { tokoId },
-      create: { tokoId, instanceName, instanceToken: null },
+    const updated = await prisma.storeWhatsappSetting.upsert({
+      where: { storeId },
+      create: { storeId, instanceName, instanceToken: null },
       update: { instanceName, instanceToken: null, connectedNumber: null, connectedProfileName: null },
-      include: { toko: { select: { name: true } } },
+      include: { store: { select: { name: true } } },
     });
 
-    revalidatePath(`/${tokoId}/admin`);
+    revalidatePath(`/${storeId}/admin`);
 
     return serializeSetting(updated);
   });

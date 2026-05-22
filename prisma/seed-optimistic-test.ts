@@ -92,39 +92,39 @@ async function main() {
     }),
   ]);
 
-  await prisma.toko.upsert({
+  await prisma.store.upsert({
     where: { id: tokoId },
     update: { name: "Optimistic Test Toko", status: "active" },
     create: { id: tokoId, name: "Optimistic Test Toko", status: "active" },
   });
 
   await Promise.all([
-    prisma.userToko.upsert({
-      where: { userId_tokoId: { userId: admin.id, tokoId } },
+    prisma.userStore.upsert({
+      where: { userId_storeId: { userId: admin.id, storeId: tokoId } },
       update: {},
-      create: { userId: admin.id, tokoId },
+      create: { userId: admin.id, storeId: tokoId },
     }),
-    prisma.userToko.upsert({
-      where: { userId_tokoId: { userId: staff.id, tokoId } },
+    prisma.userStore.upsert({
+      where: { userId_storeId: { userId: staff.id, storeId: tokoId } },
       update: {},
-      create: { userId: staff.id, tokoId },
+      create: { userId: staff.id, storeId: tokoId },
     }),
   ]);
 
-  const brand = await prisma.brand.upsert({
+  const deviceBrand = await prisma.deviceBrand.upsert({
     where: { name: brandName },
     update: {},
     create: { name: brandName },
   });
 
-  const hpCatalog = await prisma.hpCatalog.upsert({
-    where: { brandId_modelName: { brandId: brand.id, modelName: "Phone A1" } },
+  const deviceModel = await prisma.deviceModel.upsert({
+    where: { brandId_modelName: { brandId: deviceBrand.id, modelName: "Phone A1" } },
     update: {},
-    create: { brandId: brand.id, modelName: "Phone A1" },
+    create: { brandId: deviceBrand.id, modelName: "Phone A1" },
   });
 
   await Promise.all([
-    prisma.service.upsert({
+    prisma.repairOrder.upsert({
       where: { id: "optimistic-test-service-received" },
       update: {
         status: "received",
@@ -135,8 +135,8 @@ async function main() {
       },
       create: {
         id: "optimistic-test-service-received",
-        tokoId,
-        hpCatalogId: hpCatalog.id,
+        storeId: tokoId,
+        deviceModelId: deviceModel.id,
         createdById: admin.id,
         customerName: "Received Customer",
         noWa: "081234567890",
@@ -144,7 +144,7 @@ async function main() {
         status: "received",
       },
     }),
-    prisma.service.upsert({
+    prisma.repairOrder.upsert({
       where: { id: "optimistic-test-service-repairing" },
       update: {
         status: "repairing",
@@ -155,8 +155,8 @@ async function main() {
       },
       create: {
         id: "optimistic-test-service-repairing",
-        tokoId,
-        hpCatalogId: hpCatalog.id,
+        storeId: tokoId,
+        deviceModelId: deviceModel.id,
         createdById: admin.id,
         customerName: "Repairing Customer",
         noWa: "081234567891",

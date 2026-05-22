@@ -16,7 +16,7 @@ export type PresetKey =
 
 export interface ServiceTableItem {
   id: string;
-  hpCatalogId: string;
+  deviceModelId: string;
   customerName: string | null;
   noWa: string;
   complaint: string;
@@ -29,7 +29,7 @@ export interface ServiceTableItem {
   doneAt?: Date | null;
   warrantyUntil?: Date | string | null;
   checkoutAt?: Date | null;
-  hpCatalog: {
+  deviceModel: {
     modelName: string;
     brand: { name: string };
   };
@@ -66,7 +66,7 @@ export interface ServiceTableItem {
     resolvedBy: { name: string } | null;
     items: Array<{
       id: string;
-      sparepartId: string | null;
+      inventoryItemId: string | null;
       name: string;
       qty: number;
       price: number;

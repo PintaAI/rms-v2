@@ -1,6 +1,6 @@
 import Image from "next/image"
 import { redirect } from "next/navigation"
-import { getSupplierDebts, getSuppliers } from "@/actions/supplier-debts"
+import { getSupplierPayables, getSuppliers } from "@/actions/supplier-debts"
 import { FeaturePreview } from "@/components/dashboard/feature-preview"
 import { PermissionLocked } from "@/components/dashboard/permission-locked"
 import { SupplierDebtTable } from "@/components/dashboard/supplier-debts/supplier-debt-table"
@@ -47,8 +47,8 @@ export default async function SupplierDebtsPage({ params }: SupplierDebtsPagePro
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 
   const [toko, debtsResult, suppliersResult] = await Promise.all([
-    prisma.toko.findUnique({ where: { id: tokoid }, select: { id: true, name: true, logoUrl: true } }),
-    getSupplierDebts(tokoid),
+    prisma.store.findUnique({ where: { id: tokoid }, select: { id: true, name: true, logoUrl: true } }),
+    getSupplierPayables(tokoid),
     getSuppliers(tokoid),
   ])
 
@@ -74,7 +74,7 @@ function SupplierDebtsPageShell({
   tokoId: string
   tokoName: string
   logoUrl?: string | null
-  debtResult: Awaited<ReturnType<typeof getSupplierDebts>>["data"]
+  debtResult: Awaited<ReturnType<typeof getSupplierPayables>>["data"]
   suppliers: Awaited<ReturnType<typeof getSuppliers>>["data"]
   readOnly?: boolean
 }) {

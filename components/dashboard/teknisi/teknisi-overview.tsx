@@ -77,7 +77,7 @@ export function TeknisiOverview({
     const result = await takeService(serviceId);
     setIsTakingTask(null);
     if (result.success) {
-      publish({ action: "taken", serviceId, ...getServiceRealtimeMeta(service) });
+      publish({ action: "taken", repairOrderId: serviceId, ...getServiceRealtimeMeta(service) });
       router.refresh();
     }
     return result;
@@ -127,7 +127,7 @@ export function TeknisiOverview({
   const handleOptimisticStatusSuccess = useCallback((serviceId: string, status: string) => {
     const service = selectedTask;
     if (!service) return;
-    publish({ action: "status_changed", serviceId, ...getServiceRealtimeMeta(service), reason: status });
+    publish({ action: "status_changed", repairOrderId: serviceId, ...getServiceRealtimeMeta(service), reason: status });
     router.refresh();
   }, [publish, router, selectedTask]);
 
@@ -260,7 +260,7 @@ export function TeknisiOverview({
         onConfirm={handleConfirmTakeover}
         technicianName={pendingTakeoverTask?.technician?.name || "teknisi lain"}
         serviceLabel={pendingTakeoverTask
-          ? `${pendingTakeoverTask.hpCatalog.brand.name} ${pendingTakeoverTask.hpCatalog.modelName}`
+          ? `${pendingTakeoverTask.deviceModel.brand.name} ${pendingTakeoverTask.deviceModel.modelName}`
           : "Task ini"}
         isLoading={pendingTakeoverTask ? isTakingTask === pendingTakeoverTask.id : false}
       />

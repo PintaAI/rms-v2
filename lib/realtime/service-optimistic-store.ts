@@ -5,17 +5,17 @@ import { create } from "zustand";
 import type { ServiceListItem, ServiceStats } from "@/actions/service";
 
 interface ServiceOptimisticState {
-  tokoId: string | null;
+  storeId: string | null;
   services: ServiceListItem[];
   pendingCount: number;
   isHydrated: boolean;
-  hydrateServices: (tokoId: string, services: ServiceListItem[]) => void;
+  hydrateServices: (storeId: string, services: ServiceListItem[]) => void;
   optimisticCreate: (service: ServiceListItem) => void;
   rollbackCreate: (tempId: string) => void;
   optimisticUpdate: (service: ServiceListItem) => void;
-  optimisticPatch: (serviceId: string, patch: Partial<Omit<ServiceListItem, "id">>) => void;
+  optimisticPatch: (repairOrderId: string, patch: Partial<Omit<ServiceListItem, "id">>) => void;
   rollbackUpdate: (originalService: ServiceListItem) => void;
-  optimisticDelete: (serviceId: string) => void;
+  optimisticDelete: (repairOrderId: string) => void;
   rollbackDelete: (service: ServiceListItem) => void;
   settleMutation: () => void;
   reset: () => void;
@@ -62,14 +62,14 @@ export function deriveServiceStats(services: ServiceListItem[]): ServiceStats {
 }
 
 export const useServiceOptimisticStore = create<ServiceOptimisticState>((set) => ({
-  tokoId: null,
+  storeId: null,
   services: [],
   pendingCount: 0,
   isHydrated: false,
-  hydrateServices: (tokoId, services) =>
+  hydrateServices: (storeId, services) =>
     set((state) => {
-      if (state.tokoId !== tokoId) {
-        return { tokoId, services, pendingCount: 0, isHydrated: true };
+      if (state.storeId !== storeId) {
+        return { storeId, services, pendingCount: 0, isHydrated: true };
       }
 
       if (state.pendingCount === 0) {
@@ -93,14 +93,14 @@ export const useServiceOptimisticStore = create<ServiceOptimisticState>((set) =>
       services: state.services.map((item) => (item.id === service.id ? service : item)),
       pendingCount: state.pendingCount + 1,
     })),
-  optimisticPatch: (serviceId, patch) =>
+  optimisticPatch: (repairOrderId, patch) =>
     set((state) => {
-      const serviceExists = state.services.some((service) => service.id === serviceId);
+      const serviceExists = state.services.some((service) => service.id === repairOrderId);
       if (!serviceExists) return state;
 
       return {
         services: state.services.map((service) =>
-          service.id === serviceId ? { ...service, ...patch } : service
+          service.id === repairOrderId ? { ...service, ...patch } : service
         ),
         pendingCount: state.pendingCount + 1,
       };
@@ -112,9 +112,9 @@ export const useServiceOptimisticStore = create<ServiceOptimisticState>((set) =>
       ),
       pendingCount: decrementPendingCount(state.pendingCount),
     })),
-  optimisticDelete: (serviceId) =>
+  optimisticDelete: (repairOrderId) =>
     set((state) => ({
-      services: state.services.filter((service) => service.id !== serviceId),
+      services: state.services.filter((service) => service.id !== repairOrderId),
       pendingCount: state.pendingCount + 1,
     })),
   rollbackDelete: (service) =>
@@ -128,5 +128,5 @@ export const useServiceOptimisticStore = create<ServiceOptimisticState>((set) =>
   settleMutation: () =>
     set((state) => ({ pendingCount: decrementPendingCount(state.pendingCount) })),
   reset: () =>
-    set({ tokoId: null, services: [], pendingCount: 0, isHydrated: false }),
+    set({ storeId: null, services: [], pendingCount: 0, isHydrated: false }),
 }));

@@ -57,7 +57,7 @@ These must be manually updated because TypeScript will not catch table or column
 Run this grep before finishing backend work:
 
 ```bash
-rg '\$queryRaw|\$executeRaw|"sparepart"|"tokoId"|"service"|"retail_sale"|"supplier_debt"|"stock_movement"' actions lib prisma
+rg '\$queryRaw|\$executeRaw|"(toko|user_toko|toko_feature_setting|toko_whatsapp_setting|toko_whatsapp_identity|toko_user_permission|brand|hp_catalog|sparepart|sparepart_category|sparepart_compatibility|service_pricelist|service|service_item|invoice|invoice_item|retail_sale|retail_sale_item|stock_movement|supplier_debt|supplier_debt_payment)"|"(tokoId|hpCatalogId|sparepartId|serviceId|saleId|debtId|sparepartName|tokoCount|includedTokos|additionalTokos|additionalTokoPrice)"' actions lib prisma
 ```
 
 ## Delegate Grep Checklist
@@ -75,7 +75,7 @@ Expected result after migration: no application code matches, except migration o
 Run this before claiming the schema and backend rename are complete:
 
 ```bash
-rg '\b(tokoId|hpCatalogId|sparepartId|serviceId|saleId|debtId|sparepartName)\b' actions app components hooks lib prisma --glob '!prisma/migrations/**'
+rg '\b(tokoId|hpCatalogId|sparepartId|serviceId|saleId|debtId|sparepartName|tokoCount|includedTokos|additionalTokos|additionalTokoPrice)\b' actions app components hooks lib prisma --glob '!prisma/migrations/**'
 ```
 
 Expected result after migration:
@@ -83,6 +83,17 @@ Expected result after migration:
 - `tokoid` route param may remain in route files by decision.
 - `noWa`, `mobileApiId`, permission keys, feature keys, and historical strings may remain by decision.
 - Old FK field names should not remain in active Prisma queries or action types unless explicitly documented.
+- Old typed subscription invoice `toko*` fields should not remain in active Prisma queries, action types, or billing code.
+
+## Relation Field Grep Checklist
+
+Run this before claiming generated Prisma API naming is complete:
+
+```bash
+rg '\b(createdServices|assignedServices|tokoAssignments|tokoPermissions|spareparts|sparepartCategories|servicePricelists|services|stockMovements|retailSales|supplierDebts|hpCatalogs|serviceItems|retailSaleItems)\b' actions app components hooks lib prisma --glob '!prisma/migrations/**'
+```
+
+Expected result after migration: no active code depends on old relation field names unless a match is a deliberate UI label or historical documentation.
 
 ## Persisted String Checklist
 
@@ -268,6 +279,7 @@ Before verification, confirm:
 - Delegate grep has no unexpected matches.
 - Field name grep has no unexpected matches.
 - Raw SQL grep has no old physical table or column strings.
+- Relation field grep has no unexpected old generated Prisma relation names.
 - Persisted string grep has been reviewed and documented.
 - UI routes still match the decisions in `00-decisions.md`.
 - WhatsApp behavior changes are not included in the migration diff.

@@ -1,10 +1,10 @@
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@/prisma/generated/prisma/client";
-import type { PaymentStatus, ServiceStatus } from "@/prisma/generated/prisma/enums";
+import type { PaymentStatus, RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 import type { JsonValue } from "@/prisma/generated/prisma/internal/prismaNamespace";
-import type { ServiceItem, ServiceListItem, TimeFilter } from "./service-types";
+import type { RepairOrderItem, ServiceListItem, TimeFilter } from "./service-types";
 
-export const technicianAvailableStatuses: ServiceStatus[] = ["received", "repairing"];
+export const technicianAvailableStatuses: RepairOrderStatus[] = ["received", "repairing"];
 export const technicianTaskListLimit = 20;
 
 export const serviceSelectBase = {
@@ -23,7 +23,7 @@ export const serviceSelectBase = {
   passwordPattern: true,
   imei: true,
   note: true,
-  hpCatalog: {
+  deviceModel: {
     select: {
       id: true,
       modelName: true,
@@ -74,7 +74,7 @@ export const serviceSelectBase = {
       items: {
         select: {
           id: true,
-          sparepartId: true,
+          inventoryItemId: true,
           name: true,
           qty: true,
           price: true,
@@ -90,7 +90,7 @@ export const serviceSelectBase = {
     },
     orderBy: { createdAt: "desc" },
   },
-} satisfies Prisma.ServiceSelect;
+} satisfies Prisma.RepairOrderSelect;
 
 export const serviceItemSelect = {
   id: true,
@@ -99,7 +99,7 @@ export const serviceItemSelect = {
   qty: true,
   price: true,
   referenceId: true,
-} satisfies Prisma.ServiceItemSelect;
+} satisfies Prisma.RepairOrderItemSelect;
 
 export type ServiceWithSelectBase = {
   id: string;
@@ -108,7 +108,7 @@ export type ServiceWithSelectBase = {
   complaint: string;
   handlingNote: string | null;
   includedItems: JsonValue | null;
-  status: ServiceStatus;
+  status: RepairOrderStatus;
   isPickedUp: boolean;
   checkinAt: Date;
   doneAt: Date | null;
@@ -117,7 +117,7 @@ export type ServiceWithSelectBase = {
   passwordPattern: string | null;
   imei: string | null;
   note: string | null;
-  hpCatalog: {
+  deviceModel: {
     id: string;
     modelName: string;
     brand: { name: string };
@@ -134,7 +134,7 @@ export type ServiceWithSelectBase = {
     createdAt: Date;
     items: Array<{
       id: string;
-      type: ServiceItem["type"];
+      type: RepairOrderItem["type"];
       name: string;
       qty: number;
       price: number;
@@ -144,14 +144,14 @@ export type ServiceWithSelectBase = {
 };
 
 export type ServiceWithItems = ServiceWithSelectBase & {
-  tokoId: string;
-  items: ServiceItem[];
+  storeId: string;
+  items: RepairOrderItem[];
 };
 
 export function mapServiceToListItem(service: ServiceWithSelectBase): ServiceListItem {
   return {
     id: service.id,
-    hpCatalogId: service.hpCatalog.id,
+    deviceModelId: service.deviceModel.id,
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
@@ -166,10 +166,10 @@ export function mapServiceToListItem(service: ServiceWithSelectBase): ServiceLis
     checkoutAt: service.checkoutAt,
     passwordPattern: service.passwordPattern,
     imei: service.imei,
-    hpCatalog: {
-      id: service.hpCatalog.id,
-      modelName: service.hpCatalog.modelName,
-      brand: { name: service.hpCatalog.brand.name },
+    deviceModel: {
+      id: service.deviceModel.id,
+      modelName: service.deviceModel.modelName,
+      brand: { name: service.deviceModel.brand.name },
     },
     technician: service.technician,
     createdBy: service.createdBy ?? undefined,
@@ -178,10 +178,10 @@ export function mapServiceToListItem(service: ServiceWithSelectBase): ServiceLis
   };
 }
 
-export async function getAvailableTaskRecords(tokoId: string, userId: string, take?: number) {
-  return prisma.service.findMany({
+export async function getAvailableTaskRecords(storeId: string, userId: string, take?: number) {
+  return prisma.repairOrder.findMany({
     where: {
-      tokoId,
+      storeId,
       status: { in: technicianAvailableStatuses },
       OR: [{ technicianId: null }, { technicianId: { not: userId } }],
     },
@@ -192,29 +192,29 @@ export async function getAvailableTaskRecords(tokoId: string, userId: string, ta
 }
 
 export async function getMyTaskRecords(
-  tokoId: string,
+  storeId: string,
   userId: string,
-  statuses: ServiceStatus[],
+  statuses: RepairOrderStatus[],
   take: number | undefined,
   includeItems: true
 ): Promise<ServiceWithItems[]>;
 export async function getMyTaskRecords(
-  tokoId: string,
+  storeId: string,
   userId: string,
-  statuses: ServiceStatus[],
+  statuses: RepairOrderStatus[],
   take?: number,
   includeItems?: false
 ): Promise<ServiceWithSelectBase[]>;
 export async function getMyTaskRecords(
-  tokoId: string,
+  storeId: string,
   userId: string,
-  statuses: ServiceStatus[],
+  statuses: RepairOrderStatus[],
   take?: number,
   includeItems: boolean = false
 ): Promise<ServiceWithSelectBase[] | ServiceWithItems[]> {
-  return prisma.service.findMany({
+  return prisma.repairOrder.findMany({
     where: {
-      tokoId,
+      storeId,
       technicianId: userId,
       status: { in: statuses },
     },
@@ -223,7 +223,7 @@ export async function getMyTaskRecords(
     select: includeItems
       ? {
           ...serviceSelectBase,
-          tokoId: true,
+          storeId: true,
           items: { select: serviceItemSelect },
         }
       : serviceSelectBase,
@@ -254,9 +254,9 @@ export function buildTimeFilter(filter?: TimeFilter): Record<string, unknown> {
   return { checkinAt: { gte: startDate } };
 }
 
-export async function updateInvoiceTotal(serviceId: string) {
-  const existingInvoice = await prisma.invoice.findUnique({
-    where: { serviceId },
+export async function updateInvoiceTotal(repairOrderId: string) {
+  const existingInvoice = await prisma.repairInvoice.findUnique({
+    where: { repairOrderId },
     select: { id: true, paymentStatus: true },
   });
 
@@ -265,28 +265,28 @@ export async function updateInvoiceTotal(serviceId: string) {
   }
 
   await prisma.$transaction(async (tx) => {
-    const items = await tx.serviceItem.findMany({
-      where: { serviceId },
+    const items = await tx.repairOrderItem.findMany({
+      where: { repairOrderId },
       select: { id: true, type: true, referenceId: true, name: true, qty: true, price: true },
       orderBy: { id: "asc" },
     });
 
     const grandTotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
 
-    const invoice = await tx.invoice.upsert({
-      where: { serviceId },
-      create: { serviceId, grandTotal, paymentStatus: "unpaid" },
+    const invoice = await tx.repairInvoice.upsert({
+      where: { repairOrderId },
+      create: { repairOrderId, grandTotal, paymentStatus: "unpaid" },
       update: { grandTotal },
       select: { id: true },
     });
 
-    await tx.invoiceItem.deleteMany({ where: { invoiceId: invoice.id } });
+    await tx.repairInvoiceItem.deleteMany({ where: { repairInvoiceId: invoice.id } });
 
     if (items.length > 0) {
-      await tx.invoiceItem.createMany({
+      await tx.repairInvoiceItem.createMany({
         data: items.map((item) => ({
-          invoiceId: invoice.id,
-          serviceItemId: item.id,
+          repairInvoiceId: invoice.id,
+          repairOrderItemId: item.id,
           type: item.type,
           referenceId: item.referenceId,
           name: item.name,
@@ -300,11 +300,11 @@ export async function updateInvoiceTotal(serviceId: string) {
   return { created: !existingInvoice };
 }
 
-export function isCompletingStatus(status: ServiceStatus) {
+export function isCompletingStatus(status: RepairOrderStatus) {
   return status === "done" || status === "failed";
 }
 
-export function getStatusActivityTitle(status: ServiceStatus | "picked_up") {
+export function getStatusActivityTitle(status: RepairOrderStatus | "picked_up") {
   switch (status) {
     case "done":
       return "Service marked as done";

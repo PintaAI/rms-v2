@@ -166,6 +166,74 @@ Use physical `ALTER TABLE ... RENAME COLUMN ...` operations for these where the 
 | `supplier_debt` | `tokoId` | `supplier_payable` | `storeId` |
 | `supplier_debt_payment` | `debtId` | `supplier_payable_payment` | `payableId` |
 
+## Unchanged Tables With Required Column Renames
+
+These tables keep their table names but still need Prisma field names, physical columns, indexes, and constraints reviewed.
+
+| Table | Current column | Target column | Notes |
+|---|---|---|---|
+| `subscription_invoice` | `tokoCount` | `storeCount` | Snapshot count; preserve values. |
+| `subscription_invoice` | `includedTokos` | `includedStores` | Snapshot plan allowance; preserve values. |
+| `subscription_invoice` | `additionalTokos` | `additionalStores` | Snapshot add-on count; preserve values. |
+| `subscription_invoice` | `additionalTokoPrice` | `additionalStorePrice` | Snapshot add-on price; preserve values. |
+| `supplier` | `tokoId` | `storeId` | Store-scoped unchanged table. |
+| `supplier_return` | `tokoId` | `storeId` | Store-scoped unchanged table. |
+| `supplier_return` | `sparepartId` | `inventoryItemId` | FK to renamed inventory table. |
+| `warranty_claim` | `tokoId` | `storeId` | Store-scoped unchanged table. |
+| `warranty_claim` | `serviceId` | `repairOrderId` | FK to renamed repair order table. |
+| `warranty_claim_item` | `sparepartId` | `inventoryItemId` | Nullable FK to renamed inventory table. |
+| `inventory_audit_session` | `tokoId` | `storeId` | Store-scoped unchanged table. |
+| `inventory_audit_item` | `sparepartId` | `inventoryItemId` | FK to renamed inventory table. |
+| `inventory_audit_item` | `sparepartName` | `inventoryItemName` | Snapshot display field; preserve values. |
+| `activity_log` | `tokoId` | `storeId` | Historical log stays table-stable. |
+| `activity_log` | `serviceId` | `repairOrderId` | Nullable FK to renamed repair order table. |
+
+## Relation Field Rename Coverage
+
+Relation fields are part of the generated Prisma API and should use the target domain names even when the route/UI label remains stable.
+
+Minimum expected relation-field renames:
+
+| Current relation field | Target relation field |
+|---|---|
+| `Toko.userAssignments` | `Store.userAssignments` or `Store.userStores` |
+| `Toko.spareparts` | `Store.inventoryItems` |
+| `Toko.sparepartCategories` | `Store.inventoryCategories` |
+| `Toko.servicePricelists` | `Store.serviceCatalogItems` |
+| `Toko.services` | `Store.repairOrders` |
+| `Toko.stockMovements` | `Store.inventoryMovements` |
+| `Toko.retailSales` | `Store.salesOrders` |
+| `Toko.supplierDebts` | `Store.supplierPayables` |
+| `Toko.featureSetting` | `Store.featureSetting` |
+| `Toko.whatsappSetting` | `Store.whatsappSetting` |
+| `Toko.whatsappIdentities` | `Store.whatsappIdentities` |
+| `Toko.userPermissions` | `Store.userPermissions` |
+| `User.tokoAssignments` | `User.storeAssignments` |
+| `User.createdServices` | `User.createdRepairOrders` |
+| `User.assignedServices` | `User.assignedRepairOrders` |
+| `User.stockMovements` | `User.inventoryMovements` |
+| `User.retailSales` | `User.salesOrders` |
+| `User.tokoPermissions` | `User.storePermissions` |
+| `Brand.hpCatalogs` | `DeviceBrand.deviceModels` |
+| `HpCatalog.services` | `DeviceModel.repairOrders` |
+| `HpCatalog.compatibilities` | `DeviceModel.compatibilities` |
+| `Sparepart.toko` | `InventoryItem.store` |
+| `Sparepart.compatibilities` | `InventoryItem.compatibilities` |
+| `Sparepart.serviceItems` | `InventoryItem.repairOrderItems` |
+| `Sparepart.stockMovements` | `InventoryItem.inventoryMovements` |
+| `Sparepart.retailSaleItems` | `InventoryItem.salesOrderItems` |
+| `SparepartCategory.spareparts` | `InventoryCategory.inventoryItems` |
+| `Supplier.debts` | `Supplier.payables` |
+| `SupplierDebt.payments` | `SupplierPayable.payments` |
+| `Service.items` | `RepairOrder.items` |
+| `Service.invoice` | `RepairOrder.invoice` |
+| `Service.activities` | `RepairOrder.activities` |
+| `RetailSale.items` | `SalesOrder.items` |
+| `InventoryAuditItem.sparepart` | `InventoryAuditItem.inventoryItem` |
+| `StockMovement.sparepart` | `InventoryMovement.inventoryItem` |
+| `ActivityLog.toko` | `ActivityLog.store` |
+| `ActivityLog.service` | `ActivityLog.repairOrder` |
+
 ## Snapshot Fields That Should Stay Stable
 
 These fields are snapshots or business values, not schema-domain names. Keep them unless a separate product migration requires a rename.
@@ -204,24 +272,6 @@ Do not change:
 - `noWa` on repair orders.
 - Instance naming unless it must be updated only to compile against renamed variables.
 
-## Related Tables That Keep Their Table Names But Need Column Renames
-
-These are easy to miss because their table names are not being renamed in the first scope.
-
-| Table | Current column | Target column |
-|---|---|---|
-| `supplier` | `tokoId` | `storeId` |
-| `supplier_return` | `tokoId` | `storeId` |
-| `supplier_return` | `sparepartId` | `inventoryItemId` |
-| `warranty_claim` | `tokoId` | `storeId` |
-| `warranty_claim` | `serviceId` | `repairOrderId` |
-| `warranty_claim_item` | `sparepartId` | `inventoryItemId` |
-| `inventory_audit_session` | `tokoId` | `storeId` |
-| `inventory_audit_item` | `sparepartId` | `inventoryItemId` |
-| `inventory_audit_item` | `sparepartName` | `inventoryItemName` |
-| `activity_log` | `tokoId` | `storeId` |
-| `activity_log` | `serviceId` | `repairOrderId` |
-
 ## String Fields To Decide, Not Blindly Rename
 
 These values can contain historical data or polymorphic references. Do not mass-rewrite them without a deliberate mapping.
@@ -247,5 +297,7 @@ Before implementation starts, confirm:
 
 - Every `@@map` table in `prisma/schema.prisma` is either listed as renamed or listed as unchanged.
 - Every FK column containing `toko`, `service`, `sparepart`, `hpCatalog`, `retailSale`, `stockMovement`, or `supplierDebt` is listed.
+- Every typed persisted field containing `toko` is listed, including subscription invoice snapshot fields.
+- Every Prisma relation field exposing old domain names is renamed or explicitly documented as intentionally stable.
 - Every enum with values containing `sparepart`, `service`, `retail`, `stock`, or `supplier_debt` is listed.
 - Every raw SQL table string is covered in `04-impact-checklists.md`.

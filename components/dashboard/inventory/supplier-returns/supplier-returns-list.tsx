@@ -68,7 +68,7 @@ export function SupplierReturnsList({ tokoId, data, filters }: SupplierReturnsLi
               <div className="flex flex-col gap-1">
                 <p className="font-medium">Belum ada retur supplier.</p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Retur akan muncul saat klaim garansi ganti sparepart dicatat sebagai retur supplier.
+                  Retur akan muncul saat klaim garansi ganti inventoryItem dicatat sebagai retur supplier.
                 </p>
               </div>
             </div>
@@ -97,7 +97,7 @@ export function SupplierReturnsList({ tokoId, data, filters }: SupplierReturnsLi
                           </div>
                         </TableCell>
                         <TableCell className="min-w-52">
-                          <div className="font-medium">{item.sparepart.name}</div>
+                          <div className="font-medium">{item.inventoryItem.name}</div>
                           <div className="mt-0.5 text-[10px] text-muted-foreground">{item.id}</div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{item.qty}</TableCell>
@@ -116,7 +116,7 @@ export function SupplierReturnsList({ tokoId, data, filters }: SupplierReturnsLi
                   <div key={item.id} className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-medium">{item.sparepart.name}</div>
+                        <div className="font-medium">{item.inventoryItem.name}</div>
                         <div className="mt-1 text-xs text-muted-foreground">{formatDate(item.createdAt)}</div>
                       </div>
                       <SupplierReturnStatusBadge status={item.status} />
@@ -163,7 +163,7 @@ function renderClaimContext(tokoId: string, item: SupplierReturnRow) {
       <div className="truncate font-medium">{item.warrantyClaim.customerName || "Customer"}</div>
       <div className="truncate text-xs text-muted-foreground">{item.warrantyClaim.deviceName}</div>
       <Button asChild variant="link" className="h-auto p-0 text-xs">
-        <Link href={`/${tokoId}/service?serviceId=${encodeURIComponent(item.warrantyClaim.serviceId)}`}>
+        <Link href={`/${tokoId}/service?serviceId=${encodeURIComponent(item.warrantyClaim.repairOrderId)}`}>
           <RiExternalLinkLine data-icon="inline-start" />
           Lihat service
         </Link>

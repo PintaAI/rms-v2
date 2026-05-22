@@ -68,7 +68,7 @@ import { getBrandIcon } from "@/lib/brand-icons";
 import {
   updateStatus,
   removeItem,
-  getCompatibleSpareparts,
+  getCompatibleInventoryItems,
   getServicePricelists,
   payInvoice,
   pickupService,
@@ -184,7 +184,7 @@ function getWhatsappRemoteJid(value: string) {
 
 export interface ServiceDetailCardItem {
   id: string;
-  tokoId: string;
+  storeId: string;
   customerName: string | null;
   noWa: string;
   complaint: string;
@@ -199,7 +199,7 @@ export interface ServiceDetailCardItem {
   doneAt: Date | null;
   warrantyUntil: Date | string | null;
   checkoutAt?: Date | null;
-  hpCatalog: {
+  deviceModel: {
     id: string;
     modelName: string;
     brand: {
@@ -411,8 +411,8 @@ export function ServiceDetailCard({
     async function fetchData() {
       try {
         const [sparepartsResult, pricelistsResult] = await Promise.all([
-          getCompatibleSpareparts(localService.tokoId, localService.hpCatalog.id),
-          getServicePricelists(localService.tokoId),
+          getCompatibleInventoryItems(localService.storeId, localService.deviceModel.id),
+          getServicePricelists(localService.storeId),
         ]);
         if (sparepartsResult.success && sparepartsResult.data) {
           setSpareparts(sparepartsResult.data);
@@ -425,7 +425,7 @@ export function ServiceDetailCard({
       }
     }
     fetchData();
-  }, [isActive, canManageWarrantyClaims, inventoryEnabled, localService.tokoId, localService.hpCatalog.id]);
+  }, [isActive, canManageWarrantyClaims, inventoryEnabled, localService.storeId, localService.deviceModel.id]);
 
   function openAddItemDialog() {
     setItemDialogOpen(true);
@@ -473,7 +473,7 @@ export function ServiceDetailCard({
         ...prev,
         items: prev.items.filter((item) => item.id !== itemId),
       }));
-      onRealtimeEvent?.({ action: "item_updated", serviceId: localServiceRef.current.id, ...getServiceRealtimeMeta(localServiceRef.current) });
+      onRealtimeEvent?.({ action: "item_updated", repairOrderId: localServiceRef.current.id, ...getServiceRealtimeMeta(localServiceRef.current) });
       onRefresh?.();
     } catch (err) {
       console.error("Error removing item:", err);
@@ -560,7 +560,7 @@ export function ServiceDetailCard({
     if (!localService.invoice) return null;
     return {
       id: localService.id,
-      hpCatalogId: localService.hpCatalog.id,
+      deviceModelId: localService.deviceModel.id,
       customerName: localService.customerName,
       noWa: localService.noWa,
       complaint: localService.complaint,
@@ -572,7 +572,7 @@ export function ServiceDetailCard({
       doneAt: localService.doneAt,
       warrantyUntil: localService.warrantyUntil,
       checkoutAt: localService.checkoutAt,
-      hpCatalog: localService.hpCatalog,
+      deviceModel: localService.deviceModel,
       technician: localService.technician,
       invoice: localService.invoice,
       warrantyClaims: localService.warrantyClaims,
@@ -695,7 +695,7 @@ export function ServiceDetailCard({
 
   function getDefaultWhatsappMessage() {
     const customerName = localService.customerName?.trim() || "Pelanggan";
-    const deviceName = `${localService.hpCatalog.brand.name} ${localService.hpCatalog.modelName}`.trim();
+    const deviceName = `${localService.deviceModel.brand.name} ${localService.deviceModel.modelName}`.trim();
     return `Halo ${customerName}, terkait service perangkat ${deviceName}.`;
   }
 
@@ -708,7 +708,7 @@ export function ServiceDetailCard({
 
     setIsCheckingWhatsappIntegration(true);
     try {
-      const state = await getWhatsappState(localService.tokoId);
+      const state = await getWhatsappState(localService.storeId);
       if (!state.success || state.data?.state !== "open") {
         openWhatsApp();
         return;
@@ -730,7 +730,7 @@ export function ServiceDetailCard({
 
     setIsSendingWhatsappMessage(true);
     try {
-      const result = await sendWhatsappInboxMessage(localService.tokoId, remoteJid, null, text);
+      const result = await sendWhatsappInboxMessage(localService.storeId, remoteJid, null, text);
       if (!result.success) {
         toast.error(result.error || "Gagal mengirim WhatsApp");
         return;
@@ -767,7 +767,7 @@ export function ServiceDetailCard({
         },
       } : prev,
       action: () => payInvoice(localServiceRef.current.invoice!.id, payment),
-      onSuccess: () => { toast.success("Invoice ditandai lunas"); onRealtimeEvent?.({ action: "payment_updated", serviceId: localServiceRef.current.id, ...getServiceRealtimeMeta(localServiceRef.current) }); onRefresh?.(); },
+      onSuccess: () => { toast.success("Invoice ditandai lunas"); onRealtimeEvent?.({ action: "payment_updated", repairOrderId: localServiceRef.current.id, ...getServiceRealtimeMeta(localServiceRef.current) }); onRefresh?.(); },
       onError: (error) => toast.error(error || "Gagal menandai invoice lunas"),
     });
     setIsPayingInvoice(false);
@@ -827,7 +827,7 @@ export function ServiceDetailCard({
 
     if (resolveClaimId === newWarrantyClaimDialogId) {
       const claimResult = await createWarrantyClaim({
-        serviceId: localServiceRef.current.id,
+        repairOrderId: localServiceRef.current.id,
         reason: claimReason.trim(),
         customerNote: claimCustomerNote.trim() || undefined,
       });
@@ -850,11 +850,11 @@ export function ServiceDetailCard({
       technicianNote: claimTechnicianNote.trim() || undefined,
       resolvedNote: claimResolvedNote.trim() || undefined,
       items: claimResolution === "replace_part" && claimSparepartId
-        ? [{ sparepartId: claimSparepartId, qty: claimSparepartQty }]
+        ? [{ inventoryItemId: claimSparepartId, qty: claimSparepartQty }]
         : undefined,
       supplierReturn: claimResolution === "replace_part" && claimSupplierReturnEnabled
         ? {
-          sparepartId: claimSupplierReturnSparepartId,
+          inventoryItemId: claimSupplierReturnSparepartId,
           qty: claimSupplierReturnQty,
           supplierName: claimSupplierReturnSupplierName.trim() || undefined,
           reason: claimSupplierReturnReason.trim(),
@@ -883,9 +883,9 @@ export function ServiceDetailCard({
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="shrink-0">{getBrandIcon(localService.hpCatalog.brand.name)}</span>
+                <span className="shrink-0">{getBrandIcon(localService.deviceModel.brand.name)}</span>
                 <CardTitle className="min-w-0 break-words text-base leading-tight sm:text-lg">
-                  {localService.hpCatalog.brand.name} {localService.hpCatalog.modelName}
+                  {localService.deviceModel.brand.name} {localService.deviceModel.modelName}
                 </CardTitle>
                 <Badge variant={statusColors[localService.status] || "outline"} className="shrink-0">
                   {statusLabels[localService.status] || localService.status}
@@ -1847,14 +1847,14 @@ export function ServiceDetailCard({
         open={itemDialogOpen}
         onOpenChange={setItemDialogOpen}
         serviceId={localService.id}
-        tokoId={localService.tokoId}
-        deviceName={`${localService.hpCatalog.brand.name} ${localService.hpCatalog.modelName}`}
+        tokoId={localService.storeId}
+        deviceName={`${localService.deviceModel.brand.name} ${localService.deviceModel.modelName}`}
         spareparts={spareparts}
         servicePricelists={servicePricelists}
         onSuccess={() => {
           setItemDialogOpen(false);
           handleAddItemSuccess();
-          onRealtimeEvent?.({ action: "item_updated", serviceId: localService.id, ...getServiceRealtimeMeta(localService) });
+          onRealtimeEvent?.({ action: "item_updated", repairOrderId: localService.id, ...getServiceRealtimeMeta(localService) });
           onRefresh?.();
         }}
         onError={(err) => toast.error(err)}
@@ -1862,11 +1862,11 @@ export function ServiceDetailCard({
         onAddItemSaved={handleAddItemSaved}
         onAddItemError={handleAddItemRevert}
         onSparepartCreated={async () => {
-          const result = await getCompatibleSpareparts(localService.tokoId, localService.hpCatalog.id);
+          const result = await getCompatibleInventoryItems(localService.storeId, localService.deviceModel.id);
           if (result.success && result.data) setSpareparts(result.data);
         }}
         onPricelistCreated={async () => {
-          const result = await getServicePricelists(localService.tokoId);
+          const result = await getServicePricelists(localService.storeId);
           if (result.success && result.data) setServicePricelists(result.data);
         }}
       />
@@ -1882,7 +1882,7 @@ export function ServiceDetailCard({
       />
       <InvoiceDialog
         service={viewInvoiceService}
-        tokoId={localService.tokoId}
+        tokoId={localService.storeId}
         open={invoiceDialogOpen}
         onOpenChange={setInvoiceDialogOpen}
       />

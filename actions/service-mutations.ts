@@ -5,13 +5,13 @@ import prisma from "@/lib/prisma";
 import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/activity-log";
 import { ensureMonthlyActivityLimit } from "@/lib/auth/enforcement";
 import { revalidateServicePaths } from "@/lib/revalidation";
-import { sendServiceStatusWhatsappNotification } from "@/lib/service-whatsapp-notifications";
+import { sendRepairOrderStatusWhatsappNotification } from "@/lib/service-whatsapp-notifications";
 import { syncWhatsappIdentityFromPhone } from "@/lib/whatsapp-identity";
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
 import { getRequestUser } from "@/lib/auth/request-user";
 import { withScope } from "@/lib/auth/wrapper";
 import { assertFeature, assertPermission, type RequestScope } from "@/lib/auth/request-scope";
-import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
+import type { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import {
   getStatusActivityTitle,
@@ -24,36 +24,36 @@ import type { ActionResult, ActionResultWithData } from "./service-types";
 
 async function promoteServiceOnFirstItem(
   tx: Prisma.TransactionClient,
-  serviceId: string,
+  repairOrderId: string,
   currentStatus: string,
   currentTechnicianId: string | null,
   userId: string,
   actorTechnicianId: string | null,
-  tokoId: string,
+  storeId: string,
 ) {
   if (currentStatus === "received") {
-    await tx.service.update({
-      where: { id: serviceId },
+    await tx.repairOrder.update({
+      where: { id: repairOrderId },
       data: {
         status: "repairing",
         ...(actorTechnicianId && currentTechnicianId !== actorTechnicianId ? { technicianId: actorTechnicianId, assignedAt: new Date() } : {}),
       },
     });
     await createActivityLog(tx, {
-      tokoId, userId, serviceId,
+      storeId, userId, repairOrderId,
       type: "service_status_changed", title: getStatusActivityTitle("repairing"),
       payload: { previousStatus: "received", nextStatus: "repairing", reason: "First repair item added" },
     });
   } else if (actorTechnicianId && currentTechnicianId !== actorTechnicianId) {
-    await tx.service.update({
-      where: { id: serviceId },
+    await tx.repairOrder.update({
+      where: { id: repairOrderId },
       data: { technicianId: actorTechnicianId, assignedAt: new Date() },
     });
   }
 }
 
 const createServiceSchema = z.object({
-  hpCatalogId: z.string().min(1),
+  deviceModelId: z.string().min(1),
   customerName: z.string().optional(),
   noWa: z.string().min(1).refine((value) => validateIndonesianWhatsappNumber(value).valid, {
     message: "Format WhatsApp harus nomor Indonesia aktif, contoh 08123456789 atau 6281234567890",
@@ -69,10 +69,10 @@ const createServiceSchema = z.object({
 const updateServiceSchema = createServiceSchema;
 
 const addItemSchema = z.object({
-  serviceId: z.string(),
-  type: z.enum(["sparepart", "service"]),
-  sparepartId: z.string().optional(),
-  servicePricelistId: z.string().optional(),
+  repairOrderId: z.string(),
+  type: z.enum(["inventory_item", "service_catalog_item"]),
+  inventoryItemId: z.string().optional(),
+  serviceCatalogItemId: z.string().optional(),
   name: z.string().min(1),
   qty: z.number().int().min(1),
   price: z.number().int().min(0),
@@ -83,12 +83,12 @@ const payInvoiceSchema = z.object({
   paymentMethod: z.enum(["cash", "transfer", "qris", "debit"]).optional(),
 });
 
-async function assertInvoiceMutationPermissions(scope: RequestScope, serviceId: string): Promise<void> {
+async function assertInvoiceMutationPermissions(scope: RequestScope, repairOrderId: string): Promise<void> {
   assertPermission(scope, "service.manageItems");
   assertPermission(scope, "service.manageInvoice");
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { serviceId },
+  const invoice = await prisma.repairInvoice.findUnique({
+    where: { repairOrderId },
     select: { id: true },
   });
 
@@ -97,17 +97,17 @@ async function assertInvoiceMutationPermissions(scope: RequestScope, serviceId: 
   }
 }
 
-async function updateInvoiceIfAllowed(scope: RequestScope, serviceId: string): Promise<void> {
-  const limitError = await ensureMonthlyActivityLimit(scope.user, "maxInvoicesMonthly", "invoice_created", scope.tokoId);
+async function updateInvoiceIfAllowed(scope: RequestScope, repairOrderId: string): Promise<void> {
+  const limitError = await ensureMonthlyActivityLimit(scope.user, "maxInvoicesMonthly", "invoice_created", scope.storeId);
   if (limitError) throw new Error(limitError.error);
 
-  const invoiceResult = await updateInvoiceTotal(serviceId);
+  const invoiceResult = await updateInvoiceTotal(repairOrderId);
 
   if (invoiceResult.created) {
     await createActivityLog(prisma, {
-      tokoId: scope.tokoId,
+      storeId: scope.storeId,
       userId: scope.user.id,
-      serviceId,
+      repairOrderId,
       type: "invoice_created",
       title: "Invoice created",
     });
@@ -116,38 +116,38 @@ async function updateInvoiceIfAllowed(scope: RequestScope, serviceId: string): P
 
 export async function createService(
   data: z.infer<typeof createServiceSchema>,
-  tokoId?: string
+  storeId?: string
 ): Promise<ActionResultWithData<{ id: string }>> {
   const validated = createServiceSchema.safeParse(data);
   if (!validated.success) return { success: false, error: validated.error.issues[0].message };
 
-  if (!tokoId) {
+  if (!storeId) {
     const user = await getRequestUser();
     if (!user) return { success: false, error: "Tidak memiliki akses" };
-    tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
+    storeId = user.storeIds[0];
+    if (!storeId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "service.create");
     if (validated.data.dpAmount && validated.data.dpAmount > 0) {
       assertPermission(scope, "service.createInvoice");
       assertPermission(scope, "service.manageInvoice");
     }
 
-    const limitError = await ensureMonthlyActivityLimit(scope.user, "maxServicesMonthly", "service_created", scope.tokoId);
+    const limitError = await ensureMonthlyActivityLimit(scope.user, "maxServicesMonthly", "service_created", scope.storeId);
     if (limitError) throw new Error(limitError.error);
 
-    const hpCatalog = await prisma.hpCatalog.findUnique({
-      where: { id: validated.data.hpCatalogId },
+    const deviceModel = await prisma.deviceModel.findUnique({
+      where: { id: validated.data.deviceModelId },
     });
-    if (!hpCatalog) throw new Error("Device not found");
+    if (!deviceModel) throw new Error("Device not found");
 
     const service = await prisma.$transaction(async (tx) => {
-      const createdService = await tx.service.create({
+      const createdService = await tx.repairOrder.create({
         data: {
-          tokoId: scope.tokoId,
-          hpCatalogId: validated.data.hpCatalogId,
+          storeId: scope.storeId,
+          deviceModelId: validated.data.deviceModelId,
           createdById: scope.user.id,
           customerName: validated.data.customerName || null,
           noWa: validated.data.noWa,
@@ -162,9 +162,9 @@ export async function createService(
       });
 
       if (validated.data.dpAmount && validated.data.dpAmount > 0) {
-        await tx.invoice.create({
+        await tx.repairInvoice.create({
           data: {
-            serviceId: createdService.id,
+            repairOrderId: createdService.id,
             grandTotal: 0,
             paymentStatus: "dp",
             dpAmount: validated.data.dpAmount,
@@ -172,9 +172,9 @@ export async function createService(
         });
 
         await createActivityLog(tx, {
-          tokoId: scope.tokoId,
+          storeId: scope.storeId,
           userId: scope.user.id,
-          serviceId: createdService.id,
+          repairOrderId: createdService.id,
           type: "invoice_dp",
           title: "Invoice marked as DP",
           payload: { dpAmount: validated.data.dpAmount },
@@ -182,13 +182,13 @@ export async function createService(
       }
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId: createdService.id,
+        repairOrderId: createdService.id,
         type: "service_created",
         title: "Service created",
         payload: {
-          hpCatalogId: validated.data.hpCatalogId,
+          deviceModelId: validated.data.deviceModelId,
           customerName: validated.data.customerName || null,
           noWa: validated.data.noWa,
           complaint: validated.data.complaint,
@@ -200,10 +200,10 @@ export async function createService(
       return createdService;
     });
 
-    revalidateServicePaths(scope.tokoId);
+    revalidateServicePaths(scope.storeId);
 
     syncWhatsappIdentityFromPhone({
-      tokoId: scope.tokoId,
+      storeId: scope.storeId,
       phoneNumber: validated.data.noWa,
       displayName: validated.data.customerName || null,
     }).catch((error) => console.warn("[WhatsApp:identity.serviceCreate]", error));
@@ -213,32 +213,32 @@ export async function createService(
 }
 
 export async function updateService(
-  serviceId: string,
+  repairOrderId: string,
   data: z.infer<typeof updateServiceSchema>
 ): Promise<ActionResult> {
   const validated = updateServiceSchema.safeParse(data);
   if (!validated.success) return { success: false, error: validated.error.issues[0].message };
 
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
-    select: { tokoId: true, isPickedUp: true },
+  const service = await prisma.repairOrder.findUnique({
+    where: { id: repairOrderId },
+    select: { storeId: true, isPickedUp: true },
   });
   if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
 
-  return withScope(service.tokoId, {}, async (scope) => {
+  return withScope(service.storeId, {}, async (scope) => {
     assertPermission(scope, "service.update");
 
-    const hpCatalog = await prisma.hpCatalog.findUnique({
-      where: { id: validated.data.hpCatalogId },
+    const deviceModel = await prisma.deviceModel.findUnique({
+      where: { id: validated.data.deviceModelId },
     });
-    if (!hpCatalog) throw new Error("Device not found");
+    if (!deviceModel) throw new Error("Device not found");
 
     await prisma.$transaction(async (tx) => {
-      await tx.service.update({
-        where: { id: serviceId },
+      await tx.repairOrder.update({
+        where: { id: repairOrderId },
         data: {
-          hpCatalogId: validated.data.hpCatalogId,
+          deviceModelId: validated.data.deviceModelId,
           customerName: validated.data.customerName || null,
           noWa: validated.data.noWa,
           complaint: validated.data.complaint,
@@ -251,8 +251,8 @@ export async function updateService(
 
       if (validated.data.dpAmount && validated.data.dpAmount > 0) {
         assertPermission(scope, "service.manageInvoice");
-        const existingInvoice = await tx.invoice.findUnique({
-          where: { serviceId },
+        const existingInvoice = await tx.repairInvoice.findUnique({
+          where: { repairOrderId },
           select: { id: true },
         });
 
@@ -261,14 +261,14 @@ export async function updateService(
         }
 
         if (existingInvoice) {
-          await tx.invoice.update({
-            where: { serviceId },
+          await tx.repairInvoice.update({
+            where: { repairOrderId },
             data: { dpAmount: validated.data.dpAmount, paymentStatus: "dp" },
           });
         } else {
-          await tx.invoice.create({
+          await tx.repairInvoice.create({
             data: {
-              serviceId,
+              repairOrderId,
               grandTotal: 0,
               paymentStatus: "dp",
               dpAmount: validated.data.dpAmount,
@@ -277,9 +277,9 @@ export async function updateService(
         }
 
         await createActivityLog(tx, {
-          tokoId: scope.tokoId,
+          storeId: scope.storeId,
           userId: scope.user.id,
-          serviceId,
+          repairOrderId,
           type: "invoice_dp",
           title: "Invoice marked as DP",
           payload: { dpAmount: validated.data.dpAmount },
@@ -287,13 +287,13 @@ export async function updateService(
       }
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId,
+        repairOrderId,
         type: "service_updated",
         title: "Service details updated",
         payload: {
-          hpCatalogId: validated.data.hpCatalogId,
+          deviceModelId: validated.data.deviceModelId,
           customerName: validated.data.customerName || null,
           noWa: validated.data.noWa,
           complaint: validated.data.complaint,
@@ -305,10 +305,10 @@ export async function updateService(
       });
     });
 
-    revalidateServicePaths(scope.tokoId);
+    revalidateServicePaths(scope.storeId);
 
     syncWhatsappIdentityFromPhone({
-      tokoId: scope.tokoId,
+      storeId: scope.storeId,
       phoneNumber: validated.data.noWa,
       displayName: validated.data.customerName || null,
     }).catch((error) => console.warn("[WhatsApp:identity.serviceUpdate]", error));
@@ -317,12 +317,12 @@ export async function updateService(
   });
 }
 
-export async function deleteService(serviceId: string): Promise<ActionResult> {
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
+export async function deleteService(repairOrderId: string): Promise<ActionResult> {
+  const service = await prisma.repairOrder.findUnique({
+    where: { id: repairOrderId },
     select: {
-      id: true, tokoId: true, customerName: true, noWa: true, complaint: true, handlingNote: true, status: true, isPickedUp: true, imei: true, note: true,
-      hpCatalog: { select: { id: true, modelName: true, brand: { select: { name: true } } } },
+      id: true, storeId: true, customerName: true, noWa: true, complaint: true, handlingNote: true, status: true, isPickedUp: true, imei: true, note: true,
+      deviceModel: { select: { id: true, modelName: true, brand: { select: { name: true } } } },
       invoice: { select: { paymentStatus: true } },
     },
   });
@@ -332,50 +332,50 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
     return { success: false, error: "Tidak dapat menghapus service dengan invoice lunas" };
   }
 
-  return withScope(service.tokoId, {}, async (scope) => {
+  return withScope(service.storeId, {}, async (scope) => {
     assertPermission(scope, "service.delete");
 
-    const serviceItems = await prisma.serviceItem.findMany({
-      where: { serviceId },
+    const serviceItems = await prisma.repairOrderItem.findMany({
+      where: { repairOrderId },
       select: {
         id: true,
         type: true,
         qty: true,
         referenceId: true,
-        sparepart: { select: { stock: true, purchasePrice: true, defaultPrice: true } },
+        inventoryItem: { select: { stock: true, purchasePrice: true, defaultPrice: true } },
       },
     });
 
     await prisma.$transaction(async (tx) => {
       await createActivityLog(tx, {
-        tokoId: service.tokoId,
+        storeId: service.storeId,
         userId: scope.user.id,
-        serviceId,
+        repairOrderId,
         type: "service_deleted",
         title: "Service deleted",
       });
 
-      await preserveDeletedServiceActivityLogs(tx, serviceId, service);
+      await preserveDeletedServiceActivityLogs(tx, repairOrderId, service);
 
       for (const item of serviceItems) {
-        if (item.type === "sparepart" && item.referenceId && item.sparepart) {
-          const updatedSparepart = await tx.sparepart.update({
+        if (item.type === "inventory_item" && item.referenceId && item.inventoryItem) {
+          const updatedSparepart = await tx.inventoryItem.update({
             where: { id: item.referenceId },
             data: { stock: { increment: item.qty } },
           });
 
-          await tx.stockMovement.create({
+          await tx.inventoryMovement.create({
             data: {
-              tokoId: service.tokoId,
-              sparepartId: item.referenceId,
-              type: "service_delete_return",
+              storeId: service.storeId,
+              inventoryItemId: item.referenceId,
+              type: "repair_delete_return",
               qtyChange: item.qty,
               stockBefore: updatedSparepart.stock - item.qty,
               stockAfter: updatedSparepart.stock,
-              unitCostSnapshot: item.sparepart.purchasePrice,
-              unitPriceSnapshot: item.sparepart.defaultPrice,
+              unitCostSnapshot: item.inventoryItem.purchasePrice,
+              unitPriceSnapshot: item.inventoryItem.defaultPrice,
               referenceType: "service",
-              referenceId: serviceId,
+              referenceId: repairOrderId,
               note: "Service deleted, stock returned",
               createdById: scope.user.id,
             },
@@ -383,28 +383,28 @@ export async function deleteService(serviceId: string): Promise<ActionResult> {
         }
       }
 
-      await tx.serviceItem.deleteMany({ where: { serviceId } });
-      await tx.invoice.deleteMany({ where: { serviceId } });
-      await tx.service.delete({ where: { id: serviceId } });
+      await tx.repairOrderItem.deleteMany({ where: { repairOrderId } });
+      await tx.repairInvoice.deleteMany({ where: { repairOrderId } });
+      await tx.repairOrder.delete({ where: { id: repairOrderId } });
     });
 
-    revalidateServicePaths(service.tokoId);
+    revalidateServicePaths(service.storeId);
 
     return { success: true };
   });
 }
 
-export async function takeService(serviceId: string): Promise<ActionResult> {
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
-    select: { tokoId: true, status: true, technicianId: true },
+export async function takeService(repairOrderId: string): Promise<ActionResult> {
+  const service = await prisma.repairOrder.findUnique({
+    where: { id: repairOrderId },
+    select: { storeId: true, status: true, technicianId: true },
   });
   if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (!technicianAvailableStatuses.includes(service.status)) {
     return { success: false, error: "Service tidak tersedia untuk diambil alih" };
   }
 
-  return withScope(service.tokoId, { feature: "technician.workflow" }, async (scope) => {
+  return withScope(service.storeId, { feature: "technician.workflow" }, async (scope) => {
     assertPermission(scope, "service.takeOverTask");
 
     if (service.technicianId === scope.user.id) {
@@ -415,10 +415,10 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
     const nextStatus = service.status === "received" && !service.technicianId ? "repairing" : service.status;
 
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.service.updateMany({
+      const result = await tx.repairOrder.updateMany({
         where: {
-          id: serviceId,
-          tokoId: scope.tokoId,
+          id: repairOrderId,
+          storeId: scope.storeId,
           status: service.status,
           technicianId: service.technicianId,
         },
@@ -432,9 +432,9 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
       if (result.count !== 1) return false;
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId,
+        repairOrderId,
         type: "service_taken_over",
         title: "Service taken over by technician",
         payload: {
@@ -451,22 +451,22 @@ export async function takeService(serviceId: string): Promise<ActionResult> {
 
     if (!updated) throw new Error("Service sudah tidak tersedia untuk diambil alih");
 
-    revalidateServicePaths(scope.tokoId, true);
+    revalidateServicePaths(scope.storeId, true);
 
     return { success: true };
   });
 }
 
 export async function updateStatus(
-  serviceId: string,
-  status: ServiceStatus,
+  repairOrderId: string,
+  status: RepairOrderStatus,
   note?: string,
   warrantyUntil?: Date | null,
   options?: { takeOwnership?: boolean }
 ): Promise<ActionResult> {
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
-    select: { tokoId: true, technicianId: true, status: true, isPickedUp: true, invoice: { select: { paymentStatus: true } } },
+  const service = await prisma.repairOrder.findUnique({
+    where: { id: repairOrderId },
+    select: { storeId: true, technicianId: true, status: true, isPickedUp: true, invoice: { select: { paymentStatus: true } } },
   });
   if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
@@ -481,7 +481,7 @@ export async function updateStatus(
     return { success: false, error: "Tanggal garansi tidak valid" };
   }
 
-  return withScope(service.tokoId, {}, async (scope) => {
+  return withScope(service.storeId, {}, async (scope) => {
     assertPermission(scope, "service.updateStatus");
 
     if (isTechnicianRole(scope.user.role) && service.technicianId !== scope.user.id) {
@@ -504,8 +504,8 @@ export async function updateStatus(
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.service.update({
-        where: { id: serviceId },
+      await tx.repairOrder.update({
+        where: { id: repairOrderId },
         data: {
           status,
           doneAt: isCompleting ? changedAt : null,
@@ -518,9 +518,9 @@ export async function updateStatus(
       });
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId,
+        repairOrderId,
         type: "service_status_changed",
         title: getStatusActivityTitle(status),
         payload: {
@@ -536,20 +536,20 @@ export async function updateStatus(
     });
 
     if (isCompleting) {
-      await updateInvoiceTotal(serviceId);
-      await sendServiceStatusWhatsappNotification({ serviceId, status });
+      await updateInvoiceTotal(repairOrderId);
+      await sendRepairOrderStatusWhatsappNotification({ repairOrderId, status });
     }
 
-    revalidateServicePaths(scope.tokoId, true);
+    revalidateServicePaths(scope.storeId, true);
 
     return { success: true };
   });
 }
 
-export async function pickupService(serviceId: string): Promise<ActionResult> {
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
-    select: { tokoId: true, status: true, isPickedUp: true },
+export async function pickupService(repairOrderId: string): Promise<ActionResult> {
+  const service = await prisma.repairOrder.findUnique({
+    where: { id: repairOrderId },
+    select: { storeId: true, status: true, isPickedUp: true },
   });
   if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (service.isPickedUp) return { success: false, error: "Service sudah diambil" };
@@ -557,21 +557,21 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
     return { success: false, error: "Hanya service selesai yang dapat ditandai diambil" };
   }
 
-  return withScope(service.tokoId, {}, async (scope) => {
+  return withScope(service.storeId, {}, async (scope) => {
     assertPermission(scope, "service.pickup");
 
     const pickedUpAt = new Date();
 
     await prisma.$transaction(async (tx) => {
-      await tx.service.update({
-        where: { id: serviceId },
+      await tx.repairOrder.update({
+        where: { id: repairOrderId },
         data: { isPickedUp: true, checkoutAt: pickedUpAt },
       });
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId,
+        repairOrderId,
         type: "service_status_changed",
         title: getStatusActivityTitle("picked_up"),
         payload: {
@@ -583,49 +583,49 @@ export async function pickupService(serviceId: string): Promise<ActionResult> {
       });
     });
 
-    revalidateServicePaths(scope.tokoId);
+    revalidateServicePaths(scope.storeId);
 
     return { success: true };
   });
 }
 
 export async function assignTechnician(
-  serviceId: string,
+  repairOrderId: string,
   technicianId: string | null
 ): Promise<ActionResult> {
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
-    select: { tokoId: true, technicianId: true, status: true, isPickedUp: true },
+  const service = await prisma.repairOrder.findUnique({
+    where: { id: repairOrderId },
+    select: { storeId: true, technicianId: true, status: true, isPickedUp: true },
   });
   if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
 
-  return withScope(service.tokoId, { feature: "service.technicianAssignment" }, async (scope) => {
+  return withScope(service.storeId, { feature: "service.technicianAssignment" }, async (scope) => {
     assertPermission(scope, "service.assignTechnician");
 
     if (technicianId) {
       const technician = await prisma.user.findUnique({
         where: { id: technicianId },
-        select: { role: true, tokoAssignments: { select: { tokoId: true } } },
+        select: { role: true, storeAssignments: { select: { storeId: true } } },
       });
       if (!technician || technician.role !== "technician") throw new Error("Invalid technician");
-      const technicianTokoIds = technician.tokoAssignments.map((a) => a.tokoId);
-      if (!technicianTokoIds.includes(scope.tokoId)) throw new Error("Technician does not belong to this toko");
+      const technicianTokoIds = technician.storeAssignments.map((a) => a.storeId);
+      if (!technicianTokoIds.includes(scope.storeId)) throw new Error("Technician does not belong to this toko");
     }
 
     const assignedAt = technicianId ? new Date() : null;
     const nextStatus = technicianId && service.status === "received" ? "repairing" : service.status;
 
     await prisma.$transaction(async (tx) => {
-      await tx.service.update({
-        where: { id: serviceId },
+      await tx.repairOrder.update({
+        where: { id: repairOrderId },
         data: { technicianId, assignedAt, status: nextStatus },
       });
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId,
+        repairOrderId,
         type: "service_assigned",
         title: technicianId ? "Technician assigned" : "Technician removed",
         payload: {
@@ -637,7 +637,7 @@ export async function assignTechnician(
       });
     });
 
-    revalidateServicePaths(scope.tokoId, true);
+    revalidateServicePaths(scope.storeId, true);
 
     return { success: true };
   });
@@ -653,82 +653,82 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
   const validated = addItemSchema.safeParse(data);
   if (!validated.success) return { success: false, error: validated.error.issues[0].message };
 
-  const service = await prisma.service.findUnique({
-    where: { id: data.serviceId },
+  const service = await prisma.repairOrder.findUnique({
+    where: { id: data.repairOrderId },
     select: {
-      tokoId: true, status: true, isPickedUp: true, technicianId: true, hpCatalogId: true,
+      storeId: true, status: true, isPickedUp: true, technicianId: true, deviceModelId: true,
       invoice: { select: { paymentStatus: true } },
     },
   });
   if (!service) return { success: false, error: "Service tidak ditemukan" };
   if (service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
   if (service.invoice?.paymentStatus === "paid") return { success: false, error: "Tidak dapat memperbarui item pada invoice lunas" };
-  if (validated.data.type === "sparepart" && validated.data.servicePricelistId) {
+  if (validated.data.type === "inventory_item" && validated.data.serviceCatalogItemId) {
     return { success: false, error: "Item sparepart tidak dapat menggunakan pricelist jasa" };
   }
-  if (validated.data.type === "service" && validated.data.sparepartId) {
+  if (validated.data.type === "service_catalog_item" && validated.data.inventoryItemId) {
     return { success: false, error: "Item jasa tidak dapat menggunakan sparepart" };
   }
 
-  return withScope(service.tokoId, {}, async (scope) => {
-    await assertInvoiceMutationPermissions(scope, validated.data.serviceId);
+  return withScope(service.storeId, {}, async (scope) => {
+    await assertInvoiceMutationPermissions(scope, validated.data.repairOrderId);
 
     let createdItem: { id: string; type: string; name: string; qty: number; price: number } | null = null;
     const actorTechnicianId = isTechnicianRole(scope.user.role) ? scope.user.id : null;
 
-    if (validated.data.type === "sparepart" && validated.data.sparepartId) {
+    if (validated.data.type === "inventory_item" && validated.data.inventoryItemId) {
       assertFeature(scope, "inventory.management");
-      const sparepartId = validated.data.sparepartId;
+      const inventoryItemId = validated.data.inventoryItemId;
 
-      const sparepart = await prisma.sparepart.findUnique({
-        where: { id: sparepartId },
+      const inventoryItem = await prisma.inventoryItem.findUnique({
+        where: { id: inventoryItemId },
         select: {
-          stock: true, name: true, defaultPrice: true, purchasePrice: true, tokoId: true, isUniversal: true, kind: true,
+          stock: true, name: true, defaultPrice: true, purchasePrice: true, storeId: true, isUniversal: true, type: true,
           compatibilities: {
-            where: { hpCatalogId: service.hpCatalogId },
-            select: { hpCatalogId: true },
+            where: { deviceModelId: service.deviceModelId },
+            select: { deviceModelId: true },
           },
         },
       });
-      if (!sparepart || sparepart.tokoId !== service.tokoId) throw new Error("Sparepart not found");
-      if (sparepart.kind !== "sparepart") throw new Error("Barang retail tidak bisa dipakai sebagai sparepart service");
-      if (!sparepart.isUniversal && sparepart.compatibilities.length === 0) {
+      if (!inventoryItem || inventoryItem.storeId !== service.storeId) throw new Error("Sparepart not found");
+      if (inventoryItem.type !== "repair_part") throw new Error("Barang retail tidak bisa dipakai sebagai sparepart service");
+      if (!inventoryItem.isUniversal && inventoryItem.compatibilities.length === 0) {
         throw new Error("Sparepart is not compatible with this device");
       }
 
       await prisma.$transaction(async (tx) => {
-        const stockUpdate = await tx.sparepart.updateMany({
-          where: { id: sparepartId, tokoId: service.tokoId, stock: { gte: validated.data.qty } },
+        const stockUpdate = await tx.inventoryItem.updateMany({
+          where: { id: inventoryItemId, storeId: service.storeId, stock: { gte: validated.data.qty } },
           data: { stock: { decrement: validated.data.qty } },
         });
-        if (stockUpdate.count !== 1) throw new Error(`Insufficient stock. Available: ${sparepart.stock}`);
+        if (stockUpdate.count !== 1) throw new Error(`Insufficient stock. Available: ${inventoryItem.stock}`);
 
-        const updatedSparepart = await tx.sparepart.findUniqueOrThrow({
-          where: { id: sparepartId },
+        const updatedSparepart = await tx.inventoryItem.findUniqueOrThrow({
+          where: { id: inventoryItemId },
           select: { stock: true },
         });
 
-        createdItem = await tx.serviceItem.create({
+        createdItem = await tx.repairOrderItem.create({
           data: {
-            serviceId: validated.data.serviceId,
+            repairOrderId: validated.data.repairOrderId,
             type: validated.data.type,
-            name: sparepart.name,
+            name: inventoryItem.name,
             qty: validated.data.qty,
-            price: sparepart.defaultPrice,
-            referenceId: sparepartId,
+            price: inventoryItem.defaultPrice,
+            referenceId: inventoryItemId,
           },
         });
 
-        await tx.stockMovement.create({
+        await tx.inventoryMovement.create({
           data: {
-            tokoId: service.tokoId,
-            sparepartId,
-            type: "service_usage",
+            storeId: service.storeId,
+            inventoryItemId,
+            type: "repair_usage",
             qtyChange: -validated.data.qty,
             stockBefore: updatedSparepart.stock + validated.data.qty,
             stockAfter: updatedSparepart.stock,
-            unitCostSnapshot: sparepart.purchasePrice,
-            unitPriceSnapshot: sparepart.defaultPrice,
+            unitCostSnapshot: inventoryItem.purchasePrice,
+            unitPriceSnapshot: inventoryItem.defaultPrice,
             referenceType: "service_item",
             referenceId: createdItem.id,
             note: "Sparepart used in service",
@@ -736,12 +736,12 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           },
         });
 
-        await promoteServiceOnFirstItem(tx, validated.data.serviceId, service.status, service.technicianId, scope.user.id, actorTechnicianId, scope.tokoId);
+        await promoteServiceOnFirstItem(tx, validated.data.repairOrderId, service.status, service.technicianId, scope.user.id, actorTechnicianId, scope.storeId);
 
         await createActivityLog(tx, {
-          tokoId: scope.tokoId, userId: scope.user.id, serviceId: validated.data.serviceId,
+          storeId: scope.storeId, userId: scope.user.id, repairOrderId: validated.data.repairOrderId,
           type: "sparepart_stock_out", title: "Sparepart used in service",
-          payload: { sparepartId, sparepartName: sparepart.name, qty: validated.data.qty, price: sparepart.defaultPrice },
+          payload: { inventoryItemId, inventoryItemName: inventoryItem.name, qty: validated.data.qty, price: inventoryItem.defaultPrice },
         });
       });
     } else {
@@ -750,74 +750,74 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
       let itemName = validated.data.name;
       let itemPrice = validated.data.price;
 
-      if (validated.data.type === "service" && validated.data.servicePricelistId) {
-        const pricelist = await prisma.servicePricelist.findUnique({
-          where: { id: validated.data.servicePricelistId },
-          select: { title: true, defaultPrice: true, tokoId: true },
+      if (validated.data.type === "service_catalog_item" && validated.data.serviceCatalogItemId) {
+        const pricelist = await prisma.serviceCatalogItem.findUnique({
+          where: { id: validated.data.serviceCatalogItemId },
+          select: { title: true, defaultPrice: true, storeId: true },
         });
-        if (!pricelist || pricelist.tokoId !== service.tokoId) throw new Error("Pricelist jasa tidak ditemukan");
+        if (!pricelist || pricelist.storeId !== service.storeId) throw new Error("Pricelist jasa tidak ditemukan");
         itemName = pricelist.title;
         itemPrice = pricelist.defaultPrice;
       }
 
       await prisma.$transaction(async (tx) => {
-        createdItem = await tx.serviceItem.create({
-          data: { serviceId: validated.data.serviceId, type: validated.data.type, name: itemName, qty: validated.data.qty, price: itemPrice, referenceId: null },
+        createdItem = await tx.repairOrderItem.create({
+          data: { repairOrderId: validated.data.repairOrderId, type: validated.data.type, name: itemName, qty: validated.data.qty, price: itemPrice, referenceId: null },
         });
 
-        await promoteServiceOnFirstItem(tx, validated.data.serviceId, service.status, service.technicianId, scope.user.id, actorTechnicianId, scope.tokoId);
+        await promoteServiceOnFirstItem(tx, validated.data.repairOrderId, service.status, service.technicianId, scope.user.id, actorTechnicianId, scope.storeId);
       });
     }
 
-    await updateInvoiceIfAllowed(scope, validated.data.serviceId);
-    revalidateServicePaths(scope.tokoId);
+    await updateInvoiceIfAllowed(scope, validated.data.repairOrderId);
+    revalidateServicePaths(scope.storeId);
 
     return createdItem!;
   });
 }
 
 export async function removeItem(itemId: string): Promise<ActionResult> {
-  const item = await prisma.serviceItem.findUnique({
+  const item = await prisma.repairOrderItem.findUnique({
     where: { id: itemId },
     select: {
-      id: true, type: true, qty: true, referenceId: true, serviceId: true,
-      service: { select: { tokoId: true, isPickedUp: true, technicianId: true, invoice: { select: { paymentStatus: true } } } },
+      id: true, type: true, qty: true, referenceId: true, repairOrderId: true,
+      repairOrder: { select: { storeId: true, isPickedUp: true, technicianId: true, invoice: { select: { paymentStatus: true } } } },
     },
   });
   if (!item) return { success: false, error: "Item tidak ditemukan" };
-  if (item.service.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
-  if (item.service.invoice?.paymentStatus === "paid") return { success: false, error: "Tidak dapat memperbarui item pada invoice lunas" };
+  if (item.repairOrder.isPickedUp) return { success: false, error: "Tidak dapat memperbarui service yang sudah diambil" };
+  if (item.repairOrder.invoice?.paymentStatus === "paid") return { success: false, error: "Tidak dapat memperbarui item pada invoice lunas" };
 
-  return withScope(item.service.tokoId, {}, async (scope) => {
-    await assertInvoiceMutationPermissions(scope, item.serviceId);
+  return withScope(item.repairOrder.storeId, {}, async (scope) => {
+    await assertInvoiceMutationPermissions(scope, item.repairOrderId);
     assertPermission(scope, "service.manageItems");
     assertPermission(scope, "service.manageInvoice");
 
-    if (isTechnicianRole(scope.user.role) && item.service.technicianId !== scope.user.id) {
+    if (isTechnicianRole(scope.user.role) && item.repairOrder.technicianId !== scope.user.id) {
       throw new Error("Access denied");
     }
 
-    if (item.type === "sparepart" && item.referenceId) {
+    if (item.type === "inventory_item" && item.referenceId) {
       await prisma.$transaction(async (tx) => {
-        await tx.serviceItem.delete({ where: { id: itemId } });
-        const sparepart = await tx.sparepart.findUniqueOrThrow({
+        await tx.repairOrderItem.delete({ where: { id: itemId } });
+        const inventoryItem = await tx.inventoryItem.findUniqueOrThrow({
           where: { id: item.referenceId! },
           select: { stock: true, purchasePrice: true, defaultPrice: true },
         });
-        const updatedSparepart = await tx.sparepart.update({
+        const updatedSparepart = await tx.inventoryItem.update({
           where: { id: item.referenceId! },
           data: { stock: { increment: item.qty } },
         });
-        await tx.stockMovement.create({
+        await tx.inventoryMovement.create({
           data: {
-            tokoId: scope.tokoId,
-            sparepartId: item.referenceId!,
-            type: "service_return",
+            storeId: scope.storeId,
+            inventoryItemId: item.referenceId!,
+            type: "repair_return",
             qtyChange: item.qty,
             stockBefore: updatedSparepart.stock - item.qty,
             stockAfter: updatedSparepart.stock,
-            unitCostSnapshot: sparepart.purchasePrice,
-            unitPriceSnapshot: sparepart.defaultPrice,
+            unitCostSnapshot: inventoryItem.purchasePrice,
+            unitPriceSnapshot: inventoryItem.defaultPrice,
             referenceType: "service_item",
             referenceId: itemId,
             note: "Service item removed, stock returned",
@@ -825,39 +825,39 @@ export async function removeItem(itemId: string): Promise<ActionResult> {
           },
         });
         await createActivityLog(tx, {
-          tokoId: scope.tokoId, userId: scope.user.id, serviceId: item.serviceId,
+          storeId: scope.storeId, userId: scope.user.id, repairOrderId: item.repairOrderId,
           type: "sparepart_stock_in", title: "Sparepart returned to inventory",
-          payload: { sparepartId: item.referenceId, qty: item.qty },
+          payload: { inventoryItemId: item.referenceId, qty: item.qty },
         });
       });
     } else {
-      await prisma.serviceItem.delete({ where: { id: itemId } });
+      await prisma.repairOrderItem.delete({ where: { id: itemId } });
     }
 
-    await updateInvoiceIfAllowed(scope, item.serviceId);
-    revalidateServicePaths(scope.tokoId);
+    await updateInvoiceIfAllowed(scope, item.repairOrderId);
+    revalidateServicePaths(scope.storeId);
 
     return { success: true };
   });
 }
 
-export async function payInvoice(invoiceId: string, data: z.infer<typeof payInvoiceSchema> = {}): Promise<ActionResult> {
+export async function payInvoice(repairInvoiceId: string, data: z.infer<typeof payInvoiceSchema> = {}): Promise<ActionResult> {
   const validated = payInvoiceSchema.safeParse(data);
   if (!validated.success) return { success: false, error: validated.error.issues[0].message };
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
+  const invoice = await prisma.repairInvoice.findUnique({
+    where: { id: repairInvoiceId },
     select: {
       grandTotal: true, paymentStatus: true, dpAmount: true,
-      service: { select: { id: true, tokoId: true, status: true, isPickedUp: true } },
+      repairOrder: { select: { id: true, storeId: true, status: true, isPickedUp: true } },
     },
   });
   if (!invoice) return { success: false, error: "Invoice tidak ditemukan" };
   if (invoice.paymentStatus === "paid") return { success: false, error: "Invoice sudah lunas" };
-  if (invoice.service.status !== "done" && invoice.service.status !== "failed") {
+  if (invoice.repairOrder.status !== "done" && invoice.repairOrder.status !== "failed") {
     return { success: false, error: "Hanya service selesai yang dapat ditandai lunas" };
   }
-  if (invoice.service.isPickedUp) return { success: false, error: "Service sudah diambil" };
+  if (invoice.repairOrder.isPickedUp) return { success: false, error: "Service sudah diambil" };
 
   const discountAmount = validated.data.discountAmount ?? 0;
   const paymentMethod = validated.data.paymentMethod;
@@ -865,65 +865,65 @@ export async function payInvoice(invoiceId: string, data: z.infer<typeof payInvo
   const maxDiscount = Math.max(invoice.grandTotal - invoice.dpAmount, 0);
   if (discountAmount > maxDiscount) return { success: false, error: "Diskon tidak boleh melebihi sisa total invoice" };
 
-  return withScope(invoice.service.tokoId, {}, async (scope) => {
+  return withScope(invoice.repairOrder.storeId, {}, async (scope) => {
     assertPermission(scope, "service.manageInvoice");
 
     const paidAt = new Date();
 
     await prisma.$transaction(async (tx) => {
-      await tx.invoice.update({
-        where: { id: invoiceId },
+      await tx.repairInvoice.update({
+        where: { id: repairInvoiceId },
         data: { paymentStatus: "paid", paidAt, discountAmount },
       });
 
       if (shouldCheckoutOnPayment) {
-        await tx.service.update({
-          where: { id: invoice.service.id },
+        await tx.repairOrder.update({
+          where: { id: invoice.repairOrder.id },
           data: { checkoutAt: paidAt },
         });
       }
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId, userId: scope.user.id, serviceId: invoice.service.id,
+        storeId: scope.storeId, userId: scope.user.id, repairOrderId: invoice.repairOrder.id,
         type: "invoice_paid", title: "Invoice marked as paid",
-        payload: { invoiceId, discountAmount, paymentMethod, paidAt: paidAt.toISOString() },
+        payload: { repairInvoiceId, discountAmount, paymentMethod, paidAt: paidAt.toISOString() },
       });
     });
 
-    revalidateServicePaths(scope.tokoId);
+    revalidateServicePaths(scope.storeId);
     return { success: true };
   });
 }
 
-export async function markDpInvoice(invoiceId: string, dpAmount: number): Promise<ActionResult> {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
+export async function markDpInvoice(repairInvoiceId: string, dpAmount: number): Promise<ActionResult> {
+  const invoice = await prisma.repairInvoice.findUnique({
+    where: { id: repairInvoiceId },
     select: {
       paymentStatus: true,
-      service: { select: { id: true, tokoId: true, status: true, isPickedUp: true } },
+      repairOrder: { select: { id: true, storeId: true, status: true, isPickedUp: true } },
     },
   });
   if (!invoice) return { success: false, error: "Invoice tidak ditemukan" };
   if (invoice.paymentStatus === "paid" || invoice.paymentStatus === "dp") return { success: false, error: "Invoice sudah memiliki DP atau lunas" };
   if (dpAmount <= 0) return { success: false, error: "Jumlah DP harus lebih dari nol" };
 
-  return withScope(invoice.service.tokoId, {}, async (scope) => {
+  return withScope(invoice.repairOrder.storeId, {}, async (scope) => {
     assertPermission(scope, "service.manageInvoice");
 
     await prisma.$transaction(async (tx) => {
-      await tx.invoice.update({
-        where: { id: invoiceId },
+      await tx.repairInvoice.update({
+        where: { id: repairInvoiceId },
         data: { paymentStatus: "dp", dpAmount },
       });
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId, userId: scope.user.id, serviceId: invoice.service.id,
+        storeId: scope.storeId, userId: scope.user.id, repairOrderId: invoice.repairOrder.id,
         type: "invoice_dp", title: "Invoice marked as DP",
-        payload: { invoiceId, dpAmount },
+        payload: { repairInvoiceId, dpAmount },
       });
     });
 
-    revalidateServicePaths(scope.tokoId);
+    revalidateServicePaths(scope.storeId);
     return { success: true };
   });
 }

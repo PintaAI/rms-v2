@@ -1,4 +1,4 @@
-import { getSpareparts, getServicePricelists } from "@/actions/inventory";
+import { getInventoryItems, getServicePricelists } from "@/actions/inventory";
 import { InventoryTabs, type InventoryActionPermissions } from "@/components/dashboard/inventory/inventory-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,8 +60,9 @@ export default async function SharedInventoryPage({ params, searchParams }: Shar
   const scope = await getRequestScope(tokoid);
   const canViewInventory = can(scope, "inventory.view");
   const canManageRetail = can(scope, "inventory.manageRetail");
+  const canManagePhoneUnits = can(scope, "inventory.view") && can(scope, "inventory.create");
 
-  if (!canViewInventory && !canManageRetail) {
+  if (!canViewInventory && !canManageRetail && !canManagePhoneUnits) {
     return <InventoryPermissionLocked reason={getPermissionLockReason(scope, "inventory.view")} />;
   }
 
@@ -70,11 +71,15 @@ export default async function SharedInventoryPage({ params, searchParams }: Shar
 
   const initialTab = tab === "retail" && canManageRetail
     ? "retail"
-    : tab === "jasa" && canViewInventory
-      ? "jasa"
-      : canViewInventory
-        ? "sparepart"
-        : "retail";
+    : tab === "phone_unit" && canManagePhoneUnits
+      ? "phone_unit"
+      : tab === "jasa" && canViewInventory
+        ? "jasa"
+        : canViewInventory
+          ? "sparepart"
+          : canManagePhoneUnits
+            ? "phone_unit"
+            : "retail";
 
   const actionPermissions: InventoryActionPermissions = {
     canViewInventory,
@@ -86,14 +91,15 @@ export default async function SharedInventoryPage({ params, searchParams }: Shar
     canManageServicePricelists: canViewInventory && can(scope, "inventory.manageServicePricelists"),
     canViewRestockHistory: canViewInventory && can(scope, "inventory.viewHistory"),
     canManageRetail,
+    canManagePhoneUnits,
   };
 
   const [toko, sparepartsResult, pricelistsResult] = await Promise.all([
-    prisma.toko.findUnique({
+    prisma.store.findUnique({
       where: { id: tokoid },
       select: { id: true, name: true, logoUrl: true },
     }),
-    canViewInventory ? getSpareparts(tokoid) : Promise.resolve({ success: true as const, data: [] }),
+    canViewInventory ? getInventoryItems(tokoid) : Promise.resolve({ success: true as const, data: [] }),
     canViewInventory ? getServicePricelists(tokoid) : Promise.resolve({ success: true as const, data: [] }),
   ]);
 

@@ -1,4 +1,4 @@
-import type { ItemType, PaymentStatus, ServiceStatus, SupplierReturnStatus, WarrantyClaimResolution, WarrantyClaimStatus } from "@/prisma/generated/prisma/enums";
+import type { RepairOrderItemType, PaymentStatus, RepairOrderStatus, SupplierReturnStatus, WarrantyClaimResolution, WarrantyClaimStatus } from "@/prisma/generated/prisma/enums";
 
 export type TimeFilter = "daily" | "weekly" | "monthly" | "all";
 
@@ -13,14 +13,14 @@ export interface ActionResultWithData<T> extends ActionResult {
 
 export interface ServiceListItem {
   id: string;
-  hpCatalogId: string;
+  deviceModelId: string;
   customerName: string | null;
   noWa: string;
   complaint: string;
   handlingNote: string | null;
   includedItems?: string[] | null;
   note: string | null;
-  status: ServiceStatus;
+  status: RepairOrderStatus;
   isPickedUp?: boolean;
   checkinAt: Date;
   doneAt: Date | null;
@@ -28,7 +28,7 @@ export interface ServiceListItem {
   checkoutAt: Date | null;
   passwordPattern: string | null;
   imei: string | null;
-  hpCatalog: {
+  deviceModel: {
     id: string;
     modelName: string;
     brand: { name: string };
@@ -43,28 +43,28 @@ export interface ServiceListItem {
     discountAmount: number;
     paidAt: Date | null;
     createdAt: Date;
-    items: InvoiceItem[];
+    items: RepairInvoiceItem[];
   } | null;
   warrantyClaims?: WarrantyClaim[];
 }
 
 export interface ServiceDetail extends ServiceListItem {
-  tokoId: string;
-  items: ServiceItem[];
+  storeId: string;
+  items: RepairOrderItem[];
 }
 
-export interface ServiceItem {
+export interface RepairOrderItem {
   id: string;
-  type: ItemType;
+  type: RepairOrderItemType;
   name: string;
   qty: number;
   price: number;
   referenceId: string | null;
 }
 
-export interface InvoiceItem {
+export interface RepairInvoiceItem {
   id: string;
-  type: ItemType;
+  type: RepairOrderItemType;
   name: string;
   qty: number;
   price: number;
@@ -72,7 +72,7 @@ export interface InvoiceItem {
 
 export interface WarrantyClaimItem {
   id: string;
-  sparepartId: string | null;
+  inventoryItemId: string | null;
   name: string;
   qty: number;
   price: number;

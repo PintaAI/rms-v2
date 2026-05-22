@@ -6,7 +6,7 @@ import type { ServiceStats } from "@/actions/service";
 import { deriveServiceStats, useServiceOptimisticStore } from "@/lib/realtime/service-optimistic-store";
 
 export function useOptimisticServiceStats(tokoId: string, fallbackStats: ServiceStats): ServiceStats {
-  const storeTokoId = useServiceOptimisticStore((state) => state.tokoId);
+  const storeTokoId = useServiceOptimisticStore((state) => state.storeId);
   const services = useServiceOptimisticStore((state) => state.services);
   const isHydrated = useServiceOptimisticStore((state) => state.isHydrated);
 

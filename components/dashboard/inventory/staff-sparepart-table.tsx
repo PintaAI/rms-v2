@@ -15,9 +15,11 @@ import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  getSpareparts,
-  deleteSparepart,
-  type SparepartWithCompatibilities,
+  getInventoryItems,
+
+  deleteInventoryItem,
+
+  type InventoryItemWithCompatibilities,
 } from "@/actions/inventory";
 import { SparepartFormDialog } from "@/components/dashboard/inventory/inventory-item-form-dialog";
 import { SparepartLabelPrintDialog } from "@/components/dashboard/inventory/sparepart-label-print-dialog";
@@ -39,25 +41,25 @@ interface StaffSparepartTableProps {
 }
 
 export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSparepartTableProps) {
-  const [spareparts, setSpareparts] = useState<SparepartWithCompatibilities[]>([]);
+  const [spareparts, setSpareparts] = useState<InventoryItemWithCompatibilities[]>([]);
   const [sparepartSearch, setSparepartSearch] = useState(initialSearchQuery);
   const [isLoadingSpareparts, setIsLoadingSpareparts] = useState(true);
 
   const [sparepartDialogOpen, setSparepartDialogOpen] = useState(false);
-  const [editingSparepart, setEditingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+  const [editingSparepart, setEditingSparepart] = useState<InventoryItemWithCompatibilities | null>(null);
 
-  const [deleteSparepartDialogOpen, setDeleteSparepartDialogOpen] = useState(false);
-  const [deletingSparepart, setDeletingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+  const [deleteInventoryItemDialogOpen, setDeleteSparepartDialogOpen] = useState(false);
+  const [deletingSparepart, setDeletingSparepart] = useState<InventoryItemWithCompatibilities | null>(null);
   const [isDeletingSparepart, setIsDeletingSparepart] = useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
-  const [printingSparepart, setPrintingSparepart] = useState<SparepartWithCompatibilities | null>(null);
+  const [printingSparepart, setPrintingSparepart] = useState<InventoryItemWithCompatibilities | null>(null);
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
       setIsLoadingSpareparts(true);
-      const result = await getSpareparts(tokoId);
+      const result = await getInventoryItems(tokoId);
       if (!active) return;
       if (result.success && result.data) {
         setSpareparts(result.data);
@@ -84,17 +86,17 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
     setSparepartDialogOpen(true);
   };
 
-  const handleEditSparepart = (sparepart: SparepartWithCompatibilities) => {
+  const handleEditSparepart = (sparepart: InventoryItemWithCompatibilities) => {
     setEditingSparepart(sparepart);
     setSparepartDialogOpen(true);
   };
 
-  const handlePrintSparepartLabel = (sparepart: SparepartWithCompatibilities) => {
+  const handlePrintSparepartLabel = (sparepart: InventoryItemWithCompatibilities) => {
     setPrintingSparepart(sparepart);
     setLabelDialogOpen(true);
   };
 
-  const handleSparepartSuccess = (newSparepart?: SparepartWithCompatibilities) => {
+  const handleSparepartSuccess = (newSparepart?: InventoryItemWithCompatibilities) => {
     if (newSparepart) {
       if (editingSparepart) {
         setSpareparts((prev) =>
@@ -107,7 +109,7 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
     setEditingSparepart(null);
   };
 
-  const handleDeleteSparepartClick = (sparepart: SparepartWithCompatibilities) => {
+  const handleDeleteSparepartClick = (sparepart: InventoryItemWithCompatibilities) => {
     setDeletingSparepart(sparepart);
     setDeleteSparepartDialogOpen(true);
   };
@@ -115,7 +117,7 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
   const handleDeleteSparepartConfirm = async () => {
     if (!deletingSparepart) return;
     setIsDeletingSparepart(true);
-    const result = await deleteSparepart(deletingSparepart.id);
+    const result = await deleteInventoryItem(deletingSparepart.id);
     setIsDeletingSparepart(false);
     if (result.success) {
       setSpareparts((prev) => prev.filter((sp) => sp.id !== deletingSparepart.id));
@@ -242,7 +244,7 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
       />
 
       <DeleteDialog
-        open={deleteSparepartDialogOpen}
+        open={deleteInventoryItemDialogOpen}
         onOpenChange={setDeleteSparepartDialogOpen}
         title="Hapus Sparepart"
         description={`Apakah Anda yakin ingin menghapus "${deletingSparepart?.name}"? Tindakan ini tidak dapat dibatalkan.`}

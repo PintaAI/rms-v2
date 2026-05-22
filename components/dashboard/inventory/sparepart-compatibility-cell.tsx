@@ -1,10 +1,10 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import type { SparepartWithCompatibilities } from "@/actions/inventory";
+import type { InventoryItemWithCompatibilities } from "@/actions/inventory";
 
 interface SparepartCompatibilityCellProps {
-  sparepart: SparepartWithCompatibilities;
+  sparepart: InventoryItemWithCompatibilities;
   maxVisible?: number;
 }
 
@@ -21,8 +21,8 @@ export function SparepartCompatibilityCell({ sparepart, maxVisible = 3 }: Sparep
     return (
       <div className="flex flex-wrap gap-1">
         {sparepart.compatibilities.slice(0, maxVisible).map((c) => (
-          <Badge key={c.hpCatalogId} variant="outline" className="text-xs">
-            {c.hpCatalog.brand.name} {c.hpCatalog.modelName}
+          <Badge key={c.deviceModelId} variant="outline" className="text-xs">
+            {c.deviceModel.brand.name} {c.deviceModel.modelName}
           </Badge>
         ))}
         {sparepart.compatibilities.length > maxVisible && (

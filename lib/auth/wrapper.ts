@@ -16,7 +16,7 @@ export interface ActionContext {
 }
 
 export interface ScopedActionContext extends ActionContext {
-  tokoId: string;
+  storeId: string;
   scope: RequestScope;
 }
 
@@ -87,8 +87,8 @@ export function defineActionWithInput<TInput, TOutput>(
 export function defineScopedAction<TOutput>(
   config: ActionConfig,
   handler: (ctx: ScopedActionContext) => Promise<TOutput>
-): (tokoId: string) => Promise<ActionResultWithData<TOutput>> {
-  return async function (tokoId: string): Promise<ActionResultWithData<TOutput>> {
+): (storeId: string) => Promise<ActionResultWithData<TOutput>> {
+  return async function (storeId: string): Promise<ActionResultWithData<TOutput>> {
     try {
       const user = await getRequestUser();
       if (!user) return { success: false, error: "Silakan login terlebih dahulu" };
@@ -96,12 +96,12 @@ export function defineScopedAction<TOutput>(
       const roleError = checkRole(user, config.role);
       if (roleError) return roleError;
 
-      const scope = await getRequestScope(tokoId);
+      const scope = await getRequestScope(storeId);
 
       if (config.capability) assertCapability(scope, config.capability);
       if (config.feature) assertFeature(scope, config.feature);
 
-      const result = await handler({ user, tokoId, scope });
+      const result = await handler({ user, storeId, scope });
 
       if (result && typeof result === "object" && "success" in result) {
         return result as ActionResultWithData<TOutput>;
@@ -117,8 +117,8 @@ export function defineScopedAction<TOutput>(
 export function defineScopedActionWithInput<TInput, TOutput>(
   config: ActionConfig,
   handler: (ctx: ScopedActionContext, input: TInput) => Promise<TOutput>
-): (input: TInput & { tokoId: string }) => Promise<ActionResultWithData<TOutput>> {
-  return async function (input: TInput & { tokoId: string }): Promise<ActionResultWithData<TOutput>> {
+): (input: TInput & { storeId: string }) => Promise<ActionResultWithData<TOutput>> {
+  return async function (input: TInput & { storeId: string }): Promise<ActionResultWithData<TOutput>> {
     try {
       const user = await getRequestUser();
       if (!user) return { success: false, error: "Silakan login terlebih dahulu" };
@@ -126,12 +126,12 @@ export function defineScopedActionWithInput<TInput, TOutput>(
       const roleError = checkRole(user, config.role);
       if (roleError) return roleError;
 
-      const scope = await getRequestScope(input.tokoId);
+      const scope = await getRequestScope(input.storeId);
 
       if (config.capability) assertCapability(scope, config.capability);
       if (config.feature) assertFeature(scope, config.feature);
 
-      const result = await handler({ user, tokoId: input.tokoId, scope }, input);
+      const result = await handler({ user, storeId: input.storeId, scope }, input);
 
       if (result && typeof result === "object" && "success" in result) {
         return result as ActionResultWithData<TOutput>;
@@ -151,7 +151,7 @@ export function defineScopedActionWithInput<TInput, TOutput>(
  * and error wrapping — same guarantees, no wrapper factory.
  */
 export async function withScope<T>(
-  tokoId: string,
+  storeId: string,
   config: ActionConfig,
   handler: (scope: RequestScope) => Promise<T>
 ): Promise<ActionResultWithData<T>> {
@@ -162,7 +162,7 @@ export async function withScope<T>(
     const roleError = checkRole(user, config.role);
     if (roleError) return roleError;
 
-    const scope = await getRequestScope(tokoId);
+    const scope = await getRequestScope(storeId);
 
     if (config.capability) assertCapability(scope, config.capability);
     if (config.feature) assertFeature(scope, config.feature);

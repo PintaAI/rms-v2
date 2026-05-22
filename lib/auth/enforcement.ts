@@ -73,7 +73,7 @@ export async function ensureMonthlyActivityLimit(
   user: Pick<AuthUser, "plan">,
   limitKey: "maxServicesMonthly" | "maxInvoicesMonthly",
   activityType: ActivityType,
-  tokoId: string
+  storeId: string
 ): Promise<ActionResult | null> {
   const limit = getPlanLimit(user.plan, limitKey);
   if (limit === null) return null;
@@ -83,7 +83,7 @@ export async function ensureMonthlyActivityLimit(
 
   const count = await prisma.activityLog.count({
     where: {
-      tokoId,
+      storeId,
       type: activityType,
       createdAt: { gte: startOfMonth },
     },

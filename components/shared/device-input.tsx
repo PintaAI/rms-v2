@@ -17,7 +17,7 @@ import {
 } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
-export interface HpCatalogOption {
+export interface DeviceModelOption {
   id: string;
   modelName: string;
   brandName: string;
@@ -25,13 +25,13 @@ export interface HpCatalogOption {
 }
 
 interface DeviceInputProps {
-  value: HpCatalogOption | null;
-  onChange: (device: HpCatalogOption | null) => void;
+  value: DeviceModelOption | null;
+  onChange: (device: DeviceModelOption | null) => void;
   disabled?: boolean;
   error?: string | null;
-  devices?: HpCatalogOption[];
+  devices?: DeviceModelOption[];
   isLoadingDevices?: boolean;
-  onDeviceCreated?: (device: HpCatalogOption) => void;
+  onDeviceCreated?: (device: DeviceModelOption) => void;
 }
 
 function getDeviceImageSrc(imageB64?: string | null) {
@@ -40,14 +40,14 @@ function getDeviceImageSrc(imageB64?: string | null) {
   return `data:image/jpeg;base64,${imageB64}`;
 }
 
-function DeviceAvatar({ device, className }: { device: Pick<HpCatalogOption, "brandName" | "imageB64">; className?: string }) {
+function DeviceAvatar({ device, className }: { device: Pick<DeviceModelOption, "brandName" | "imageB64">; className?: string }) {
   const imageSrc = getDeviceImageSrc(device.imageB64);
 
   return (
     <div className={cn("flex items-center justify-center overflow-hidden bg-muted/50", className, imageSrc && "rounded-sm")}>
       {imageSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageSrc} alt="" className="size-full object-cover" />
+        <img src={imageSrc} alt="" className="size-full object-contain p-2" />
       ) : getBrandIcon(device.brandName)}
     </div>
   );
@@ -65,7 +65,7 @@ export function DeviceInput({
   const [showInput, setShowInput] = useState(() => !value);
 
   const handleSelect = useCallback(
-    (device: HpCatalogOption) => {
+    (device: DeviceModelOption) => {
       onChange(device);
       setShowInput(false);
     },

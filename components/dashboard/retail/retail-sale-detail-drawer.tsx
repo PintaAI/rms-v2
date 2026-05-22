@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { RetailSaleDetail } from "@/actions/retail"
+import type { SalesOrderDetail } from "@/actions/retail"
 import { RetailReceipt } from "@/components/dashboard/retail/retail-receipt"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +16,7 @@ import { toast } from "sonner"
 
 type PrintFormat = "thermal" | "a5"
 
-const paymentLabels: Record<RetailSaleDetail["paymentMethod"], string> = {
+const paymentLabels: Record<SalesOrderDetail["paymentMethod"], string> = {
   cash: "Cash",
   transfer: "Transfer",
   qris: "QRIS",
@@ -32,7 +32,7 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;")
 }
 
-function getThermalReceiptHtml(sale: RetailSaleDetail) {
+function getThermalReceiptHtml(sale: SalesOrderDetail) {
   const itemRows = sale.items.map((item) => `
     <div class="item">
       <div class="line"><strong>${escapeHtml(item.name)}</strong><strong>${formatCurrency(item.lineTotal)}</strong></div>
@@ -64,9 +64,9 @@ function getThermalReceiptHtml(sale: RetailSaleDetail) {
       <body>
         <main class="receipt">
           <section class="center">
-            <h2>${escapeHtml(sale.toko.name)}</h2>
-            ${sale.toko.address ? `<p class="muted">${escapeHtml(sale.toko.address)}</p>` : ""}
-            ${sale.toko.phone ? `<p class="muted">${escapeHtml(sale.toko.phone)}</p>` : ""}
+            <h2>${escapeHtml(sale.store.name)}</h2>
+            ${sale.store.address ? `<p class="muted">${escapeHtml(sale.store.address)}</p>` : ""}
+            ${sale.store.phone ? `<p class="muted">${escapeHtml(sale.store.phone)}</p>` : ""}
           </section>
           <div class="divider"></div>
           <section>
@@ -85,13 +85,13 @@ function getThermalReceiptHtml(sale: RetailSaleDetail) {
             <div class="line"><span>Pembayaran</span><strong>${paymentLabels[sale.paymentMethod]}</strong></div>
             ${cashRows}
           </section>
-          ${sale.toko.invoiceTerms ? `<div class="divider"></div><p class="center muted terms">${escapeHtml(sale.toko.invoiceTerms)}</p>` : ""}
+          ${sale.store.invoiceTerms ? `<div class="divider"></div><p class="center muted terms">${escapeHtml(sale.store.invoiceTerms)}</p>` : ""}
         </main>
       </body>
     </html>`
 }
 
-function getA5ReceiptHtml(sale: RetailSaleDetail) {
+function getA5ReceiptHtml(sale: SalesOrderDetail) {
   const itemRows = sale.items.map((item, index) => `
     <tr>
       <td>${index + 1}</td>
@@ -143,9 +143,9 @@ function getA5ReceiptHtml(sale: RetailSaleDetail) {
         <main class="invoice">
           <section class="header">
             <div class="store">
-              <h1>${escapeHtml(sale.toko.name)}</h1>
-              ${sale.toko.address ? `<p>${escapeHtml(sale.toko.address)}</p>` : ""}
-              ${sale.toko.phone ? `<p>${escapeHtml(sale.toko.phone)}</p>` : ""}
+              <h1>${escapeHtml(sale.store.name)}</h1>
+              ${sale.store.address ? `<p>${escapeHtml(sale.store.address)}</p>` : ""}
+              ${sale.store.phone ? `<p>${escapeHtml(sale.store.phone)}</p>` : ""}
             </div>
             <div class="meta">
               <h2>INVOICE</h2>
@@ -175,7 +175,7 @@ function getA5ReceiptHtml(sale: RetailSaleDetail) {
           </table>
 
           <section class="footer">
-            <div class="terms">${sale.toko.invoiceTerms ? escapeHtml(sale.toko.invoiceTerms) : "Terima kasih atas pembelian Anda."}</div>
+            <div class="terms">${sale.store.invoiceTerms ? escapeHtml(sale.store.invoiceTerms) : "Terima kasih atas pembelian Anda."}</div>
             <div class="summary">
               <div class="summary-row"><span>Subtotal</span><strong>${formatCurrency(sale.subtotal)}</strong></div>
               ${sale.discountAmount > 0 ? `<div class="summary-row"><span>Diskon</span><strong>- ${formatCurrency(sale.discountAmount)}</strong></div>` : ""}
@@ -195,7 +195,7 @@ export function RetailSaleDetailDrawer({
   autoPrintKey,
   isLoading = false,
 }: {
-  sale: RetailSaleDetail | null
+  sale: SalesOrderDetail | null
   open: boolean
   onOpenChange: (open: boolean) => void
   autoPrintKey?: string | null

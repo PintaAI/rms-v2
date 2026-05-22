@@ -1,7 +1,7 @@
 import type { RequestScope } from "@/lib/auth/request-scope";
 import { assertRole, assertCapability } from "@/lib/auth/request-scope";
 import prisma from "@/lib/prisma";
-import { ServiceStatus } from "@/prisma/generated/prisma/enums";
+import { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 
 export interface AdminOverviewData {
   totalServices: number;
@@ -15,15 +15,15 @@ export async function getAdminOverviewData(scope: RequestScope): Promise<AdminOv
   assertCapability(scope, "dashboard.overview");
 
   const [totalServices, activeServices, staffCount, technicianCount] = await Promise.all([
-    prisma.service.count({ where: { tokoId: scope.tokoId } }),
-    prisma.service.count({
-      where: { tokoId: scope.tokoId, status: { in: [ServiceStatus.received, ServiceStatus.repairing] } },
+    prisma.repairOrder.count({ where: { storeId: scope.storeId } }),
+    prisma.repairOrder.count({
+      where: { storeId: scope.storeId, status: { in: [RepairOrderStatus.received, RepairOrderStatus.repairing] } },
     }),
-    prisma.userToko.count({
-      where: { tokoId: scope.tokoId, user: { role: "staff" } },
+    prisma.userStore.count({
+      where: { storeId: scope.storeId, user: { role: "staff" } },
     }),
-    prisma.userToko.count({
-      where: { tokoId: scope.tokoId, user: { role: "technician" } },
+    prisma.userStore.count({
+      where: { storeId: scope.storeId, user: { role: "technician" } },
     }),
   ]);
 
@@ -41,8 +41,8 @@ export async function getStaffOverviewData(scope: RequestScope): Promise<StaffOv
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const todayServices = await prisma.service.count({
-    where: { tokoId: scope.tokoId, checkinAt: { gte: today } },
+  const todayServices = await prisma.repairOrder.count({
+    where: { storeId: scope.storeId, checkinAt: { gte: today } },
   });
 
   return { todayServices };

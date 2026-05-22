@@ -15,7 +15,7 @@ export default async function AdminLayout({ children, params }: AdminLayoutProps
     redirect("/auth");
   }
 
-  if (!user.tokoIds.includes(tokoid)) {
+  if (!user.storeIds.includes(tokoid)) {
     redirect("/dashboard");
   }
 

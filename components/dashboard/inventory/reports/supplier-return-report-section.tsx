@@ -108,10 +108,10 @@ export function SupplierReturnReportSection({ report }: SupplierReturnReportSect
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {report.mostReturnedSpareparts.map((item) => (
-                <div key={item.sparepartId} className="rounded-lg border bg-muted/20 p-3">
+                <div key={item.inventoryItemId} className="rounded-lg border bg-muted/20 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate font-medium">{item.sparepartName}</div>
+                      <div className="truncate font-medium">{item.inventoryItemName}</div>
                       <div className="mt-1 text-xs text-muted-foreground">Supplier: {item.supplierName || "-"}</div>
                     </div>
                     <Badge variant="secondary">{item.returnedQty} unit</Badge>

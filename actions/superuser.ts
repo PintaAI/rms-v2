@@ -59,7 +59,7 @@ export interface SuperuserUserRow {
   currentPeriodEnd: Date | null;
   monthlyPriceOverride: number | null;
   estimatedMonthlyPrice: number | null;
-  tokoCount: number;
+  storeCount: number;
   staffCount: number;
   technicianCount: number;
   serviceCount: number;
@@ -77,7 +77,7 @@ export interface SuperuserUserRow {
 
 export interface PendingSubscriptionPaymentRow {
   paymentId: string;
-  invoiceId: string;
+  repairInvoiceId: string;
   invoiceNumber: string;
   invoiceStatus: SubscriptionInvoiceStatus;
   ownerId: string;
@@ -101,12 +101,12 @@ export interface AdminDeletionPreview {
   counts: {
     tokos: number;
     services: number;
-    spareparts: number;
-    retailSales: number;
+    inventoryItems: number;
+    salesOrders: number;
     warrantyClaims: number;
     supplierReturns: number;
     inventoryAuditSessions: number;
-    stockMovements: number;
+    inventoryMovements: number;
     sessions: number;
     orphanStaff: number;
     orphanTechnicians: number;
@@ -162,7 +162,7 @@ const brandMutationSchema = z.object({
   name: z.string().trim().min(1, "Brand name is required"),
 });
 
-const hpCatalogMutationSchema = z.object({
+const deviceModelMutationSchema = z.object({
   id: z.string().min(1).optional(),
   brandId: z.string().min(1, "Brand is required"),
   modelName: z.string().trim().min(1, "Model name is required"),
@@ -174,12 +174,12 @@ function mapBrandRow(brand: {
   name: string;
   createdAt: Date;
   updatedAt: Date;
-  _count: { hpCatalogs: number };
+  _count: { deviceModels: number };
 }): SuperuserBrandRow {
   return {
     id: brand.id,
     name: brand.name,
-    deviceCount: brand._count.hpCatalogs,
+    deviceCount: brand._count.deviceModels,
     createdAt: brand.createdAt,
     updatedAt: brand.updatedAt,
   };
@@ -227,7 +227,7 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
   const [
     userCounts,
     subscriptionCounts,
-    tokoCounts,
+    storeCounts,
     serviceCounts,
     serviceStatusCounts,
     monthlyServiceCount,
@@ -242,16 +242,16 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
       by: ["plan"],
       _count: { plan: true },
     }),
-    prisma.toko.groupBy({
+    prisma.store.groupBy({
       by: ["status"],
       _count: { status: true },
     }),
-    prisma.service.count(),
-    prisma.service.groupBy({
+    prisma.repairOrder.count(),
+    prisma.repairOrder.groupBy({
       by: ["status"],
       _count: { status: true },
     }),
-    prisma.service.count({
+    prisma.repairOrder.count({
       where: { checkinAt: { gte: monthlyStart } },
     }),
     prisma.user.findMany({
@@ -272,10 +272,10 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
             createdAt: true,
           },
         },
-        tokoAssignments: {
+        storeAssignments: {
           select: {
-            tokoId: true,
-            toko: {
+            storeId: true,
+            store: {
               select: {
                 id: true,
                 name: true,
@@ -315,8 +315,8 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
   const adminDetailStats = new Map(
     await Promise.all(
       users.map(async (user) => {
-        const tokoIds = user.tokoAssignments.map((assignment) => assignment.tokoId);
-        if (tokoIds.length === 0) {
+        const storeIds = user.storeAssignments.map((assignment) => assignment.storeId);
+        if (storeIds.length === 0) {
           return [
             user.id,
             { serviceCount: 0, monthlyServiceCount: 0, monthlyRevenue: 0, totalRevenue: 0 },
@@ -324,17 +324,17 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
         }
 
         const [serviceCount, monthlyServiceCount, totalRevenue, monthlyRevenue] = await Promise.all([
-          prisma.service.count({ where: { tokoId: { in: tokoIds } } }),
-          prisma.service.count({ where: { tokoId: { in: tokoIds }, checkinAt: { gte: monthlyStart } } }),
-          prisma.invoice.aggregate({
-            where: { paymentStatus: "paid", service: { tokoId: { in: tokoIds } } },
+          prisma.repairOrder.count({ where: { storeId: { in: storeIds } } }),
+          prisma.repairOrder.count({ where: { storeId: { in: storeIds }, checkinAt: { gte: monthlyStart } } }),
+          prisma.repairInvoice.aggregate({
+            where: { paymentStatus: "paid", repairOrder: { storeId: { in: storeIds } } },
             _sum: { grandTotal: true },
           }),
-          prisma.invoice.aggregate({
+          prisma.repairInvoice.aggregate({
             where: {
               paymentStatus: "paid",
               paidAt: { gte: monthlyStart },
-              service: { tokoId: { in: tokoIds } },
+              repairOrder: { storeId: { in: storeIds } },
             },
             _sum: { grandTotal: true },
           }),
@@ -366,7 +366,7 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
   const paidSubscribers = (subscriptionsByPlan["premium"] || 0) + (subscriptionsByPlan["enterprise"] || 0);
 
   const tokosByStatus: Record<string, number> = {};
-  for (const row of tokoCounts) {
+  for (const row of storeCounts) {
     tokosByStatus[row.status] = row._count.status;
   }
 
@@ -385,8 +385,8 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
       totalRevenue: 0,
     };
 
-    for (const assignment of user.tokoAssignments) {
-      for (const relatedAssignment of assignment.toko.userAssignments) {
+    for (const assignment of user.storeAssignments) {
+      for (const relatedAssignment of assignment.store.userAssignments) {
         if (relatedAssignment.user.role === "staff") {
           staffIds.add(relatedAssignment.userId);
         }
@@ -398,7 +398,7 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
     }
 
     const plan = (user.subscription?.plan as SubscriptionPlan) || "free";
-    const estimatedMonthlyPrice = user.subscription?.monthlyPriceOverride ?? calculateMonthlyPlanAmount(plan, user.tokoAssignments.length);
+    const estimatedMonthlyPrice = user.subscription?.monthlyPriceOverride ?? calculateMonthlyPlanAmount(plan, user.storeAssignments.length);
 
     return {
       id: user.id,
@@ -411,17 +411,17 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
       currentPeriodEnd: user.subscription?.currentPeriodEnd ?? null,
       monthlyPriceOverride: user.subscription?.monthlyPriceOverride ?? null,
       estimatedMonthlyPrice,
-      tokoCount: user.tokoAssignments.length,
+      storeCount: user.storeAssignments.length,
       staffCount: staffIds.size,
       technicianCount: technicianIds.size,
       serviceCount: detailStats.serviceCount,
       monthlyServiceCount: detailStats.monthlyServiceCount,
       monthlyRevenue: detailStats.monthlyRevenue,
       totalRevenue: detailStats.totalRevenue,
-      tokoSummaries: user.tokoAssignments.map((assignment) => ({
-        id: assignment.toko.id,
-        name: assignment.toko.name,
-        status: assignment.toko.status,
+      tokoSummaries: user.storeAssignments.map((assignment) => ({
+        id: assignment.store.id,
+        name: assignment.store.name,
+        status: assignment.store.status,
       })),
       createdAt: user.createdAt,
       lastActivity: user.activities[0]?.createdAt ?? null,
@@ -484,7 +484,7 @@ export async function getSuperuserDashboard(): Promise<ActionResultWithData<Supe
       users: userRows,
       pendingPayments: pendingPayments.map((payment) => ({
         paymentId: payment.id,
-        invoiceId: payment.invoiceId,
+        repairInvoiceId: payment.invoiceId,
         invoiceNumber: payment.invoice.invoiceNumber,
         invoiceStatus: payment.invoice.status,
         ownerId: payment.invoice.user.id,
@@ -509,11 +509,11 @@ export async function getSuperuserDeviceCatalog(): Promise<ActionResultWithData<
   }
 
   const [brands, devices] = await Promise.all([
-    prisma.brand.findMany({
+    prisma.deviceBrand.findMany({
       orderBy: { name: "asc" },
-      include: { _count: { select: { hpCatalogs: true } } },
+      include: { _count: { select: { deviceModels: true } } },
     }),
-    prisma.hpCatalog.findMany({
+    prisma.deviceModel.findMany({
       orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
       include: { brand: { select: { name: true } } },
     }),
@@ -540,9 +540,9 @@ export async function createSuperuserBrand(input: z.infer<typeof brandMutationSc
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid brand data" };
 
   try {
-    const brand = await prisma.brand.create({
+    const brand = await prisma.deviceBrand.create({
       data: { name: parsed.data.name },
-      include: { _count: { select: { hpCatalogs: true } } },
+      include: { _count: { select: { deviceModels: true } } },
     });
 
     revalidateDeviceCatalogManagement();
@@ -562,10 +562,10 @@ export async function updateSuperuserBrand(input: z.infer<typeof brandMutationSc
   if (!parsed.data.id) return { success: false, error: "Brand ID is required" };
 
   try {
-    const brand = await prisma.brand.update({
+    const brand = await prisma.deviceBrand.update({
       where: { id: parsed.data.id },
       data: { name: parsed.data.name },
-      include: { _count: { select: { hpCatalogs: true } } },
+      include: { _count: { select: { deviceModels: true } } },
     });
 
     revalidateDeviceCatalogManagement();
@@ -580,13 +580,13 @@ export async function deleteSuperuserBrand(id: string): Promise<ActionResultWith
   const user = await requireRequestUser();
   if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
 
-  const deviceCount = await prisma.hpCatalog.count({ where: { brandId: id } });
+  const deviceCount = await prisma.deviceModel.count({ where: { brandId: id } });
   if (deviceCount > 0) {
     return { success: false, error: "Cannot delete a brand that still has HP catalog entries" };
   }
 
   try {
-    await prisma.brand.delete({ where: { id } });
+    await prisma.deviceBrand.delete({ where: { id } });
     revalidateDeviceCatalogManagement();
     return { success: true, data: { id } };
   } catch (error) {
@@ -595,15 +595,15 @@ export async function deleteSuperuserBrand(id: string): Promise<ActionResultWith
   }
 }
 
-export async function createSuperuserHpCatalog(input: z.infer<typeof hpCatalogMutationSchema>): Promise<ActionResultWithData<SuperuserHpCatalogRow>> {
+export async function createSuperuserHpCatalog(input: z.infer<typeof deviceModelMutationSchema>): Promise<ActionResultWithData<SuperuserHpCatalogRow>> {
   const user = await requireRequestUser();
   if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
 
-  const parsed = hpCatalogMutationSchema.safeParse(input);
+  const parsed = deviceModelMutationSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid HP catalog data" };
 
   try {
-    const device = await prisma.hpCatalog.create({
+    const device = await prisma.deviceModel.create({
       data: {
         brandId: parsed.data.brandId,
         modelName: parsed.data.modelName,
@@ -620,16 +620,16 @@ export async function createSuperuserHpCatalog(input: z.infer<typeof hpCatalogMu
   }
 }
 
-export async function updateSuperuserHpCatalog(input: z.infer<typeof hpCatalogMutationSchema>): Promise<ActionResultWithData<SuperuserHpCatalogRow>> {
+export async function updateSuperuserHpCatalog(input: z.infer<typeof deviceModelMutationSchema>): Promise<ActionResultWithData<SuperuserHpCatalogRow>> {
   const user = await requireRequestUser();
   if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
 
-  const parsed = hpCatalogMutationSchema.safeParse(input);
+  const parsed = deviceModelMutationSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid HP catalog data" };
   if (!parsed.data.id) return { success: false, error: "HP catalog ID is required" };
 
   try {
-    const device = await prisma.hpCatalog.update({
+    const device = await prisma.deviceModel.update({
       where: { id: parsed.data.id },
       data: {
         brandId: parsed.data.brandId,
@@ -651,21 +651,21 @@ export async function deleteSuperuserHpCatalog(id: string): Promise<ActionResult
   const user = await requireRequestUser();
   if (user.role !== "superuser") return { success: false, error: "Superuser access required" };
 
-  const device = await prisma.hpCatalog.findUnique({
+  const device = await prisma.deviceModel.findUnique({
     where: { id },
     select: {
       id: true,
-      services: { select: { id: true }, take: 1 },
-      compatibilities: { select: { sparepartId: true }, take: 1 },
+      repairOrders: { select: { id: true }, take: 1 },
+      compatibilities: { select: { inventoryItemId: true }, take: 1 },
     },
   });
 
   if (!device) return { success: false, error: "HP catalog entry not found" };
-  if (device.services.length > 0) return { success: false, error: "Cannot delete HP model used by service records" };
-  if (device.compatibilities.length > 0) return { success: false, error: "Cannot delete HP model used by sparepart compatibility" };
+  if (device.repairOrders.length > 0) return { success: false, error: "Cannot delete HP model used by service records" };
+  if (device.compatibilities.length > 0) return { success: false, error: "Cannot delete HP model used by inventoryItem compatibility" };
 
   try {
-    await prisma.hpCatalog.delete({ where: { id } });
+    await prisma.deviceModel.delete({ where: { id } });
     revalidateDeviceCatalogManagement();
     return { success: true, data: { id } };
   } catch (error) {
@@ -859,45 +859,45 @@ async function getAdminDeletionPreviewData(adminUserId: string): Promise<AdminDe
       name: true,
       email: true,
       role: true,
-      tokoAssignments: { select: { tokoId: true } },
+      storeAssignments: { select: { storeId: true } },
       affiliatorProfile: { select: { id: true } },
     },
   });
 
   if (!targetUser || targetUser.role !== "admin") return null;
 
-  const tokoIds = targetUser.tokoAssignments.map((assignment) => assignment.tokoId);
-  const tokoWhere = { tokoId: { in: tokoIds } };
+  const storeIds = targetUser.storeAssignments.map((assignment) => assignment.storeId);
+  const storeWhere = { storeId: { in: storeIds } };
   const [
     services,
-    spareparts,
-    retailSales,
+    inventoryItems,
+    salesOrders,
     warrantyClaims,
     supplierReturns,
     inventoryAuditSessions,
-    stockMovements,
+    inventoryMovements,
     assignedKaryawan,
     referralAsCustomer,
     commissionAsCustomer,
     commissions,
     whatsappSettings,
   ] = await Promise.all([
-    prisma.service.count({ where: tokoWhere }),
-    prisma.sparepart.count({ where: tokoWhere }),
-    prisma.retailSale.count({ where: tokoWhere }),
-    prisma.warrantyClaim.count({ where: tokoWhere }),
-    prisma.supplierReturn.count({ where: tokoWhere }),
-    prisma.inventoryAuditSession.count({ where: tokoWhere }),
-    prisma.stockMovement.count({ where: tokoWhere }),
+    prisma.repairOrder.count({ where: storeWhere }),
+    prisma.inventoryItem.count({ where: storeWhere }),
+    prisma.salesOrder.count({ where: storeWhere }),
+    prisma.warrantyClaim.count({ where: storeWhere }),
+    prisma.supplierReturn.count({ where: storeWhere }),
+    prisma.inventoryAuditSession.count({ where: storeWhere }),
+    prisma.inventoryMovement.count({ where: storeWhere }),
     prisma.user.findMany({
       where: {
         role: { in: ["staff", "technician"] },
-        tokoAssignments: { some: { tokoId: { in: tokoIds } } },
+        storeAssignments: { some: { storeId: { in: storeIds } } },
       },
       select: {
         id: true,
         role: true,
-        tokoAssignments: { select: { tokoId: true } },
+        storeAssignments: { select: { storeId: true } },
       },
     }),
     prisma.referral.count({ where: { referredUserId: adminUserId } }),
@@ -906,18 +906,18 @@ async function getAdminDeletionPreviewData(adminUserId: string): Promise<AdminDe
       where: { userId: adminUserId },
       select: { amount: true, status: true },
     }),
-    prisma.tokoWhatsappSetting.findMany({
-      where: { tokoId: { in: tokoIds } },
+    prisma.storeWhatsappSetting.findMany({
+      where: { storeId: { in: storeIds } },
       select: { instanceName: true },
     }),
   ]);
 
-  const targetTokoSet = new Set(tokoIds);
+  const targetStoreSet = new Set(storeIds);
   let orphanStaff = 0;
   let orphanTechnicians = 0;
   const orphanKaryawanIds: string[] = [];
   for (const karyawan of assignedKaryawan) {
-    const onlyInDeletedTokos = karyawan.tokoAssignments.every((assignment) => targetTokoSet.has(assignment.tokoId));
+    const onlyInDeletedTokos = karyawan.storeAssignments.every((assignment) => targetStoreSet.has(assignment.storeId));
     if (!onlyInDeletedTokos) continue;
     orphanKaryawanIds.push(karyawan.id);
     if (karyawan.role === "staff") orphanStaff += 1;
@@ -945,14 +945,14 @@ async function getAdminDeletionPreviewData(adminUserId: string): Promise<AdminDe
       email: targetUser.email,
     },
     counts: {
-      tokos: tokoIds.length,
+      tokos: storeIds.length,
       services,
-      spareparts,
-      retailSales,
+      inventoryItems,
+      salesOrders,
       warrantyClaims,
       supplierReturns,
       inventoryAuditSessions,
-      stockMovements,
+      inventoryMovements,
       sessions,
       orphanStaff,
       orphanTechnicians,
@@ -1006,12 +1006,12 @@ export async function deleteAdminAccountCascade(
     return { success: false, error: "Confirmation email does not match" };
   }
 
-  const tokoIds = await prisma.userToko.findMany({
+  const storeIds = await prisma.userStore.findMany({
     where: { userId: adminUserId },
-    select: { tokoId: true },
+    select: { storeId: true },
   });
-  const tokoIdValues = tokoIds.map((assignment) => assignment.tokoId);
-  const tokoWhere = { tokoId: { in: tokoIdValues } };
+  const storeIdValues = storeIds.map((assignment) => assignment.storeId);
+  const storeWhere = { storeId: { in: storeIdValues } };
 
   try {
     await revokeWhatsappInstancesForAdminDeletion(preview.whatsappInstances);
@@ -1020,49 +1020,49 @@ export async function deleteAdminAccountCascade(
       const orphanKaryawan = await tx.user.findMany({
         where: {
           role: { in: ["staff", "technician"] },
-          tokoAssignments: { some: { tokoId: { in: tokoIdValues } } },
+          storeAssignments: { some: { storeId: { in: storeIdValues } } },
         },
         select: {
           id: true,
-          tokoAssignments: { select: { tokoId: true } },
+          storeAssignments: { select: { storeId: true } },
         },
       });
-      const targetTokoSet = new Set(tokoIdValues);
+      const targetStoreSet = new Set(storeIdValues);
       const orphanKaryawanIds = orphanKaryawan
-        .filter((karyawan) => karyawan.tokoAssignments.every((assignment) => targetTokoSet.has(assignment.tokoId)))
+        .filter((karyawan) => karyawan.storeAssignments.every((assignment) => targetStoreSet.has(assignment.storeId)))
         .map((karyawan) => karyawan.id);
 
       await tx.affiliateCommission.deleteMany({ where: { userId: adminUserId } });
       await tx.referral.deleteMany({ where: { referredUserId: adminUserId } });
       await tx.affiliator.updateMany({ where: { userId: adminUserId }, data: { userId: null, status: "inactive" } });
 
-      if (tokoIdValues.length > 0) {
-        await tx.activityLog.deleteMany({ where: tokoWhere });
-        await tx.invoiceItem.deleteMany({ where: { invoice: { service: tokoWhere } } });
-        await tx.invoice.deleteMany({ where: { service: tokoWhere } });
-        await tx.serviceItem.deleteMany({ where: { service: tokoWhere } });
-        await tx.warrantyClaimItem.deleteMany({ where: { warrantyClaim: tokoWhere } });
-        await tx.supplierReturn.deleteMany({ where: tokoWhere });
-        await tx.warrantyClaim.deleteMany({ where: tokoWhere });
-        await tx.retailSaleItem.deleteMany({ where: { sale: tokoWhere } });
-        await tx.retailSale.deleteMany({ where: tokoWhere });
-        await tx.supplierDebtPayment.deleteMany({ where: { debt: tokoWhere } });
-        await tx.supplierDebt.deleteMany({ where: tokoWhere });
-        await tx.supplier.deleteMany({ where: tokoWhere });
-        await tx.inventoryAuditItem.deleteMany({ where: { session: tokoWhere } });
-        await tx.inventoryAuditSession.deleteMany({ where: tokoWhere });
-        await tx.stockMovement.deleteMany({ where: tokoWhere });
-        await tx.sparepartCompatibility.deleteMany({ where: { sparepart: tokoWhere } });
-        await tx.service.deleteMany({ where: tokoWhere });
-        await tx.servicePricelist.deleteMany({ where: tokoWhere });
-        await tx.sparepart.deleteMany({ where: tokoWhere });
-        await tx.sparepartCategory.deleteMany({ where: tokoWhere });
-        await tx.tokoWhatsappIdentity.deleteMany({ where: tokoWhere });
-        await tx.tokoWhatsappSetting.deleteMany({ where: tokoWhere });
-        await tx.tokoFeatureSetting.deleteMany({ where: { tokoId: { in: tokoIdValues } } });
-        await tx.tokoUserPermission.deleteMany({ where: tokoWhere });
-        await tx.userToko.deleteMany({ where: { tokoId: { in: tokoIdValues } } });
-        await tx.toko.deleteMany({ where: { id: { in: tokoIdValues } } });
+      if (storeIdValues.length > 0) {
+        await tx.activityLog.deleteMany({ where: storeWhere });
+        await tx.repairInvoiceItem.deleteMany({ where: { repairInvoice: { repairOrder: storeWhere } } });
+        await tx.repairInvoice.deleteMany({ where: { repairOrder: storeWhere } });
+        await tx.repairOrderItem.deleteMany({ where: { repairOrder: storeWhere } });
+        await tx.warrantyClaimItem.deleteMany({ where: { warrantyClaim: storeWhere } });
+        await tx.supplierReturn.deleteMany({ where: storeWhere });
+        await tx.warrantyClaim.deleteMany({ where: storeWhere });
+        await tx.salesOrderItem.deleteMany({ where: { salesOrder: storeWhere } });
+        await tx.salesOrder.deleteMany({ where: storeWhere });
+        await tx.supplierPayablePayment.deleteMany({ where: { payable: storeWhere } });
+        await tx.supplierPayable.deleteMany({ where: storeWhere });
+        await tx.supplier.deleteMany({ where: storeWhere });
+        await tx.inventoryAuditItem.deleteMany({ where: { session: storeWhere } });
+        await tx.inventoryAuditSession.deleteMany({ where: storeWhere });
+        await tx.inventoryMovement.deleteMany({ where: storeWhere });
+        await tx.partCompatibility.deleteMany({ where: { inventoryItem: storeWhere } });
+        await tx.repairOrder.deleteMany({ where: storeWhere });
+        await tx.serviceCatalogItem.deleteMany({ where: storeWhere });
+        await tx.inventoryItem.deleteMany({ where: storeWhere });
+        await tx.inventoryCategory.deleteMany({ where: storeWhere });
+        await tx.storeWhatsappIdentity.deleteMany({ where: storeWhere });
+        await tx.storeWhatsappSetting.deleteMany({ where: storeWhere });
+        await tx.storeFeatureSetting.deleteMany({ where: { storeId: { in: storeIdValues } } });
+        await tx.storeUserPermission.deleteMany({ where: storeWhere });
+        await tx.userStore.deleteMany({ where: { storeId: { in: storeIdValues } } });
+        await tx.store.deleteMany({ where: { id: { in: storeIdValues } } });
       }
 
       if (orphanKaryawanIds.length > 0) {
@@ -1126,7 +1126,7 @@ export interface SuperuserWhatsappInstanceRow {
   ownerJid: string | null;
   connectedNumber: string | null;
   profileName: string | null;
-  tokoId: string | null;
+  storeId: string | null;
   tokoName: string | null;
   dbEnabled: boolean;
   dbConnectedNumber: string | null;
@@ -1221,13 +1221,13 @@ export async function getSuperuserWhatsappInstances(): Promise<ActionResultWithD
         console.error("Failed to fetch Evolution instances:", error);
         return [] as unknown[];
       }),
-      prisma.tokoWhatsappSetting.findMany({
+      prisma.storeWhatsappSetting.findMany({
         select: {
-          tokoId: true,
+          storeId: true,
           instanceName: true,
           enabled: true,
           connectedNumber: true,
-          toko: { select: { name: true } },
+          store: { select: { name: true } },
         },
       }),
     ]);
@@ -1248,8 +1248,8 @@ export async function getSuperuserWhatsappInstances(): Promise<ActionResultWithD
         ownerJid,
         connectedNumber: ownerJid ? extractNumberFromJid(ownerJid) : db?.connectedNumber ?? null,
         profileName: parseInstanceProfileName(raw),
-        tokoId: db?.tokoId ?? null,
-        tokoName: db?.toko.name ?? null,
+        storeId: db?.storeId ?? null,
+        tokoName: db?.store.name ?? null,
         dbEnabled: db?.enabled ?? false,
         dbConnectedNumber: db?.connectedNumber ?? null,
       };
@@ -1275,9 +1275,9 @@ export async function revokeSuperuserWhatsappInstance(
     return { success: false, error: "Instance name is required" };
   }
 
-  const linkedSettings = await prisma.tokoWhatsappSetting.findMany({
+  const linkedSettings = await prisma.storeWhatsappSetting.findMany({
     where: { instanceName: normalizedInstanceName },
-    select: { tokoId: true },
+    select: { storeId: true },
   });
 
   try {
@@ -1287,14 +1287,14 @@ export async function revokeSuperuserWhatsappInstance(
     if (!message.includes("404") && !message.includes("not found")) throw error;
   }
 
-  await prisma.tokoWhatsappSetting.updateMany({
+  await prisma.storeWhatsappSetting.updateMany({
     where: { instanceName: normalizedInstanceName },
     data: { instanceToken: null, connectedNumber: null, connectedProfileName: null },
   });
 
   revalidatePath("/superuser");
   for (const setting of linkedSettings) {
-    revalidatePath(`/${setting.tokoId}/admin`);
+    revalidatePath(`/${setting.storeId}/admin`);
   }
   return { success: true, data: { instanceName: normalizedInstanceName } };
 }

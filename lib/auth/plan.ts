@@ -17,21 +17,21 @@ function getHighestPlan(plans: Array<string | null | undefined>): SubscriptionPl
   }, "free");
 }
 
-async function resolveEffectivePlan(userId: string, role: UserRole, tokoIds: string[]): Promise<EffectivePlanResult> {
+async function resolveEffectivePlan(userId: string, role: UserRole, storeIds: string[]): Promise<EffectivePlanResult> {
   const subscription = role === "admin"
     ? await ensureUserSubscription(userId)
     : await prisma.subscription.findUnique({ where: { userId } });
 
-  if (role === "admin" || tokoIds.length === 0) {
+  if (role === "admin" || storeIds.length === 0) {
     return { plan: normalizePlan(subscription?.plan), status: subscription?.status ?? null };
   }
 
   const adminUsers = await prisma.user.findMany({
     where: {
       role: "admin",
-      tokoAssignments: {
+      storeAssignments: {
         some: {
-          tokoId: { in: tokoIds },
+          storeId: { in: storeIds },
         },
       },
     },
@@ -54,7 +54,7 @@ async function resolveEffectivePlan(userId: string, role: UserRole, tokoIds: str
   return { plan: highestPlan, status: ownerSubscription?.status ?? null };
 }
 
-export const getEffectivePlanForToko = cache(async (user: AuthUser, tokoId: string): Promise<SubscriptionPlan> => {
+export const getEffectivePlanForStore = cache(async (user: AuthUser, storeId: string): Promise<SubscriptionPlan> => {
   if (user.role === "admin") {
     return user.plan;
   }
@@ -62,8 +62,8 @@ export const getEffectivePlanForToko = cache(async (user: AuthUser, tokoId: stri
   const adminUsers = await prisma.user.findMany({
     where: {
       role: "admin",
-      tokoAssignments: {
-        some: { tokoId },
+      storeAssignments: {
+        some: { storeId },
       },
     },
     select: {

@@ -18,14 +18,14 @@ export interface GlobalSearchResult {
   keywords: string[];
 }
 
-function resultHref(tokoId: string, type: GlobalSearchResultType, query: string) {
+function resultHref(storeId: string, type: GlobalSearchResultType, query: string) {
   const encodedQuery = encodeURIComponent(query);
 
-  if (type === "service") return `/${tokoId}/service?q=${encodedQuery}`;
-  if (type === "karyawan") return `/${tokoId}/karyawan?q=${encodedQuery}`;
-  if (type === "jasa") return `/${tokoId}/inventory?tab=jasa&q=${encodedQuery}`;
-  if (type === "retail_item") return `/${tokoId}/inventory?tab=retail&q=${encodedQuery}`;
-  return `/${tokoId}/inventory?q=${encodedQuery}`;
+  if (type === "service") return `/${storeId}/service?q=${encodedQuery}`;
+  if (type === "karyawan") return `/${storeId}/karyawan?q=${encodedQuery}`;
+  if (type === "jasa") return `/${storeId}/inventory?tab=jasa&q=${encodedQuery}`;
+  if (type === "retail_item") return `/${storeId}/inventory?tab=retail&q=${encodedQuery}`;
+  return `/${storeId}/inventory?q=${encodedQuery}`;
 }
 
 function bestScore(query: string, targets: Array<string | null | undefined>) {
@@ -68,8 +68,8 @@ function canSearchRetailItems(scope: RequestScope) {
   return can(scope, "inventory.manageRetail");
 }
 
-function mapServiceResult(tokoId: string, query: string, service: ServiceListItem): GlobalSearchResult {
-  const deviceName = `${service.hpCatalog.brand.name} ${service.hpCatalog.modelName}`;
+function mapServiceResult(storeId: string, query: string, service: ServiceListItem): GlobalSearchResult {
+  const deviceName = `${service.deviceModel.brand.name} ${service.deviceModel.modelName}`;
   const title = service.customerName || service.noWa || deviceName;
   const subtitle = `${deviceName} - ${service.status}`;
 
@@ -78,7 +78,7 @@ function mapServiceResult(tokoId: string, query: string, service: ServiceListIte
     type: "service",
     title,
     subtitle,
-    href: resultHref(tokoId, "service", query),
+    href: resultHref(storeId, "service", query),
     keywords: [
       service.noWa,
       service.complaint,
@@ -96,22 +96,22 @@ function mapServiceResult(tokoId: string, query: string, service: ServiceListIte
 }
 
 export async function searchDashboard(
-  tokoId: string,
+  storeId: string,
   query: string
 ): Promise<ActionResultWithData<GlobalSearchResult[]>> {
   const trimmedQuery = query.trim();
   if (trimmedQuery.length < 2) return { success: true, data: [] };
 
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "dashboard.search");
 
     const results: GlobalSearchResult[] = [];
     const shouldLimitToAssignedTasks = can(scope, "service.takeOverTask") && !can(scope, "service.create");
 
     if (canSearchServices(scope) && !shouldLimitToAssignedTasks) {
-      const services = await prisma.service.findMany({
+      const services = await prisma.repairOrder.findMany({
         where: {
-          tokoId,
+          storeId,
           OR: [
             { customerName: { contains: trimmedQuery, mode: "insensitive" } },
             { noWa: { contains: trimmedQuery, mode: "insensitive" } },
@@ -120,8 +120,8 @@ export async function searchDashboard(
             { imei: { contains: trimmedQuery, mode: "insensitive" } },
             { note: { contains: trimmedQuery, mode: "insensitive" } },
             { passwordPattern: { contains: trimmedQuery, mode: "insensitive" } },
-            { hpCatalog: { modelName: { contains: trimmedQuery, mode: "insensitive" } } },
-            { hpCatalog: { brand: { name: { contains: trimmedQuery, mode: "insensitive" } } } },
+            { deviceModel: { modelName: { contains: trimmedQuery, mode: "insensitive" } } },
+            { deviceModel: { brand: { name: { contains: trimmedQuery, mode: "insensitive" } } } },
             { technician: { name: { contains: trimmedQuery, mode: "insensitive" } } },
             { createdBy: { name: { contains: trimmedQuery, mode: "insensitive" } } },
             { invoice: { id: { contains: trimmedQuery, mode: "insensitive" } } },
@@ -132,13 +132,13 @@ export async function searchDashboard(
         select: serviceSelectBase,
       });
 
-      results.push(...rankResults(trimmedQuery, services.map(mapServiceToListItem).map((service) => mapServiceResult(tokoId, trimmedQuery, service)), 6));
+      results.push(...rankResults(trimmedQuery, services.map(mapServiceToListItem).map((service) => mapServiceResult(storeId, trimmedQuery, service)), 6));
     }
 
     if (canSearchServices(scope) && shouldLimitToAssignedTasks) {
-      const services = await prisma.service.findMany({
+      const services = await prisma.repairOrder.findMany({
         where: {
-          tokoId,
+          storeId,
           AND: [
             {
               OR: [
@@ -154,8 +154,8 @@ export async function searchDashboard(
                 { handlingNote: { contains: trimmedQuery, mode: "insensitive" } },
                 { imei: { contains: trimmedQuery, mode: "insensitive" } },
                 { note: { contains: trimmedQuery, mode: "insensitive" } },
-                { hpCatalog: { modelName: { contains: trimmedQuery, mode: "insensitive" } } },
-                { hpCatalog: { brand: { name: { contains: trimmedQuery, mode: "insensitive" } } } },
+                { deviceModel: { modelName: { contains: trimmedQuery, mode: "insensitive" } } },
+                { deviceModel: { brand: { name: { contains: trimmedQuery, mode: "insensitive" } } } },
                 { invoice: { id: { contains: trimmedQuery, mode: "insensitive" } } },
               ],
             },
@@ -166,13 +166,13 @@ export async function searchDashboard(
         select: serviceSelectBase,
       });
 
-      results.push(...rankResults(trimmedQuery, services.map(mapServiceToListItem).map((service) => mapServiceResult(tokoId, trimmedQuery, service)), 6));
+      results.push(...rankResults(trimmedQuery, services.map(mapServiceToListItem).map((service) => mapServiceResult(storeId, trimmedQuery, service)), 6));
     }
 
     if (canSearchKaryawan(scope)) {
-      const assignments = await prisma.userToko.findMany({
+      const assignments = await prisma.userStore.findMany({
         where: {
-          tokoId,
+          storeId,
           user: {
             role: { in: ["staff", "technician"] },
             OR: [
@@ -190,16 +190,16 @@ export async function searchDashboard(
         type: "karyawan" as const,
         title: user.name,
         subtitle: `${user.role} - ${user.email}`,
-        href: resultHref(tokoId, "karyawan", trimmedQuery),
+        href: resultHref(storeId, "karyawan", trimmedQuery),
         keywords: [user.email, user.role, user.role === "technician" ? "teknisi" : "staff"],
       })), 5));
     }
 
     if (canSearchInventory(scope)) {
-      const spareparts = await prisma.sparepart.findMany({
+      const inventoryItems = await prisma.inventoryItem.findMany({
         where: {
-          tokoId,
-          kind: "sparepart",
+          storeId,
+          type: "repair_part",
           OR: [
             { name: { contains: trimmedQuery, mode: "insensitive" } },
             { barcode: { contains: trimmedQuery, mode: "insensitive" } },
@@ -210,21 +210,21 @@ export async function searchDashboard(
         take: 8,
       });
 
-      results.push(...rankResults(trimmedQuery, spareparts.map((sparepart) => ({
-        id: sparepart.id,
+      results.push(...rankResults(trimmedQuery, inventoryItems.map((inventoryItem) => ({
+        id: inventoryItem.id,
         type: "sparepart" as const,
-        title: sparepart.name,
-        subtitle: `${sparepart.barcode} - Stok ${sparepart.stock}`,
-        href: resultHref(tokoId, "sparepart", trimmedQuery),
-        keywords: [sparepart.barcode, String(sparepart.defaultPrice)],
+        title: inventoryItem.name,
+        subtitle: `${inventoryItem.barcode} - Stok ${inventoryItem.stock}`,
+        href: resultHref(storeId, "sparepart", trimmedQuery),
+        keywords: [inventoryItem.barcode, String(inventoryItem.defaultPrice)],
       })), 6));
     }
 
     if (canSearchRetailItems(scope)) {
-      const retailItems = await prisma.sparepart.findMany({
+      const retailItems = await prisma.inventoryItem.findMany({
         where: {
-          tokoId,
-          kind: "retail_item",
+          storeId,
+          type: "retail_product",
           OR: [
             { name: { contains: trimmedQuery, mode: "insensitive" } },
             { barcode: { contains: trimmedQuery, mode: "insensitive" } },
@@ -242,14 +242,14 @@ export async function searchDashboard(
         type: "retail_item" as const,
         title: item.name,
         subtitle: `${item.barcode} - Stok ${item.stock}`,
-        href: resultHref(tokoId, "retail_item", trimmedQuery),
+        href: resultHref(storeId, "retail_item", trimmedQuery),
         keywords: [item.barcode, item.supplierName, item.category?.name, String(item.defaultPrice)].filter((value): value is string => Boolean(value)),
       })), 6));
     }
 
     if (canSearchJasa(scope)) {
-      const pricelists = await prisma.servicePricelist.findMany({
-        where: { tokoId, title: { contains: trimmedQuery, mode: "insensitive" } },
+      const pricelists = await prisma.serviceCatalogItem.findMany({
+        where: { storeId, title: { contains: trimmedQuery, mode: "insensitive" } },
         select: { id: true, title: true, defaultPrice: true },
         orderBy: { title: "asc" },
         take: 8,
@@ -260,7 +260,7 @@ export async function searchDashboard(
         type: "jasa" as const,
         title: pricelist.title,
         subtitle: `Jasa - Rp${pricelist.defaultPrice.toLocaleString("id-ID")}`,
-        href: resultHref(tokoId, "jasa", trimmedQuery),
+        href: resultHref(storeId, "jasa", trimmedQuery),
         keywords: [String(pricelist.defaultPrice), "jasa", "service pricelist"],
       })), 6));
     }

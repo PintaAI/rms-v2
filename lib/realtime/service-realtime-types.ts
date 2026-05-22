@@ -13,9 +13,9 @@ export type ServiceRealtimeAction =
 
 export type ServiceRealtimeEvent = {
   type: "service.changed";
-  tokoId: string;
+  storeId: string;
   action: ServiceRealtimeAction;
-  serviceId: string;
+  repairOrderId: string;
   serviceLabel?: string;
   serviceBrand?: string;
   actor?: {
@@ -29,7 +29,7 @@ export type ServiceRealtimeEvent = {
 
 export type PublishServiceRealtimeEvent = Pick<
   ServiceRealtimeEvent,
-  "action" | "serviceId" | "serviceLabel" | "serviceBrand" | "reason"
+  "action" | "repairOrderId" | "serviceLabel" | "serviceBrand" | "reason"
 >;
 
 export function isServiceRealtimeEvent(value: unknown): value is ServiceRealtimeEvent {
@@ -37,8 +37,8 @@ export function isServiceRealtimeEvent(value: unknown): value is ServiceRealtime
 
   const event = value as Partial<ServiceRealtimeEvent>;
   return event.type === "service.changed"
-    && typeof event.tokoId === "string"
+    && typeof event.storeId === "string"
     && typeof event.action === "string"
-    && typeof event.serviceId === "string"
+    && typeof event.repairOrderId === "string"
     && typeof event.sentAt === "number";
 }

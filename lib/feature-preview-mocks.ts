@@ -57,11 +57,11 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     criticalStock: 3,
     warrantyDays: null,
     isUniversal: false,
-    kind: "sparepart",
-    tokoId: "mock",
-    category: { id: "mock-cat-lcd", name: "LCD", tokoId: "mock" },
+    type: "repair_part",
+    storeId: "mock",
+    category: { id: "mock-cat-lcd", name: "LCD", storeId: "mock" },
     compatibilities: [
-      { hpCatalogId: "mock-hp-1", hpCatalog: { id: "mock-hp-1", modelName: "iPhone 11", brand: { name: "Apple" } } },
+      { deviceModelId: "mock-hp-1", deviceModel: { id: "mock-hp-1", modelName: "iPhone 11", brand: { name: "Apple" } } },
     ],
   },
   {
@@ -76,11 +76,11 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     criticalStock: 5,
     warrantyDays: null,
     isUniversal: false,
-    kind: "sparepart",
-    tokoId: "mock",
-    category: { id: "mock-cat-battery", name: "Baterai", tokoId: "mock" },
+    type: "repair_part",
+    storeId: "mock",
+    category: { id: "mock-cat-battery", name: "Baterai", storeId: "mock" },
     compatibilities: [
-      { hpCatalogId: "mock-hp-2", hpCatalog: { id: "mock-hp-2", modelName: "Galaxy A50", brand: { name: "Samsung" } } },
+      { deviceModelId: "mock-hp-2", deviceModel: { id: "mock-hp-2", modelName: "Galaxy A50", brand: { name: "Samsung" } } },
     ],
   },
   {
@@ -95,9 +95,9 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     criticalStock: 10,
     warrantyDays: null,
     isUniversal: true,
-    kind: "sparepart",
-    tokoId: "mock",
-    category: { id: "mock-cat-connector", name: "Konektor", tokoId: "mock" },
+    type: "repair_part",
+    storeId: "mock",
+    category: { id: "mock-cat-connector", name: "Konektor", storeId: "mock" },
     compatibilities: [],
   },
 ];
@@ -115,9 +115,9 @@ export const MOCK_RETAIL_ITEMS: SparepartWithCompatibilities[] = [
     criticalStock: 5,
     warrantyDays: 30,
     isUniversal: true,
-    kind: "retail_item",
-    tokoId: "mock",
-    category: { id: "mock-cat-accessory", name: "Aksesoris", tokoId: "mock" },
+    type: "retail_product",
+    storeId: "mock",
+    category: { id: "mock-cat-accessory", name: "Aksesoris", storeId: "mock" },
     compatibilities: [],
   },
   {
@@ -132,9 +132,9 @@ export const MOCK_RETAIL_ITEMS: SparepartWithCompatibilities[] = [
     criticalStock: 6,
     warrantyDays: 14,
     isUniversal: true,
-    kind: "retail_item",
-    tokoId: "mock",
-    category: { id: "mock-cat-cable", name: "Kabel", tokoId: "mock" },
+    type: "retail_product",
+    storeId: "mock",
+    category: { id: "mock-cat-cable", name: "Kabel", storeId: "mock" },
     compatibilities: [],
   },
   {
@@ -149,9 +149,9 @@ export const MOCK_RETAIL_ITEMS: SparepartWithCompatibilities[] = [
     criticalStock: 4,
     warrantyDays: null,
     isUniversal: false,
-    kind: "retail_item",
-    tokoId: "mock",
-    category: { id: "mock-cat-case", name: "Casing", tokoId: "mock" },
+    type: "retail_product",
+    storeId: "mock",
+    category: { id: "mock-cat-case", name: "Casing", storeId: "mock" },
     compatibilities: [],
   },
 ];
@@ -222,12 +222,12 @@ export const MOCK_ANALYTICS_DATA: AdminAnalyticsData = {
       { key: "2026-06", label: "Jun", revenue: 2600000, transactions: 33 },
     ],
     topItemsByQty: [
-      { id: "mock-retail-1", name: "Tempered Glass", kind: "retail_item", qty: 82, revenue: 1640000, grossMargin: 984000 },
-      { id: "mock-retail-2", name: "Charger Type-C", kind: "retail_item", qty: 44, revenue: 3520000, grossMargin: 1320000 },
+      { id: "mock-retail-1", name: "Tempered Glass", type: "retail_product", qty: 82, revenue: 1640000, grossMargin: 984000 },
+      { id: "mock-retail-2", name: "Charger Type-C", type: "retail_product", qty: 44, revenue: 3520000, grossMargin: 1320000 },
     ],
     topItemsByRevenue: [
-      { id: "mock-retail-2", name: "Charger Type-C", kind: "retail_item", qty: 44, revenue: 3520000, grossMargin: 1320000 },
-      { id: "mock-retail-3", name: "Battery Samsung A50", kind: "sparepart", qty: 14, revenue: 2100000, grossMargin: 700000 },
+      { id: "mock-retail-2", name: "Charger Type-C", type: "retail_product", qty: 44, revenue: 3520000, grossMargin: 1320000 },
+      { id: "mock-retail-3", name: "Battery Samsung A50", type: "repair_part", qty: 14, revenue: 2100000, grossMargin: 700000 },
     ],
     paymentBreakdown: [
       { method: "cash", label: "Cash", count: 92, revenue: 6100000 },
@@ -263,7 +263,7 @@ export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {
       doneAt: new Date("2026-05-30"),
       warrantyUntil: new Date("2026-06-30"),
       checkoutAt: null,
-      hpCatalog: { id: "mock-hp-1", modelName: "iPhone 11", brand: { name: "Apple" } },
+      deviceModel: { id: "mock-hp-1", modelName: "iPhone 11", brand: { name: "Apple" } },
       technician: { id: "mock-tech-1", name: "Ahmad Rizki" },
       createdBy: { name: "Budi Santoso" },
       invoice: { id: "mock-inv-1", grandTotal: 450000, paymentStatus: "paid", dpAmount: 0 },
@@ -279,7 +279,7 @@ export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {
       doneAt: null,
       warrantyUntil: null,
       checkoutAt: null,
-      hpCatalog: { id: "mock-hp-2", modelName: "Galaxy A50", brand: { name: "Samsung" } },
+      deviceModel: { id: "mock-hp-2", modelName: "Galaxy A50", brand: { name: "Samsung" } },
       technician: { id: "mock-tech-2", name: "Sari Dewi" },
       createdBy: { name: "Budi Santoso" },
       invoice: { id: "mock-inv-2", grandTotal: 200000, paymentStatus: "dp", dpAmount: 50000 },
@@ -295,7 +295,7 @@ export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {
       doneAt: null,
       warrantyUntil: null,
       checkoutAt: null,
-      hpCatalog: { id: "mock-hp-3", modelName: "Xiaomi Note 12", brand: { name: "Xiaomi" } },
+      deviceModel: { id: "mock-hp-3", modelName: "Xiaomi Note 12", brand: { name: "Xiaomi" } },
       technician: null,
       createdBy: { name: "Budi Santoso" },
       invoice: null,
@@ -308,7 +308,7 @@ export const MOCK_AUDIT_OVERVIEW: InventoryAuditOverview = {
   recentSessions: [
     {
       id: "mock-audit-ses-1",
-      tokoId: "mock",
+      storeId: "mock",
       createdById: "mock-user",
       status: "completed",
       startedAt: new Date("2026-05-20"),
@@ -332,7 +332,7 @@ export const MOCK_AUDIT_OVERVIEW: InventoryAuditOverview = {
 };
 
 export const FEATURE_PREVIEW_INFO: Partial<
-  Record<FeatureKey, { title: string; description: string; benefits: string[]; previewType: "staff" | "sparepart" | "revenue" | "audit" }>
+  Record<FeatureKey, { title: string; description: string; benefits: string[]; previewType: "staff" | "repair_part" | "revenue" | "audit" }>
 > = {
   "staff.workflow": {
     title: "Staff Workflow",
@@ -358,14 +358,14 @@ export const FEATURE_PREVIEW_INFO: Partial<
   },
   "inventory.management": {
     title: "Inventory Management",
-    description: "Kelola sparepart dan jasa - track stok, harga, dan penggunaan komponen.",
+    description: "Kelola inventoryItem dan jasa - track stok, harga, dan penggunaan komponen.",
     benefits: [
-      "Database sparepart dengan stok tracking",
+      "Database inventoryItem dengan stok tracking",
       "Service pricelist untuk jasa standar",
       "Auto stock deduction saat digunakan di service",
       "Low stock alert dan reorder reminder",
     ],
-    previewType: "sparepart",
+    previewType: "repair_part",
   },
   "analytics.revenue": {
     title: "Enterprise Analytics",
@@ -402,13 +402,13 @@ export const FEATURE_PREVIEW_INFO: Partial<
   },
   "realtime.mobileScanner": {
     title: "Scan via HP",
-    description: "Gunakan kamera HP sebagai scanner barcode sparepart yang terhubung ke desktop.",
+    description: "Gunakan kamera HP sebagai scanner barcode inventoryItem yang terhubung ke desktop.",
     benefits: [
       "Pairing cepat lewat QR code",
-      "Scan barcode sparepart tanpa scanner fisik",
+      "Scan barcode inventoryItem tanpa scanner fisik",
       "Cocok untuk input item service dan restock inventory",
       "Bisa dimatikan dari pengaturan fitur toko",
     ],
-    previewType: "sparepart",
+    previewType: "repair_part",
   },
 };

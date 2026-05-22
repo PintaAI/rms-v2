@@ -8,7 +8,7 @@ import {
 } from "@/lib/features";
 
 export type BranchPlan = "one" | "twoToThree" | "moreThanThree";
-export type OperationalMode = "service" | "retail" | "both";
+export type OperationalMode = "service_catalog_item" | "retail" | "both";
 export type TeamSize = "ownerOnly" | "smallTeam" | "largerTeam";
 export type TeamAccess = "none" | "staffOnly" | "technicianOnly" | "staffAndTechnician";
 
@@ -72,7 +72,7 @@ export function getOnboardingPlanRecommendation(
     requirePlan("premium", "Lebih dari 2 cabang bisa memakai Pro dengan biaya tambahan per toko.");
   }
 
-  if (answers.operationalMode === "service" || answers.operationalMode === "both") {
+  if (answers.operationalMode === "service_catalog_item" || answers.operationalMode === "both") {
     neededFeatures.add("service.management");
   }
 

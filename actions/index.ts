@@ -4,6 +4,7 @@ export * from "./service";
 export * from "./overview";
 export * from "./device";
 export * from "./inventory";
+export * from "./inventory-unit";
 export * from "./inventory-audit";
 export * from "./karyawan";
 export * from "./superuser";

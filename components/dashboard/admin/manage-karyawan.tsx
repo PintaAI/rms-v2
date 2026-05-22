@@ -55,7 +55,7 @@ type PermissionDraftEffect = PermissionEffect | "default";
 
 const permissionCategoryLabels: Record<PermissionCategory, string> = {
   inventory: "Inventory",
-  service: "Service",
+  service_catalog_item: "Service",
   retail: "Retail",
   karyawan: "Karyawan",
   analytics: "Analytics",

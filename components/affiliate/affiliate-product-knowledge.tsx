@@ -418,13 +418,13 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
                         ) : (
                           <>
                             {formatCurrency(config.monthlyPrice ?? 0)}
-                            {config.additionalTokoPrice ? (
-                              <div className="text-xs text-muted-foreground">+{formatCurrency(config.additionalTokoPrice)}/toko tambahan</div>
+                            {config.additionalStorePrice ? (
+                              <div className="text-xs text-muted-foreground">+{formatCurrency(config.additionalStorePrice)}/toko tambahan</div>
                             ) : null}
                           </>
                         )}
                       </TableCell>
-                      <TableCell>{limitDisplay(config.includedTokos, " toko")}</TableCell>
+                      <TableCell>{limitDisplay(config.includedStores, " toko")}</TableCell>
                       <TableCell>{limitDisplay(config.limits.maxStaff, " orang")}</TableCell>
                       <TableCell>{limitDisplay(config.limits.maxTechnicians, " orang")}</TableCell>
                       <TableCell>{limitDisplay(config.limits.maxServicesMonthly, " servis")}</TableCell>

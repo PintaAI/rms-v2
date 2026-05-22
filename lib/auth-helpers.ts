@@ -7,7 +7,7 @@ interface CreateCredentialUserInput {
   email: string;
   password: string;
   role: "staff" | "technician";
-  tokoId: string;
+  storeId: string;
   tokoRole?: "owner";
 }
 
@@ -53,10 +53,10 @@ export async function createCredentialUserWithToko(
     },
   });
 
-  await tx.userToko.create({
+  await tx.userStore.create({
     data: {
       userId: userId,
-      tokoId: input.tokoId,
+      storeId: input.storeId,
       role: input.tokoRole ?? "owner",
     },
   });

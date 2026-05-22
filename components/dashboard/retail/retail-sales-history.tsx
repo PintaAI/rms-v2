@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useMemo, useState, useTransition, type KeyboardEvent } from "react"
 import type { DateRange } from "react-day-picker"
-import { getRetailSale, type RetailSaleDetail, type RetailSalesFilters, type RetailSalesResult } from "@/actions/retail"
+import { getSalesOrder, type SalesOrderDetail, type SalesOrdersFilters, type SalesOrdersResult } from "@/actions/retail"
 import { RetailSaleDetailDrawer } from "@/components/dashboard/retail/retail-sale-detail-drawer"
 import { OverviewStatsCard } from "@/components/dashboard/shared/overview-cards"
 import { Badge } from "@/components/ui/badge"
@@ -19,7 +19,7 @@ import { formatCurrency, formatDate } from "@/lib/utils"
 import { RiCalendarLine, RiFilter3Line, RiLoader4Line, RiMoneyDollarCircleLine, RiReceiptLine, RiSearchLine, RiWallet3Line } from "@remixicon/react"
 import { toast } from "sonner"
 
-const paymentLabels: Record<NonNullable<RetailSalesFilters["paymentMethod"]>, string> = {
+const paymentLabels: Record<NonNullable<SalesOrdersFilters["paymentMethod"]>, string> = {
   all: "Semua metode",
   cash: "Cash",
   transfer: "Transfer",
@@ -27,7 +27,7 @@ const paymentLabels: Record<NonNullable<RetailSalesFilters["paymentMethod"]>, st
   debit: "Debit",
 }
 
-const statusLabels: Record<NonNullable<RetailSalesFilters["status"]>, string> = {
+const statusLabels: Record<NonNullable<SalesOrdersFilters["status"]>, string> = {
   all: "Semua status",
   paid: "Paid",
   void: "Void",
@@ -37,8 +37,8 @@ type FilterDraft = {
   q: string
   range: DateRange
   cashierId: string
-  paymentMethod: NonNullable<RetailSalesFilters["paymentMethod"]>
-  status: NonNullable<RetailSalesFilters["status"]>
+  paymentMethod: NonNullable<SalesOrdersFilters["paymentMethod"]>
+  status: NonNullable<SalesOrdersFilters["status"]>
 }
 
 const presetOptions = [
@@ -60,12 +60,12 @@ export function RetailSalesHistory({
 }: {
   tokoId: string
   rolePath: "admin" | "staff" | "shared"
-  initialData: RetailSalesResult
-  initialFilters: RetailSalesFilters
+  initialData: SalesOrdersResult
+  initialFilters: SalesOrdersFilters
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [selectedSale, setSelectedSale] = useState<RetailSaleDetail | null>(null)
+  const [selectedSale, setSelectedSale] = useState<SalesOrderDetail | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [loadingSaleId, setLoadingSaleId] = useState<string | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
@@ -77,7 +77,7 @@ export function RetailSalesHistory({
   const canApply = !draft.range.from || Boolean(draft.range.to)
   const calendarKey = `${draft.range.from ? toDateKey(draft.range.from) : "open"}-${draft.range.to ? toDateKey(draft.range.to) : "open"}`
 
-  function navigateWithFilters(filters: RetailSalesFilters) {
+  function navigateWithFilters(filters: SalesOrdersFilters) {
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(filters)) {
       if (value && value !== "all" && value !== 1) params.set(key, String(value))
@@ -140,7 +140,7 @@ export function RetailSalesHistory({
     setSelectedSale(null)
     setDetailOpen(true)
     setLoadingSaleId(saleId)
-    const result = await getRetailSale(saleId)
+    const result = await getSalesOrder(saleId)
     setLoadingSaleId(null)
 
     if (!result.success || !result.data) {
@@ -355,7 +355,7 @@ export function RetailSalesHistory({
   )
 }
 
-function getDraftFromFilters(filters: RetailSalesFilters): FilterDraft {
+function getDraftFromFilters(filters: SalesOrdersFilters): FilterDraft {
   return {
     q: filters.q ?? "",
     range: { from: parseDateKey(filters.from), to: parseDateKey(filters.to) },

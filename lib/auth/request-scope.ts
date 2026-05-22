@@ -1,9 +1,9 @@
 import { cache } from "react";
 import type { UserRole, AuthUser } from "./request-user";
 import { requireRequestUser } from "./request-user";
-import { AuthError, assertTokoAccess } from "./authorization";
-import { getEffectivePlanForToko } from "./plan";
-import { getDisabledFeaturesForToko as fetchDisabledFeatures } from "@/actions/feature-settings";
+import { AuthError, assertStoreAccess } from "./authorization";
+import { getEffectivePlanForStore } from "./plan";
+import { getDisabledFeaturesForStore as fetchDisabledFeatures } from "@/actions/feature-settings";
 import { FEATURE_REGISTRY, getFeatureLockReason, type FeatureKey, type FeatureAccessMap, type FeatureLockReason, type FeatureMetadata } from "@/lib/features";
 import { getPlanLimit, type SubscriptionPlan, type PlanLimitKey } from "@/lib/plans";
 import { getUserPermissionOverrides } from "@/lib/permission-overrides";
@@ -54,21 +54,21 @@ function getFeatureAccessMap(
   ) as FeatureAccessMap;
 }
 
-const getCachedDisabledFeatures = cache(async (tokoId: string): Promise<FeatureKey[]> => {
-  return fetchDisabledFeatures(tokoId);
+const getCachedDisabledFeatures = cache(async (storeId: string): Promise<FeatureKey[]> => {
+  return fetchDisabledFeatures(storeId);
 });
 
-function getScopePlan(user: AuthUser, tokoId: string): Promise<SubscriptionPlan> | SubscriptionPlan {
-  if (user.role === "admin" || (user.tokoIds.length === 1 && user.tokoIds[0] === tokoId)) {
+function getScopePlan(user: AuthUser, storeId: string): Promise<SubscriptionPlan> | SubscriptionPlan {
+  if (user.role === "admin" || (user.storeIds.length === 1 && user.storeIds[0] === storeId)) {
     return user.plan;
   }
 
-  return getEffectivePlanForToko(user, tokoId);
+  return getEffectivePlanForStore(user, storeId);
 }
 
 export type RequestScope = {
   user: AuthUser;
-  tokoId: string;
+  storeId: string;
   plan: SubscriptionPlan;
   subscriptionStatus: AuthUser["subscriptionStatus"];
   disabledFeatures: FeatureKey[];
@@ -78,21 +78,21 @@ export type RequestScope = {
   capabilities: CapabilityAccessMap;
 };
 
-export const getRequestScope = cache(async (tokoId: string): Promise<RequestScope> => {
+export const getRequestScope = cache(async (storeId: string): Promise<RequestScope> => {
   const user = await requireRequestUser();
-  assertTokoAccess(user, tokoId);
+  assertStoreAccess(user, storeId);
 
   const [plan, disabledFeatures, permissionOverrides] = await Promise.all([
-    getScopePlan(user, tokoId),
-    getCachedDisabledFeatures(tokoId),
-    getUserPermissionOverrides(tokoId, user.id),
+    getScopePlan(user, storeId),
+    getCachedDisabledFeatures(storeId),
+    getUserPermissionOverrides(storeId, user.id),
   ]);
 
   const featureAccess = getFeatureAccessMap(user.role, plan, disabledFeatures);
 
   return {
     user,
-    tokoId,
+    storeId,
     plan,
     subscriptionStatus: user.subscriptionStatus,
     disabledFeatures,

@@ -124,7 +124,7 @@ export async function getBrandList(): Promise<Brand[]> {
   'use cache'
   cacheTag('brands')
 
-  const brands = await prisma.brand.findMany({
+  const brands = await prisma.deviceBrand.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true },
     take: 100,
@@ -138,7 +138,7 @@ export async function searchBrands(query: string): Promise<Brand[]> {
   cacheTag('brands')
 
   if (!query.trim()) {
-    const brands = await prisma.brand.findMany({
+    const brands = await prisma.deviceBrand.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
       take: 10,
@@ -146,7 +146,7 @@ export async function searchBrands(query: string): Promise<Brand[]> {
     return brands
   }
 
-  const brands = await prisma.brand.findMany({
+  const brands = await prisma.deviceBrand.findMany({
     where: {
       name: { contains: query, mode: "insensitive" },
     },
@@ -167,7 +167,7 @@ export async function createBrand(name: string): Promise<Brand> {
 
   const validated = createBrandSchema.parse({ name })
 
-  const existing = await prisma.brand.findUnique({
+  const existing = await prisma.deviceBrand.findUnique({
     where: { name: validated.name },
   })
 
@@ -176,7 +176,7 @@ export async function createBrand(name: string): Promise<Brand> {
     return existing
   }
 
-  const brand = await prisma.brand.create({
+  const brand = await prisma.deviceBrand.create({
     data: { name: validated.name },
     select: { id: true, name: true },
   })
@@ -190,7 +190,7 @@ export async function getDeviceList(): Promise<DeviceListItem[]> {
   cacheLife('hours')
   cacheTag('devices')
 
-  const devices = await prisma.hpCatalog.findMany({
+  const devices = await prisma.deviceModel.findMany({
     orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
     select: {
       id: true,
@@ -215,9 +215,9 @@ export async function getDeviceCatalogVersion(): Promise<string> {
   cacheTag('devices', 'brands')
 
   const [deviceCount, deviceMeta, brandMeta] = await Promise.all([
-    prisma.hpCatalog.count(),
-    prisma.hpCatalog.aggregate({ _max: { updatedAt: true } }),
-    prisma.brand.aggregate({ _max: { updatedAt: true } }),
+    prisma.deviceModel.count(),
+    prisma.deviceModel.aggregate({ _max: { updatedAt: true } }),
+    prisma.deviceBrand.aggregate({ _max: { updatedAt: true } }),
   ])
 
   return [
@@ -245,7 +245,7 @@ export async function searchDevices(query: string): Promise<DeviceListItem[]> {
   cacheTag('devices')
 
   if (!query.trim()) {
-    const devices = await prisma.hpCatalog.findMany({
+    const devices = await prisma.deviceModel.findMany({
       orderBy: [{ brand: { name: "asc" } }, { modelName: "asc" }],
       select: {
         id: true,
@@ -269,7 +269,7 @@ export async function searchDevices(query: string): Promise<DeviceListItem[]> {
 
   const insensitiveMode = "insensitive" as const
 
-  const devices = await prisma.hpCatalog.findMany({
+  const devices = await prisma.deviceModel.findMany({
     where: {
       OR: [
         { modelName: { contains: query, mode: insensitiveMode } },
@@ -335,12 +335,12 @@ export async function importMobileApiDevice(data: MobileApiDeviceSuggestion): Pr
   await getDeviceImportUser()
 
   const validated = mobileApiImportSchema.parse(data)
-  const existingBrand = await prisma.brand.findUnique({
+  const existingBrand = await prisma.deviceBrand.findUnique({
     where: { name: validated.brandName },
     select: { id: true, name: true },
   })
 
-  const brand = existingBrand ?? await prisma.brand.create({
+  const brand = existingBrand ?? await prisma.deviceBrand.create({
     data: { name: validated.brandName },
     select: { id: true, name: true },
   })
@@ -354,7 +354,7 @@ export async function importMobileApiDevice(data: MobileApiDeviceSuggestion): Pr
     description: validated.description ?? null,
   }
 
-  const existingDevice = await prisma.hpCatalog.findFirst({
+  const existingDevice = await prisma.deviceModel.findFirst({
     where: {
       OR: [
         { mobileApiId: validated.mobileApiId },
@@ -365,7 +365,7 @@ export async function importMobileApiDevice(data: MobileApiDeviceSuggestion): Pr
   })
 
   if (existingDevice) {
-    const updated = await prisma.hpCatalog.update({
+    const updated = await prisma.deviceModel.update({
       where: { id: existingDevice.id },
       data: {
         brandId: brand.id,
@@ -388,7 +388,7 @@ export async function importMobileApiDevice(data: MobileApiDeviceSuggestion): Pr
     }
   }
 
-  const device = await prisma.hpCatalog.create({
+  const device = await prisma.deviceModel.create({
     data: {
       brandId: brand.id,
       modelName: validated.modelName,
@@ -416,7 +416,7 @@ export async function getDevice(id: string): Promise<Device> {
   'use cache'
   cacheTag('devices')
 
-  const device = await prisma.hpCatalog.findUnique({
+  const device = await prisma.deviceModel.findUnique({
     where: { id },
     select: {
       id: true,
@@ -444,17 +444,17 @@ export async function createDevice(
 
   const validated = createDeviceSchema.parse(data)
 
-  const existingBrand = await prisma.brand.findUnique({
+  const existingBrand = await prisma.deviceBrand.findUnique({
     where: { name: validated.brandName },
     select: { id: true, name: true },
   })
 
-  const brand = existingBrand ?? await prisma.brand.create({
+  const brand = existingBrand ?? await prisma.deviceBrand.create({
     data: { name: validated.brandName },
     select: { id: true, name: true },
   })
 
-  const existingDevice = await prisma.hpCatalog.findFirst({
+  const existingDevice = await prisma.deviceModel.findFirst({
     where: {
       brandId: brand.id,
       modelName: validated.modelName,
@@ -473,7 +473,7 @@ export async function createDevice(
     }
   }
 
-  const device = await prisma.hpCatalog.create({
+  const device = await prisma.deviceModel.create({
     data: {
       brandId: brand.id,
       modelName: validated.modelName,
@@ -509,7 +509,7 @@ export async function updateDevice(
 
   const validated = updateDeviceSchema.parse(data)
 
-  const device = await prisma.hpCatalog.findUnique({
+  const device = await prisma.deviceModel.findUnique({
     where: { id: validated.id },
     include: { brand: { select: { id: true, name: true } } },
   })
@@ -519,12 +519,12 @@ export async function updateDevice(
   let brandId = device.brand.id
 
   if (validated.brandName && validated.brandName !== device.brand.name) {
-    let brand = await prisma.brand.findUnique({
+    let brand = await prisma.deviceBrand.findUnique({
       where: { name: validated.brandName },
     })
 
     if (!brand) {
-      brand = await prisma.brand.create({
+      brand = await prisma.deviceBrand.create({
         data: { name: validated.brandName },
       })
     }
@@ -532,7 +532,7 @@ export async function updateDevice(
     brandId = brand.id
   }
 
-  const updated = await prisma.hpCatalog.update({
+  const updated = await prisma.deviceModel.update({
     where: { id: validated.id },
     data: {
       brandId,
@@ -557,28 +557,28 @@ export async function updateDevice(
 export async function deleteDevice(id: string): Promise<void> {
   await getDeviceWriteUser()
 
-  const device = await prisma.hpCatalog.findUnique({
+  const device = await prisma.deviceModel.findUnique({
     where: { id },
     select: {
       id: true,
-      services: { select: { id: true }, take: 1 },
-      compatibilities: { select: { sparepartId: true }, take: 1 },
+      repairOrders: { select: { id: true }, take: 1 },
+      compatibilities: { select: { inventoryItemId: true }, take: 1 },
     },
   })
 
   if (!device) throw new Error("Device not found")
 
-  if (device.services.length > 0) {
+  if (device.repairOrders.length > 0) {
     throw new Error("Cannot delete device that has service records")
   }
 
   if (device.compatibilities.length > 0) {
-    await prisma.sparepartCompatibility.deleteMany({
-      where: { hpCatalogId: id },
+    await prisma.partCompatibility.deleteMany({
+      where: { deviceModelId: id },
     })
   }
 
-  await prisma.hpCatalog.delete({ where: { id } })
+  await prisma.deviceModel.delete({ where: { id } })
 
   revalidatePath("/dashboard/admin/devices")
   updateTag('devices')

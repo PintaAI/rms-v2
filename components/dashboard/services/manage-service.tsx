@@ -39,7 +39,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { assignTechnician, deleteService, getService } from "@/actions";
-import type { ServiceListItem, ServiceDetail } from "@/actions";
+import type { ServiceDetail, ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { toServiceTableItems } from "@/components/dashboard/services/service-table/utils";
 import { getServiceSearchScore } from "@/lib/service-search";
@@ -100,7 +100,7 @@ export function ManageService({
   const searchParamString = searchParams.toString();
   const statusFilter = searchParams.get("status") ?? undefined;
   const pickedUpFilter = searchParams.get("pickedup") === "true";
-  const storeTokoId = useServiceOptimisticStore((state) => state.tokoId);
+  const storeTokoId = useServiceOptimisticStore((state) => state.storeId);
   const storeServices = useServiceOptimisticStore((state) => state.services);
   const isStoreHydrated = useServiceOptimisticStore((state) => state.isHydrated);
   const hydrateServices = useServiceOptimisticStore((state) => state.hydrateServices);
@@ -270,7 +270,7 @@ export function ManageService({
     statusSnapshotsRef.current.delete(serviceId);
     pendingPatchesRef.current.delete(serviceId);
     settleMutation();
-    publish({ action: "status_changed", serviceId, ...getServiceRealtimeMeta(service), reason: status });
+    publish({ action: "status_changed", repairOrderId: serviceId, ...getServiceRealtimeMeta(service), reason: status });
   }, [publish, services, settleMutation]);
 
   const handleOptimisticStatusError = useCallback((serviceId: string) => {
@@ -301,7 +301,7 @@ export function ManageService({
 
   const handleCreateSuccess = useCallback((result?: { serviceId?: string; action: "created" | "updated"; serviceLabel?: string; serviceBrand?: string; reason?: string }) => {
     settleMutation();
-    publish({ action: result?.action ?? (editData ? "updated" : "created"), serviceId: result?.serviceId ?? editData?.id ?? "new-service", ...(editData ? getServiceRealtimeMeta(editData as ServiceListItem) : { serviceLabel: "Service baru" }), serviceLabel: result?.serviceLabel ?? (editData ? getServiceRealtimeLabel(editData as ServiceListItem) : "Service baru"), serviceBrand: result?.serviceBrand ?? (editData as ServiceListItem | null)?.hpCatalog?.brand.name, reason: result?.reason });
+    publish({ action: result?.action ?? (editData ? "updated" : "created"), repairOrderId: result?.serviceId ?? editData?.id ?? "new-service", ...(editData ? getServiceRealtimeMeta(editData as ServiceListItem) : { serviceLabel: "Service baru" }), serviceLabel: result?.serviceLabel ?? (editData ? getServiceRealtimeLabel(editData as ServiceListItem) : "Service baru"), serviceBrand: result?.serviceBrand ?? (editData as ServiceListItem | null)?.deviceModel?.brand.name, reason: result?.reason });
     router.refresh();
   }, [editData, publish, router, settleMutation]);
 
@@ -344,7 +344,7 @@ export function ManageService({
     }
 
     settleMutation();
-    publish({ action: "deleted", serviceId: tempId, ...getServiceRealtimeMeta(deletedService) });
+    publish({ action: "deleted", repairOrderId: tempId, ...getServiceRealtimeMeta(deletedService) });
     setIsDeleting(false);
     router.refresh();
   }, [deleteTarget, optimisticDelete, publish, rollbackDelete, router, settleMutation]);
@@ -381,7 +381,7 @@ export function ManageService({
     }
 
     settleMutation();
-    publish({ action: "assigned", serviceId: fullService.id, ...getServiceRealtimeMeta(fullService) });
+    publish({ action: "assigned", repairOrderId: fullService.id, ...getServiceRealtimeMeta(fullService) });
     router.refresh();
     return true;
   }, [optimisticPatch, patchSelectedService, publish, rollbackUpdate, router, services, settleMutation]);
@@ -751,7 +751,7 @@ export function ManageService({
                   }}
                   onPickupSuccess={() => {
                     setDetailDialogOpen(false);
-                    publish({ action: "picked_up", serviceId: selectedService.id, ...getServiceRealtimeMeta(selectedService) });
+                    publish({ action: "picked_up", repairOrderId: selectedService.id, ...getServiceRealtimeMeta(selectedService) });
                     router.refresh();
                   }}
                   onRealtimeEvent={publish}

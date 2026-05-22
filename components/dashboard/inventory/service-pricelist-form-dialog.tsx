@@ -65,7 +65,7 @@ function ServicePricelistFormContent({
       : await createServicePricelist({
           title,
           defaultPrice: price,
-          tokoId,
+          storeId: tokoId,
         });
 
     setIsLoading(false);

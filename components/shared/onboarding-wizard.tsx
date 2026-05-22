@@ -82,7 +82,7 @@ const initialData: WizardData = {
   address: "",
   phone: "",
   branchPlan: "one",
-  operationalMode: "service",
+  operationalMode: "service_catalog_item",
   teamSize: "ownerOnly",
   teamAccess: "none",
   usesInventory: false,
@@ -343,10 +343,10 @@ export function OnboardingWizard() {
       clearOnboardingDraft();
 
       if (result.users && result.users.length > 0) {
-        setCreatedCredentials({ tokoId: result.tokoId!, users: result.users });
+        setCreatedCredentials({ tokoId: result.storeId!, users: result.users });
         setIsSubmitting(false);
       } else {
-        router.push(`/${result.tokoId}/admin`);
+        router.push(`/${result.storeId}/admin`);
       }
     } catch (err) {
       console.error("Submit error:", err);
@@ -648,7 +648,7 @@ function SurveyStep({ data, setData }: WizardStepProps) {
         />
       )}
 
-      {data.operationalMode === "service" && (
+      {data.operationalMode === "service_catalog_item" && (
         <ChoiceGroup
           label="Apakah bisnismu butuh manajemen inventory/sparepart?"
           options={[
@@ -858,7 +858,7 @@ function SummaryStep({
   const planDecisionLabel = isPlanAtLeast(currentPlan, recommendation.recommendedPlan) ? "Plan aktif sudah sesuai" : "Tetap Free";
 
   const branchLabel = data.branchPlan === "one" ? "Satu cabang" : data.branchPlan === "twoToThree" ? "2-3 cabang" : "Lebih dari 3 cabang";
-  const modeLabel = data.operationalMode === "service" ? "Service saja" : data.operationalMode === "retail" ? "Retail saja" : "Service dan Retail";
+  const modeLabel = data.operationalMode === "service_catalog_item" ? "Service saja" : data.operationalMode === "retail" ? "Retail saja" : "Service dan Retail";
   const teamLabel = data.teamSize === "ownerOnly" ? "Hanya pemilik" : data.teamAccess === "staffOnly" ? "Staff saja" : data.teamAccess === "technicianOnly" ? "Teknisi saja" : "Staff dan teknisi";
   const inventoryLabel = data.usesInventory ? "Stok sparepart" : "Item manual tanpa inventory";
 

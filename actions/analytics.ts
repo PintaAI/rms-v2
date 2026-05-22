@@ -3,9 +3,9 @@
 import prisma from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth/request-scope";
 import { withScope, type ActionResultWithData } from "@/lib/auth/wrapper";
-import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
+import type { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 
-const STATUS_LABELS: Record<ServiceStatus, string> = {
+const STATUS_LABELS: Record<RepairOrderStatus, string> = {
   received: "Masuk",
   repairing: "Proses",
   done: "Selesai",
@@ -22,7 +22,7 @@ export interface AdminAnalyticsTrendPoint {
 }
 
 export interface AdminAnalyticsStatusPoint {
-  status: ServiceStatus;
+  status: RepairOrderStatus;
   label: string;
   count: number;
 }
@@ -51,7 +51,7 @@ export interface AdminRetailAnalyticsTrendPoint {
 export interface AdminRetailAnalyticsTopItemPoint {
   id: string;
   name: string;
-  kind: "sparepart" | "retail_item";
+  type: "repair_part" | "retail_product" | "phone_unit";
   qty: number;
   revenue: number;
   grossMargin: number;
@@ -114,7 +114,7 @@ export interface AdminAnalyticsFilters {
   from: string;
   to: string;
   allTime?: boolean;
-  status?: ServiceStatus;
+  status?: RepairOrderStatus;
 }
 
 interface AdminAnalyticsFilterInput {
@@ -125,14 +125,14 @@ interface AdminAnalyticsFilterInput {
 }
 
 export async function getAdminAnalytics(
-  tokoId: string,
+  storeId: string,
   filters?: AdminAnalyticsFilterInput
 ): Promise<ActionResultWithData<AdminAnalyticsData>> {
-  return withScope(tokoId, {}, async (scope): Promise<AdminAnalyticsData> => {
+  return withScope(storeId, {}, async (scope): Promise<AdminAnalyticsData> => {
     assertPermission(scope, "analytics.view");
 
     const normalizedFilters = normalizeFilters(filters);
-    const allTimeStart = normalizedFilters.allTime ? await getAllTimeStart(tokoId) : null;
+    const allTimeStart = normalizedFilters.allTime ? await getAllTimeStart(storeId) : null;
     const periodStart = allTimeStart ?? parseDateKey(normalizedFilters.from);
     const periodEnd = normalizedFilters.allTime ? addDays(new Date(), 1) : addDays(parseDateKey(normalizedFilters.to), 1);
     const daySpan = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / 86_400_000);
@@ -140,18 +140,18 @@ export async function getAdminAnalytics(
     const buckets = bucketMode === "month" ? getMonthBuckets(periodStart, periodEnd) : getDayBuckets(periodStart, periodEnd);
     const periodLabel = `${formatPeriodDate(periodStart)} - ${formatPeriodDate(addDays(periodEnd, -1))}`;
     const serviceWhere = {
-      tokoId,
+      storeId,
       checkinAt: { gte: periodStart, lt: periodEnd },
       ...(normalizedFilters.status ? { status: normalizedFilters.status } : {}),
     };
 
     const retailEnabled = scope.featureAccess["retail.sales"] ?? false;
-    const [toko, services, invoices, refundClaims, sparepartCount, lowStockCount, stockAggregate, retailSales] = await Promise.all([
-      prisma.toko.findUnique({
-        where: { id: tokoId },
+    const [toko, services, invoices, refundClaims, inventoryItemCount, lowStockCount, stockAggregate, salesOrders] = await Promise.all([
+      prisma.store.findUnique({
+        where: { id: storeId },
         select: { id: true, name: true, logoUrl: true },
       }),
-      prisma.service.findMany({
+      prisma.repairOrder.findMany({
         where: serviceWhere,
         select: {
           id: true,
@@ -167,9 +167,9 @@ export async function getAdminAnalytics(
           },
         },
       }),
-      prisma.invoice.findMany({
+      prisma.repairInvoice.findMany({
         where: {
-          service: serviceWhere,
+          repairOrder: serviceWhere,
           OR: [
             { createdAt: { gte: periodStart, lt: periodEnd } },
             { paidAt: { gte: periodStart, lt: periodEnd } },
@@ -182,7 +182,7 @@ export async function getAdminAnalytics(
           createdAt: true,
           paidAt: true,
           items: {
-            where: { type: "sparepart" },
+            where: { type: "inventory_item" },
             select: {
               referenceId: true,
               name: true,
@@ -194,7 +194,7 @@ export async function getAdminAnalytics(
       }),
       prisma.warrantyClaim.findMany({
         where: {
-          tokoId,
+          storeId,
           status: "resolved",
           refundAmount: { gt: 0 },
           resolvedAt: { gte: periodStart, lt: periodEnd },
@@ -204,18 +204,18 @@ export async function getAdminAnalytics(
           resolvedAt: true,
         },
       }),
-      prisma.sparepart.count({ where: { tokoId } }),
+      prisma.inventoryItem.count({ where: { storeId } }),
       prisma.$queryRaw<{ count: number }[]>`
         SELECT COUNT(*)::int AS count
-        FROM "sparepart"
-        WHERE "tokoId" = ${tokoId}
+        FROM "inventory_item"
+        WHERE "storeId" = ${storeId}
           AND "stock" <= "criticalStock"
       `,
-      prisma.sparepart.aggregate({ where: { tokoId }, _sum: { stock: true } }),
+      prisma.inventoryItem.aggregate({ where: { storeId }, _sum: { stock: true } }),
       retailEnabled
-        ? prisma.retailSale.findMany({
+        ? prisma.salesOrder.findMany({
             where: {
-              tokoId,
+              storeId,
               status: "paid",
               paidAt: { gte: periodStart, lt: periodEnd },
             },
@@ -226,7 +226,7 @@ export async function getAdminAnalytics(
               paidAt: true,
               items: {
                 select: {
-                  sparepartId: true,
+                  inventoryItemId: true,
                   name: true,
                   kind: true,
                   qty: true,
@@ -259,7 +259,7 @@ export async function getAdminAnalytics(
       ])
     ) as Record<string, AdminAnalyticsTrendPoint>;
 
-    const statusCounts: Record<ServiceStatus, number> = {
+    const statusCounts: Record<RepairOrderStatus, number> = {
       received: 0,
       repairing: 0,
       done: 0,
@@ -267,7 +267,7 @@ export async function getAdminAnalytics(
     };
 
     const technicianMap = new Map<string, AdminAnalyticsTechnicianPoint>();
-    const sparepartMap = new Map<string, AdminAnalyticsTopSparepartPoint>();
+    const inventoryItemMap = new Map<string, AdminAnalyticsTopSparepartPoint>();
     const retailTrendMap = Object.fromEntries(
       buckets.map((bucket) => [bucket.key, { key: bucket.key, label: bucket.label, revenue: 0, transactions: 0 }])
     ) as Record<string, AdminRetailAnalyticsTrendPoint>;
@@ -312,16 +312,16 @@ export async function getAdminAnalytics(
           trendMap[bucketKey].revenue += invoice.grandTotal;
 
           for (const item of invoice.items) {
-            const sparepartKey = item.referenceId ?? item.name;
-            const current = sparepartMap.get(sparepartKey) ?? {
-              id: sparepartKey,
+            const inventoryItemKey = item.referenceId ?? item.name;
+            const current = inventoryItemMap.get(inventoryItemKey) ?? {
+              id: inventoryItemKey,
               name: item.name,
               qty: 0,
               revenue: 0,
             };
             current.qty += item.qty;
             current.revenue += item.qty * item.price;
-            sparepartMap.set(sparepartKey, current);
+            inventoryItemMap.set(inventoryItemKey, current);
           }
         }
         continue;
@@ -353,7 +353,7 @@ export async function getAdminAnalytics(
     let retailGrossMargin = 0;
     let retailTotalQty = 0;
 
-    for (const sale of retailSales) {
+    for (const sale of salesOrders) {
       retailRevenue += sale.grandTotal;
       const retailTrend = retailTrendMap[getBucketKey(sale.paidAt, bucketMode)];
       if (retailTrend) {
@@ -373,11 +373,11 @@ export async function getAdminAnalytics(
 
       for (const item of sale.items) {
         const itemGrossMargin = item.lineTotal - (item.unitCostSnapshot ?? 0) * item.qty;
-        const itemKey = item.sparepartId ?? item.name;
+        const itemKey = item.inventoryItemId ?? item.name;
         const current = retailItemMap.get(itemKey) ?? {
           id: itemKey,
           name: item.name,
-          kind: item.kind,
+          type: item.kind,
           qty: 0,
           revenue: 0,
           grossMargin: 0,
@@ -411,12 +411,12 @@ export async function getAdminAnalytics(
         averagePaidInvoice: paidInvoices > 0 ? Math.round(paidRevenue / paidInvoices) : 0,
         totalServices,
         completionRate,
-        totalSpareparts: sparepartCount,
+        totalSpareparts: inventoryItemCount,
         lowStockCount: lowStockTotal,
         totalStock: stockAggregate._sum.stock ?? 0,
       },
       trend: buckets.map((bucket) => trendMap[bucket.key]),
-      statusBreakdown: (Object.keys(statusCounts) as ServiceStatus[]).map((status) => ({
+      statusBreakdown: (Object.keys(statusCounts) as RepairOrderStatus[]).map((status) => ({
         status,
         label: STATUS_LABELS[status],
         count: statusCounts[status],
@@ -424,15 +424,15 @@ export async function getAdminAnalytics(
       topTechnicians: Array.from(technicianMap.values())
         .sort((a, b) => b.completedServices - a.completedServices || b.revenue - a.revenue)
         .slice(0, 5),
-      topSpareparts: Array.from(sparepartMap.values())
+      topSpareparts: Array.from(inventoryItemMap.values())
         .sort((a, b) => b.qty - a.qty || b.revenue - a.revenue)
         .slice(0, 5),
       retail: {
         enabled: retailEnabled,
         summary: {
           revenue: retailRevenue,
-          transactions: retailSales.length,
-          averageTransaction: retailSales.length > 0 ? Math.round(retailRevenue / retailSales.length) : 0,
+          transactions: salesOrders.length,
+          averageTransaction: salesOrders.length > 0 ? Math.round(retailRevenue / salesOrders.length) : 0,
           grossMargin: retailGrossMargin,
           totalQty: retailTotalQty,
         },
@@ -454,7 +454,7 @@ function normalizeFilters(filters: AdminAnalyticsFilterInput | undefined): Admin
   const to = filters?.to && isDateKey(filters.to) ? parseDateKey(filters.to) : defaultTo;
   const normalizedFrom = from <= to ? from : to;
   const normalizedTo = from <= to ? to : from;
-  const status = isServiceStatus(filters?.status) ? filters.status : undefined;
+  const status = isRepairOrderStatus(filters?.status) ? filters.status : undefined;
 
   return {
     from: getDateKey(normalizedFrom),
@@ -464,11 +464,11 @@ function normalizeFilters(filters: AdminAnalyticsFilterInput | undefined): Admin
   };
 }
 
-async function getAllTimeStart(tokoId: string) {
+async function getAllTimeStart(storeId: string) {
   const [serviceMin, invoiceMin, retailMin] = await Promise.all([
-    prisma.service.aggregate({ where: { tokoId }, _min: { checkinAt: true } }),
-    prisma.invoice.aggregate({ where: { service: { tokoId } }, _min: { createdAt: true } }),
-    prisma.retailSale.aggregate({ where: { tokoId }, _min: { paidAt: true } }),
+    prisma.repairOrder.aggregate({ where: { storeId }, _min: { checkinAt: true } }),
+    prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId } }, _min: { createdAt: true } }),
+    prisma.salesOrder.aggregate({ where: { storeId }, _min: { paidAt: true } }),
   ]);
   const dates = [serviceMin._min.checkinAt, invoiceMin._min.createdAt, retailMin._min.paidAt].filter((date): date is Date => Boolean(date));
 
@@ -540,7 +540,7 @@ function isDateKey(value: string) {
   return !Number.isNaN(date.getTime()) && getDateKey(date) === value;
 }
 
-function isServiceStatus(value: unknown): value is ServiceStatus {
+function isRepairOrderStatus(value: unknown): value is RepairOrderStatus {
   return value === "received" || value === "repairing" || value === "done" || value === "failed";
 }
 

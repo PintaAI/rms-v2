@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import type { SparepartWithCompatibilities } from "@/actions/inventory";
+import type { InventoryItemWithCompatibilities } from "@/actions/inventory";
 
 export type StockVariant = "out" | "critical" | "safe";
 
@@ -17,22 +17,22 @@ const STOCK_LABELS: Record<StockVariant, string> = {
   safe: "Aman",
 };
 
-export function getSparepartStockVariant(sparepart: SparepartWithCompatibilities): StockVariant {
+export function getSparepartStockVariant(sparepart: InventoryItemWithCompatibilities): StockVariant {
   if (sparepart.stock <= 0) return "out";
   if (sparepart.stock <= sparepart.criticalStock) return "critical";
   return "safe";
 }
 
-export function getSparepartStockBadgeClass(sparepart: SparepartWithCompatibilities) {
+export function getSparepartStockBadgeClass(sparepart: InventoryItemWithCompatibilities) {
   return STOCK_BADGE_CLASSES[getSparepartStockVariant(sparepart)];
 }
 
-export function getSparepartStockLabel(sparepart: SparepartWithCompatibilities) {
+export function getSparepartStockLabel(sparepart: InventoryItemWithCompatibilities) {
   return STOCK_LABELS[getSparepartStockVariant(sparepart)];
 }
 
 interface SparepartStockBadgeProps {
-  sparepart: SparepartWithCompatibilities;
+  sparepart: InventoryItemWithCompatibilities;
   showLabel?: boolean;
 }
 

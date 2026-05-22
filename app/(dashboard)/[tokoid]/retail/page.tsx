@@ -15,7 +15,7 @@ export default async function SharedRetailPage({ params }: SharedRetailPageProps
   assertPermission(scope, "retail.view");
 
   const [toko, itemsResult] = await Promise.all([
-    prisma.toko.findUnique({ where: { id: tokoid }, select: { id: true, name: true, logoUrl: true } }),
+    prisma.store.findUnique({ where: { id: tokoid }, select: { id: true, name: true, logoUrl: true } }),
     getRetailCheckoutItems(tokoid),
   ]);
 

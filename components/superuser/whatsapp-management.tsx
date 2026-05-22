@@ -141,12 +141,12 @@ export function WhatsappManagement() {
                       </TableCell>
                       <TableCell>{connectionStatusBadge(row.status)}</TableCell>
                       <TableCell>
-                        {row.tokoId ? (
+                        {row.storeId ? (
                           <div className="flex items-center gap-1.5">
                             <RiStore2Line className="size-3.5 text-muted-foreground shrink-0" />
                             <div>
                               <div className="text-sm font-medium">{row.tokoName ?? "—"}</div>
-                              <div className="text-[10px] text-muted-foreground font-mono">{row.tokoId}</div>
+                              <div className="text-[10px] text-muted-foreground font-mono">{row.storeId}</div>
                             </div>
                           </div>
                         ) : (

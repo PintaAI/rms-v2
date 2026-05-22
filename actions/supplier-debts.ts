@@ -6,7 +6,7 @@ import { assertFeature, assertPermission, getRequestScope } from "@/lib/auth/req
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
-type SupplierDebtStatus = "unpaid" | "partial" | "paid"
+type SupplierPayableStatus = "unpaid" | "partial" | "paid"
 
 export type SupplierOption = {
   id: string
@@ -14,7 +14,7 @@ export type SupplierOption = {
   phone: string | null
 }
 
-export type SupplierDebtListItem = {
+export type SupplierPayableListItem = {
   id: string
   supplierId: string
   supplierName: string
@@ -24,13 +24,13 @@ export type SupplierDebtListItem = {
   paidAmount: number
   remainingAmount: number
   dueDate: Date | null
-  status: SupplierDebtStatus
+  status: SupplierPayableStatus
   paymentCount: number
   createdAt: Date
 }
 
-export type SupplierDebtListResult = {
-  items: SupplierDebtListItem[]
+export type SupplierPayableListResult = {
+  items: SupplierPayableListItem[]
   totalDebtAmount: number
   totalPaidAmount: number
   totalRemainingAmount: number
@@ -43,15 +43,15 @@ const optionalDateSchema = z.preprocess(
 )
 
 const createSupplierSchema = z.object({
-  tokoId: z.string().min(1, "Toko wajib diisi"),
+  storeId: z.string().min(1, "Toko wajib diisi"),
   name: z.string().trim().min(1, "Nama supplier wajib diisi"),
   phone: z.string().trim().optional().nullable(),
   address: z.string().trim().optional().nullable(),
   note: z.string().trim().optional().nullable(),
 })
 
-const createSupplierDebtSchema = z.object({
-  tokoId: z.string().min(1, "Toko wajib diisi"),
+const createSupplierPayableSchema = z.object({
+  storeId: z.string().min(1, "Toko wajib diisi"),
   supplierId: z.string().min(1, "Supplier wajib dipilih"),
   invoiceNumber: z.string().trim().optional().nullable(),
   description: z.string().trim().optional().nullable(),
@@ -60,7 +60,7 @@ const createSupplierDebtSchema = z.object({
   dueDate: optionalDateSchema.optional(),
 })
 
-const updateSupplierDebtSchema = z.object({
+const updateSupplierPayableSchema = z.object({
   id: z.string().min(1, "Hutang supplier wajib dipilih"),
   supplierId: z.string().min(1, "Supplier wajib dipilih"),
   invoiceNumber: z.string().trim().optional().nullable(),
@@ -69,28 +69,28 @@ const updateSupplierDebtSchema = z.object({
   dueDate: optionalDateSchema.optional(),
 })
 
-const addSupplierDebtPaymentSchema = z.object({
-  debtId: z.string().min(1, "Hutang supplier wajib dipilih"),
+const addSupplierPayablePaymentSchema = z.object({
+  payableId: z.string().min(1, "Hutang supplier wajib dipilih"),
   amount: z.number().int("Jumlah pembayaran harus berupa angka bulat"),
   paymentDate: optionalDateSchema.optional(),
   note: z.string().trim().optional().nullable(),
 })
 
 export type CreateSupplierInput = z.infer<typeof createSupplierSchema>
-export type CreateSupplierDebtInput = z.infer<typeof createSupplierDebtSchema>
-export type UpdateSupplierDebtInput = z.infer<typeof updateSupplierDebtSchema>
-export type AddSupplierDebtPaymentInput = z.infer<typeof addSupplierDebtPaymentSchema>
+export type CreateSupplierPayableInput = z.infer<typeof createSupplierPayableSchema>
+export type UpdateSupplierPayableInput = z.infer<typeof updateSupplierPayableSchema>
+export type AddSupplierPayablePaymentInput = z.infer<typeof addSupplierPayablePaymentSchema>
 
-class SupplierDebtActionError extends Error {}
+class SupplierPayableActionError extends Error {}
 
-async function assertSupplierDebtAccess(tokoId: string, permissionKey: Parameters<typeof assertPermission>[1]) {
-  const scope = await getRequestScope(tokoId)
+async function assertSupplierPayableAccess(storeId: string, permissionKey: Parameters<typeof assertPermission>[1]) {
+  const scope = await getRequestScope(storeId)
   assertFeature(scope, "inventory.management")
   assertPermission(scope, permissionKey)
   return scope
 }
 
-function getSupplierDebtStatus(totalAmount: number, paidAmount: number): SupplierDebtStatus {
+function getSupplierPayableStatus(totalAmount: number, paidAmount: number): SupplierPayableStatus {
   if (paidAmount >= totalAmount) return "paid"
   if (paidAmount > 0) return "partial"
   return "unpaid"
@@ -101,32 +101,32 @@ function normalizeOptionalText(value: string | null | undefined) {
   return trimmed ? trimmed : null
 }
 
-function validateSupplierDebtAmounts(totalAmount: number, paidAmount: number): void {
-  if (totalAmount <= 0) throw new SupplierDebtActionError("Total hutang harus lebih dari 0")
-  if (paidAmount < 0) throw new SupplierDebtActionError("Jumlah dibayar tidak boleh negatif")
-  if (paidAmount > totalAmount) throw new SupplierDebtActionError("Jumlah dibayar tidak boleh melebihi total hutang")
+function validateSupplierPayableAmounts(totalAmount: number, paidAmount: number): void {
+  if (totalAmount <= 0) throw new SupplierPayableActionError("Total hutang harus lebih dari 0")
+  if (paidAmount < 0) throw new SupplierPayableActionError("Jumlah dibayar tidak boleh negatif")
+  if (paidAmount > totalAmount) throw new SupplierPayableActionError("Jumlah dibayar tidak boleh melebihi total hutang")
 }
 
-function validateSupplierDebtPaymentAmount(amount: number, remainingAmount: number): void {
-  if (amount <= 0) throw new SupplierDebtActionError("Jumlah pembayaran harus lebih dari 0")
-  if (amount > remainingAmount) throw new SupplierDebtActionError("Jumlah pembayaran tidak boleh melebihi sisa hutang")
+function validateSupplierPayablePaymentAmount(amount: number, remainingAmount: number): void {
+  if (amount <= 0) throw new SupplierPayableActionError("Jumlah pembayaran harus lebih dari 0")
+  if (amount > remainingAmount) throw new SupplierPayableActionError("Jumlah pembayaran tidak boleh melebihi sisa hutang")
 }
 
-function revalidateSupplierDebtPaths(tokoId: string) {
-  revalidatePath(`/${tokoId}/supplier-debts`)
+function revalidateSupplierPayablePaths(storeId: string) {
+  revalidatePath(`/${storeId}/supplier-debts`)
 }
 
-async function getDebtTokoId(debtId: string) {
-  const debt = await prisma.supplierDebt.findUnique({
-    where: { id: debtId },
-    select: { tokoId: true },
+async function getDebtTokoId(payableId: string) {
+  const debt = await prisma.supplierPayable.findUnique({
+    where: { id: payableId },
+    select: { storeId: true },
   })
 
-  if (!debt) throw new SupplierDebtActionError("Hutang supplier tidak ditemukan")
-  return debt.tokoId
+  if (!debt) throw new SupplierPayableActionError("Hutang supplier tidak ditemukan")
+  return debt.storeId
 }
 
-function toSupplierDebtListItem(debt: {
+function toSupplierPayableListItem(debt: {
   id: string
   supplierId: string
   invoiceNumber: string | null
@@ -134,11 +134,11 @@ function toSupplierDebtListItem(debt: {
   totalAmount: number
   paidAmount: number
   dueDate: Date | null
-  status: SupplierDebtStatus
+  status: SupplierPayableStatus
   createdAt: Date
   supplier: { name: string }
   _count: { payments: number }
-}): SupplierDebtListItem {
+}): SupplierPayableListItem {
   return {
     id: debt.id,
     supplierId: debt.supplierId,
@@ -155,28 +155,28 @@ function toSupplierDebtListItem(debt: {
   }
 }
 
-async function assertSupplierBelongsToToko(supplierId: string, tokoId: string): Promise<void> {
+async function assertSupplierBelongsToToko(supplierId: string, storeId: string): Promise<void> {
   const supplier = await prisma.supplier.findFirst({
-    where: { id: supplierId, tokoId },
+    where: { id: supplierId, storeId },
     select: { id: true },
   })
 
-  if (!supplier) throw new SupplierDebtActionError("Supplier tidak ditemukan di toko ini")
+  if (!supplier) throw new SupplierPayableActionError("Supplier tidak ditemukan di toko ini")
 }
 
-export async function getSuppliers(tokoId: string): Promise<ActionResultWithData<SupplierOption[]>> {
+export async function getSuppliers(storeId: string): Promise<ActionResultWithData<SupplierOption[]>> {
   try {
-    await assertSupplierDebtAccess(tokoId, "supplier_debts.view")
+    await assertSupplierPayableAccess(storeId, "supplier_debts.view")
 
     const suppliers = await prisma.supplier.findMany({
-      where: { tokoId },
+      where: { storeId },
       orderBy: { name: "asc" },
       select: { id: true, name: true, phone: true },
     })
 
     return { success: true, data: suppliers }
   } catch (error) {
-    if (error instanceof SupplierDebtActionError) return { success: false, error: error.message }
+    if (error instanceof SupplierPayableActionError) return { success: false, error: error.message }
     return actionError(error) as ActionResultWithData<SupplierOption[]>
   }
 }
@@ -184,18 +184,18 @@ export async function getSuppliers(tokoId: string): Promise<ActionResultWithData
 export async function createSupplier(input: CreateSupplierInput): Promise<ActionResultWithData<SupplierOption>> {
   try {
     const validated = createSupplierSchema.parse(input)
-    await assertSupplierDebtAccess(validated.tokoId, "supplier_debts.create")
+    await assertSupplierPayableAccess(validated.storeId, "supplier_debts.create")
 
     const existing = await prisma.supplier.findFirst({
-      where: { tokoId: validated.tokoId, name: validated.name },
+      where: { storeId: validated.storeId, name: validated.name },
       select: { id: true },
     })
 
-    if (existing) throw new SupplierDebtActionError("Nama supplier sudah digunakan di toko ini")
+    if (existing) throw new SupplierPayableActionError("Nama supplier sudah digunakan di toko ini")
 
     const supplier = await prisma.supplier.create({
       data: {
-        tokoId: validated.tokoId,
+        storeId: validated.storeId,
         name: validated.name,
         phone: normalizeOptionalText(validated.phone),
         address: normalizeOptionalText(validated.address),
@@ -204,22 +204,22 @@ export async function createSupplier(input: CreateSupplierInput): Promise<Action
       select: { id: true, name: true, phone: true },
     })
 
-    revalidateSupplierDebtPaths(validated.tokoId)
+    revalidateSupplierPayablePaths(validated.storeId)
 
     return { success: true, data: supplier }
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message }
-    if (error instanceof SupplierDebtActionError) return { success: false, error: error.message }
+    if (error instanceof SupplierPayableActionError) return { success: false, error: error.message }
     return actionError(error) as ActionResultWithData<SupplierOption>
   }
 }
 
-export async function getSupplierDebts(tokoId: string): Promise<ActionResultWithData<SupplierDebtListResult>> {
+export async function getSupplierPayables(storeId: string): Promise<ActionResultWithData<SupplierPayableListResult>> {
   try {
-    await assertSupplierDebtAccess(tokoId, "supplier_debts.view")
+    await assertSupplierPayableAccess(storeId, "supplier_debts.view")
 
-    const debts = await prisma.supplierDebt.findMany({
-      where: { tokoId },
+    const debts = await prisma.supplierPayable.findMany({
+      where: { storeId },
       orderBy: { createdAt: "desc" },
       include: {
         supplier: { select: { name: true } },
@@ -227,7 +227,7 @@ export async function getSupplierDebts(tokoId: string): Promise<ActionResultWith
       },
     })
 
-    const items = debts.map((debt) => toSupplierDebtListItem(debt))
+    const items = debts.map((debt) => toSupplierPayableListItem(debt))
 
     return {
       success: true,
@@ -243,31 +243,31 @@ export async function getSupplierDebts(tokoId: string): Promise<ActionResultWith
       },
     }
   } catch (error) {
-    if (error instanceof SupplierDebtActionError) return { success: false, error: error.message }
-    return actionError(error) as ActionResultWithData<SupplierDebtListResult>
+    if (error instanceof SupplierPayableActionError) return { success: false, error: error.message }
+    return actionError(error) as ActionResultWithData<SupplierPayableListResult>
   }
 }
 
-export async function createSupplierDebt(input: CreateSupplierDebtInput): Promise<ActionResultWithData<SupplierDebtListItem>> {
+export async function createSupplierPayable(input: CreateSupplierPayableInput): Promise<ActionResultWithData<SupplierPayableListItem>> {
   try {
-    const validated = createSupplierDebtSchema.parse(input)
-    await assertSupplierDebtAccess(validated.tokoId, "supplier_debts.create")
+    const validated = createSupplierPayableSchema.parse(input)
+    await assertSupplierPayableAccess(validated.storeId, "supplier_debts.create")
 
     const paidAmount = validated.paidAmount ?? 0
-    validateSupplierDebtAmounts(validated.totalAmount, paidAmount)
-    await assertSupplierBelongsToToko(validated.supplierId, validated.tokoId)
+    validateSupplierPayableAmounts(validated.totalAmount, paidAmount)
+    await assertSupplierBelongsToToko(validated.supplierId, validated.storeId)
 
     const debt = await prisma.$transaction(async (tx) => {
-      const createdDebt = await tx.supplierDebt.create({
+      const createdDebt = await tx.supplierPayable.create({
         data: {
-          tokoId: validated.tokoId,
+          storeId: validated.storeId,
           supplierId: validated.supplierId,
           invoiceNumber: normalizeOptionalText(validated.invoiceNumber),
           description: normalizeOptionalText(validated.description),
           totalAmount: validated.totalAmount,
           paidAmount,
           dueDate: validated.dueDate ?? null,
-          status: getSupplierDebtStatus(validated.totalAmount, paidAmount),
+          status: getSupplierPayableStatus(validated.totalAmount, paidAmount),
           payments: paidAmount > 0
             ? {
                 create: {
@@ -286,33 +286,33 @@ export async function createSupplierDebt(input: CreateSupplierDebtInput): Promis
       return createdDebt
     })
 
-    revalidateSupplierDebtPaths(validated.tokoId)
+    revalidateSupplierPayablePaths(validated.storeId)
 
-    return { success: true, data: toSupplierDebtListItem(debt) }
+    return { success: true, data: toSupplierPayableListItem(debt) }
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message }
-    if (error instanceof SupplierDebtActionError) return { success: false, error: error.message }
-    return actionError(error) as ActionResultWithData<SupplierDebtListItem>
+    if (error instanceof SupplierPayableActionError) return { success: false, error: error.message }
+    return actionError(error) as ActionResultWithData<SupplierPayableListItem>
   }
 }
 
-export async function updateSupplierDebt(input: UpdateSupplierDebtInput): Promise<ActionResultWithData<SupplierDebtListItem>> {
+export async function updateSupplierPayable(input: UpdateSupplierPayableInput): Promise<ActionResultWithData<SupplierPayableListItem>> {
   try {
-    const validated = updateSupplierDebtSchema.parse(input)
-    const tokoId = await getDebtTokoId(validated.id)
-    await assertSupplierDebtAccess(tokoId, "supplier_debts.update")
-    await assertSupplierBelongsToToko(validated.supplierId, tokoId)
+    const validated = updateSupplierPayableSchema.parse(input)
+    const storeId = await getDebtTokoId(validated.id)
+    await assertSupplierPayableAccess(storeId, "supplier_debts.update")
+    await assertSupplierBelongsToToko(validated.supplierId, storeId)
 
     const debt = await prisma.$transaction(async (tx) => {
-      const existingDebt = await tx.supplierDebt.findUnique({
+      const existingDebt = await tx.supplierPayable.findUnique({
         where: { id: validated.id },
         select: { paidAmount: true },
       })
 
-      if (!existingDebt) throw new SupplierDebtActionError("Hutang supplier tidak ditemukan")
-      validateSupplierDebtAmounts(validated.totalAmount, existingDebt.paidAmount)
+      if (!existingDebt) throw new SupplierPayableActionError("Hutang supplier tidak ditemukan")
+      validateSupplierPayableAmounts(validated.totalAmount, existingDebt.paidAmount)
 
-      return tx.supplierDebt.update({
+      return tx.supplierPayable.update({
         where: { id: validated.id },
         data: {
           supplierId: validated.supplierId,
@@ -320,7 +320,7 @@ export async function updateSupplierDebt(input: UpdateSupplierDebtInput): Promis
           description: normalizeOptionalText(validated.description),
           totalAmount: validated.totalAmount,
           dueDate: validated.dueDate ?? null,
-          status: getSupplierDebtStatus(validated.totalAmount, existingDebt.paidAmount),
+          status: getSupplierPayableStatus(validated.totalAmount, existingDebt.paidAmount),
         },
         include: {
           supplier: { select: { name: true } },
@@ -329,48 +329,48 @@ export async function updateSupplierDebt(input: UpdateSupplierDebtInput): Promis
       })
     })
 
-    revalidateSupplierDebtPaths(tokoId)
+    revalidateSupplierPayablePaths(storeId)
 
-    return { success: true, data: toSupplierDebtListItem(debt) }
+    return { success: true, data: toSupplierPayableListItem(debt) }
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message }
-    if (error instanceof SupplierDebtActionError) return { success: false, error: error.message }
-    return actionError(error) as ActionResultWithData<SupplierDebtListItem>
+    if (error instanceof SupplierPayableActionError) return { success: false, error: error.message }
+    return actionError(error) as ActionResultWithData<SupplierPayableListItem>
   }
 }
 
-export async function deleteSupplierDebt(id: string): Promise<ActionResult> {
+export async function deleteSupplierPayable(id: string): Promise<ActionResult> {
   try {
-    const tokoId = await getDebtTokoId(id)
-    await assertSupplierDebtAccess(tokoId, "supplier_debts.delete")
+    const storeId = await getDebtTokoId(id)
+    await assertSupplierPayableAccess(storeId, "supplier_debts.delete")
 
-    const debt = await prisma.supplierDebt.findUnique({
+    const debt = await prisma.supplierPayable.findUnique({
       where: { id },
       select: { _count: { select: { payments: true } } },
     })
 
-    if (!debt) throw new SupplierDebtActionError("Hutang supplier tidak ditemukan")
-    if (debt._count.payments > 0) throw new SupplierDebtActionError("Hutang dengan riwayat pembayaran tidak dapat dihapus")
+    if (!debt) throw new SupplierPayableActionError("Hutang supplier tidak ditemukan")
+    if (debt._count.payments > 0) throw new SupplierPayableActionError("Hutang dengan riwayat pembayaran tidak dapat dihapus")
 
-    await prisma.supplierDebt.delete({ where: { id } })
-    revalidateSupplierDebtPaths(tokoId)
+    await prisma.supplierPayable.delete({ where: { id } })
+    revalidateSupplierPayablePaths(storeId)
 
     return { success: true }
   } catch (error) {
-    if (error instanceof SupplierDebtActionError) return { success: false, error: error.message }
+    if (error instanceof SupplierPayableActionError) return { success: false, error: error.message }
     return actionError(error)
   }
 }
 
-export async function addSupplierDebtPayment(input: AddSupplierDebtPaymentInput): Promise<ActionResultWithData<SupplierDebtListItem>> {
+export async function addSupplierPayablePayment(input: AddSupplierPayablePaymentInput): Promise<ActionResultWithData<SupplierPayableListItem>> {
   try {
-    const validated = addSupplierDebtPaymentSchema.parse(input)
-    const tokoId = await getDebtTokoId(validated.debtId)
-    await assertSupplierDebtAccess(tokoId, "supplier_debts.pay")
+    const validated = addSupplierPayablePaymentSchema.parse(input)
+    const storeId = await getDebtTokoId(validated.payableId)
+    await assertSupplierPayableAccess(storeId, "supplier_debts.pay")
 
     const debt = await prisma.$transaction(async (tx) => {
-      const existingDebt = await tx.supplierDebt.findUnique({
-        where: { id: validated.debtId },
+      const existingDebt = await tx.supplierPayable.findUnique({
+        where: { id: validated.payableId },
         select: {
           id: true,
           totalAmount: true,
@@ -379,28 +379,28 @@ export async function addSupplierDebtPayment(input: AddSupplierDebtPaymentInput)
         },
       })
 
-      if (!existingDebt) throw new SupplierDebtActionError("Hutang supplier tidak ditemukan")
-      if (existingDebt.status === "paid") throw new SupplierDebtActionError("Hutang supplier sudah lunas")
+      if (!existingDebt) throw new SupplierPayableActionError("Hutang supplier tidak ditemukan")
+      if (existingDebt.status === "paid") throw new SupplierPayableActionError("Hutang supplier sudah lunas")
 
       const remainingAmount = existingDebt.totalAmount - existingDebt.paidAmount
-      validateSupplierDebtPaymentAmount(validated.amount, remainingAmount)
+      validateSupplierPayablePaymentAmount(validated.amount, remainingAmount)
 
       const nextPaidAmount = existingDebt.paidAmount + validated.amount
 
-      await tx.supplierDebtPayment.create({
+      await tx.supplierPayablePayment.create({
         data: {
-          debtId: validated.debtId,
+          payableId: validated.payableId,
           amount: validated.amount,
           paymentDate: validated.paymentDate ?? new Date(),
           note: normalizeOptionalText(validated.note),
         },
       })
 
-      return tx.supplierDebt.update({
-        where: { id: validated.debtId },
+      return tx.supplierPayable.update({
+        where: { id: validated.payableId },
         data: {
           paidAmount: nextPaidAmount,
-          status: getSupplierDebtStatus(existingDebt.totalAmount, nextPaidAmount),
+          status: getSupplierPayableStatus(existingDebt.totalAmount, nextPaidAmount),
         },
         include: {
           supplier: { select: { name: true } },
@@ -409,12 +409,12 @@ export async function addSupplierDebtPayment(input: AddSupplierDebtPaymentInput)
       })
     })
 
-    revalidateSupplierDebtPaths(tokoId)
+    revalidateSupplierPayablePaths(storeId)
 
-    return { success: true, data: toSupplierDebtListItem(debt) }
+    return { success: true, data: toSupplierPayableListItem(debt) }
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message }
-    if (error instanceof SupplierDebtActionError) return { success: false, error: error.message }
-    return actionError(error) as ActionResultWithData<SupplierDebtListItem>
+    if (error instanceof SupplierPayableActionError) return { success: false, error: error.message }
+    return actionError(error) as ActionResultWithData<SupplierPayableListItem>
   }
 }

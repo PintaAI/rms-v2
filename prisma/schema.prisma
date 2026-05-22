@@ -19,7 +19,7 @@ enum UserRole {
   superuser
 }
 
-enum TokoStatus {
+enum StoreStatus {
   active
   inactive
 }
@@ -60,7 +60,7 @@ enum SubscriptionPaymentMethod {
   other
 }
 
-enum TokoUserRole {
+enum StoreUserRole {
   owner
 }
 
@@ -69,40 +69,66 @@ enum PermissionEffect {
   deny
 }
 
-enum ServiceStatus {
+enum RepairOrderStatus {
   received
   repairing
   done
   failed
 }
 
-enum ItemType {
-  sparepart
-  service
+enum RepairOrderItemType {
+  inventory_item
+  service_catalog_item
 }
 
-enum InventoryItemKind {
-  sparepart
-  retail_item
+enum RepairInvoiceItemType {
+  inventory_item
+  service_catalog_item
 }
 
-enum StockMovementType {
+enum InventoryItemType {
+  repair_part
+  retail_product
+  phone_unit
+}
+
+enum InventoryMovementType {
   restock
-  service_usage
-  service_return
-  service_delete_return
-  retail_sale
-  retail_void
+  repair_usage
+  repair_return
+  repair_delete_return
+  sales_order
+  sales_order_void
   audit_adjustment
   supplier_return_replacement
+  unit_acquired
+  unit_sold
+  unit_returned
+  unit_adjusted
 }
 
-enum RetailSaleStatus {
+enum InventoryUnitCondition {
+  new
+  used_good
+  used_fair
+  refurbished
+  damaged
+}
+
+enum InventoryUnitStatus {
+  available
+  reserved
+  sold
+  returned
+  defective
+}
+
+enum SalesOrderStatus {
   paid
   void
 }
 
-enum RetailPaymentMethod {
+enum SalesPaymentMethod {
   cash
   transfer
   qris
@@ -173,7 +199,7 @@ enum PaymentStatus {
   paid
 }
 
-enum SupplierDebtStatus {
+enum SupplierPayableStatus {
   unpaid
   partial
   paid
@@ -219,7 +245,7 @@ enum AffiliateCommissionKind {
 // MODELS
 //////////////////////
 
-model Toko {
+model Store {
   id              String     @id @default(uuid())
   name            String
   address         String?
@@ -227,45 +253,46 @@ model Toko {
   logoUrl         String?
   invoiceTerms    String?
   invoiceWarranty String?
-  status          TokoStatus @default(active)
+  status          StoreStatus @default(active)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
-  userAssignments        UserToko[]
-  spareparts             Sparepart[]
-  sparepartCategories    SparepartCategory[]
-  servicePricelists      ServicePricelist[]
-  services               Service[]
+  userAssignments        UserStore[]
+  inventoryItems         InventoryItem[]
+  inventoryUnits         InventoryUnit[]
+  inventoryCategories    InventoryCategory[]
+  serviceCatalogItems    ServiceCatalogItem[]
+  repairOrders           RepairOrder[]
   warrantyClaims         WarrantyClaim[]
   supplierReturns        SupplierReturn[]
   activities             ActivityLog[]
   inventoryAuditSessions InventoryAuditSession[]
-  stockMovements         StockMovement[]
-  retailSales            RetailSale[]
+  inventoryMovements     InventoryMovement[]
+  salesOrders            SalesOrder[]
   suppliers              Supplier[]
-  supplierDebts          SupplierDebt[]
-  featureSetting         TokoFeatureSetting?
-  whatsappSetting        TokoWhatsappSetting?
-  whatsappIdentities     TokoWhatsappIdentity[]
-  userPermissions        TokoUserPermission[]
+  supplierPayables       SupplierPayable[]
+  featureSetting         StoreFeatureSetting?
+  whatsappSetting        StoreWhatsappSetting?
+  whatsappIdentities     StoreWhatsappIdentity[]
+  userPermissions        StoreUserPermission[]
 
   @@index([status])
-  @@map("toko")
+  @@map("store")
 }
 
-model TokoFeatureSetting {
-  tokoId           String   @id
+model StoreFeatureSetting {
+  storeId          String   @id
   disabledFeatures Json     @default("[]")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  @@map("toko_feature_setting")
+  @@map("store_feature_setting")
 }
 
-model TokoWhatsappSetting {
-  tokoId String @id
+model StoreWhatsappSetting {
+  storeId String @id
 
   instanceName         String  @unique
   instanceToken        String?
@@ -282,14 +309,14 @@ model TokoWhatsappSetting {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  @@map("toko_whatsapp_setting")
+  @@map("store_whatsapp_setting")
 }
 
-model TokoWhatsappIdentity {
+model StoreWhatsappIdentity {
   id          String   @id @default(cuid())
-  tokoId      String
+  storeId     String
   phoneNumber String
   phoneJid    String?
   lidJid      String?
@@ -298,12 +325,12 @@ model TokoWhatsappIdentity {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  @@unique([tokoId, phoneNumber])
-  @@index([tokoId, phoneJid])
-  @@index([tokoId, lidJid])
-  @@map("toko_whatsapp_identity")
+  @@unique([storeId, phoneNumber])
+  @@index([storeId, phoneJid])
+  @@index([storeId, lidJid])
+  @@map("store_whatsapp_identity")
 }
 
 model User {
@@ -318,60 +345,60 @@ model User {
   updatedAt                     DateTime                @updatedAt
   sessions                      Session[]
   accounts                      Account[]
-  tokoAssignments               UserToko[]
+  storeAssignments              UserStore[]
   subscription                  Subscription?
   subscriptionInvoices          SubscriptionInvoice[]
   reviewedSubscriptionPayments  SubscriptionPayment[]   @relation("SubscriptionPaymentReviewedBy")
-  createdServices               Service[]               @relation("ServiceCreatedBy")
-  assignedServices              Service[]               @relation("ServiceTechnician")
+  createdRepairOrders           RepairOrder[]           @relation("RepairOrderCreatedBy")
+  assignedRepairOrders          RepairOrder[]           @relation("RepairOrderTechnician")
   createdWarrantyClaims         WarrantyClaim[]         @relation("WarrantyClaimCreatedBy")
   resolvedWarrantyClaims        WarrantyClaim[]         @relation("WarrantyClaimResolvedBy")
   createdSupplierReturns        SupplierReturn[]        @relation("SupplierReturnCreatedBy")
   resolvedSupplierReturns       SupplierReturn[]        @relation("SupplierReturnResolvedBy")
   activities                    ActivityLog[]
   createdInventoryAuditSessions InventoryAuditSession[] @relation("InventoryAuditCreatedBy")
-  stockMovements                StockMovement[]
-  retailSales                   RetailSale[]
+  inventoryMovements            InventoryMovement[]
+  salesOrders                   SalesOrder[]
   affiliatorProfile             Affiliator?
   referredByReferral            Referral?
   affiliateCommissions          AffiliateCommission[]
-  tokoPermissions               TokoUserPermission[]
+  storePermissions              StoreUserPermission[]
 
   @@index([role])
   @@map("user")
 }
 
-model UserToko {
+model UserStore {
   userId    String
-  tokoId    String
-  role      TokoUserRole @default(owner)
+  storeId   String
+  role      StoreUserRole @default(owner)
   createdAt DateTime     @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
-  @@id([userId, tokoId])
+  @@id([userId, storeId])
   @@index([userId])
-  @@index([tokoId])
-  @@map("user_toko")
+  @@index([storeId])
+  @@map("user_store")
 }
 
-model TokoUserPermission {
+model StoreUserPermission {
   id            String           @id @default(cuid())
-  tokoId        String
+  storeId       String
   userId        String
   permissionKey String
   effect        PermissionEffect
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  toko Toko @relation(fields: [tokoId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([tokoId, userId, permissionKey])
-  @@index([tokoId, userId])
+  @@unique([storeId, userId, permissionKey])
+  @@index([storeId, userId])
   @@index([userId])
-  @@map("toko_user_permission")
+  @@map("store_user_permission")
 }
 
 model Subscription {
@@ -409,10 +436,10 @@ model SubscriptionInvoice {
 
   plan                SubscriptionPlan
   amount              Int
-  tokoCount           Int
-  includedTokos       Int?
-  additionalTokos     Int              @default(0)
-  additionalTokoPrice Int?
+  storeCount          Int
+  includedStores      Int?
+  additionalStores    Int              @default(0)
+  additionalStorePrice Int?
 
   status   SubscriptionInvoiceStatus @default(issued)
   issuedAt DateTime                  @default(now())
@@ -593,20 +620,20 @@ model Verification {
   @@map("verification")
 }
 
-// Global Brand model (not toko-specific) - available across all tokos
-model Brand {
+// Global DeviceBrand model (not store-specific) - available across all stores
+model DeviceBrand {
   id        String   @id @default(uuid())
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  hpCatalogs HpCatalog[]
+  deviceModels DeviceModel[]
 
-  @@map("brand")
+  @@map("device_brand")
 }
 
-// Global HpCatalog model (not toko-specific) - available across all tokos
-model HpCatalog {
+// Global DeviceModel model (not store-specific) - available across all stores
+model DeviceModel {
   id          String   @id @default(uuid())
   brandId     String
   modelName   String
@@ -616,16 +643,18 @@ model HpCatalog {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  brand           Brand                    @relation(fields: [brandId], references: [id])
-  services        Service[]
-  compatibilities SparepartCompatibility[]
+  brand           DeviceBrand         @relation(fields: [brandId], references: [id])
+  repairOrders    RepairOrder[]
+  inventoryItems  InventoryItem[]
+  inventoryUnits  InventoryUnit[]
+  compatibilities PartCompatibility[]
 
   @@unique([brandId, modelName])
   @@index([brandId, modelName])
-  @@map("hp_catalog")
+  @@map("device_model")
 }
 
-model Sparepart {
+model InventoryItem {
   id            String            @id @default(uuid())
   barcode       String
   name          String
@@ -637,44 +666,90 @@ model Sparepart {
   criticalStock Int               @default(5)
   warrantyDays  Int?
   isUniversal   Boolean           @default(false)
-  kind          InventoryItemKind @default(sparepart)
-  tokoId        String
+  type          InventoryItemType @default(repair_part)
+  storeId       String
+  deviceModelId String?
 
-  toko                Toko                     @relation(fields: [tokoId], references: [id])
-  category            SparepartCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  compatibilities     SparepartCompatibility[]
-  serviceItems        ServiceItem[]
+  store               Store                @relation(fields: [storeId], references: [id])
+  category            InventoryCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  deviceModel         DeviceModel?         @relation(fields: [deviceModelId], references: [id], onDelete: SetNull)
+  compatibilities     PartCompatibility[]
+  repairOrderItems    RepairOrderItem[]
   warrantyClaimItems  WarrantyClaimItem[]
   supplierReturns     SupplierReturn[]
   inventoryAuditItems InventoryAuditItem[]
-  stockMovements      StockMovement[]
-  retailSaleItems     RetailSaleItem[]
+  inventoryMovements  InventoryMovement[]
+  salesOrderItems     SalesOrderItem[]
 
-  @@unique([tokoId, name])
-  @@unique([tokoId, barcode])
-  @@index([tokoId])
+  @@unique([storeId, name])
+  @@unique([storeId, barcode])
+  @@index([storeId])
   @@index([categoryId])
-  @@map("sparepart")
+  @@index([deviceModelId])
+  @@map("inventory_item")
 }
 
-model SparepartCategory {
+model InventoryUnit {
+  id              String                 @id @default(uuid())
+  deviceModelId   String
+  storeId         String
+
+  imei            String?
+  serialNumber    String?
+
+  condition       InventoryUnitCondition @default(used_good)
+  status          InventoryUnitStatus    @default(available)
+
+  purchasePrice   Int
+  sellingPrice    Int
+
+  warrantyDays    Int?
+  warrantyUntil   DateTime?
+
+  notes           String?
+
+  acquiredAt      DateTime               @default(now())
+  soldAt          DateTime?
+  returnedAt      DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  store        Store                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  deviceModel  DeviceModel             @relation(fields: [deviceModelId], references: [id], onDelete: Cascade)
+  movements    InventoryMovement[]
+  salesOrderItem SalesOrderItem?         @relation("InventoryUnitSoldInSalesOrderItem")
+
+  @@unique([imei])
+  @@unique([serialNumber])
+  @@index([storeId])
+  @@index([deviceModelId])
+  @@index([status])
+  @@index([condition])
+  @@index([imei])
+  @@index([serialNumber])
+  @@index([acquiredAt])
+  @@index([storeId, status])
+  @@map("inventory_unit")
+}
+
+model InventoryCategory {
   id        String   @id @default(uuid())
   name      String
-  tokoId    String
+  storeId   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  toko       Toko        @relation(fields: [tokoId], references: [id])
-  spareparts Sparepart[]
+  store          Store           @relation(fields: [storeId], references: [id])
+  inventoryItems InventoryItem[]
 
-  @@unique([tokoId, name])
-  @@index([tokoId])
-  @@map("sparepart_category")
+  @@unique([storeId, name])
+  @@index([storeId])
+  @@map("inventory_category")
 }
 
 model Supplier {
   id        String   @id @default(uuid())
-  tokoId    String
+  storeId   String
   name      String
   phone     String?
   address   String?
@@ -682,82 +757,82 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  toko  Toko           @relation(fields: [tokoId], references: [id], onDelete: Cascade)
-  debts SupplierDebt[]
+  store    Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  payables SupplierPayable[]
 
-  @@unique([tokoId, name])
-  @@index([tokoId])
+  @@unique([storeId, name])
+  @@index([storeId])
   @@map("supplier")
 }
 
-model SupplierDebt {
+model SupplierPayable {
   id            String             @id @default(uuid())
-  tokoId        String
+  storeId       String
   supplierId    String
   invoiceNumber String?
   description   String?
   totalAmount   Int
   paidAmount    Int                @default(0)
   dueDate       DateTime?
-  status        SupplierDebtStatus @default(unpaid)
+  status        SupplierPayableStatus @default(unpaid)
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  toko     Toko                  @relation(fields: [tokoId], references: [id], onDelete: Cascade)
-  supplier Supplier              @relation(fields: [supplierId], references: [id])
-  payments SupplierDebtPayment[]
+  store    Store                    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  supplier Supplier                 @relation(fields: [supplierId], references: [id])
+  payments SupplierPayablePayment[]
 
-  @@index([tokoId])
+  @@index([storeId])
   @@index([supplierId])
   @@index([status])
   @@index([dueDate])
-  @@map("supplier_debt")
+  @@map("supplier_payable")
 }
 
-model SupplierDebtPayment {
+model SupplierPayablePayment {
   id          String   @id @default(uuid())
-  debtId      String
+  payableId   String
   amount      Int
   paymentDate DateTime @default(now())
   note        String?
   createdAt   DateTime @default(now())
 
-  debt SupplierDebt @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  payable SupplierPayable @relation(fields: [payableId], references: [id], onDelete: Cascade)
 
-  @@index([debtId])
+  @@index([payableId])
   @@index([paymentDate])
-  @@map("supplier_debt_payment")
+  @@map("supplier_payable_payment")
 }
 
-model SparepartCompatibility {
-  hpCatalogId String
-  sparepartId String
+model PartCompatibility {
+  deviceModelId   String
+  inventoryItemId String
 
-  hpCatalog HpCatalog @relation(fields: [hpCatalogId], references: [id])
-  sparepart Sparepart @relation(fields: [sparepartId], references: [id])
+  deviceModel   DeviceModel   @relation(fields: [deviceModelId], references: [id])
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
 
-  @@id([hpCatalogId, sparepartId])
-  @@map("sparepart_compatibility")
+  @@id([deviceModelId, inventoryItemId])
+  @@map("part_compatibility")
 }
 
-model ServicePricelist {
+model ServiceCatalogItem {
   id           String @id @default(uuid())
   title        String
   defaultPrice Int
-  tokoId       String
+  storeId      String
 
-  toko Toko @relation(fields: [tokoId], references: [id])
+  store Store @relation(fields: [storeId], references: [id])
 
-  @@unique([tokoId, title])
-  @@index([tokoId])
-  @@map("service_pricelist")
+  @@unique([storeId, title])
+  @@index([storeId])
+  @@map("service_catalog_item")
 }
 
-model Service {
+model RepairOrder {
   id String @id @default(uuid())
 
-  tokoId      String
-  hpCatalogId String
+  storeId       String
+  deviceModelId String
 
   // 👇 role dipisah
   createdById  String
@@ -772,7 +847,7 @@ model Service {
   passwordPattern String?
   note            String?
 
-  status     ServiceStatus @default(received)
+  status     RepairOrderStatus @default(received)
   isPickedUp Boolean       @default(false)
 
   checkinAt     DateTime  @default(now())
@@ -784,52 +859,52 @@ model Service {
   // 👇 anti double WA
   doneNotifiedAt DateTime?
 
-  toko      Toko      @relation(fields: [tokoId], references: [id])
-  hpCatalog HpCatalog @relation(fields: [hpCatalogId], references: [id])
+  store       Store       @relation(fields: [storeId], references: [id])
+  deviceModel DeviceModel @relation(fields: [deviceModelId], references: [id])
 
-  createdBy  User  @relation("ServiceCreatedBy", fields: [createdById], references: [id])
-  technician User? @relation("ServiceTechnician", fields: [technicianId], references: [id])
+  createdBy  User  @relation("RepairOrderCreatedBy", fields: [createdById], references: [id])
+  technician User? @relation("RepairOrderTechnician", fields: [technicianId], references: [id])
 
-  items          ServiceItem[]
-  invoice        Invoice?
+  items          RepairOrderItem[]
+  invoice        RepairInvoice?
   warrantyClaims WarrantyClaim[]
 
   activities ActivityLog[]
 
-  @@index([tokoId])
+  @@index([storeId])
   @@index([status])
   @@index([checkinAt])
   @@index([noWa])
   @@index([technicianId])
-  @@index([tokoId, status])
-  @@index([tokoId, checkinAt])
-  @@index([tokoId, noWa])
-  @@map("service")
+  @@index([storeId, status])
+  @@index([storeId, checkinAt])
+  @@index([storeId, noWa])
+  @@map("repair_order")
 }
 
-model ServiceItem {
-  id        String @id @default(uuid())
-  serviceId String
+model RepairOrderItem {
+  id            String @id @default(uuid())
+  repairOrderId String
 
-  type        ItemType
+  type        RepairOrderItemType
   referenceId String?
 
   name  String
   qty   Int    @default(1)
   price Int
 
-  service   Service    @relation(fields: [serviceId], references: [id])
-  sparepart Sparepart? @relation(fields: [referenceId], references: [id], map: "service_item_sparepart_fk")
+  repairOrder   RepairOrder    @relation(fields: [repairOrderId], references: [id])
+  inventoryItem InventoryItem? @relation(fields: [referenceId], references: [id], map: "repair_order_item_inventory_item_fk")
 
-  @@index([serviceId])
+  @@index([repairOrderId])
   @@index([type])
   @@index([referenceId])
-  @@map("service_item")
+  @@map("repair_order_item")
 }
 
-model Invoice {
-  id        String @id @default(uuid())
-  serviceId String @unique
+model RepairInvoice {
+  id            String @id @default(uuid())
+  repairOrderId String @unique
 
   grandTotal     Int
   paymentStatus  PaymentStatus @default(unpaid)
@@ -838,88 +913,91 @@ model Invoice {
   paidAt         DateTime?
   createdAt      DateTime      @default(now())
 
-  service Service       @relation(fields: [serviceId], references: [id])
-  items   InvoiceItem[]
+  repairOrder RepairOrder         @relation(fields: [repairOrderId], references: [id])
+  items       RepairInvoiceItem[]
 
-  @@map("invoice")
+  @@map("repair_invoice")
 }
 
-model InvoiceItem {
-  id            String   @id @default(uuid())
-  invoiceId     String
-  serviceItemId String?
-  type          ItemType
+model RepairInvoiceItem {
+  id              String   @id @default(uuid())
+  repairInvoiceId String
+  repairOrderItemId String?
+  type          RepairInvoiceItemType
   referenceId   String?
   name          String
   qty           Int
   price         Int
   createdAt     DateTime @default(now())
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  repairInvoice RepairInvoice @relation(fields: [repairInvoiceId], references: [id], onDelete: Cascade)
 
-  @@index([invoiceId])
-  @@index([serviceItemId])
-  @@map("invoice_item")
+  @@index([repairInvoiceId])
+  @@index([repairOrderItemId])
+  @@map("repair_invoice_item")
 }
 
-model RetailSale {
+model SalesOrder {
   id             String              @id @default(uuid())
-  tokoId         String
+  storeId        String
   createdById    String
   customerName   String?
   customerPhone  String?
   subtotal       Int
   discountAmount Int                 @default(0)
   grandTotal     Int
-  paymentMethod  RetailPaymentMethod
+  paymentMethod  SalesPaymentMethod
   cashReceived   Int?
   changeAmount   Int?
-  status         RetailSaleStatus    @default(paid)
+  status         SalesOrderStatus    @default(paid)
   paidAt         DateTime            @default(now())
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
-  toko      Toko             @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  store     Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdBy User             @relation(fields: [createdById], references: [id])
-  items     RetailSaleItem[]
+  items     SalesOrderItem[]
 
-  @@index([tokoId])
+  @@index([storeId])
   @@index([createdById])
   @@index([status])
   @@index([paymentMethod])
   @@index([paidAt])
-  @@index([tokoId, paidAt])
-  @@map("retail_sale")
+  @@index([storeId, paidAt])
+  @@map("sales_order")
 }
 
-model RetailSaleItem {
+model SalesOrderItem {
   id                   String            @id @default(uuid())
-  saleId               String
-  sparepartId          String?
+  salesOrderId         String
+  inventoryItemId      String?
+  inventoryUnitId      String?            @unique
   name                 String
   barcode              String?
-  kind                 InventoryItemKind
+  kind                 InventoryItemType
   qty                  Int
   unitPrice            Int
   unitCostSnapshot     Int?
   warrantyDaysSnapshot Int?
-  warrantyUntil         DateTime?
+  warrantyUntil        DateTime?
   lineTotal            Int
   createdAt            DateTime          @default(now())
 
-  sale      RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  sparepart Sparepart? @relation(fields: [sparepartId], references: [id], onDelete: SetNull)
+  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  inventoryUnit InventoryUnit? @relation("InventoryUnitSoldInSalesOrderItem", fields: [inventoryUnitId], references: [id], onDelete: SetNull)
 
-  @@index([saleId])
-  @@index([sparepartId])
+  @@index([salesOrderId])
+  @@index([inventoryItemId])
+  @@index([inventoryUnitId])
   @@index([kind])
-  @@map("retail_sale_item")
+  @@map("sales_order_item")
 }
 
 model WarrantyClaim {
   id        String @id @default(uuid())
-  tokoId    String
-  serviceId String
+  storeId   String
+  repairOrderId String
 
   status     WarrantyClaimStatus      @default(open)
   resolution WarrantyClaimResolution?
@@ -935,15 +1013,15 @@ model WarrantyClaim {
   createdAt    DateTime  @default(now())
   resolvedAt   DateTime?
 
-  toko            Toko                @relation(fields: [tokoId], references: [id])
-  service         Service             @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  store           Store               @relation(fields: [storeId], references: [id])
+  repairOrder     RepairOrder         @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
   createdBy       User                @relation("WarrantyClaimCreatedBy", fields: [createdById], references: [id])
   resolvedBy      User?               @relation("WarrantyClaimResolvedBy", fields: [resolvedById], references: [id])
   items           WarrantyClaimItem[]
   supplierReturns SupplierReturn[]
 
-  @@index([tokoId])
-  @@index([serviceId])
+  @@index([storeId])
+  @@index([repairOrderId])
   @@index([status])
   @@index([createdAt])
   @@map("warranty_claim")
@@ -951,9 +1029,9 @@ model WarrantyClaim {
 
 model SupplierReturn {
   id              String  @id @default(uuid())
-  tokoId          String
+  storeId         String
   warrantyClaimId String?
-  sparepartId     String
+  inventoryItemId String
 
   qty          Int
   supplierName String?
@@ -969,15 +1047,15 @@ model SupplierReturn {
   sentAt       DateTime?
   resolvedAt   DateTime?
 
-  toko          Toko           @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
   warrantyClaim WarrantyClaim? @relation(fields: [warrantyClaimId], references: [id], onDelete: SetNull)
-  sparepart     Sparepart      @relation(fields: [sparepartId], references: [id])
+  inventoryItem InventoryItem  @relation(fields: [inventoryItemId], references: [id])
   createdBy     User           @relation("SupplierReturnCreatedBy", fields: [createdById], references: [id])
   resolvedBy    User?          @relation("SupplierReturnResolvedBy", fields: [resolvedById], references: [id])
 
-  @@index([tokoId])
+  @@index([storeId])
   @@index([warrantyClaimId])
-  @@index([sparepartId])
+  @@index([inventoryItemId])
   @@index([status])
   @@index([createdAt])
   @@map("supplier_return")
@@ -986,23 +1064,23 @@ model SupplierReturn {
 model WarrantyClaimItem {
   id              String  @id @default(uuid())
   warrantyClaimId String
-  sparepartId     String?
+  inventoryItemId String?
 
   name  String
   qty   Int    @default(1)
   price Int    @default(0)
 
-  warrantyClaim WarrantyClaim @relation(fields: [warrantyClaimId], references: [id], onDelete: Cascade)
-  sparepart     Sparepart?    @relation(fields: [sparepartId], references: [id], onDelete: SetNull)
+  warrantyClaim WarrantyClaim  @relation(fields: [warrantyClaimId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
   @@index([warrantyClaimId])
-  @@index([sparepartId])
+  @@index([inventoryItemId])
   @@map("warranty_claim_item")
 }
 
 model InventoryAuditSession {
   id          String               @id @default(uuid())
-  tokoId      String
+  storeId     String
   createdById String
   status      InventoryAuditStatus @default(active)
   startedAt   DateTime             @default(now())
@@ -1011,23 +1089,23 @@ model InventoryAuditSession {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  toko      Toko                 @relation(fields: [tokoId], references: [id], onDelete: Cascade)
+  store     Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdBy User                 @relation("InventoryAuditCreatedBy", fields: [createdById], references: [id])
   items     InventoryAuditItem[]
 
-  @@index([tokoId])
+  @@index([storeId])
   @@index([createdById])
   @@index([status])
-  @@index([tokoId, status])
-  @@index([tokoId, startedAt])
+  @@index([storeId, status])
+  @@index([storeId, startedAt])
   @@map("inventory_audit_session")
 }
 
 model InventoryAuditItem {
   id                    String                        @id @default(uuid())
   sessionId             String
-  sparepartId           String
-  sparepartName         String
+  inventoryItemId       String
+  inventoryItemName     String
   systemStock           Int
   physicalStock         Int?
   snapshotPrice         Int
@@ -1043,22 +1121,23 @@ model InventoryAuditItem {
   createdAt             DateTime                      @default(now())
   updatedAt             DateTime                      @updatedAt
 
-  session   InventoryAuditSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  sparepart Sparepart             @relation(fields: [sparepartId], references: [id])
+  session       InventoryAuditSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem         @relation(fields: [inventoryItemId], references: [id])
 
-  @@unique([sessionId, sparepartId])
+  @@unique([sessionId, inventoryItemId])
   @@index([sessionId])
-  @@index([sessionId, sparepartName])
-  @@index([sparepartId])
+  @@index([sessionId, inventoryItemName])
+  @@index([inventoryItemId])
   @@index([status])
   @@map("inventory_audit_item")
 }
 
-model StockMovement {
+model InventoryMovement {
   id                String            @id @default(uuid())
-  tokoId            String
-  sparepartId       String
-  type              StockMovementType
+  storeId           String
+  inventoryItemId   String?
+  inventoryUnitId   String?
+  type              InventoryMovementType
   qtyChange         Int
   stockBefore       Int
   stockAfter        Int
@@ -1070,19 +1149,22 @@ model StockMovement {
   createdById       String
   createdAt         DateTime          @default(now())
 
-  toko      Toko      @relation(fields: [tokoId], references: [id], onDelete: Cascade)
-  sparepart Sparepart @relation(fields: [sparepartId], references: [id])
-  createdBy User      @relation(fields: [createdById], references: [id])
+  store         Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  inventoryUnit InventoryUnit? @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
+  createdBy     User          @relation(fields: [createdById], references: [id])
 
-  @@index([tokoId])
-  @@index([sparepartId])
+  @@index([storeId])
+  @@index([inventoryItemId])
+  @@index([inventoryUnitId])
   @@index([createdById])
   @@index([type])
   @@index([createdAt])
-  @@index([tokoId, createdAt])
-  @@index([tokoId, sparepartId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([storeId, inventoryItemId, createdAt])
+  @@index([storeId, inventoryUnitId, createdAt])
   @@index([referenceType, referenceId])
-  @@map("stock_movement")
+  @@map("inventory_movement")
 }
 
 //////////////////////
@@ -1091,8 +1173,8 @@ model StockMovement {
 
 model ActivityLog {
   id        String  @id @default(uuid())
-  tokoId    String
-  serviceId String?
+  storeId   String
+  repairOrderId String?
   userId    String
 
   type    ActivityType
@@ -1101,14 +1183,14 @@ model ActivityLog {
 
   createdAt DateTime @default(now())
 
-  toko    Toko     @relation(fields: [tokoId], references: [id])
-  service Service? @relation(fields: [serviceId], references: [id])
-  user    User     @relation(fields: [userId], references: [id])
+  store       Store        @relation(fields: [storeId], references: [id])
+  repairOrder RepairOrder? @relation(fields: [repairOrderId], references: [id])
+  user        User         @relation(fields: [userId], references: [id])
 
-  @@index([tokoId])
-  @@index([serviceId])
+  @@index([storeId])
+  @@index([repairOrderId])
   @@index([userId])
   @@index([type])
-  @@index([tokoId, createdAt])
+  @@index([storeId, createdAt])
   @@map("activity_log")
 }

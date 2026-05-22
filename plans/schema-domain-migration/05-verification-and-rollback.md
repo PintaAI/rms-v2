@@ -41,12 +41,24 @@ Row counts should match old counts:
 - `supplier_payable` from `supplier_debt`
 - `supplier_payable_payment` from `supplier_debt_payment`
 
+Unchanged table row counts should also match their pre-migration counts:
+
+- `subscription_invoice`
+- `supplier`
+- `supplier_return`
+- `warranty_claim`
+- `warranty_claim_item`
+- `inventory_audit_session`
+- `inventory_audit_item`
+- `activity_log`
+
 Integrity checks:
 
 - All `repair_order.deviceModelId` values point to `device_model.id`.
 - All `repair_order.storeId` values point to `store.id`.
 - All `inventory_item.storeId` values point to `store.id`.
 - All `inventory_item.categoryId` values are nullable or point to `inventory_category.id`.
+- All non-null `inventory_item.deviceModelId` values point to `device_model.id`.
 - All `part_compatibility.deviceModelId` values point to `device_model.id`.
 - All `part_compatibility.inventoryItemId` values point to `inventory_item.id`.
 - All `repair_invoice.repairOrderId` values point to `repair_order.id`.
@@ -57,11 +69,17 @@ Integrity checks:
 - All permission overrides still point to existing users and stores.
 - All WhatsApp settings and identities still point to existing stores.
 - All inventory audit rows still point to existing stores and inventory items.
+- All suppliers still point to existing stores.
+- All supplier returns still point to existing stores and inventory items.
+- All warranty claims still point to existing stores and repair orders.
+- All warranty claim items with an inventory item still point to existing inventory items.
+- All activity logs still point to existing stores and, when present, existing repair orders.
+- `subscription_invoice.storeCount`, `includedStores`, `additionalStores`, and `additionalStorePrice` preserve the pre-migration values from the corresponding `toko*` columns.
 
 Enum checks:
 
-- No `InventoryItemType` rows use old `sparepart` or `retail_item` values.
-- No `InventoryMovementType` rows use old `service_usage`, `service_return`, `service_delete_return`, `retail_sale`, or `retail_void` values.
+- No rows in `inventory_item.type` use old `sparepart` or `retail_item` values.
+- No rows in `inventory_movement.type` use old `service_usage`, `service_return`, `service_delete_return`, `retail_sale`, or `retail_void` values.
 - `ActivityType` values still match the pre-migration snapshot.
 
 ## Application Checks
@@ -139,6 +157,7 @@ The migration is complete only when:
 - Prisma client generates cleanly.
 - No old Prisma delegates remain in application code.
 - Raw SQL references have been updated.
+- Old generated Prisma relation field names have been removed or explicitly documented as intentional.
 - Smoke checks pass.
 - Monitoring shows no new schema-related errors.
 - Deferred naming cleanup items are documented as follow-up work.

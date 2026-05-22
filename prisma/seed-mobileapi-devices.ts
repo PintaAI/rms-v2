@@ -328,7 +328,7 @@ function sleep(ms: number) {
 }
 
 async function upsertDevice(device: MobileApiDevice, importStrategy: string) {
-  const brand = await prisma.brand.upsert({
+  const deviceBrand = await prisma.deviceBrand.upsert({
     where: { name: device.brandName },
     update: {},
     create: { name: device.brandName },
@@ -352,16 +352,16 @@ async function upsertDevice(device: MobileApiDevice, importStrategy: string) {
     hardware: device.hardware,
   };
 
-  const byMobileApiId = await prisma.hpCatalog.findUnique({
+  const byMobileApiId = await prisma.deviceModel.findUnique({
     where: { mobileApiId: device.id },
     select: { id: true },
   });
 
   if (byMobileApiId) {
-    await prisma.hpCatalog.update({
+    await prisma.deviceModel.update({
       where: { id: byMobileApiId.id },
       data: {
-        brandId: brand.id,
+        brandId: deviceBrand.id,
         modelName: device.name,
         modelNumber: device.modelNumber ?? undefined,
         metadata,
@@ -370,13 +370,13 @@ async function upsertDevice(device: MobileApiDevice, importStrategy: string) {
     return "updated" as const;
   }
 
-  const existingByName = await prisma.hpCatalog.findFirst({
-    where: { brandId: brand.id, modelName: device.name },
+  const existingByName = await prisma.deviceModel.findFirst({
+    where: { brandId: deviceBrand.id, modelName: device.name },
     select: { id: true },
   });
 
   if (existingByName) {
-    await prisma.hpCatalog.update({
+    await prisma.deviceModel.update({
       where: { id: existingByName.id },
       data: {
         modelNumber: device.modelNumber ?? undefined,
@@ -387,9 +387,9 @@ async function upsertDevice(device: MobileApiDevice, importStrategy: string) {
     return "updated" as const;
   }
 
-  await prisma.hpCatalog.create({
+  await prisma.deviceModel.create({
     data: {
-      brandId: brand.id,
+      brandId: deviceBrand.id,
       modelName: device.name,
       modelNumber: device.modelNumber,
       mobileApiId: device.id,

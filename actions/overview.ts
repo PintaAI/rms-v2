@@ -46,7 +46,7 @@ export interface AdminOverviewRecentService {
   doneAt: Date | null;
   warrantyUntil: Date | null;
   checkoutAt: Date | null;
-  hpCatalog: {
+  deviceModel: {
     id: string;
     modelName: string;
     brand: { name: string };
@@ -81,10 +81,10 @@ export interface AdminOverviewActivityItem {
   user: {
     name: string;
   };
-  service: {
+  repairOrder: {
     id: string;
     customerName: string | null;
-    hpCatalog: {
+    deviceModel: {
       modelName: string;
       brand: { name: string };
     };
@@ -120,7 +120,7 @@ const recentServiceSelect = {
   doneAt: true,
   warrantyUntil: true,
   checkoutAt: true,
-  hpCatalog: {
+  deviceModel: {
     select: {
       id: true,
       modelName: true,
@@ -154,11 +154,11 @@ const activityLogSelect = {
       name: true,
     },
   },
-  service: {
+  repairOrder: {
     select: {
       id: true,
       customerName: true,
-      hpCatalog: {
+      deviceModel: {
         select: {
           modelName: true,
           brand: { select: { name: true } },
@@ -180,16 +180,16 @@ interface SharedOverviewData {
   total: number;
 }
 
-async function getSharedOverviewData(targetTokoId: string): Promise<ActionResultWithData<SharedOverviewData>> {
+async function getSharedOverviewData(targetStoreId: string): Promise<ActionResultWithData<SharedOverviewData>> {
   const now = new Date();
   const dailyStart = new Date(now);
   dailyStart.setHours(0, 0, 0, 0);
   const weeklyStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthlyStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const serviceStatusCounts = await prisma.service.groupBy({
+  const serviceStatusCounts = await prisma.repairOrder.groupBy({
     by: ["status"],
-    where: { tokoId: targetTokoId },
+    where: { storeId: targetStoreId },
     _count: { status: true },
   });
 
@@ -198,25 +198,25 @@ async function getSharedOverviewData(targetTokoId: string): Promise<ActionResult
     statusMap[row.status] = row._count.status;
   }
 
-  const pickedUpCount = await prisma.service.count({
-    where: { tokoId: targetTokoId, isPickedUp: true },
+  const pickedUpCount = await prisma.repairOrder.count({
+    where: { storeId: targetStoreId, isPickedUp: true },
   });
 
   const [dailyCount, weeklyCount, lowStockCount, recentServices] = await Promise.all([
-    prisma.service.count({
-      where: { tokoId: targetTokoId, checkinAt: { gte: dailyStart } },
+    prisma.repairOrder.count({
+      where: { storeId: targetStoreId, checkinAt: { gte: dailyStart } },
     }),
-    prisma.service.count({
-      where: { tokoId: targetTokoId, checkinAt: { gte: weeklyStart } },
+    prisma.repairOrder.count({
+      where: { storeId: targetStoreId, checkinAt: { gte: weeklyStart } },
     }),
     prisma.$queryRaw<{ count: number }[]>`
       SELECT COUNT(*)::int AS count
-      FROM "sparepart"
-      WHERE "tokoId" = ${targetTokoId}
+      FROM "inventory_item"
+      WHERE "storeId" = ${targetStoreId}
         AND "stock" <= "criticalStock"
     `,
-    prisma.service.findMany({
-      where: { tokoId: targetTokoId },
+    prisma.repairOrder.findMany({
+      where: { storeId: targetStoreId },
       orderBy: { checkinAt: "desc" },
       take: 5,
       select: recentServiceSelect,
@@ -248,26 +248,26 @@ async function getSharedOverviewData(targetTokoId: string): Promise<ActionResult
 }
 
 export async function getAdminOverview(
-  tokoId?: string
+  storeId?: string
 ): Promise<ActionResultWithData<AdminOverviewData>> {
-  if (!tokoId) {
+  if (!storeId) {
     const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
-    tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "No toko found" };
+    storeId = user.storeIds[0];
+    if (!storeId) return { success: false, error: "No toko found" };
   }
 
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "dashboard.view");
 
-    const shared = await getSharedOverviewData(tokoId);
+    const shared = await getSharedOverviewData(storeId);
     if (!shared.success || !shared.data) throw new Error(shared.error ?? "Failed to fetch overview data");
 
     const { dailyStart, monthlyStart, statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
 
     const canUseRealtimeUpdates = scope.featureAccess["realtime.updates"] ?? false;
     const canViewRevenueAnalytics = scope.featureAccess["analytics.revenue"] ?? false;
-    const canUseRetailSales = scope.featureAccess["retail.sales"] ?? false;
+    const canUseSalesOrders = scope.featureAccess["retail.sales"] ?? false;
     const canUseInventoryManagement = scope.featureAccess["inventory.management"] ?? false;
 
     const [
@@ -285,43 +285,43 @@ export async function getAdminOverview(
       recentActivities,
     ] = await Promise.all([
       canViewRevenueAnalytics
-        ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
+        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
       canViewRevenueAnalytics
-        ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: { in: ["unpaid", "dp"] }, createdAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
+        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: { in: ["unpaid", "dp"] }, createdAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
       canViewRevenueAnalytics
-        ? prisma.invoice.aggregate({ where: { service: { tokoId }, paymentStatus: "paid", paidAt: { gte: dailyStart } }, _sum: { grandTotal: true } })
+        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: "paid", paidAt: { gte: dailyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
       canViewRevenueAnalytics
-        ? prisma.warrantyClaim.aggregate({ where: { tokoId, status: "resolved", refundAmount: { gt: 0 }, resolvedAt: { gte: monthlyStart } }, _sum: { refundAmount: true } })
+        ? prisma.warrantyClaim.aggregate({ where: { storeId, status: "resolved", refundAmount: { gt: 0 }, resolvedAt: { gte: monthlyStart } }, _sum: { refundAmount: true } })
         : Promise.resolve({ _sum: { refundAmount: 0 } }),
       canViewRevenueAnalytics
-        ? prisma.warrantyClaim.aggregate({ where: { tokoId, status: "resolved", refundAmount: { gt: 0 }, resolvedAt: { gte: dailyStart } }, _sum: { refundAmount: true } })
+        ? prisma.warrantyClaim.aggregate({ where: { storeId, status: "resolved", refundAmount: { gt: 0 }, resolvedAt: { gte: dailyStart } }, _sum: { refundAmount: true } })
         : Promise.resolve({ _sum: { refundAmount: 0 } }),
-      canViewRevenueAnalytics && canUseRetailSales
-        ? prisma.retailSale.aggregate({ where: { tokoId, status: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
+      canViewRevenueAnalytics && canUseSalesOrders
+        ? prisma.salesOrder.aggregate({ where: { storeId, status: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
         : Promise.resolve({ _sum: { grandTotal: 0 } }),
       canViewRevenueAnalytics && canUseInventoryManagement
-        ? prisma.supplierDebt.aggregate({ where: { tokoId, status: { in: ["unpaid", "partial"] } }, _sum: { totalAmount: true, paidAmount: true } })
+        ? prisma.supplierPayable.aggregate({ where: { storeId, status: { in: ["unpaid", "partial"] } }, _sum: { totalAmount: true, paidAmount: true } })
         : Promise.resolve({ _sum: { totalAmount: 0, paidAmount: 0 } }),
       canViewRevenueAnalytics && canUseInventoryManagement
-        ? prisma.supplierDebtPayment.aggregate({ where: { paymentDate: { gte: monthlyStart }, debt: { tokoId } }, _sum: { amount: true } })
+        ? prisma.supplierPayablePayment.aggregate({ where: { paymentDate: { gte: monthlyStart }, payable: { storeId } }, _sum: { amount: true } })
         : Promise.resolve({ _sum: { amount: 0 } }),
       canViewRevenueAnalytics && canUseInventoryManagement
-        ? prisma.supplierReturn.aggregate({ where: { tokoId, status: "refunded", resolvedAt: { gte: monthlyStart } }, _sum: { refundAmount: true } })
+        ? prisma.supplierReturn.aggregate({ where: { storeId, status: "refunded", resolvedAt: { gte: monthlyStart } }, _sum: { refundAmount: true } })
         : Promise.resolve({ _sum: { refundAmount: 0 } }),
       canViewRevenueAnalytics && canUseInventoryManagement
-        ? prisma.supplierReturn.count({ where: { tokoId, status: { in: ["pending", "sent"] } } })
+        ? prisma.supplierReturn.count({ where: { storeId, status: { in: ["pending", "sent"] } } })
         : Promise.resolve(0),
       canViewRevenueAnalytics && canUseInventoryManagement
         ? prisma.supplierReturn.findMany({
-            where: { tokoId, status: { in: ["pending", "sent"] } },
-            select: { qty: true, sparepart: { select: { purchasePrice: true } } },
+            where: { storeId, status: { in: ["pending", "sent"] } },
+            select: { qty: true, inventoryItem: { select: { purchasePrice: true } } },
           })
         : Promise.resolve([]),
       canUseRealtimeUpdates
-        ? prisma.activityLog.findMany({ where: { tokoId }, orderBy: { createdAt: "desc" }, take: 6, select: activityLogSelect })
+        ? prisma.activityLog.findMany({ where: { storeId }, orderBy: { createdAt: "desc" }, take: 6, select: activityLogSelect })
         : Promise.resolve([]),
     ]);
 
@@ -333,7 +333,7 @@ export async function getAdminOverview(
     const supplierDebtPaymentsThisMonth = supplierDebtPayments._sum.amount || 0;
     const supplierReturnRefundedThisMonth = supplierReturnRefunds._sum.refundAmount || 0;
     const supplierReturnPendingValue = supplierReturnPendingItems.reduce(
-      (total, item) => total + item.qty * (item.sparepart.purchasePrice ?? 0),
+      (total, item) => total + item.qty * (item.inventoryItem.purchasePrice ?? 0),
       0
     );
     const cashBersihMonth = monthlyIncome + supplierReturnRefundedThisMonth - supplierDebtPaymentsThisMonth;
@@ -368,19 +368,19 @@ export async function getAdminOverview(
 }
 
 export async function getStaffOverview(
-  tokoId?: string
+  storeId?: string
 ): Promise<ActionResultWithData<StaffOverviewData>> {
-  if (!tokoId) {
+  if (!storeId) {
     const user = await getRequestUser();
     if (!user) return { success: false, error: "Unauthorized" };
-    tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "No toko found" };
+    storeId = user.storeIds[0];
+    if (!storeId) return { success: false, error: "No toko found" };
   }
 
-  return withScope(tokoId, { feature: "staff.workflow" }, async (scope) => {
+  return withScope(storeId, { feature: "staff.workflow" }, async (scope) => {
     assertPermission(scope, "dashboard.view");
 
-    const shared = await getSharedOverviewData(tokoId);
+    const shared = await getSharedOverviewData(storeId);
     if (!shared.success || !shared.data) throw new Error(shared.error ?? "Failed to fetch overview data");
 
     const { statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;

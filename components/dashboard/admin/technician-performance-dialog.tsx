@@ -187,7 +187,7 @@ export function TechnicianPerformanceDialog({
                               </div>
                             </TableCell>
                             <TableCell>
-                              {service.hpCatalog.brand.name} {service.hpCatalog.modelName}
+                              {service.deviceModel.brand.name} {service.deviceModel.modelName}
                             </TableCell>
                             <TableCell className="max-w-72 truncate" title={service.complaint}>
                               {service.complaint}

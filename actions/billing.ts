@@ -36,10 +36,10 @@ export type BillingInvoiceRow = {
   invoiceNumber: string;
   plan: SubscriptionPlan;
   amount: number;
-  tokoCount: number;
-  includedTokos: number | null;
-  additionalTokos: number;
-  additionalTokoPrice: number | null;
+  storeCount: number;
+  includedStores: number | null;
+  additionalStores: number;
+  additionalStorePrice: number | null;
   status: SubscriptionInvoiceStatus;
   issuedAt: Date;
   dueAt: Date;
@@ -105,23 +105,23 @@ export async function createProSubscriptionInvoice(): Promise<ActionResultWithDa
   return { success: true, data: serializeInvoice(invoice) };
 }
 
-export async function submitSubscriptionPaymentProof(formData: FormData): Promise<ActionResultWithData<{ invoiceId: string }>> {
+export async function submitSubscriptionPaymentProof(formData: FormData): Promise<ActionResultWithData<{ repairInvoiceId: string }>> {
   const user = await requireRequestUser();
   if (user.role !== "admin") return { success: false, error: "Only admin owners can submit payment proof" };
 
-  const invoiceId = String(formData.get("invoiceId") ?? "");
+  const repairInvoiceId = String(formData.get("repairInvoiceId") ?? "");
   const amount = Number(formData.get("amount") ?? 0);
   const method = String(formData.get("method") ?? "bank_transfer") as SubscriptionPaymentMethod;
   const referenceNumber = String(formData.get("referenceNumber") ?? "").trim() || null;
   const note = String(formData.get("note") ?? "").trim() || null;
   const file = formData.get("proof") as File | null;
 
-  if (!invoiceId) return { success: false, error: "Invoice is required" };
+  if (!repairInvoiceId) return { success: false, error: "Invoice is required" };
   if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: "Amount must be greater than zero" };
   if (!["bank_transfer", "qris", "ewallet", "other"].includes(method)) return { success: false, error: "Invalid payment method" };
 
   const invoice = await prisma.subscriptionInvoice.findFirst({
-    where: { id: invoiceId, userId: user.id, status: { in: ["issued", "rejected", "overdue"] } },
+    where: { id: repairInvoiceId, userId: user.id, status: { in: ["issued", "rejected", "overdue"] } },
     select: { id: true },
   });
   if (!invoice) return { success: false, error: "Invoice cannot accept payment proof" };
@@ -129,14 +129,14 @@ export async function submitSubscriptionPaymentProof(formData: FormData): Promis
   let proofUrl: string | null = null;
   if (file && file.size > 0) {
     if (file.size > 5 * 1024 * 1024) return { success: false, error: "Proof file max size is 5MB" };
-    const blob = await put(`billing/${user.id}/${invoiceId}/${Date.now()}-${file.name}`, file, { access: "public" });
+    const blob = await put(`billing/${user.id}/${repairInvoiceId}/${Date.now()}-${file.name}`, file, { access: "public" });
     proofUrl = blob.url;
   }
 
   await prisma.$transaction([
     prisma.subscriptionPayment.create({
       data: {
-        invoiceId,
+        invoiceId: repairInvoiceId,
         amount,
         method,
         referenceNumber,
@@ -146,14 +146,14 @@ export async function submitSubscriptionPaymentProof(formData: FormData): Promis
       },
     }),
     prisma.subscriptionInvoice.update({
-      where: { id: invoiceId },
+      where: { id: repairInvoiceId },
       data: { status: "pending_review" },
     }),
   ]);
 
   revalidatePath("/dashboard");
   revalidatePath("/superuser");
-  return { success: true, data: { invoiceId } };
+  return { success: true, data: { repairInvoiceId } };
 }
 
 function serializeInvoice(invoice: {
@@ -161,10 +161,10 @@ function serializeInvoice(invoice: {
   invoiceNumber: string;
   plan: SubscriptionPlan;
   amount: number;
-  tokoCount: number;
-  includedTokos: number | null;
-  additionalTokos: number;
-  additionalTokoPrice: number | null;
+  storeCount: number;
+  includedStores: number | null;
+  additionalStores: number;
+  additionalStorePrice: number | null;
   status: SubscriptionInvoiceStatus;
   issuedAt: Date;
   dueAt: Date;
@@ -187,10 +187,10 @@ function serializeInvoice(invoice: {
     invoiceNumber: invoice.invoiceNumber,
     plan: invoice.plan,
     amount: invoice.amount,
-    tokoCount: invoice.tokoCount,
-    includedTokos: invoice.includedTokos,
-    additionalTokos: invoice.additionalTokos,
-    additionalTokoPrice: invoice.additionalTokoPrice,
+    storeCount: invoice.storeCount,
+    includedStores: invoice.includedStores,
+    additionalStores: invoice.additionalStores,
+    additionalStorePrice: invoice.additionalStorePrice,
     status: invoice.status,
     issuedAt: invoice.issuedAt,
     dueAt: invoice.dueAt,

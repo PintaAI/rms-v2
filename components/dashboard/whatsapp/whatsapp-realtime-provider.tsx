@@ -20,6 +20,8 @@ interface WhatsappRealtimeContextValue {
   openChatRequest: WhatsappOpenChatRequest | null;
   requestOpenChat: (target: Omit<WhatsappOpenChatRequest, "id">) => void;
   setInboxOpen: (open: boolean) => void;
+  markChatRead: (chat: WhatsappInboxChat) => void;
+  isChatRead: (chat: WhatsappInboxChat) => boolean;
 }
 
 const WhatsappRealtimeContext = React.createContext<WhatsappRealtimeContextValue | null>(null);
@@ -33,6 +35,8 @@ const DISABLED_WHATSAPP_REALTIME_CONTEXT: WhatsappRealtimeContextValue = {
   openChatRequest: null,
   requestOpenChat: () => undefined,
   setInboxOpen: () => undefined,
+  markChatRead: () => undefined,
+  isChatRead: () => false,
 };
 
 interface IncomingWhatsappMessage {
@@ -143,6 +147,7 @@ export function WhatsappRealtimeProvider({ children }: { children: React.ReactNo
   const queryClient = useQueryClient();
   const processedMessageIdsRef = React.useRef(new Set<string>());
   const seenChatKeysRef = React.useRef(new Set<string>());
+  const readChatMarkersRef = React.useRef(new Map<string, string>());
   const hasInitializedPollingRef = React.useRef(false);
   const [openChatRequest, setOpenChatRequest] = React.useState<WhatsappOpenChatRequest | null>(null);
   const [inboxOpen, setInboxOpen] = React.useState(false);
@@ -151,6 +156,12 @@ export function WhatsappRealtimeProvider({ children }: { children: React.ReactNo
   const latestRealtimeEvent = whatsappRealtime.eventHistory[0];
   const requestOpenChat = React.useCallback((target: Omit<WhatsappOpenChatRequest, "id">) => {
     setOpenChatRequest({ ...target, id: Date.now() });
+  }, []);
+  const markChatRead = React.useCallback((chat: WhatsappInboxChat) => {
+    readChatMarkersRef.current.set(getChatIdentityKey(chat), getChatNotificationKey(chat));
+  }, []);
+  const isChatRead = React.useCallback((chat: WhatsappInboxChat) => {
+    return readChatMarkersRef.current.get(getChatIdentityKey(chat)) === getChatNotificationKey(chat);
   }, []);
 
   const notificationChatsQuery = useQuery({
@@ -184,6 +195,10 @@ export function WhatsappRealtimeProvider({ children }: { children: React.ReactNo
     for (const chat of notificationChatsQuery.data) {
       const notificationKey = getChatNotificationKey(chat);
       if (seenChatKeysRef.current.has(notificationKey)) continue;
+      if (isChatRead(chat)) {
+        seenChatKeysRef.current.add(notificationKey);
+        continue;
+      }
 
       const message = chatToIncomingMessage(chat);
       if (!message) continue;
@@ -208,7 +223,7 @@ export function WhatsappRealtimeProvider({ children }: { children: React.ReactNo
         position: "bottom-right",
       });
     }
-  }, [canView, inboxOpen, notificationChatsQuery.data, requestOpenChat]);
+  }, [canView, inboxOpen, isChatRead, notificationChatsQuery.data, requestOpenChat]);
 
   React.useEffect(() => {
     if (!canView || whatsappRealtime.status !== "connected") return;
@@ -251,7 +266,9 @@ export function WhatsappRealtimeProvider({ children }: { children: React.ReactNo
     openChatRequest,
     requestOpenChat,
     setInboxOpen,
-  }), [openChatRequest, requestOpenChat, setInboxOpen, whatsappRealtime]);
+    markChatRead,
+    isChatRead,
+  }), [isChatRead, markChatRead, openChatRequest, requestOpenChat, setInboxOpen, whatsappRealtime]);
 
   return (
     <WhatsappRealtimeContext.Provider value={value}>

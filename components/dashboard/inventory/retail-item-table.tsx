@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteSparepart, getSpareparts, type SparepartWithCompatibilities } from "@/actions/inventory";
+import { deleteInventoryItem, getInventoryItems, type InventoryItemWithCompatibilities } from "@/actions/inventory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
@@ -17,22 +17,22 @@ import { RiAddLine, RiDeleteBinLine, RiEditLine, RiLoader4Line, RiSearchLine, Ri
 interface RetailItemTableProps {
   tokoId: string;
   initialSearchQuery?: string;
-  initialItems?: SparepartWithCompatibilities[];
+  initialItems?: InventoryItemWithCompatibilities[];
   readOnly?: boolean;
   canRestock?: boolean;
   canImport?: boolean;
 }
 
 export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems, readOnly = false, canRestock = !readOnly, canImport = !readOnly }: RetailItemTableProps) {
-  const [items, setItems] = useState<SparepartWithCompatibilities[]>(initialItems ?? []);
+  const [items, setItems] = useState<InventoryItemWithCompatibilities[]>(initialItems ?? []);
   const [search, setSearch] = useState(initialSearchQuery);
   const [isLoading, setIsLoading] = useState(!initialItems);
   const [formOpen, setFormOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<SparepartWithCompatibilities | null>(null);
+  const [editingItem, setEditingItem] = useState<InventoryItemWithCompatibilities | null>(null);
   const [restockOpen, setRestockOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletingItem, setDeletingItem] = useState<SparepartWithCompatibilities | null>(null);
+  const [deletingItem, setDeletingItem] = useState<InventoryItemWithCompatibilities | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
 
     const load = async () => {
       setIsLoading(true);
-      const result = await getSpareparts(tokoId, "retail_item");
+      const result = await getInventoryItems(tokoId, "retail_product");
       if (!active) return;
       if (result.success && result.data) setItems(result.data);
       setIsLoading(false);
@@ -63,7 +63,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
       (item.supplierName?.toLowerCase().includes(normalizedSearch) ?? false)
   );
 
-  const handleSuccess = (item?: SparepartWithCompatibilities) => {
+  const handleSuccess = (item?: InventoryItemWithCompatibilities) => {
     if (!item) return;
     setItems((prev) => {
       const exists = prev.some((existing) => existing.id === item.id);
@@ -74,7 +74,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
 
   const handleImportSuccess = async () => {
     setIsLoading(true);
-    const result = await getSpareparts(tokoId, "retail_item");
+    const result = await getInventoryItems(tokoId, "retail_product");
     if (result.success && result.data) setItems(result.data);
     setIsLoading(false);
   };
@@ -82,7 +82,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
   const handleDelete = async () => {
     if (!deletingItem) return;
     setIsDeleting(true);
-    const result = await deleteSparepart(deletingItem.id);
+    const result = await deleteInventoryItem(deletingItem.id);
     setIsDeleting(false);
     if (result.success) setItems((prev) => prev.filter((item) => item.id !== deletingItem.id));
     setDeleteOpen(false);
@@ -208,7 +208,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
         onOpenChange={setFormOpen}
         sparepart={editingItem}
         tokoId={tokoId}
-        mode="retail_item"
+        mode="retail_product"
         onSuccess={handleSuccess}
       />
 
@@ -216,7 +216,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
         open={restockOpen}
         onOpenChange={setRestockOpen}
         tokoId={tokoId}
-        itemKind="retail_item"
+        itemType="retail_product"
         onSuccess={handleSuccess}
       />
 
@@ -224,7 +224,7 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
         open={importOpen}
         onOpenChange={setImportOpen}
         tokoId={tokoId}
-        itemKind="retail_item"
+        itemType="retail_product"
         onSuccess={handleImportSuccess}
       />
 

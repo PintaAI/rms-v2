@@ -79,11 +79,11 @@ export const columnRegistry: Record<string, ColumnDef> = {
     render: (service) => (
       <div className="flex items-center gap-3">
         <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center text-muted-foreground">
-          {getBrandIcon(service.hpCatalog.brand.name)}
+          {getBrandIcon(service.deviceModel.brand.name)}
         </div>
         <div className="min-w-0">
-          <div className="font-semibold truncate">{service.hpCatalog.brand.name}</div>
-          <div className="text-xs text-muted-foreground truncate">{service.hpCatalog.modelName}</div>
+          <div className="font-semibold truncate">{service.deviceModel.brand.name}</div>
+          <div className="text-xs text-muted-foreground truncate">{service.deviceModel.modelName}</div>
         </div>
       </div>
     ),

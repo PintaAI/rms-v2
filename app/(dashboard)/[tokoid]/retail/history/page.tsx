@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { getRetailSales, type RetailSalesFilters } from "@/actions/retail";
+import { getSalesOrders, type SalesOrdersFilters } from "@/actions/retail";
 import { RetailSalesHistory } from "@/components/dashboard/retail/retail-sales-history";
 import { assertPermission, getRequestScope } from "@/lib/auth/request-scope";
 import prisma from "@/lib/prisma";
@@ -14,12 +14,12 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function parseFilters(searchParams: Record<string, string | string[] | undefined>): RetailSalesFilters {
+function parseFilters(searchParams: Record<string, string | string[] | undefined>): SalesOrdersFilters {
   return {
     q: firstParam(searchParams.q),
     cashierId: firstParam(searchParams.cashierId),
-    paymentMethod: firstParam(searchParams.paymentMethod) as RetailSalesFilters["paymentMethod"],
-    status: firstParam(searchParams.status) as RetailSalesFilters["status"],
+    paymentMethod: firstParam(searchParams.paymentMethod) as SalesOrdersFilters["paymentMethod"],
+    status: firstParam(searchParams.status) as SalesOrdersFilters["status"],
     from: firstParam(searchParams.from),
     to: firstParam(searchParams.to),
     page: Number(firstParam(searchParams.page) || 1),
@@ -34,8 +34,8 @@ export default async function SharedRetailHistoryPage({ params, searchParams }: 
 
   const filters = parseFilters(await searchParams);
   const [toko, salesResult] = await Promise.all([
-    prisma.toko.findUnique({ where: { id: tokoid }, select: { name: true, logoUrl: true } }),
-    getRetailSales(tokoid, filters),
+    prisma.store.findUnique({ where: { id: tokoid }, select: { name: true, logoUrl: true } }),
+    getSalesOrders(tokoid, filters),
   ]);
   const data = salesResult.data ?? {
     items: [],

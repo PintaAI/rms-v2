@@ -21,8 +21,8 @@ export class AuthError extends Error {
   }
 }
 
-export function assertTokoAccess(user: AuthUser, tokoId: string): void {
-  if (!user.tokoIds.includes(tokoId)) {
+export function assertStoreAccess(user: AuthUser, storeId: string): void {
+  if (!user.storeIds.includes(storeId)) {
     throw new AuthError("forbidden", "Akses ke toko ini ditolak");
   }
 }

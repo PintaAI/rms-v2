@@ -74,6 +74,7 @@ Minimum row count SQL checklist:
 ```sql
 SELECT 'toko' AS table_name, COUNT(*) FROM "toko"
 UNION ALL SELECT 'user_toko', COUNT(*) FROM "user_toko"
+UNION ALL SELECT 'subscription_invoice', COUNT(*) FROM "subscription_invoice"
 UNION ALL SELECT 'brand', COUNT(*) FROM "brand"
 UNION ALL SELECT 'hp_catalog', COUNT(*) FROM "hp_catalog"
 UNION ALL SELECT 'sparepart', COUNT(*) FROM "sparepart"
@@ -88,7 +89,14 @@ UNION ALL SELECT 'retail_sale', COUNT(*) FROM "retail_sale"
 UNION ALL SELECT 'retail_sale_item', COUNT(*) FROM "retail_sale_item"
 UNION ALL SELECT 'stock_movement', COUNT(*) FROM "stock_movement"
 UNION ALL SELECT 'supplier_debt', COUNT(*) FROM "supplier_debt"
-UNION ALL SELECT 'supplier_debt_payment', COUNT(*) FROM "supplier_debt_payment";
+UNION ALL SELECT 'supplier_debt_payment', COUNT(*) FROM "supplier_debt_payment"
+UNION ALL SELECT 'supplier', COUNT(*) FROM "supplier"
+UNION ALL SELECT 'supplier_return', COUNT(*) FROM "supplier_return"
+UNION ALL SELECT 'warranty_claim', COUNT(*) FROM "warranty_claim"
+UNION ALL SELECT 'warranty_claim_item', COUNT(*) FROM "warranty_claim_item"
+UNION ALL SELECT 'inventory_audit_session', COUNT(*) FROM "inventory_audit_session"
+UNION ALL SELECT 'inventory_audit_item', COUNT(*) FROM "inventory_audit_item"
+UNION ALL SELECT 'activity_log', COUNT(*) FROM "activity_log";
 ```
 
 ## SQL Ordering
@@ -98,17 +106,18 @@ Use this order to reduce FK confusion.
 1. Rename enum types whose values do not change.
 2. Add new enum values where needed.
 3. Rename enum values where supported by PostgreSQL.
-4. Rename root/global tables: `brand`, `hp_catalog`.
-5. Rename store tables: `toko`, `user_toko`, settings, permissions, WhatsApp tables.
-6. Rename inventory tables: `sparepart`, `sparepart_category`, `sparepart_compatibility`.
-7. Add nullable `inventory_item.deviceModelId` and FK/index.
-8. Rename repair tables: `service_pricelist`, `service`, `service_item`, `invoice`, `invoice_item`.
-9. Rename sales tables: `retail_sale`, `retail_sale_item`.
-10. Rename inventory movement table and columns.
-11. Rename supplier payable tables and columns.
-12. Rename FK columns on unchanged related tables.
-13. Rename indexes and constraints for clarity.
-14. Run integrity checks.
+4. Rename typed `subscription_invoice` snapshot columns from `toko*` to `store*`.
+5. Rename root/global tables: `brand`, `hp_catalog`.
+6. Rename store tables: `toko`, `user_toko`, settings, permissions, WhatsApp tables.
+7. Rename inventory tables: `sparepart`, `sparepart_category`, `sparepart_compatibility`.
+8. Add nullable `inventory_item.deviceModelId` and FK/index.
+9. Rename repair tables: `service_pricelist`, `service`, `service_item`, `invoice`, `invoice_item`.
+10. Rename sales tables: `retail_sale`, `retail_sale_item`.
+11. Rename inventory movement table and columns.
+12. Rename supplier payable tables and columns.
+13. Rename FK columns on unchanged related tables.
+14. Rename indexes and constraints for clarity.
+15. Run integrity checks.
 
 ## Enum Safety Notes
 
@@ -180,6 +189,9 @@ After migration, verify:
 - User-store assignments still link users and stores.
 - Permission override rows still exist and point to the same users/stores.
 - WhatsApp settings and identities still point to the same stores.
+- Subscription invoice store-count snapshot values match the pre-migration `toko*` snapshot values.
+- Suppliers, supplier returns, warranty claims, warranty claim items, inventory audit rows, and activity logs still point to their renamed stores, repair orders, and inventory items.
+- Non-null `inventory_item.deviceModelId` values point to existing device models.
 
 WhatsApp validation is limited to data continuity for store-scoped settings and identities. Do not treat this migration as a WhatsApp feature or behavior change.
 

@@ -40,7 +40,7 @@ export interface KaryawanStats {
   total: number;
 }
 
-export interface TechnicianPerformanceServiceItem {
+export interface TechnicianPerformanceRepairOrderItem {
   id: string;
   customerName: string | null;
   noWa: string;
@@ -48,7 +48,7 @@ export interface TechnicianPerformanceServiceItem {
   status: "done" | "failed";
   checkinAt: Date;
   doneAt: Date | null;
-  hpCatalog: {
+  deviceModel: {
     modelName: string;
     brand: { name: string };
   };
@@ -72,7 +72,7 @@ export interface TechnicianPerformanceDetail {
     successRate: number;
     paidRevenue: number;
   };
-  services: TechnicianPerformanceServiceItem[];
+  services: TechnicianPerformanceRepairOrderItem[];
 }
 
 export interface KaryawanPermissionCatalogItem {
@@ -110,9 +110,9 @@ function isPermissionEffect(value: string): value is PermissionEffect {
   return value === "allow" || value === "deny";
 }
 
-async function getPermissionTarget(tokoId: string, userId: string) {
-  const assignment = await prisma.userToko.findUnique({
-    where: { userId_tokoId: { userId, tokoId } },
+async function getPermissionTarget(storeId: string, userId: string) {
+  const assignment = await prisma.userStore.findUnique({
+    where: { userId_storeId: { userId, storeId } },
     select: {
       user: {
         select: {
@@ -136,15 +136,15 @@ async function getPermissionTarget(tokoId: string, userId: string) {
 }
 
 async function buildKaryawanPermissionSettings(
-  tokoId: string,
+  storeId: string,
   userId: string,
   scopeFeatureAccess: Record<string, boolean | undefined>
 ): Promise<KaryawanPermissionSettings> {
-  const targetUser = await getPermissionTarget(tokoId, userId);
+  const targetUser = await getPermissionTarget(storeId, userId);
   const grantablePermissions = getGrantablePermissionsInV1();
   const defaultPermissions = new Set(getRoleDefaultPermissions(targetUser.role));
-  const overrides = await prisma.tokoUserPermission.findMany({
-    where: { tokoId, userId, permissionKey: { in: grantablePermissions } },
+  const overrides = await prisma.storeUserPermission.findMany({
+    where: { storeId, userId, permissionKey: { in: grantablePermissions } },
     select: { permissionKey: true, effect: true },
     orderBy: { permissionKey: "asc" },
   });
@@ -177,7 +177,7 @@ async function buildKaryawanPermissionSettings(
 }
 
 async function getKaryawanPerformanceMap(
-  tokoId: string,
+  storeId: string,
   assignments: Array<{
     user: {
       id: string;
@@ -198,10 +198,10 @@ async function getKaryawanPerformanceMap(
 
   const [staffCounts, technicianCounts] = await Promise.all([
     staffIds.length > 0
-      ? prisma.service.groupBy({
+      ? prisma.repairOrder.groupBy({
           by: ["createdById"],
           where: {
-            tokoId,
+            storeId,
             createdById: { in: staffIds },
             checkinAt: { gte: monthlyStart },
           },
@@ -209,10 +209,10 @@ async function getKaryawanPerformanceMap(
         })
       : Promise.resolve([]),
     technicianIds.length > 0
-      ? prisma.service.groupBy({
+      ? prisma.repairOrder.groupBy({
           by: ["technicianId", "status"],
           where: {
-            tokoId,
+            storeId,
             technicianId: { in: technicianIds },
             status: { in: ["done", "failed"] },
             doneAt: { gte: monthlyStart },
@@ -269,15 +269,15 @@ async function getKaryawanPerformanceMap(
   return performanceMap;
 }
 
-export async function getKaryawanList(tokoId: string): Promise<{
+export async function getKaryawanList(storeId: string): Promise<{
   success: boolean;
   data?: KaryawanItem[];
   error?: string;
 }> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "karyawan.view");
-    const assignments = await prisma.userToko.findMany({
-      where: { tokoId },
+    const assignments = await prisma.userStore.findMany({
+      where: { storeId },
       include: {
         user: {
           select: {
@@ -296,7 +296,7 @@ export async function getKaryawanList(tokoId: string): Promise<{
       (assignment) => assignment.user.role === "staff" || assignment.user.role === "technician"
     );
 
-    const performanceMap = await getKaryawanPerformanceMap(tokoId, filteredAssignments);
+    const performanceMap = await getKaryawanPerformanceMap(storeId, filteredAssignments);
 
     return filteredAssignments.map((assignment) => ({
       id: assignment.user.id,
@@ -315,12 +315,12 @@ export async function getKaryawanList(tokoId: string): Promise<{
 
 const emptyKaryawanStats: KaryawanStats = { staff: 0, technician: 0, total: 0 };
 
-export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
-  const result = await withScope(tokoId, {}, async (scope) => {
+export async function getKaryawanStats(storeId: string): Promise<KaryawanStats> {
+  const result = await withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "karyawan.view");
     const [staff, technician] = await Promise.all([
-      prisma.userToko.count({ where: { tokoId, user: { role: "staff" } } }),
-      prisma.userToko.count({ where: { tokoId, user: { role: "technician" } } }),
+      prisma.userStore.count({ where: { storeId, user: { role: "staff" } } }),
+      prisma.userStore.count({ where: { storeId, user: { role: "technician" } } }),
     ]);
 
     return { staff, technician, total: staff + technician };
@@ -330,14 +330,14 @@ export async function getKaryawanStats(tokoId: string): Promise<KaryawanStats> {
 }
 
 export async function getTechnicianPerformanceDetail(
-  tokoId: string,
+  storeId: string,
   technicianId: string
 ): Promise<{ success: boolean; data?: TechnicianPerformanceDetail; error?: string }> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "karyawan.view");
-    const assignment = await prisma.userToko.findFirst({
+    const assignment = await prisma.userStore.findFirst({
     where: {
-      tokoId,
+      storeId,
       userId: technicianId,
       user: { role: "technician" },
     },
@@ -356,27 +356,27 @@ export async function getTechnicianPerformanceDetail(
 
   const periodDays = 30;
   const monthlyStart = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
-  const serviceWhere: Prisma.ServiceWhereInput = {
-    tokoId,
+  const serviceWhere: Prisma.RepairOrderWhereInput = {
+    storeId,
     technicianId,
     status: { in: ["done", "failed"] },
     doneAt: { gte: monthlyStart },
   };
 
   const [statusCounts, paidRevenue, services] = await Promise.all([
-    prisma.service.groupBy({
+    prisma.repairOrder.groupBy({
       by: ["status"],
       where: serviceWhere,
       _count: { _all: true },
     }),
-    prisma.invoice.aggregate({
+    prisma.repairInvoice.aggregate({
       where: {
         paymentStatus: "paid",
-        service: serviceWhere,
+        repairOrder: serviceWhere,
       },
       _sum: { grandTotal: true },
     }),
-    prisma.service.findMany({
+    prisma.repairOrder.findMany({
       where: serviceWhere,
       orderBy: [{ doneAt: "desc" }, { checkinAt: "desc" }],
       take: 50,
@@ -388,7 +388,7 @@ export async function getTechnicianPerformanceDetail(
         status: true,
         checkinAt: true,
         doneAt: true,
-        hpCatalog: {
+        deviceModel: {
           select: {
             modelName: true,
             brand: { select: { name: true } },
@@ -427,25 +427,25 @@ export async function getTechnicianPerformanceDetail(
 }
 
 export async function getKaryawanPermissionSettings(
-  tokoId: string,
+  storeId: string,
   userId: string
 ): Promise<{ success: boolean; data?: KaryawanPermissionSettings; error?: string }> {
-  return withScope(tokoId, { feature: "karyawan.management" }, async (scope) => {
+  return withScope(storeId, { feature: "karyawan.management" }, async (scope) => {
     assertPermission(scope, "karyawan.managePermissions");
 
-    return buildKaryawanPermissionSettings(tokoId, userId, scope.featureAccess);
+    return buildKaryawanPermissionSettings(storeId, userId, scope.featureAccess);
   });
 }
 
 export async function saveKaryawanPermissionOverrides(
-  tokoId: string,
+  storeId: string,
   userId: string,
   overrides: SaveKaryawanPermissionOverrideInput[]
 ): Promise<{ success: boolean; data?: KaryawanPermissionSettings; error?: string }> {
-  return withScope(tokoId, { feature: "karyawan.management" }, async (scope) => {
+  return withScope(storeId, { feature: "karyawan.management" }, async (scope) => {
     assertPermission(scope, "karyawan.managePermissions");
 
-    await getPermissionTarget(tokoId, userId);
+    await getPermissionTarget(storeId, userId);
     const grantablePermissions = new Set(getGrantablePermissionsInV1());
     const normalizedOverrides = new Map<PermissionKey, PermissionEffect>();
 
@@ -466,14 +466,14 @@ export async function saveKaryawanPermissionOverrides(
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.tokoUserPermission.deleteMany({
-        where: { tokoId, userId, permissionKey: { in: Array.from(grantablePermissions) } },
+      await tx.storeUserPermission.deleteMany({
+        where: { storeId, userId, permissionKey: { in: Array.from(grantablePermissions) } },
       });
 
       if (normalizedOverrides.size > 0) {
-        await tx.tokoUserPermission.createMany({
+        await tx.storeUserPermission.createMany({
           data: Array.from(normalizedOverrides.entries()).map(([permissionKey, effect]) => ({
-            tokoId,
+            storeId,
             userId,
             permissionKey,
             effect,
@@ -482,31 +482,31 @@ export async function saveKaryawanPermissionOverrides(
       }
     });
 
-    revalidateKaryawanPaths(tokoId);
+    revalidateKaryawanPaths(storeId);
 
-    return buildKaryawanPermissionSettings(tokoId, userId, scope.featureAccess);
+    return buildKaryawanPermissionSettings(storeId, userId, scope.featureAccess);
   });
 }
 
 export async function resetKaryawanPermissionOverrides(
-  tokoId: string,
+  storeId: string,
   userId: string
 ): Promise<{ success: boolean; data?: KaryawanPermissionSettings; error?: string }> {
-  return withScope(tokoId, { feature: "karyawan.management" }, async (scope) => {
+  return withScope(storeId, { feature: "karyawan.management" }, async (scope) => {
     assertPermission(scope, "karyawan.managePermissions");
-    await getPermissionTarget(tokoId, userId);
+    await getPermissionTarget(storeId, userId);
 
-    await prisma.tokoUserPermission.deleteMany({
+    await prisma.storeUserPermission.deleteMany({
       where: {
-        tokoId,
+        storeId,
         userId,
         permissionKey: { in: getGrantablePermissionsInV1() },
       },
     });
 
-    revalidateKaryawanPaths(tokoId);
+    revalidateKaryawanPaths(storeId);
 
-    return buildKaryawanPermissionSettings(tokoId, userId, scope.featureAccess);
+    return buildKaryawanPermissionSettings(storeId, userId, scope.featureAccess);
   });
 }
 
@@ -518,10 +518,10 @@ const sanitizeForEmail = (str: string) =>
 async function generateKaryawanEmail(
   name: string,
   role: "staff" | "technician",
-  tokoId: string
+  storeId: string
 ): Promise<{ email?: string; error?: string }> {
-  const toko = await prisma.toko.findUnique({
-    where: { id: tokoId },
+  const toko = await prisma.store.findUnique({
+    where: { id: storeId },
     select: { name: true },
   });
 
@@ -552,7 +552,7 @@ async function generateKaryawanEmail(
 }
 
 export async function createKaryawan(
-  tokoId: string,
+  storeId: string,
   input: { name: string; password: string; role: "staff" | "technician" }
 ): Promise<{ success: boolean; data?: KaryawanItem; error?: string }> {
   if (!input.name.trim() || input.name.trim().length < 2) {
@@ -563,9 +563,9 @@ export async function createKaryawan(
     return { success: false, error: "Password must be at least 4 characters" };
   }
 
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "karyawan.create");
-    const { email: _generatedEmail, error: emailError } = await generateKaryawanEmail(input.name, input.role, tokoId);
+    const { email: _generatedEmail, error: emailError } = await generateKaryawanEmail(input.name, input.role, storeId);
     if (emailError || !_generatedEmail) {
       throw new AuthError("forbidden", emailError ?? "Could not generate email");
     }
@@ -573,9 +573,9 @@ export async function createKaryawan(
 
     const result = await prisma.$transaction(async (tx) => {
       const limitKey = input.role === "staff" ? "maxStaff" : "maxTechnicians";
-      const currentCount = await tx.userToko.count({
+      const currentCount = await tx.userStore.count({
         where: {
-          tokoId,
+          storeId,
           user: { role: input.role },
         },
       });
@@ -587,13 +587,13 @@ export async function createKaryawan(
         email: generatedEmail,
         password: input.password,
         role: input.role,
-        tokoId: tokoId,
+        storeId: storeId,
       });
 
       return createdUser;
     }, { timeout: 15000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    revalidateKaryawanPaths(tokoId);
+    revalidateKaryawanPaths(storeId);
 
     return {
       id: result.id,
@@ -611,10 +611,10 @@ export async function createKaryawan(
 }
 
 export async function deleteKaryawan(
-  tokoId: string,
+  storeId: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "karyawan.deactivate");
     if (userId === scope.user.id) return { success: false, error: "Cannot delete yourself" };
 
@@ -627,8 +627,8 @@ export async function deleteKaryawan(
     return { success: false, error: "User not found or not a karyawan" };
   }
 
-  const targetAssignment = await prisma.userToko.findFirst({
-    where: { userId, tokoId },
+  const targetAssignment = await prisma.userStore.findFirst({
+    where: { userId, storeId },
   });
 
   if (!targetAssignment) {
@@ -639,7 +639,7 @@ export async function deleteKaryawan(
       where: { id: userId },
     });
 
-    revalidateKaryawanPaths(tokoId);
+    revalidateKaryawanPaths(storeId);
 
     return { success: true };
   });

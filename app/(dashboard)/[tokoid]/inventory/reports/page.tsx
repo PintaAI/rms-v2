@@ -58,7 +58,7 @@ export default async function InventoryReportsPage({ params, searchParams }: Inv
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 
   const [toko, reportResult] = await Promise.all([
-    prisma.toko.findUnique({
+    prisma.store.findUnique({
       where: { id: tokoid },
       select: { id: true, name: true, logoUrl: true },
     }),

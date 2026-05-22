@@ -108,7 +108,7 @@ export default async function SharedKaryawanPage({ params, searchParams }: Share
     return <KaryawanPermissionLocked reason={getPermissionLockReason(scope, "karyawan.view")} />;
   }
 
-  const toko = await prisma.toko.findUnique({
+  const toko = await prisma.store.findUnique({
     where: { id: tokoid },
     select: { id: true, name: true, logoUrl: true },
   });

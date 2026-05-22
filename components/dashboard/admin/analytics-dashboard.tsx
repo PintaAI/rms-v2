@@ -507,7 +507,7 @@ function RetailTopItemsTable({
               <TableRow key={item.id}>
                 <TableCell>
                   <div className="font-medium">{item.name}</div>
-                  <div className="text-xs text-muted-foreground">{item.kind === "retail_item" ? "Retail item" : "Sparepart"}</div>
+                  <div className="text-xs text-muted-foreground">{item.type === "retail_product" ? "Retail item" : "Sparepart"}</div>
                 </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">{item.qty}</TableCell>
                 <TableCell className="text-right font-mono tabular-nums">{formatCurrency(item.revenue)}</TableCell>

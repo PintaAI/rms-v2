@@ -12,14 +12,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  createSparepart,
-  getSparepartCategories,
-  updateSparepart,
+  createInventoryItem,
+
+  getInventoryCategories,
+
+  updateInventoryItem,
+
+  type InventoryCategory,
+
   type InventoryItemKind,
-  type SparepartCategory,
-  type SparepartWithCompatibilities,
+
+  type InventoryItemWithCompatibilities,
 } from "@/actions/inventory";
-import { MultiDeviceInput, type HpCatalogOption } from "@/components/shared/multi-device-input";
+import { MultiDeviceInput, type DeviceModelOption } from "@/components/shared/multi-device-input";
 import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
 import { cn, formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils";
 import {
@@ -37,13 +42,13 @@ import {
 interface SparepartFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  sparepart?: SparepartWithCompatibilities | null;
+  sparepart?: InventoryItemWithCompatibilities | null;
   tokoId: string;
-  onOptimisticCreate?: (tempSparepart: SparepartWithCompatibilities) => void;
-  onOptimisticUpdate?: (updatedSparepart: SparepartWithCompatibilities) => void;
+  onOptimisticCreate?: (tempSparepart: InventoryItemWithCompatibilities) => void;
+  onOptimisticUpdate?: (updatedSparepart: InventoryItemWithCompatibilities) => void;
   onRevertCreate?: () => void;
   onRevertUpdate?: () => void;
-  onSuccess: (newSparepart?: SparepartWithCompatibilities) => void;
+  onSuccess: (newSparepart?: InventoryItemWithCompatibilities) => void;
 }
 
 type InventoryItemFormMode = InventoryItemKind;
@@ -52,12 +57,12 @@ interface InventoryItemFormDialogProps extends SparepartFormProps {
   mode: InventoryItemFormMode;
 }
 
-function toDeviceOptions(sparepart?: SparepartWithCompatibilities | null): HpCatalogOption[] {
+function toDeviceOptions(sparepart?: InventoryItemWithCompatibilities | null): DeviceModelOption[] {
   return (
     sparepart?.compatibilities.map((c) => ({
-      id: c.hpCatalog.id,
-      modelName: c.hpCatalog.modelName,
-      brandName: c.hpCatalog.brand.name,
+      id: c.deviceModel.id,
+      modelName: c.deviceModel.modelName,
+      brandName: c.deviceModel.brand.name,
     })) ?? []
   );
 }
@@ -84,14 +89,14 @@ function SparepartFormContent({
   const [criticalStock, setCriticalStock] = useState(sparepart ? sparepart.criticalStock.toString() : "5");
   const [warrantyDays, setWarrantyDays] = useState(sparepart?.warrantyDays != null ? sparepart.warrantyDays.toString() : "");
   const [isUniversal, setIsUniversal] = useState(sparepart?.isUniversal ?? false);
-  const [selectedDevices, setSelectedDevices] = useState<HpCatalogOption[]>(() => toDeviceOptions(sparepart));
+  const [selectedDevices, setSelectedDevices] = useState<DeviceModelOption[]>(() => toDeviceOptions(sparepart));
   const sparepartRef = useRef(sparepart);
-  const [categories, setCategories] = useState<SparepartCategory[]>([]);
-  const [devices, setDevices] = useState<HpCatalogOption[]>([]);
+  const [categories, setCategories] = useState<InventoryCategory[]>([]);
+  const [devices, setDevices] = useState<DeviceModelOption[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(true);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const isRetailItem = mode === "retail_item";
+  const isRetailItem = mode === "retail_product";
   const itemLabel = isRetailItem ? "Barang Retail" : "Sparepart";
   const trimmedCategoryQuery = categoryName.trim();
   const exactCategoryMatch = useMemo(
@@ -110,7 +115,7 @@ function SparepartFormContent({
   useEffect(() => {
     let active = true;
 
-    getSparepartCategories(tokoId)
+    getInventoryCategories(tokoId)
       .then((result) => {
         if (!active) return;
         if (result.success && result.data) setCategories(result.data);
@@ -160,7 +165,7 @@ function SparepartFormContent({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleDeviceCreated = useCallback((device: HpCatalogOption) => {
+  const handleDeviceCreated = useCallback((device: DeviceModelOption) => {
     setDevices((prev) => {
       const next = prev.some((item) => item.id === device.id)
         ? prev.map((item) => (item.id === device.id ? device : item))
@@ -178,7 +183,7 @@ function SparepartFormContent({
     setShowCategoryDropdown(true);
   }, []);
 
-  const handleCategorySelect = useCallback((category: SparepartCategory) => {
+  const handleCategorySelect = useCallback((category: InventoryCategory) => {
     setCategoryName(category.name);
     setShowCategoryDropdown(false);
   }, []);
@@ -217,8 +222,8 @@ function SparepartFormContent({
       return;
     }
 
-    const hpCatalogIds = isRetailItem ? [] : selectedDevices.map((d) => d.id);
-    const finalIsUniversal = isRetailItem || hpCatalogIds.length === 0 ? true : isUniversal;
+    const deviceModelIds = isRetailItem ? [] : selectedDevices.map((d) => d.id);
+    const finalIsUniversal = isRetailItem || deviceModelIds.length === 0 ? true : isUniversal;
     const trimmedCategoryName = categoryName.trim();
     const existingCategory = trimmedCategoryName
       ? categories.find((category) => category.name.toLowerCase() === trimmedCategoryName.toLowerCase())
@@ -228,12 +233,12 @@ function SparepartFormContent({
       ? existingCategory ?? {
           id: `temp-category-${Date.now()}`,
           name: finalCategoryName,
-          tokoId,
+          storeId: tokoId,
         }
       : null;
 
     const tempId = sparepart?.id || `temp-${Date.now()}`;
-    const optimisticSparepart: SparepartWithCompatibilities = {
+    const optimisticSparepart: InventoryItemWithCompatibilities = {
       id: tempId,
       barcode: sparepart?.barcode ?? "membuat...",
       name,
@@ -245,13 +250,13 @@ function SparepartFormContent({
       criticalStock: criticalStockValue,
       warrantyDays: isRetailItem ? warrantyDaysValue : null,
       isUniversal: finalIsUniversal,
-      kind: mode,
-      tokoId,
+      type: mode,
+      storeId: tokoId,
       category: optimisticCategory,
       compatibilities: isRetailItem ? [] : selectedDevices.map((d) => ({
-        hpCatalogId: d.id,
-        sparepartId: tempId,
-        hpCatalog: {
+        deviceModelId: d.id,
+        inventoryItemId: tempId,
+        deviceModel: {
           id: d.id,
           modelName: d.modelName,
           brand: { id: "", name: d.brandName },
@@ -272,7 +277,7 @@ function SparepartFormContent({
     setIsLoading(true);
 
     const result = sparepartRef.current
-      ? await updateSparepart({
+      ? await updateInventoryItem({
           id: sparepartRef.current.id,
           name,
           defaultPrice: price,
@@ -283,10 +288,10 @@ function SparepartFormContent({
           criticalStock: criticalStockValue,
           warrantyDays: isRetailItem ? warrantyDaysValue : null,
           isUniversal: finalIsUniversal,
-          kind: mode,
-          hpCatalogIds,
+          type: mode,
+          deviceModelIds,
         })
-      : await createSparepart({
+      : await createInventoryItem({
           name,
           defaultPrice: price,
           purchasePrice: parsedPurchasePrice,
@@ -296,9 +301,9 @@ function SparepartFormContent({
           criticalStock: criticalStockValue,
           warrantyDays: isRetailItem ? warrantyDaysValue : null,
           isUniversal: finalIsUniversal,
-          kind: mode,
-          tokoId,
-          hpCatalogIds,
+          type: mode,
+          storeId: tokoId,
+          deviceModelIds,
         });
 
     setIsLoading(false);
@@ -609,7 +614,7 @@ function SparepartFormContent({
 }
 
 export function SparepartFormDialog(props: SparepartFormProps) {
-  return <InventoryItemFormDialog {...props} mode="sparepart" />;
+  return <InventoryItemFormDialog {...props} mode="repair_part" />;
 }
 
 export function InventoryItemFormDialog(props: InventoryItemFormDialogProps) {

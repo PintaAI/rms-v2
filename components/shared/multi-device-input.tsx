@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useDeviceSearch } from "@/hooks/use-device-search";
 import { getBrandIcon } from "@/lib/brand-icons";
-import { HpCatalogOption } from "@/components/shared/device-input";
+import { DeviceModelOption } from "@/components/shared/device-input";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,16 +17,16 @@ import {
 } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 
-export type { HpCatalogOption };
+export type { DeviceModelOption };
 
 interface MultiDeviceInputProps {
-  value: HpCatalogOption[];
-  onChange: (devices: HpCatalogOption[]) => void;
+  value: DeviceModelOption[];
+  onChange: (devices: DeviceModelOption[]) => void;
   disabled?: boolean;
   error?: string | null;
-  devices?: HpCatalogOption[];
+  devices?: DeviceModelOption[];
   isLoadingDevices?: boolean;
-  onDeviceCreated?: (device: HpCatalogOption) => void;
+  onDeviceCreated?: (device: DeviceModelOption) => void;
 }
 
 export function MultiDeviceInput({
@@ -41,7 +41,7 @@ export function MultiDeviceInput({
   const selectedDeviceIds = useMemo(() => value.map((v) => v.id), [value]);
 
   const handleSelect = useCallback(
-    (device: HpCatalogOption) => {
+    (device: DeviceModelOption) => {
       if (value.some((v) => v.id === device.id)) {
         return;
       }

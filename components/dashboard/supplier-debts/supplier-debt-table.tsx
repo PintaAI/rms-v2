@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { deleteSupplierDebt, type SupplierDebtListItem, type SupplierOption } from "@/actions/supplier-debts"
+import { deleteSupplierPayable, type SupplierPayableListItem, type SupplierOption } from "@/actions/supplier-debts"
 import { SupplierDebtFormDialog } from "@/components/dashboard/supplier-debts/supplier-debt-form-dialog"
 import { SupplierPaymentDialog } from "@/components/dashboard/supplier-debts/supplier-payment-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -30,18 +30,18 @@ import { toast } from "sonner"
 
 interface SupplierDebtTableProps {
   tokoId: string
-  initialDebts: SupplierDebtListItem[]
+  initialDebts: SupplierPayableListItem[]
   initialSuppliers: SupplierOption[]
   readOnly?: boolean
 }
 
-const statusLabels: Record<SupplierDebtListItem["status"], string> = {
+const statusLabels: Record<SupplierPayableListItem["status"], string> = {
   unpaid: "Belum Dibayar",
   partial: "Sebagian",
   paid: "Lunas",
 }
 
-function isOverdue(debt: SupplierDebtListItem) {
+function isOverdue(debt: SupplierPayableListItem) {
   if (!debt.dueDate || debt.status === "paid") return false
   const dueDate = new Date(debt.dueDate)
   dueDate.setHours(0, 0, 0, 0)
@@ -50,7 +50,7 @@ function isOverdue(debt: SupplierDebtListItem) {
   return dueDate < today
 }
 
-function upsertDebt(debts: SupplierDebtListItem[], debt: SupplierDebtListItem) {
+function upsertDebt(debts: SupplierPayableListItem[], debt: SupplierPayableListItem) {
   return debts.some((item) => item.id === debt.id) ? debts.map((item) => (item.id === debt.id ? debt : item)) : [debt, ...debts]
 }
 
@@ -59,11 +59,11 @@ export function SupplierDebtTable({ tokoId, initialDebts, initialSuppliers, read
   const [suppliers, setSuppliers] = useState(initialSuppliers)
   const [search, setSearch] = useState("")
   const [formOpen, setFormOpen] = useState(false)
-  const [editingDebt, setEditingDebt] = useState<SupplierDebtListItem | null>(null)
+  const [editingDebt, setEditingDebt] = useState<SupplierPayableListItem | null>(null)
   const [paymentOpen, setPaymentOpen] = useState(false)
-  const [payingDebt, setPayingDebt] = useState<SupplierDebtListItem | null>(null)
+  const [payingDebt, setPayingDebt] = useState<SupplierPayableListItem | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deletingDebt, setDeletingDebt] = useState<SupplierDebtListItem | null>(null)
+  const [deletingDebt, setDeletingDebt] = useState<SupplierPayableListItem | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isDeleting, startDeleteTransition] = useTransition()
 
@@ -88,14 +88,14 @@ export function SupplierDebtTable({ tokoId, initialDebts, initialSuppliers, read
     )
   }, [debts, search])
 
-  function handleSavedDebt(debt: SupplierDebtListItem, supplier?: SupplierOption) {
+  function handleSavedDebt(debt: SupplierPayableListItem, supplier?: SupplierOption) {
     setDebts((prev) => upsertDebt(prev, debt))
     if (supplier) setSuppliers((prev) => (prev.some((item) => item.id === supplier.id) ? prev : [...prev, supplier].sort((a, b) => a.name.localeCompare(b.name))))
     setEditingDebt(null)
     toast.success("Hutang supplier disimpan")
   }
 
-  function handleSavedPayment(debt: SupplierDebtListItem) {
+  function handleSavedPayment(debt: SupplierPayableListItem) {
     setDebts((prev) => upsertDebt(prev, debt))
     setPayingDebt(null)
     toast.success("Pembayaran disimpan")
@@ -105,7 +105,7 @@ export function SupplierDebtTable({ tokoId, initialDebts, initialSuppliers, read
     if (!deletingDebt) return
     setDeleteError(null)
     startDeleteTransition(async () => {
-      const result = await deleteSupplierDebt(deletingDebt.id)
+      const result = await deleteSupplierPayable(deletingDebt.id)
       if (!result.success) {
         setDeleteError(result.error || "Gagal menghapus hutang supplier")
         return

@@ -52,7 +52,7 @@ interface AddRepairItemFormProps {
 }
 
 type SparepartOption = AddRepairItemFormProps["spareparts"][number];
-type RepairItemType = "sparepart" | "service";
+type RepairItemType = "inventory_item" | "service_catalog_item";
 
 export function AddRepairItemForm({
   open,
@@ -70,7 +70,7 @@ export function AddRepairItemForm({
   onSparepartCreated,
   onPricelistCreated,
 }: AddRepairItemFormProps) {
-  const [itemType, setItemType] = useState<RepairItemType>("sparepart");
+  const [itemType, setItemType] = useState<RepairItemType>("inventory_item");
   const [sparepartQtys, setSparepartQtys] = useState<Record<string, number>>({});
   const [serviceQtys, setServiceQtys] = useState<Record<string, number>>({});
   const [manualName, setManualName] = useState("");
@@ -129,7 +129,7 @@ export function AddRepairItemForm({
   const scanner = useScannerPairing({ tokoId, onScan: handleMobileScan });
 
   function resetForm() {
-    setItemType("sparepart");
+    setItemType("inventory_item");
     setSparepartQtys({});
     setServiceQtys({});
     setManualName("");
@@ -192,10 +192,10 @@ export function AddRepairItemForm({
 
     const selectedSpareparts = spareparts
       .filter((sp) => (sparepartQtys[sp.id] ?? 0) > 0)
-      .map((sp) => ({ type: "sparepart" as const, ...sp, qty: sparepartQtys[sp.id] }));
+      .map((sp) => ({ type: "inventory_item" as const, ...sp, qty: sparepartQtys[sp.id] }));
     const selectedServices = servicePricelists
       .filter((sp) => (serviceQtys[sp.id] ?? 0) > 0)
-      .map((sp) => ({ type: "service" as const, ...sp, qty: serviceQtys[sp.id] }));
+      .map((sp) => ({ type: "service_catalog_item" as const, ...sp, qty: serviceQtys[sp.id] }));
 
     const itemsToAdd = [...manualItems, ...selectedSpareparts, ...selectedServices];
     const pendingItems = itemsToAdd.map((item) => {
@@ -220,10 +220,10 @@ export function AddRepairItemForm({
           isPending: true,
         },
         payload: {
-          serviceId,
+          repairOrderId: serviceId,
           type: itemTypeToUse,
-          sparepartId: itemTypeToUse === "sparepart" && !isManual ? item.id : undefined,
-          servicePricelistId: itemTypeToUse === "service" && !isManual ? item.id : undefined,
+          inventoryItemId: itemTypeToUse === "inventory_item" && !isManual ? item.id : undefined,
+          serviceCatalogItemId: itemTypeToUse === "service_catalog_item" && !isManual ? item.id : undefined,
           name: itemNameToUse || "",
           qty: item.qty,
           price: itemPriceToUse,
@@ -315,11 +315,11 @@ export function AddRepairItemForm({
                   }}
                 >
                   <TabsList variant="line" className="w-full">
-                    <TabsTrigger value="sparepart" className="flex-1">Sparepart</TabsTrigger>
-                    <TabsTrigger value="service" className="flex-1">Jasa</TabsTrigger>
+                    <TabsTrigger value="inventory_item" className="flex-1">Sparepart</TabsTrigger>
+                    <TabsTrigger value="service_catalog_item" className="flex-1">Jasa</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="sparepart" className="mt-4 flex flex-col gap-3">
+                  <TabsContent value="inventory_item" className="mt-4 flex flex-col gap-3">
                     {manualItemsEnabled && (
                       <>
                         <div className="grid gap-2 sm:grid-cols-[1fr_7rem_5rem] sm:items-end">
@@ -489,7 +489,7 @@ export function AddRepairItemForm({
                     )}
                   </TabsContent>
 
-                  <TabsContent value="service" className="mt-4 flex flex-col gap-3">
+                  <TabsContent value="service_catalog_item" className="mt-4 flex flex-col gap-3">
                     {manualItemsEnabled && (
                       <>
                         <div className="grid gap-2 sm:grid-cols-[1fr_7rem_5rem] sm:items-end">

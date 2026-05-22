@@ -75,7 +75,7 @@ export default async function AuditGudangPage({ params }: AuditGudangPageProps) 
   if (scope.user.role === "technician") assertFeature(scope, "technician.workflow")
 
   const [toko, overviewResult] = await Promise.all([
-    prisma.toko.findUnique({
+    prisma.store.findUnique({
       where: { id: tokoid },
       select: { id: true, name: true, logoUrl: true },
     }),

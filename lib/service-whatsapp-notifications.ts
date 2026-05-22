@@ -24,27 +24,27 @@ function hasWhatsappIntegrationAccess(input: {
   return input.adminPlans.some((plan) => isPlanAtLeast(normalizePlan(plan), "premium"));
 }
 
-export async function sendServiceStatusWhatsappNotification(input: {
-  serviceId: string;
+export async function sendRepairOrderStatusWhatsappNotification(input: {
+  repairOrderId: string;
   status: "done" | "failed";
 }): Promise<void> {
   try {
-    const service = await prisma.service.findUnique({
-      where: { id: input.serviceId },
+    const service = await prisma.repairOrder.findUnique({
+      where: { id: input.repairOrderId },
       select: {
         id: true,
-        tokoId: true,
+        storeId: true,
         customerName: true,
         noWa: true,
         status: true,
         doneNotifiedAt: true,
-        hpCatalog: {
+        deviceModel: {
           select: {
             modelName: true,
             brand: { select: { name: true } },
           },
         },
-        toko: {
+        store: {
           select: {
             name: true,
             featureSetting: { select: { disabledFeatures: true } },
@@ -62,14 +62,14 @@ export async function sendServiceStatusWhatsappNotification(input: {
     if (service.status !== input.status) return;
     if (service.doneNotifiedAt) return;
 
-    const setting = service.toko.whatsappSetting;
+    const setting = service.store.whatsappSetting;
     if (!setting) {
       return;
     }
     if (!hasWhatsappIntegrationAccess({
-      adminPlans: service.toko.userAssignments.map((assignment) => assignment.user.subscription?.plan),
-      disabledFeatures: Array.isArray(service.toko.featureSetting?.disabledFeatures)
-        ? service.toko.featureSetting.disabledFeatures.filter((feature): feature is FeatureKey => feature === "whatsapp.integration")
+      adminPlans: service.store.userAssignments.map((assignment) => assignment.user.subscription?.plan),
+      disabledFeatures: Array.isArray(service.store.featureSetting?.disabledFeatures)
+        ? service.store.featureSetting.disabledFeatures.filter((feature): feature is FeatureKey => feature === "whatsapp.integration")
         : [],
     })) return;
     if (!setting.enabled) return;
@@ -87,15 +87,15 @@ export async function sendServiceStatusWhatsappNotification(input: {
         : setting.failedMessageTemplate || DEFAULT_FAILED_MESSAGE;
     const text = renderTemplate(template, {
       customerName: service.customerName?.trim() || "Pelanggan",
-      brand: service.hpCatalog.brand.name || "",
-      model: service.hpCatalog.modelName || "",
-      tokoName: service.toko.name,
+      brand: service.deviceModel.brand.name || "",
+      model: service.deviceModel.modelName || "",
+      tokoName: service.store.name,
       status: input.status,
     }).replace(/\s+/g, " ").trim();
 
     await sendWhatsappText({ instanceName: setting.instanceName, number, text });
 
-    await prisma.service.update({
+    await prisma.repairOrder.update({
       where: { id: service.id },
       data: { doneNotifiedAt: new Date() },
     });

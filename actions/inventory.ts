@@ -11,7 +11,7 @@ import type { Prisma } from "@/prisma/generated/prisma/client"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
-export type Sparepart = {
+export type InventoryItem = {
   id: string
   barcode: string
   name: string
@@ -23,30 +23,36 @@ export type Sparepart = {
   criticalStock: number
   warrantyDays: number | null
   isUniversal: boolean
-  kind: InventoryItemKind
-  tokoId: string
+  type: InventoryItemKind
+  storeId: string
 }
 
-export type InventoryItemKind = "sparepart" | "retail_item"
+/** @deprecated Use InventoryItem instead. */
+export type Sparepart = InventoryItem
 
-export type SparepartCategory = {
+export type InventoryItemKind = "repair_part" | "retail_product" | "phone_unit"
+
+export type InventoryCategory = {
   id: string
   name: string
-  tokoId: string
+  storeId: string
 }
+
+/** @deprecated Use InventoryCategory instead. */
+export type SparepartCategory = InventoryCategory
 
 export type ServicePricelist = {
   id: string
   title: string
   defaultPrice: number
-  tokoId?: string
+  storeId?: string
 }
 
-export type SparepartWithCompatibilities = Sparepart & {
-  category: SparepartCategory | null
+export type InventoryItemWithCompatibilities = InventoryItem & {
+  category: InventoryCategory | null
   compatibilities: Array<{
-    hpCatalogId: string
-    hpCatalog: {
+    deviceModelId: string
+    deviceModel: {
       id: string
       modelName: string
       brand: { name: string }
@@ -54,17 +60,37 @@ export type SparepartWithCompatibilities = Sparepart & {
   }>
 }
 
-export type SparepartListItem = {
+/** @deprecated Use InventoryItemWithCompatibilities instead. */
+export type SparepartWithCompatibilities = InventoryItemWithCompatibilities
+
+export type InventoryItemListItem = {
   id: string
   name: string
   barcode: string
   defaultPrice: number
   supplierName: string | null
   stock: number
-  kind: InventoryItemKind
+  type: InventoryItemKind
 }
 
-export type ImportSparepartInput = {
+/** @deprecated Use InventoryItemListItem instead. */
+export type SparepartListItem = InventoryItemListItem
+
+type LegacyInventoryItemType = "sparepart" | "retail_item"
+
+function normalizeInventoryItemType(value: unknown): InventoryItemKind | undefined {
+  if (value === "sparepart") return "repair_part"
+  if (value === "retail_item") return "retail_product"
+  if (value === "phone_unit" || value === "repair_part" || value === "retail_product") return value
+  return undefined
+}
+
+const inventoryItemTypeSchema = z.preprocess(
+  normalizeInventoryItemType,
+  z.enum(["repair_part", "retail_product", "phone_unit"]).optional()
+)
+
+export type ImportInventoryItemInput = {
   rowNumber: number
   name: string
   defaultPrice: number
@@ -75,15 +101,20 @@ export type ImportSparepartInput = {
   criticalStock?: number | null
   warrantyDays?: number | null
   isUniversal?: boolean
-  kind?: InventoryItemKind
+  type?: InventoryItemKind | LegacyInventoryItemType
 }
 
-export type ImportSparepartsResult = {
+export type ImportSparepartInput = ImportInventoryItemInput
+
+export type ImportInventoryItemsResult = {
   created: number
   updated: number
   failed: number
   errors: Array<{ rowNumber: number; message: string }>
 }
+
+/** @deprecated Use ImportInventoryItemsResult instead. */
+export type ImportSparepartsResult = ImportInventoryItemsResult
 
 export type ImportServicePricelistInput = {
   rowNumber: number
@@ -101,9 +132,9 @@ export type ImportServicePricelistsResult = {
 export type RestockHistoryItem = {
   id: string
   createdAt: Date
-  sparepartId: string
-  sparepartBarcode: string
-  sparepartName: string
+  inventoryItemId: string
+  inventoryItemBarcode: string
+  inventoryItemName: string
   previousStock: number
   addedQty: number
   newStock: number
@@ -144,7 +175,7 @@ export type InventoryReportFilters = {
   q?: string
   categoryId?: string
   status?: InventoryReportStockStatus
-  kind?: InventoryItemKind
+  type?: InventoryItemKind
 }
 
 export type InventoryReportItem = {
@@ -158,7 +189,7 @@ export type InventoryReportItem = {
   criticalStock: number
   purchasePrice: number
   defaultPrice: number
-  kind: InventoryItemKind
+  type: InventoryItemKind
   capitalValue: number
   sellingValue: number
   potentialMargin: number
@@ -181,9 +212,9 @@ export type SupplierReturnSupplierReport = {
   rejectedCount: number
 }
 
-export type SupplierReturnSparepartReport = {
-  sparepartId: string
-  sparepartName: string
+export type SupplierReturnInventoryItemReport = {
+  inventoryItemId: string
+  inventoryItemName: string
   supplierName: string | null
   returnCount: number
   returnedQty: number
@@ -191,7 +222,7 @@ export type SupplierReturnSparepartReport = {
 
 export type SupplierReturnReport = {
   supplierReports: SupplierReturnSupplierReport[]
-  mostReturnedSpareparts: SupplierReturnSparepartReport[]
+  mostReturnedSpareparts: SupplierReturnInventoryItemReport[]
   totalPendingValue: number
   averageResolutionDays: number | null
 }
@@ -223,7 +254,7 @@ function calculateAverageResolutionDays(
   return Math.round((averageMs / (1000 * 60 * 60 * 24)) * 10) / 10
 }
 
-const createSparepartSchema = z.object({
+const createInventoryItemSchema = z.object({
   name: z.string().min(1, "Nama wajib diisi"),
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
   purchasePrice: z.number().int().min(0, "Harga beli harus 0 atau lebih").nullable().optional(),
@@ -233,12 +264,12 @@ const createSparepartSchema = z.object({
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").optional(),
   warrantyDays: z.number().int().min(1, "Garansi harus 1 hari atau lebih").nullable().optional(),
   isUniversal: z.boolean().optional(),
-  kind: z.enum(["sparepart", "retail_item"]).optional(),
-  tokoId: z.string(),
-  hpCatalogIds: z.array(z.string()).optional(),
+  type: inventoryItemTypeSchema,
+  storeId: z.string(),
+  deviceModelIds: z.array(z.string()).optional(),
 })
 
-const importSparepartRowSchema = z.object({
+const importInventoryItemRowSchema = z.object({
   rowNumber: z.number().int().min(2),
   name: z.string().trim().min(1, "Nama wajib diisi"),
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih"),
@@ -249,12 +280,12 @@ const importSparepartRowSchema = z.object({
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").nullable().optional(),
   warrantyDays: z.number().int().min(1, "Garansi harus 1 hari atau lebih").nullable().optional(),
   isUniversal: z.boolean().optional(),
-  kind: z.enum(["sparepart", "retail_item"]).optional(),
+  type: inventoryItemTypeSchema,
 })
 
-const importSparepartsSchema = z.object({
-  tokoId: z.string(),
-  rows: z.array(importSparepartRowSchema).min(1, "Tidak ada data untuk diimport").max(100, "Maksimal 100 baris per import"),
+const importInventoryItemsSchema = z.object({
+  storeId: z.string(),
+  rows: z.array(importInventoryItemRowSchema).min(1, "Tidak ada data untuk diimport").max(100, "Maksimal 100 baris per import"),
 })
 
 const importServicePricelistRowSchema = z.object({
@@ -264,11 +295,11 @@ const importServicePricelistRowSchema = z.object({
 })
 
 const importServicePricelistsSchema = z.object({
-  tokoId: z.string(),
+  storeId: z.string(),
   rows: z.array(importServicePricelistRowSchema).min(1, "Tidak ada data untuk diimport").max(100, "Maksimal 100 baris per import"),
 })
 
-const updateSparepartSchema = z.object({
+const updateInventoryItemSchema = z.object({
   id: z.string(),
   name: z.string().min(1, "Nama wajib diisi").optional(),
   defaultPrice: z.number().int().min(0, "Harga jual harus 0 atau lebih").optional(),
@@ -279,14 +310,14 @@ const updateSparepartSchema = z.object({
   criticalStock: z.number().int().min(0, "Stok kritis harus 0 atau lebih").optional(),
   warrantyDays: z.number().int().min(1, "Garansi harus 1 hari atau lebih").nullable().optional(),
   isUniversal: z.boolean().optional(),
-  kind: z.enum(["sparepart", "retail_item"]).optional(),
-  hpCatalogIds: z.array(z.string()).optional(),
+  type: inventoryItemTypeSchema,
+  deviceModelIds: z.array(z.string()).optional(),
 })
 
 const createServicePricelistSchema = z.object({
   title: z.string().min(1, "Judul wajib diisi"),
   defaultPrice: z.number().int().min(0, "Harga harus 0 atau lebih"),
-  tokoId: z.string(),
+  storeId: z.string(),
 })
 
 const updateServicePricelistSchema = z.object({
@@ -295,42 +326,42 @@ const updateServicePricelistSchema = z.object({
   defaultPrice: z.number().int().min(0, "Price must be 0 or greater").optional(),
 })
 
-const SPAREPART_BARCODE_PREFIX = "SP"
+const INVENTORY_ITEM_BARCODE_PREFIX = "SP"
 
-function formatSparepartBarcode(sequence: number) {
-  return `${SPAREPART_BARCODE_PREFIX}${sequence.toString().padStart(6, "0")}`
+function formatInventoryItemBarcode(sequence: number) {
+  return `${INVENTORY_ITEM_BARCODE_PREFIX}${sequence.toString().padStart(6, "0")}`
 }
 
-async function generateSparepartBarcode(tokoId: string) {
-  const existingBarcodes = await prisma.sparepart.findMany({
-    where: { tokoId },
+async function generateInventoryItemBarcode(storeId: string) {
+  const existingBarcodes = await prisma.inventoryItem.findMany({
+    where: { storeId },
     select: { barcode: true },
   })
 
-  const usedBarcodes = new Set(existingBarcodes.map((sparepart) => sparepart.barcode))
+  const usedBarcodes = new Set(existingBarcodes.map((inventoryItem) => inventoryItem.barcode))
   let sequence = usedBarcodes.size + 1
-  let barcode = formatSparepartBarcode(sequence)
+  let barcode = formatInventoryItemBarcode(sequence)
 
   while (usedBarcodes.has(barcode)) {
     sequence += 1
-    barcode = formatSparepartBarcode(sequence)
+    barcode = formatInventoryItemBarcode(sequence)
   }
 
   return barcode
 }
 
-async function generateSparepartBarcodes(tokoId: string, count: number) {
-  const existingBarcodes = await prisma.sparepart.findMany({
-    where: { tokoId },
+async function generateInventoryItemBarcodes(storeId: string, count: number) {
+  const existingBarcodes = await prisma.inventoryItem.findMany({
+    where: { storeId },
     select: { barcode: true },
   })
 
-  const usedBarcodes = new Set(existingBarcodes.map((sparepart) => sparepart.barcode))
+  const usedBarcodes = new Set(existingBarcodes.map((inventoryItem) => inventoryItem.barcode))
   const barcodes: string[] = []
   let sequence = usedBarcodes.size + 1
 
   while (barcodes.length < count) {
-    const barcode = formatSparepartBarcode(sequence)
+    const barcode = formatInventoryItemBarcode(sequence)
     sequence += 1
 
     if (usedBarcodes.has(barcode)) continue
@@ -343,14 +374,14 @@ async function generateSparepartBarcodes(tokoId: string, count: number) {
 }
 
 async function getInventoryUser(
-  tokoId: string,
+  storeId: string,
   permissionKey: PermissionKey = "inventory.view",
   feature: FeatureKey = "inventory.management",
-  kind?: InventoryItemKind | null
+  type?: InventoryItemKind | null
 ) {
   try {
-    const scope = await getRequestScope(tokoId)
-    if (kind === "retail_item") {
+    const scope = await getRequestScope(storeId)
+    if (type === "retail_product") {
       assertFeature(scope, "retail.sales")
       assertPermission(scope, "inventory.manageRetail")
     } else {
@@ -364,10 +395,10 @@ async function getInventoryUser(
   }
 }
 
-async function getCreateSparepartUser(tokoId: string, kind?: InventoryItemKind | null) {
+async function getCreateInventoryItemUser(storeId: string, type?: InventoryItemKind | null) {
   try {
-    const scope = await getRequestScope(tokoId)
-    if (kind === "retail_item") {
+    const scope = await getRequestScope(storeId)
+    if (type === "retail_product") {
       assertFeature(scope, "retail.sales")
       assertPermission(scope, "inventory.manageRetail")
     } else {
@@ -381,58 +412,58 @@ async function getCreateSparepartUser(tokoId: string, kind?: InventoryItemKind |
   }
 }
 
-type SparepartCategoryClient = typeof prisma | Prisma.TransactionClient
+type InventoryCategoryClient = typeof prisma | Prisma.TransactionClient
 
-async function findOrCreateSparepartCategory(
-  client: SparepartCategoryClient,
-  tokoId: string,
+async function findOrCreateInventoryCategory(
+  client: InventoryCategoryClient,
+  storeId: string,
   categoryName?: string | null
 ) {
   const name = categoryName?.trim()
   if (!name) return null
 
-  const existing = await client.sparepartCategory.findFirst({
-    where: { tokoId, name: { equals: name, mode: "insensitive" } },
+  const existing = await client.inventoryCategory.findFirst({
+    where: { storeId, name: { equals: name, mode: "insensitive" } },
     select: { id: true },
   })
   if (existing) return existing
 
-  return client.sparepartCategory.create({
-    data: { tokoId, name },
+  return client.inventoryCategory.create({
+    data: { storeId, name },
     select: { id: true },
   })
 }
 
-export async function getSparepartCategories(tokoId: string): Promise<ActionResultWithData<SparepartCategory[]>> {
+export async function getInventoryCategories(storeId: string): Promise<ActionResultWithData<InventoryCategory[]>> {
   try {
-    const access = await getInventoryUser(tokoId)
+    const access = await getInventoryUser(storeId)
     if (!access.success) return access
 
-    const categories = await prisma.sparepartCategory.findMany({
-      where: { tokoId },
+    const categories = await prisma.inventoryCategory.findMany({
+      where: { storeId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, tokoId: true },
+      select: { id: true, name: true, storeId: true },
     })
 
     return { success: true, data: categories }
   } catch (error) {
-    console.error("Error fetching sparepart categories:", error)
+    console.error("Error fetching inventoryItem categories:", error)
     return { success: false, error: "Gagal mengambil kategori sparepart" }
   }
 }
 
-export async function getSpareparts(tokoId: string, kind: InventoryItemKind = "sparepart"): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
+export async function getInventoryItems(storeId: string, type: InventoryItemKind = "repair_part"): Promise<ActionResultWithData<InventoryItemWithCompatibilities[]>> {
   try {
-    const access = await getInventoryUser(tokoId, "inventory.view", "inventory.management", kind)
+    const access = await getInventoryUser(storeId, "inventory.view", "inventory.management", type)
     if (!access.success) return access
 
-    const spareparts = await prisma.sparepart.findMany({
-      where: { tokoId, kind },
+    const inventoryItems = await prisma.inventoryItem.findMany({
+      where: { storeId, type },
       include: {
         category: true,
         compatibilities: {
           include: {
-            hpCatalog: {
+            deviceModel: {
               include: { brand: { select: { name: true } } },
             },
           },
@@ -442,32 +473,32 @@ export async function getSpareparts(tokoId: string, kind: InventoryItemKind = "s
       take: 500,
     })
 
-    return { success: true, data: spareparts }
+    return { success: true, data: inventoryItems }
   } catch (error) {
-    console.error("Error fetching spareparts:", error)
+    console.error("Error fetching inventoryItems:", error)
     return { success: false, error: "Gagal mengambil sparepart" }
   }
 }
 
-export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: string): Promise<ActionResultWithData<SparepartListItem[]>> {
+export async function getCompatibleInventoryItems(storeId: string, deviceModelId?: string): Promise<ActionResultWithData<InventoryItemListItem[]>> {
   try {
-    const access = await getInventoryUser(tokoId, "inventory.view", "inventory.management")
+    const access = await getInventoryUser(storeId, "inventory.view", "inventory.management")
     if (!access.success) return access
 
     const whereClause: {
-      tokoId: string
-      kind: InventoryItemKind
-      OR?: Array<{ isUniversal: boolean } | { compatibilities: { some: { hpCatalogId: string } } }>
-    } = { tokoId, kind: "sparepart" }
+      storeId: string
+      type: InventoryItemKind
+      OR?: Array<{ isUniversal: boolean } | { compatibilities: { some: { deviceModelId: string } } }>
+    } = { storeId, type: "repair_part" }
 
-    if (hpCatalogId) {
+    if (deviceModelId) {
       whereClause.OR = [
         { isUniversal: true },
-        { compatibilities: { some: { hpCatalogId } } },
+        { compatibilities: { some: { deviceModelId } } },
       ]
     }
 
-    const spareparts = await prisma.sparepart.findMany({
+    const inventoryItems = await prisma.inventoryItem.findMany({
       where: whereClause,
       orderBy: { name: "asc" },
       select: {
@@ -477,38 +508,38 @@ export async function getCompatibleSpareparts(tokoId: string, hpCatalogId?: stri
         defaultPrice: true,
         supplierName: true,
         stock: true,
-        kind: true,
+        type: true,
       },
     })
 
-    return { success: true, data: spareparts }
+    return { success: true, data: inventoryItems }
   } catch (error) {
-    console.error("Error fetching compatible spareparts:", error)
+    console.error("Error fetching compatible inventoryItems:", error)
     return { success: false, error: "Gagal mengambil sparepart yang kompatibel" }
   }
 }
 
-export async function createSparepart(data: z.infer<typeof createSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
+export async function createInventoryItem(data: z.infer<typeof createInventoryItemSchema>): Promise<ActionResultWithData<InventoryItemWithCompatibilities>> {
   try {
-    const validated = createSparepartSchema.parse(data)
-    const access = await getCreateSparepartUser(validated.tokoId, validated.kind)
+    const validated = createInventoryItemSchema.parse(data)
+    const access = await getCreateInventoryItemUser(validated.storeId, validated.type)
     if (!access.success) return access
 
-    const existing = await prisma.sparepart.findFirst({
-      where: { tokoId: validated.tokoId, name: validated.name },
+    const existing = await prisma.inventoryItem.findFirst({
+      where: { storeId: validated.storeId, name: validated.name },
     })
 
     if (existing) {
       return { success: false, error: "Sparepart dengan nama ini sudah ada" }
     }
 
-    const category = await findOrCreateSparepartCategory(prisma, validated.tokoId, validated.categoryName)
-    const kind = validated.kind ?? "sparepart"
-    const isRetailItem = kind === "retail_item"
+    const category = await findOrCreateInventoryCategory(prisma, validated.storeId, validated.categoryName)
+    const type = validated.type ?? "repair_part"
+    const isRetailItem = type === "retail_product"
 
-    const sparepart = await prisma.sparepart.create({
+    const inventoryItem = await prisma.inventoryItem.create({
       data: {
-        barcode: await generateSparepartBarcode(validated.tokoId),
+        barcode: await generateInventoryItemBarcode(validated.storeId),
         name: validated.name,
         defaultPrice: validated.defaultPrice,
         purchasePrice: validated.purchasePrice ?? null,
@@ -518,76 +549,76 @@ export async function createSparepart(data: z.infer<typeof createSparepartSchema
         criticalStock: validated.criticalStock ?? 5,
         warrantyDays: isRetailItem ? validated.warrantyDays ?? null : null,
         isUniversal: isRetailItem ? true : validated.isUniversal ?? false,
-        kind,
-        tokoId: validated.tokoId,
-        compatibilities: !isRetailItem && validated.hpCatalogIds
-          ? { create: validated.hpCatalogIds.map((id) => ({ hpCatalogId: id })) }
+        type,
+        storeId: validated.storeId,
+        compatibilities: !isRetailItem && validated.deviceModelIds
+          ? { create: validated.deviceModelIds.map((id) => ({ deviceModelId: id })) }
           : undefined,
       },
       include: {
         category: true,
         compatibilities: {
           include: {
-            hpCatalog: { include: { brand: { select: { name: true } } } },
+            deviceModel: { include: { brand: { select: { name: true } } } },
           },
         },
       },
     })
 
-    revalidateInventoryPaths(validated.tokoId)
+    revalidateInventoryPaths(validated.storeId)
 
     await createActivityLogIfUser({
-      tokoId: validated.tokoId,
+      storeId: validated.storeId,
       userId: access.user.id,
       type: "sparepart_created",
       title: "Sparepart created",
       payload: {
-        sparepartId: sparepart.id,
-        barcode: sparepart.barcode,
-        name: sparepart.name,
-        defaultPrice: sparepart.defaultPrice,
-        purchasePrice: sparepart.purchasePrice,
-        supplierName: sparepart.supplierName,
-        categoryId: sparepart.categoryId,
-        categoryName: sparepart.category?.name,
-        stock: sparepart.stock,
-        criticalStock: sparepart.criticalStock,
-        warrantyDays: sparepart.warrantyDays,
-        isUniversal: sparepart.isUniversal,
-        kind: sparepart.kind,
+        inventoryItemId: inventoryItem.id,
+        barcode: inventoryItem.barcode,
+        name: inventoryItem.name,
+        defaultPrice: inventoryItem.defaultPrice,
+        purchasePrice: inventoryItem.purchasePrice,
+        supplierName: inventoryItem.supplierName,
+        categoryId: inventoryItem.categoryId,
+        categoryName: inventoryItem.category?.name,
+        stock: inventoryItem.stock,
+        criticalStock: inventoryItem.criticalStock,
+        warrantyDays: inventoryItem.warrantyDays,
+        isUniversal: inventoryItem.isUniversal,
+        type: inventoryItem.type,
       },
     })
 
-    return { success: true, data: sparepart }
+    return { success: true, data: inventoryItem }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message }
     }
-    console.error("Error creating sparepart:", error)
+    console.error("Error creating inventoryItem:", error)
     return { success: false, error: "Gagal membuat sparepart" }
   }
 }
 
-export async function updateSparepart(data: z.infer<typeof updateSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
+export async function updateInventoryItem(data: z.infer<typeof updateInventoryItemSchema>): Promise<ActionResultWithData<InventoryItemWithCompatibilities>> {
   try {
-    const validated = updateSparepartSchema.parse(data)
+    const validated = updateInventoryItemSchema.parse(data)
 
-    const sparepart = await prisma.sparepart.findUnique({
+    const inventoryItem = await prisma.inventoryItem.findUnique({
       where: { id: validated.id },
-      select: { tokoId: true, kind: true },
+      select: { storeId: true, type: true },
     })
 
-    if (!sparepart) {
+    if (!inventoryItem) {
       return { success: false, error: "Sparepart tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(sparepart.tokoId, "inventory.update", "inventory.management", sparepart.kind)
+    const access = await getInventoryUser(inventoryItem.storeId, "inventory.update", "inventory.management", inventoryItem.type)
     if (!access.success) return access
 
     if (validated.name) {
-      const existing = await prisma.sparepart.findFirst({
+      const existing = await prisma.inventoryItem.findFirst({
         where: {
-          tokoId: sparepart.tokoId,
+          storeId: inventoryItem.storeId,
           name: validated.name,
           id: { not: validated.id },
         },
@@ -597,11 +628,11 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
       }
     }
 
-    const category = await findOrCreateSparepartCategory(prisma, sparepart.tokoId, validated.categoryName)
-    const kind = validated.kind ?? sparepart.kind
-    const isRetailItem = kind === "retail_item"
+    const category = await findOrCreateInventoryCategory(prisma, inventoryItem.storeId, validated.categoryName)
+    const type = validated.type ?? inventoryItem.type
+    const isRetailItem = type === "retail_product"
 
-    const updated = await prisma.sparepart.update({
+    const updated = await prisma.inventoryItem.update({
       where: { id: validated.id },
       data: {
         name: validated.name,
@@ -613,32 +644,32 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         criticalStock: validated.criticalStock,
         warrantyDays: isRetailItem ? validated.warrantyDays : null,
         isUniversal: isRetailItem ? true : validated.isUniversal,
-        kind: validated.kind,
+        type: validated.type,
         ...(isRetailItem
           ? { compatibilities: { deleteMany: {} } }
-          : validated.hpCatalogIds
-            ? { compatibilities: { deleteMany: {}, create: validated.hpCatalogIds.map((id) => ({ hpCatalogId: id })) } }
+          : validated.deviceModelIds
+            ? { compatibilities: { deleteMany: {}, create: validated.deviceModelIds.map((id) => ({ deviceModelId: id })) } }
             : {}),
       },
       include: {
         category: true,
         compatibilities: {
           include: {
-            hpCatalog: { include: { brand: { select: { name: true } } } },
+            deviceModel: { include: { brand: { select: { name: true } } } },
           },
         },
       },
     })
 
-    revalidateInventoryPaths(sparepart.tokoId)
+    revalidateInventoryPaths(inventoryItem.storeId)
 
     await createActivityLogIfUser({
-      tokoId: sparepart.tokoId,
+      storeId: inventoryItem.storeId,
       userId: access.user.id,
       type: "sparepart_updated",
       title: "Sparepart updated",
       payload: {
-        sparepartId: updated.id,
+        inventoryItemId: updated.id,
         name: updated.name,
         defaultPrice: updated.defaultPrice,
         purchasePrice: updated.purchasePrice,
@@ -649,7 +680,7 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
         criticalStock: updated.criticalStock,
         warrantyDays: updated.warrantyDays,
         isUniversal: updated.isUniversal,
-        kind: updated.kind,
+        type: updated.type,
       },
     })
 
@@ -658,24 +689,24 @@ export async function updateSparepart(data: z.infer<typeof updateSparepartSchema
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message }
     }
-    console.error("Error updating sparepart:", error)
+    console.error("Error updating inventoryItem:", error)
     return { success: false, error: "Gagal memperbarui sparepart" }
   }
 }
 
-export async function importSpareparts(data: z.infer<typeof importSparepartsSchema>): Promise<ActionResultWithData<ImportSparepartsResult>> {
+export async function importInventoryItems(data: z.infer<typeof importInventoryItemsSchema>): Promise<ActionResultWithData<ImportInventoryItemsResult>> {
   try {
-    const validated = importSparepartsSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, "inventory.import")
+    const validated = importInventoryItemsSchema.parse(data)
+    const access = await getInventoryUser(validated.storeId, "inventory.import")
     if (!access.success) return access
-    if (validated.rows.some((row) => row.kind === "retail_item")) {
+    if (validated.rows.some((row) => row.type === "retail_product")) {
       assertFeature(access.scope, "retail.sales")
       assertPermission(access.scope, "inventory.manageRetail")
     }
 
-    const errors: ImportSparepartsResult["errors"] = []
+    const errors: ImportInventoryItemsResult["errors"] = []
     const seenNames = new Map<string, number>()
-    const validRows: Array<z.infer<typeof importSparepartRowSchema>> = []
+    const validRows: Array<z.infer<typeof importInventoryItemRowSchema>> = []
 
     for (const row of validated.rows) {
       const normalizedName = row.name.trim().toLowerCase()
@@ -700,16 +731,16 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
       }
     }
 
-    const existingSpareparts = await prisma.sparepart.findMany({
+    const existingSpareparts = await prisma.inventoryItem.findMany({
       where: {
-        tokoId: validated.tokoId,
+        storeId: validated.storeId,
         name: { in: validRows.map((row) => row.name) },
       },
       select: { id: true, name: true },
     })
-    const existingByName = new Map(existingSpareparts.map((sparepart) => [sparepart.name, sparepart]))
+    const existingByName = new Map(existingSpareparts.map((inventoryItem) => [inventoryItem.name, inventoryItem]))
     const rowsToCreate = validRows.filter((row) => !existingByName.has(row.name))
-    const barcodes = await generateSparepartBarcodes(validated.tokoId, rowsToCreate.length)
+    const barcodes = await generateInventoryItemBarcodes(validated.storeId, rowsToCreate.length)
     let barcodeIndex = 0
     let created = 0
     let updated = 0
@@ -717,10 +748,10 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
     await prisma.$transaction(async (tx) => {
       for (const row of validRows) {
         const existing = existingByName.get(row.name)
-        const category = await findOrCreateSparepartCategory(tx, validated.tokoId, row.categoryName)
+        const category = await findOrCreateInventoryCategory(tx, validated.storeId, row.categoryName)
 
         if (existing) {
-          await tx.sparepart.update({
+          await tx.inventoryItem.update({
             where: { id: existing.id },
             data: {
               defaultPrice: row.defaultPrice,
@@ -729,17 +760,17 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
               categoryId: category?.id ?? null,
               stock: row.stock,
               criticalStock: row.criticalStock ?? 5,
-              warrantyDays: row.kind === "retail_item" ? row.warrantyDays ?? null : null,
-              isUniversal: row.kind === "retail_item" ? true : row.isUniversal ?? true,
-              kind: row.kind ?? "sparepart",
-              ...(row.kind === "retail_item" ? { compatibilities: { deleteMany: {} } } : {}),
+              warrantyDays: row.type === "retail_product" ? row.warrantyDays ?? null : null,
+              isUniversal: row.type === "retail_product" ? true : row.isUniversal ?? true,
+              type: row.type ?? "repair_part",
+              ...(row.type === "retail_product" ? { compatibilities: { deleteMany: {} } } : {}),
             },
           })
           updated += 1
           continue
         }
 
-        await tx.sparepart.create({
+        await tx.inventoryItem.create({
           data: {
             barcode: barcodes[barcodeIndex],
             name: row.name,
@@ -749,10 +780,10 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
             categoryId: category?.id ?? null,
             stock: row.stock,
             criticalStock: row.criticalStock ?? 5,
-            warrantyDays: row.kind === "retail_item" ? row.warrantyDays ?? null : null,
-            isUniversal: row.kind === "retail_item" ? true : row.isUniversal ?? true,
-            kind: row.kind ?? "sparepart",
-            tokoId: validated.tokoId,
+            warrantyDays: row.type === "retail_product" ? row.warrantyDays ?? null : null,
+            isUniversal: row.type === "retail_product" ? true : row.isUniversal ?? true,
+            type: row.type ?? "repair_part",
+            storeId: validated.storeId,
           },
         })
         barcodeIndex += 1
@@ -760,10 +791,10 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
       }
     })
 
-    revalidateInventoryPaths(validated.tokoId)
+    revalidateInventoryPaths(validated.storeId)
 
     await createActivityLogIfUser({
-      tokoId: validated.tokoId,
+      storeId: validated.storeId,
       userId: access.user.id,
       type: "sparepart_created",
       title: "Spareparts imported",
@@ -782,12 +813,15 @@ export async function importSpareparts(data: z.infer<typeof importSparepartsSche
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message }
     }
-    console.error("Error importing spareparts:", error)
+    console.error("Error importing inventoryItems:", error)
     return { success: false, error: "Gagal import sparepart" }
   }
 }
 
-const restockSparepartSchema = z.object({
+// Legacy export kept so existing Excel import callers/templates continue to work during the domain rename.
+export const importSpareparts = importInventoryItems
+
+const restockInventoryItemSchema = z.object({
   id: z.string(),
   qty: z.number().int().min(1, "Jumlah harus 1 atau lebih"),
 })
@@ -801,9 +835,9 @@ const currencyAmountSchema = z.preprocess((value) => {
   return value
 }, z.number().int("Nominal harus berupa angka bulat"))
 
-const restockSparepartsWithDebtSchema = z.object({
-  tokoId: z.string().min(1, "Toko wajib diisi"),
-  items: z.array(restockSparepartSchema).min(1, "Tambahkan minimal 1 item restock"),
+const restockInventoryItemsWithDebtSchema = z.object({
+  storeId: z.string().min(1, "Toko wajib diisi"),
+  items: z.array(restockInventoryItemSchema).min(1, "Tambahkan minimal 1 item restock"),
   supplierDebt: z.object({
     enabled: z.boolean(),
     supplierId: z.string().optional().nullable(),
@@ -815,11 +849,11 @@ const restockSparepartsWithDebtSchema = z.object({
   }).optional(),
 })
 
-export type RestockSparepartsWithDebtInput = z.infer<typeof restockSparepartsWithDebtSchema>
+export type RestockInventoryItemsWithDebtInput = z.infer<typeof restockInventoryItemsWithDebtSchema>
 
 class RestockActionError extends Error {}
 
-function getSupplierDebtStatus(totalAmount: number, paidAmount: number): "unpaid" | "partial" | "paid" {
+function getSupplierPayableStatus(totalAmount: number, paidAmount: number): "unpaid" | "partial" | "paid" {
   if (paidAmount >= totalAmount) return "paid"
   if (paidAmount > 0) return "partial"
   return "unpaid"
@@ -836,7 +870,7 @@ function parseOptionalDate(value: string | null | undefined) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function validateRestockSupplierDebt(input: NonNullable<RestockSparepartsWithDebtInput["supplierDebt"]>) {
+function validateRestockSupplierPayable(input: NonNullable<RestockInventoryItemsWithDebtInput["supplierDebt"]>) {
   if (!input.enabled) return
 
   const totalAmount = input.totalAmount ?? 0
@@ -848,53 +882,53 @@ function validateRestockSupplierDebt(input: NonNullable<RestockSparepartsWithDeb
   if (paidAmount > totalAmount) throw new RestockActionError("Dibayar sekarang tidak boleh melebihi total pembelian")
 }
 
-function revalidateSupplierDebtPath(tokoId: string) {
-  revalidatePath(`/${tokoId}/supplier-debts`)
+function revalidateSupplierPayablePath(storeId: string) {
+  revalidatePath(`/${storeId}/supplier-debts`)
 }
 
-export async function restockSparepart(data: z.infer<typeof restockSparepartSchema>): Promise<ActionResultWithData<SparepartWithCompatibilities>> {
+export async function restockInventoryItem(data: z.infer<typeof restockInventoryItemSchema>): Promise<ActionResultWithData<InventoryItemWithCompatibilities>> {
   try {
-    const validated = restockSparepartSchema.parse(data)
+    const validated = restockInventoryItemSchema.parse(data)
 
-    const sparepart = await prisma.sparepart.findUnique({
+    const inventoryItem = await prisma.inventoryItem.findUnique({
       where: { id: validated.id },
-      select: { tokoId: true, barcode: true, name: true, stock: true, purchasePrice: true, kind: true },
+      select: { storeId: true, barcode: true, name: true, stock: true, purchasePrice: true, type: true },
     })
 
-    if (!sparepart) {
+    if (!inventoryItem) {
       return { success: false, error: "Sparepart tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(sparepart.tokoId, "inventory.restock")
+    const access = await getInventoryUser(inventoryItem.storeId, "inventory.restock")
     if (!access.success) return access
-    if (sparepart.kind === "retail_item") {
+    if (inventoryItem.type === "retail_product") {
       assertFeature(access.scope, "retail.sales")
       assertPermission(access.scope, "inventory.manageRetail")
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      const updatedSparepart = await tx.sparepart.update({
+      const updatedSparepart = await tx.inventoryItem.update({
         where: { id: validated.id },
         data: { stock: { increment: validated.qty } },
         include: {
           category: true,
           compatibilities: {
             include: {
-              hpCatalog: { include: { brand: { select: { name: true } } } },
+              deviceModel: { include: { brand: { select: { name: true } } } },
             },
           },
         },
       })
 
-      await tx.stockMovement.create({
+      await tx.inventoryMovement.create({
         data: {
-          tokoId: sparepart.tokoId,
-          sparepartId: validated.id,
+          storeId: inventoryItem.storeId,
+          inventoryItemId: validated.id,
           type: "restock",
           qtyChange: validated.qty,
           stockBefore: updatedSparepart.stock - validated.qty,
           stockAfter: updatedSparepart.stock,
-          unitCostSnapshot: sparepart.purchasePrice,
+          unitCostSnapshot: inventoryItem.purchasePrice,
           unitPriceSnapshot: updatedSparepart.defaultPrice,
           referenceType: "restock",
           referenceId: validated.id,
@@ -906,23 +940,23 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
       return updatedSparepart
     })
 
-    revalidateInventoryPaths(sparepart.tokoId)
+    revalidateInventoryPaths(inventoryItem.storeId)
 
     await createActivityLogIfUser({
-      tokoId: sparepart.tokoId,
+      storeId: inventoryItem.storeId,
       userId: access.user.id,
       type: "sparepart_stock_in",
       title: "Sparepart restocked",
       payload: {
-        sparepartId: validated.id,
-        sparepartBarcode: sparepart.barcode,
-        sparepartName: sparepart.name,
+        inventoryItemId: validated.id,
+        inventoryItemBarcode: inventoryItem.barcode,
+        inventoryItemName: inventoryItem.name,
         previousStock: updated.stock - validated.qty,
         addedQty: validated.qty,
         newStock: updated.stock,
-        kind: sparepart.kind,
-        purchasePrice: sparepart.purchasePrice ?? 0,
-        totalPrice: (sparepart.purchasePrice ?? 0) * validated.qty,
+        type: inventoryItem.type,
+        purchasePrice: inventoryItem.purchasePrice ?? 0,
+        totalPrice: (inventoryItem.purchasePrice ?? 0) * validated.qty,
       },
     })
 
@@ -931,79 +965,79 @@ export async function restockSparepart(data: z.infer<typeof restockSparepartSche
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message }
     }
-    console.error("Error restocking sparepart:", error)
+    console.error("Error restocking inventoryItem:", error)
     return { success: false, error: "Gagal menambah stok sparepart" }
   }
 }
 
-export async function restockSparepartsWithDebt(
-  data: RestockSparepartsWithDebtInput
-): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
+export async function restockInventoryItemsWithDebt(
+  data: RestockInventoryItemsWithDebtInput
+): Promise<ActionResultWithData<InventoryItemWithCompatibilities[]>> {
   try {
-    const validated = restockSparepartsWithDebtSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, "inventory.restock")
+    const validated = restockInventoryItemsWithDebtSchema.parse(data)
+    const access = await getInventoryUser(validated.storeId, "inventory.restock")
     if (!access.success) return access
 
     const supplierDebt = validated.supplierDebt
-    if (supplierDebt?.enabled) validateRestockSupplierDebt(supplierDebt)
+    if (supplierDebt?.enabled) validateRestockSupplierPayable(supplierDebt)
 
-    const sparepartIds = validated.items.map((item) => item.id)
-    if (new Set(sparepartIds).size !== sparepartIds.length) {
+    const inventoryItemIds = validated.items.map((item) => item.id)
+    if (new Set(inventoryItemIds).size !== inventoryItemIds.length) {
       return { success: false, error: "Item restock tidak boleh duplikat" }
     }
 
-    const existingSpareparts = await prisma.sparepart.findMany({
-      where: { id: { in: sparepartIds }, tokoId: validated.tokoId },
-      select: { id: true, barcode: true, name: true, stock: true, purchasePrice: true, kind: true },
+    const existingSpareparts = await prisma.inventoryItem.findMany({
+      where: { id: { in: inventoryItemIds }, storeId: validated.storeId },
+      select: { id: true, barcode: true, name: true, stock: true, purchasePrice: true, type: true },
     })
-    const sparepartById = new Map(existingSpareparts.map((sparepart) => [sparepart.id, sparepart]))
+    const inventoryItemById = new Map(existingSpareparts.map((inventoryItem) => [inventoryItem.id, inventoryItem]))
 
-    if (existingSpareparts.some((sparepart) => sparepart.kind === "retail_item")) {
+    if (existingSpareparts.some((inventoryItem) => inventoryItem.type === "retail_product")) {
       assertFeature(access.scope, "retail.sales")
       assertPermission(access.scope, "inventory.manageRetail")
     }
 
     for (const item of validated.items) {
-      if (!sparepartById.has(item.id)) return { success: false, error: "Item restock tidak ditemukan di toko ini" }
+      if (!inventoryItemById.has(item.id)) return { success: false, error: "Item restock tidak ditemukan di toko ini" }
     }
 
     if (supplierDebt?.enabled && supplierDebt.supplierId) {
       const supplier = await prisma.supplier.findFirst({
-        where: { id: supplierDebt.supplierId, tokoId: validated.tokoId },
+        where: { id: supplierDebt.supplierId, storeId: validated.storeId },
         select: { id: true },
       })
       if (!supplier) return { success: false, error: "Supplier tidak ditemukan di toko ini" }
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      const updatedSpareparts: SparepartWithCompatibilities[] = []
+      const updatedSpareparts: InventoryItemWithCompatibilities[] = []
 
       for (const item of validated.items) {
-        const sparepart = sparepartById.get(item.id)
-        if (!sparepart) throw new RestockActionError("Item restock tidak ditemukan di toko ini")
+        const inventoryItem = inventoryItemById.get(item.id)
+        if (!inventoryItem) throw new RestockActionError("Item restock tidak ditemukan di toko ini")
 
-        const updatedSparepart = await tx.sparepart.update({
+        const updatedSparepart = await tx.inventoryItem.update({
           where: { id: item.id },
           data: { stock: { increment: item.qty } },
           include: {
             category: true,
             compatibilities: {
               include: {
-                hpCatalog: { include: { brand: { select: { name: true } } } },
+                deviceModel: { include: { brand: { select: { name: true } } } },
               },
             },
           },
         })
 
-        await tx.stockMovement.create({
+        await tx.inventoryMovement.create({
           data: {
-            tokoId: validated.tokoId,
-            sparepartId: item.id,
+            storeId: validated.storeId,
+            inventoryItemId: item.id,
             type: "restock",
             qtyChange: item.qty,
             stockBefore: updatedSparepart.stock - item.qty,
             stockAfter: updatedSparepart.stock,
-            unitCostSnapshot: sparepart.purchasePrice,
+            unitCostSnapshot: inventoryItem.purchasePrice,
             unitPriceSnapshot: updatedSparepart.defaultPrice,
             referenceType: "restock",
             referenceId: item.id,
@@ -1020,24 +1054,24 @@ export async function restockSparepartsWithDebt(
         const invoiceDate = normalizeOptionalText(supplierDebt.invoiceDate)
         const itemSummary = validated.items
           .map((item) => {
-            const sparepart = sparepartById.get(item.id)
-            return sparepart ? `${sparepart.name} x${item.qty}` : null
+            const inventoryItem = inventoryItemById.get(item.id)
+            return inventoryItem ? `${inventoryItem.name} x${item.qty}` : null
           })
           .filter(Boolean)
           .join(", ")
         const descriptionParts = [`Restock: ${itemSummary}`]
         if (invoiceDate) descriptionParts.push(`Tanggal nota: ${invoiceDate}`)
 
-        await tx.supplierDebt.create({
+        await tx.supplierPayable.create({
           data: {
-            tokoId: validated.tokoId,
+            storeId: validated.storeId,
             supplierId: supplierDebt.supplierId,
             invoiceNumber: normalizeOptionalText(supplierDebt.invoiceNumber),
             description: descriptionParts.join("\n"),
             totalAmount: supplierDebt.totalAmount ?? 0,
             paidAmount,
             dueDate: parseOptionalDate(supplierDebt.dueDate),
-            status: getSupplierDebtStatus(supplierDebt.totalAmount ?? 0, paidAmount),
+            status: getSupplierPayableStatus(supplierDebt.totalAmount ?? 0, paidAmount),
             payments: paidAmount > 0
               ? {
                   create: {
@@ -1053,27 +1087,27 @@ export async function restockSparepartsWithDebt(
       return updatedSpareparts
     })
 
-    revalidateInventoryPaths(validated.tokoId)
-    if (supplierDebt?.enabled) revalidateSupplierDebtPath(validated.tokoId)
+    revalidateInventoryPaths(validated.storeId)
+    if (supplierDebt?.enabled) revalidateSupplierPayablePath(validated.storeId)
 
     await Promise.all(updated.map((updatedSparepart) => {
       const item = validated.items.find((currentItem) => currentItem.id === updatedSparepart.id)
-      const previous = sparepartById.get(updatedSparepart.id)
+      const previous = inventoryItemById.get(updatedSparepart.id)
       if (!item || !previous) return Promise.resolve()
 
       return createActivityLogIfUser({
-        tokoId: validated.tokoId,
+        storeId: validated.storeId,
         userId: access.user.id,
         type: "sparepart_stock_in",
         title: "Sparepart restocked",
         payload: {
-          sparepartId: updatedSparepart.id,
-          sparepartBarcode: previous.barcode,
-          sparepartName: previous.name,
+          inventoryItemId: updatedSparepart.id,
+          inventoryItemBarcode: previous.barcode,
+          inventoryItemName: previous.name,
           previousStock: updatedSparepart.stock - item.qty,
           addedQty: item.qty,
           newStock: updatedSparepart.stock,
-          kind: previous.kind,
+          type: previous.type,
           purchasePrice: previous.purchasePrice ?? 0,
           totalPrice: (previous.purchasePrice ?? 0) * item.qty,
           supplierDebtCreated: Boolean(supplierDebt?.enabled),
@@ -1087,20 +1121,20 @@ export async function restockSparepartsWithDebt(
       return { success: false, error: error.issues[0].message }
     }
     if (error instanceof RestockActionError) return { success: false, error: error.message }
-    console.error("Error restocking spareparts with supplier debt:", error)
+    console.error("Error restocking inventoryItems with supplier debt:", error)
     return { success: false, error: "Gagal menyimpan restock" }
   }
 }
 
-export async function searchSpareparts(tokoId: string, query: string, kind: InventoryItemKind = "sparepart"): Promise<ActionResultWithData<SparepartWithCompatibilities[]>> {
+export async function searchInventoryItems(storeId: string, query: string, type: InventoryItemKind = "repair_part"): Promise<ActionResultWithData<InventoryItemWithCompatibilities[]>> {
   try {
-    const access = await getInventoryUser(tokoId, "inventory.view", "inventory.management", kind)
+    const access = await getInventoryUser(storeId, "inventory.view", "inventory.management", type)
     if (!access.success) return access
 
-    const spareparts = await prisma.sparepart.findMany({
+    const inventoryItems = await prisma.inventoryItem.findMany({
       where: {
-        tokoId,
-        kind,
+        storeId,
+        type,
         OR: [
           { barcode: { equals: query, mode: "insensitive" } },
           { id: { startsWith: query } },
@@ -1111,7 +1145,7 @@ export async function searchSpareparts(tokoId: string, query: string, kind: Inve
         category: true,
         compatibilities: {
           include: {
-            hpCatalog: { include: { brand: { select: { name: true } } } },
+            deviceModel: { include: { brand: { select: { name: true } } } },
           },
         },
       },
@@ -1119,30 +1153,30 @@ export async function searchSpareparts(tokoId: string, query: string, kind: Inve
       take: 10,
     })
 
-    return { success: true, data: spareparts }
+    return { success: true, data: inventoryItems }
   } catch (error) {
-    console.error("Error searching spareparts:", error)
+    console.error("Error searching inventoryItems:", error)
     return { success: false, error: "Gagal mencari sparepart" }
   }
 }
 
-export async function getStockInHistory(tokoId: string, limit: number = 20): Promise<ActionResultWithData<Array<{
+export async function getStockInHistory(storeId: string, limit: number = 20): Promise<ActionResultWithData<Array<{
   id: string
   createdAt: Date
-  sparepartId: string
-  sparepartName: string
+  inventoryItemId: string
+  inventoryItemName: string
   previousStock: number
   addedQty: number
   newStock: number
   userName: string
 }>>> {
   try {
-    const access = await getInventoryUser(tokoId, "inventory.viewHistory")
+    const access = await getInventoryUser(storeId, "inventory.viewHistory")
     if (!access.success) return access
 
     const activities = await prisma.activityLog.findMany({
       where: {
-        tokoId,
+        storeId,
         type: "sparepart_stock_in",
       },
       orderBy: { createdAt: "desc" },
@@ -1159,8 +1193,8 @@ export async function getStockInHistory(tokoId: string, limit: number = 20): Pro
 
     const history = activities.map((log) => {
       const payload = log.payload as {
-        sparepartId: string
-        sparepartName: string
+        inventoryItemId: string
+        inventoryItemName: string
         previousStock: number
         addedQty: number
         newStock: number
@@ -1169,8 +1203,8 @@ export async function getStockInHistory(tokoId: string, limit: number = 20): Pro
       return {
         id: log.id,
         createdAt: log.createdAt,
-        sparepartId: payload?.sparepartId ?? "",
-        sparepartName: payload?.sparepartName ?? "",
+        inventoryItemId: payload?.inventoryItemId ?? "",
+        inventoryItemName: payload?.inventoryItemName ?? "",
         previousStock: payload?.previousStock ?? 0,
         addedQty: payload?.addedQty ?? 0,
         newStock: payload?.newStock ?? 0,
@@ -1186,11 +1220,11 @@ export async function getStockInHistory(tokoId: string, limit: number = 20): Pro
 }
 
 export async function getRestockHistory(
-  tokoId: string,
+  storeId: string,
   filters: RestockHistoryFilters = {}
 ): Promise<ActionResultWithData<RestockHistoryResult>> {
   try {
-    const access = await getInventoryUser(tokoId, "inventory.viewHistory")
+    const access = await getInventoryUser(storeId, "inventory.viewHistory")
     if (!access.success) return access
 
     const pageSize = Math.min(Math.max(filters.pageSize ?? 20, 1), 100)
@@ -1209,7 +1243,7 @@ export async function getRestockHistory(
 
     const activities = await prisma.activityLog.findMany({
       where: {
-        tokoId,
+        storeId,
         type: "sparepart_stock_in",
         title: "Sparepart restocked",
         ...(filters.userId ? { userId: filters.userId } : {}),
@@ -1227,7 +1261,7 @@ export async function getRestockHistory(
 
     const userActivities = await prisma.activityLog.findMany({
       where: {
-        tokoId,
+        storeId,
         type: "sparepart_stock_in",
         title: "Sparepart restocked",
       },
@@ -1239,9 +1273,9 @@ export async function getRestockHistory(
 
     const mappedItems = activities.map((log) => {
       const payload = log.payload as {
-        sparepartId?: string
-        sparepartBarcode?: string
-        sparepartName?: string
+        inventoryItemId?: string
+        inventoryItemBarcode?: string
+        inventoryItemName?: string
         previousStock?: number
         addedQty?: number
         newStock?: number
@@ -1254,9 +1288,9 @@ export async function getRestockHistory(
       return {
         id: log.id,
         createdAt: log.createdAt,
-        sparepartId: payload?.sparepartId ?? "",
-        sparepartBarcode: payload?.sparepartBarcode ?? "",
-        sparepartName: payload?.sparepartName ?? "",
+        inventoryItemId: payload?.inventoryItemId ?? "",
+        inventoryItemBarcode: payload?.inventoryItemBarcode ?? "",
+        inventoryItemName: payload?.inventoryItemName ?? "",
         previousStock: payload?.previousStock ?? 0,
         addedQty,
         newStock: payload?.newStock ?? 0,
@@ -1270,9 +1304,9 @@ export async function getRestockHistory(
     const normalizedQuery = filters.q?.trim().toLowerCase() ?? ""
     const filteredItems = normalizedQuery
       ? mappedItems.filter((item) =>
-          item.sparepartName.toLowerCase().includes(normalizedQuery) ||
-          item.sparepartBarcode.toLowerCase().includes(normalizedQuery) ||
-          item.sparepartId.toLowerCase().includes(normalizedQuery) ||
+          item.inventoryItemName.toLowerCase().includes(normalizedQuery) ||
+          item.inventoryItemBarcode.toLowerCase().includes(normalizedQuery) ||
+          item.inventoryItemId.toLowerCase().includes(normalizedQuery) ||
           item.userName.toLowerCase().includes(normalizedQuery)
         )
       : mappedItems
@@ -1309,21 +1343,21 @@ export async function getRestockHistory(
 }
 
 export async function getInventoryReport(
-  tokoId: string,
+  storeId: string,
   filters: InventoryReportFilters = {}
 ): Promise<ActionResultWithData<InventoryReportResult>> {
   try {
-    const access = await getInventoryUser(tokoId, "inventory.report", "inventory.management", filters.kind)
+    const access = await getInventoryUser(storeId, "inventory.report", "inventory.management", filters.type)
     if (!access.success) return access
 
-    const [spareparts, supplierReturns] = await Promise.all([
-      prisma.sparepart.findMany({
-        where: { tokoId, ...(filters.kind ? { kind: filters.kind } : {}) },
+    const [inventoryItems, supplierReturns] = await Promise.all([
+      prisma.inventoryItem.findMany({
+        where: { storeId, ...(filters.type ? { type: filters.type } : {}) },
         include: { category: true },
         orderBy: { name: "asc" },
       }),
       prisma.supplierReturn.findMany({
-        where: { tokoId },
+        where: { storeId },
         select: {
           id: true,
           qty: true,
@@ -1332,45 +1366,45 @@ export async function getInventoryReport(
           refundAmount: true,
           createdAt: true,
           resolvedAt: true,
-          sparepartId: true,
-          sparepart: { select: { id: true, name: true, purchasePrice: true, supplierName: true } },
+          inventoryItemId: true,
+          inventoryItem: { select: { id: true, name: true, purchasePrice: true, supplierName: true } },
         },
       }),
     ])
 
     const categories = Array.from(
       new Map(
-        spareparts
-          .filter((sparepart) => sparepart.category)
-          .map((sparepart) => [
-            sparepart.category!.id,
-            { id: sparepart.category!.id, name: sparepart.category!.name },
+        inventoryItems
+          .filter((inventoryItem) => inventoryItem.category)
+          .map((inventoryItem) => [
+            inventoryItem.category!.id,
+            { id: inventoryItem.category!.id, name: inventoryItem.category!.name },
           ])
       ).values()
     ).sort((a, b) => a.name.localeCompare(b.name))
 
-    const reportItems = spareparts.map((sparepart) => {
-      const purchasePrice = sparepart.purchasePrice ?? 0
-      const capitalValue = sparepart.stock * purchasePrice
-      const sellingValue = sparepart.stock * sparepart.defaultPrice
-      const status: Exclude<InventoryReportStockStatus, "all"> = sparepart.stock <= 0
+    const reportItems = inventoryItems.map((inventoryItem) => {
+      const purchasePrice = inventoryItem.purchasePrice ?? 0
+      const capitalValue = inventoryItem.stock * purchasePrice
+      const sellingValue = inventoryItem.stock * inventoryItem.defaultPrice
+      const status: Exclude<InventoryReportStockStatus, "all"> = inventoryItem.stock <= 0
         ? "out"
-        : sparepart.stock <= sparepart.criticalStock
+        : inventoryItem.stock <= inventoryItem.criticalStock
           ? "critical"
           : "safe"
 
       return {
-        id: sparepart.id,
-        barcode: sparepart.barcode,
-        name: sparepart.name,
-        categoryId: sparepart.categoryId,
-        categoryName: sparepart.category?.name ?? null,
-        supplierName: sparepart.supplierName,
-        stock: sparepart.stock,
-        criticalStock: sparepart.criticalStock,
+        id: inventoryItem.id,
+        barcode: inventoryItem.barcode,
+        name: inventoryItem.name,
+        categoryId: inventoryItem.categoryId,
+        categoryName: inventoryItem.category?.name ?? null,
+        supplierName: inventoryItem.supplierName,
+        stock: inventoryItem.stock,
+        criticalStock: inventoryItem.criticalStock,
         purchasePrice,
-        defaultPrice: sparepart.defaultPrice,
-        kind: sparepart.kind,
+        defaultPrice: inventoryItem.defaultPrice,
+        type: inventoryItem.type,
         capitalValue,
         sellingValue,
         potentialMargin: sellingValue - capitalValue,
@@ -1391,10 +1425,10 @@ export async function getInventoryReport(
     )
 
     const supplierReportMap = new Map<string, SupplierReturnSupplierReport & { resolvedItems: Array<{ createdAt: Date; resolvedAt: Date | null }> }>()
-    const sparepartReportMap = new Map<string, SupplierReturnSparepartReport>()
+    const inventoryItemReportMap = new Map<string, SupplierReturnInventoryItemReport>()
 
     for (const supplierReturn of supplierReturns) {
-      const supplierName = supplierReturn.supplierName || supplierReturn.sparepart.supplierName || "Tanpa supplier"
+      const supplierName = supplierReturn.supplierName || supplierReturn.inventoryItem.supplierName || "Tanpa supplier"
       const supplierReport = supplierReportMap.get(supplierName) ?? {
         supplierName,
         pendingCount: 0,
@@ -1406,7 +1440,7 @@ export async function getInventoryReport(
         rejectedCount: 0,
         resolvedItems: [],
       }
-      const purchasePrice = supplierReturn.sparepart.purchasePrice ?? 0
+      const purchasePrice = supplierReturn.inventoryItem.purchasePrice ?? 0
 
       if (supplierReturn.status === "pending") {
         supplierReport.pendingCount += 1
@@ -1421,16 +1455,16 @@ export async function getInventoryReport(
 
       supplierReportMap.set(supplierName, supplierReport)
 
-      const sparepartReport = sparepartReportMap.get(supplierReturn.sparepartId) ?? {
-        sparepartId: supplierReturn.sparepart.id,
-        sparepartName: supplierReturn.sparepart.name,
-        supplierName: supplierReturn.sparepart.supplierName,
+      const inventoryItemReport = inventoryItemReportMap.get(supplierReturn.inventoryItemId) ?? {
+        inventoryItemId: supplierReturn.inventoryItem.id,
+        inventoryItemName: supplierReturn.inventoryItem.name,
+        supplierName: supplierReturn.inventoryItem.supplierName,
         returnCount: 0,
         returnedQty: 0,
       }
-      sparepartReport.returnCount += 1
-      sparepartReport.returnedQty += supplierReturn.qty
-      sparepartReportMap.set(supplierReturn.sparepartId, sparepartReport)
+      inventoryItemReport.returnCount += 1
+      inventoryItemReport.returnedQty += supplierReturn.qty
+      inventoryItemReportMap.set(supplierReturn.inventoryItemId, inventoryItemReport)
     }
 
     const supplierReports = Array.from(supplierReportMap.values())
@@ -1442,8 +1476,8 @@ export async function getInventoryReport(
 
     const supplierReturnReport: SupplierReturnReport = {
       supplierReports,
-      mostReturnedSpareparts: Array.from(sparepartReportMap.values())
-        .sort((a, b) => b.returnedQty - a.returnedQty || b.returnCount - a.returnCount || a.sparepartName.localeCompare(b.sparepartName))
+      mostReturnedSpareparts: Array.from(inventoryItemReportMap.values())
+        .sort((a, b) => b.returnedQty - a.returnedQty || b.returnCount - a.returnCount || a.inventoryItemName.localeCompare(b.inventoryItemName))
         .slice(0, 10),
       totalPendingValue: supplierReports.reduce((total, report) => total + report.pendingValue, 0),
       averageResolutionDays: calculateAverageResolutionDays(supplierReturns),
@@ -1471,21 +1505,21 @@ export async function getInventoryReport(
   }
 }
 
-export async function deleteSparepart(id: string): Promise<ActionResult> {
+export async function deleteInventoryItem(id: string): Promise<ActionResult> {
   try {
-    const sparepart = await prisma.sparepart.findUnique({
+    const inventoryItem = await prisma.inventoryItem.findUnique({
       where: { id },
-      select: { tokoId: true, name: true, kind: true },
+      select: { storeId: true, name: true, type: true },
     })
 
-    if (!sparepart) {
+    if (!inventoryItem) {
       return { success: false, error: "Sparepart tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(sparepart.tokoId, "inventory.delete", "inventory.management", sparepart.kind)
+    const access = await getInventoryUser(inventoryItem.storeId, "inventory.delete", "inventory.management", inventoryItem.type)
     if (!access.success) return access
 
-    const usedInServices = await prisma.serviceItem.findFirst({
+    const usedInServices = await prisma.repairOrderItem.findFirst({
       where: { referenceId: id },
     })
 
@@ -1494,43 +1528,43 @@ export async function deleteSparepart(id: string): Promise<ActionResult> {
     }
 
     await prisma.$transaction([
-      prisma.sparepartCompatibility.deleteMany({ where: { sparepartId: id } }),
-      prisma.sparepart.delete({ where: { id } }),
+      prisma.partCompatibility.deleteMany({ where: { inventoryItemId: id } }),
+      prisma.inventoryItem.delete({ where: { id } }),
     ])
 
-    revalidateInventoryPaths(sparepart.tokoId)
+    revalidateInventoryPaths(inventoryItem.storeId)
 
     await createActivityLogIfUser({
-      tokoId: sparepart.tokoId,
+      storeId: inventoryItem.storeId,
       userId: access.user.id,
       type: "sparepart_deleted",
       title: "Sparepart deleted",
       payload: {
-        sparepartId: id,
-        name: sparepart.name,
+        inventoryItemId: id,
+        name: inventoryItem.name,
       },
     })
 
     return { success: true }
   } catch (error) {
-    console.error("Error deleting sparepart:", error)
+    console.error("Error deleting inventoryItem:", error)
     return { success: false, error: "Gagal menghapus sparepart" }
   }
 }
 
-export async function getServicePricelists(tokoId: string): Promise<ActionResultWithData<ServicePricelist[]>> {
+export async function getServicePricelists(storeId: string): Promise<ActionResultWithData<ServicePricelist[]>> {
   try {
-    const access = await getInventoryUser(tokoId)
+    const access = await getInventoryUser(storeId)
     if (!access.success) return access
 
-    const pricelists = await prisma.servicePricelist.findMany({
-      where: { tokoId },
+    const pricelists = await prisma.serviceCatalogItem.findMany({
+      where: { storeId },
       orderBy: { title: "asc" },
       select: {
         id: true,
         title: true,
         defaultPrice: true,
-        tokoId: true,
+        storeId: true,
       },
       take: 200,
     })
@@ -1545,7 +1579,7 @@ export async function getServicePricelists(tokoId: string): Promise<ActionResult
 export async function importServicePricelists(data: z.infer<typeof importServicePricelistsSchema>): Promise<ActionResultWithData<ImportServicePricelistsResult>> {
   try {
     const validated = importServicePricelistsSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, "inventory.manageServicePricelists")
+    const access = await getInventoryUser(validated.storeId, "inventory.manageServicePricelists")
     if (!access.success) return access
 
     const errors: ImportServicePricelistsResult["errors"] = []
@@ -1576,8 +1610,8 @@ export async function importServicePricelists(data: z.infer<typeof importService
       }
     }
 
-    const existingPricelists = await prisma.servicePricelist.findMany({
-      where: { tokoId: validated.tokoId },
+    const existingPricelists = await prisma.serviceCatalogItem.findMany({
+      where: { storeId: validated.storeId },
       select: { id: true, title: true },
     })
     const existingByTitle = new Map(existingPricelists.map((pricelist) => [pricelist.title.toLowerCase(), pricelist]))
@@ -1589,7 +1623,7 @@ export async function importServicePricelists(data: z.infer<typeof importService
         const existing = existingByTitle.get(row.title.toLowerCase())
 
         if (existing) {
-          await tx.servicePricelist.update({
+          await tx.serviceCatalogItem.update({
             where: { id: existing.id },
             data: {
               title: row.title,
@@ -1600,18 +1634,18 @@ export async function importServicePricelists(data: z.infer<typeof importService
           continue
         }
 
-        await tx.servicePricelist.create({
+        await tx.serviceCatalogItem.create({
           data: {
             title: row.title,
             defaultPrice: row.defaultPrice,
-            tokoId: validated.tokoId,
+            storeId: validated.storeId,
           },
         })
         created += 1
       }
     })
 
-    revalidateInventoryPaths(validated.tokoId)
+    revalidateInventoryPaths(validated.storeId)
 
     return {
       success: true,
@@ -1629,32 +1663,32 @@ export async function importServicePricelists(data: z.infer<typeof importService
 export async function createServicePricelist(data: z.infer<typeof createServicePricelistSchema>): Promise<ActionResultWithData<ServicePricelist>> {
   try {
     const validated = createServicePricelistSchema.parse(data)
-    const access = await getInventoryUser(validated.tokoId, "inventory.manageServicePricelists")
+    const access = await getInventoryUser(validated.storeId, "inventory.manageServicePricelists")
     if (!access.success) return access
 
-    const existing = await prisma.servicePricelist.findFirst({
-      where: { tokoId: validated.tokoId, title: validated.title },
+    const existing = await prisma.serviceCatalogItem.findFirst({
+      where: { storeId: validated.storeId, title: validated.title },
     })
 
     if (existing) {
       return { success: false, error: "Daftar harga jasa dengan judul ini sudah ada" }
     }
 
-    const pricelist = await prisma.servicePricelist.create({
+    const pricelist = await prisma.serviceCatalogItem.create({
       data: {
         title: validated.title,
         defaultPrice: validated.defaultPrice,
-        tokoId: validated.tokoId,
+        storeId: validated.storeId,
       },
       select: {
         id: true,
         title: true,
         defaultPrice: true,
-        tokoId: true,
+        storeId: true,
       },
     })
 
-    revalidateInventoryPaths(validated.tokoId)
+    revalidateInventoryPaths(validated.storeId)
 
     return { success: true, data: pricelist }
   } catch (error) {
@@ -1670,22 +1704,22 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
   try {
     const validated = updateServicePricelistSchema.parse(data)
 
-    const pricelist = await prisma.servicePricelist.findUnique({
+    const pricelist = await prisma.serviceCatalogItem.findUnique({
       where: { id: validated.id },
-      select: { tokoId: true },
+      select: { storeId: true },
     })
 
     if (!pricelist) {
       return { success: false, error: "Daftar harga jasa tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(pricelist.tokoId, "inventory.manageServicePricelists")
+    const access = await getInventoryUser(pricelist.storeId, "inventory.manageServicePricelists")
     if (!access.success) return access
 
     if (validated.title) {
-      const existing = await prisma.servicePricelist.findFirst({
+      const existing = await prisma.serviceCatalogItem.findFirst({
         where: {
-          tokoId: pricelist.tokoId,
+          storeId: pricelist.storeId,
           title: validated.title,
           id: { not: validated.id },
         },
@@ -1695,7 +1729,7 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
       }
     }
 
-    const updated = await prisma.servicePricelist.update({
+    const updated = await prisma.serviceCatalogItem.update({
       where: { id: validated.id },
       data: {
         title: validated.title,
@@ -1705,11 +1739,11 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
         id: true,
         title: true,
         defaultPrice: true,
-        tokoId: true,
+        storeId: true,
       },
     })
 
-    revalidateInventoryPaths(pricelist.tokoId)
+    revalidateInventoryPaths(pricelist.storeId)
 
     return { success: true, data: updated }
   } catch (error) {
@@ -1723,21 +1757,21 @@ export async function updateServicePricelist(data: z.infer<typeof updateServiceP
 
 export async function deleteServicePricelist(id: string): Promise<ActionResult> {
   try {
-    const pricelist = await prisma.servicePricelist.findUnique({
+    const pricelist = await prisma.serviceCatalogItem.findUnique({
       where: { id },
-      select: { tokoId: true },
+      select: { storeId: true },
     })
 
     if (!pricelist) {
       return { success: false, error: "Daftar harga jasa tidak ditemukan" }
     }
 
-    const access = await getInventoryUser(pricelist.tokoId, "inventory.manageServicePricelists")
+    const access = await getInventoryUser(pricelist.storeId, "inventory.manageServicePricelists")
     if (!access.success) return access
 
-    await prisma.servicePricelist.delete({ where: { id } })
+    await prisma.serviceCatalogItem.delete({ where: { id } })
 
-    revalidateInventoryPaths(pricelist.tokoId)
+    revalidateInventoryPaths(pricelist.storeId)
 
     return { success: true }
   } catch (error) {
@@ -1745,3 +1779,14 @@ export async function deleteServicePricelist(id: string): Promise<ActionResult> 
     return { success: false, error: "Gagal menghapus daftar harga jasa" }
   }
 }
+
+// Legacy function exports for backwards compatibility.
+export const getSpareparts = getInventoryItems
+export const getSparepartCategories = getInventoryCategories
+export const getCompatibleSpareparts = getCompatibleInventoryItems
+export const createSparepart = createInventoryItem
+export const updateSparepart = updateInventoryItem
+export const deleteSparepart = deleteInventoryItem
+export const searchSpareparts = searchInventoryItems
+export const restockSparepart = restockInventoryItem
+export const restockSparepartsWithDebt = restockInventoryItemsWithDebt

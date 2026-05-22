@@ -12,8 +12,8 @@ export const PLAN_REGISTRY = {
     rank: 0,
     monthlyPrice: 0,
     trialDays: null,
-    includedTokos: 1,
-    additionalTokoPrice: null,
+    includedStores: 1,
+    additionalStorePrice: null,
     limits: { maxTokos: 1, maxStaff: 0, maxTechnicians: 0, maxServicesMonthly: 20, maxInvoicesMonthly: 50 },
   },
   premium: {
@@ -21,8 +21,8 @@ export const PLAN_REGISTRY = {
     rank: 1,
     monthlyPrice: 990_000,
     trialDays: 30,
-    includedTokos: 2,
-    additionalTokoPrice: 499_000,
+    includedStores: 2,
+    additionalStorePrice: 499_000,
     limits: { maxTokos: null, maxStaff: 3, maxTechnicians: 2, maxServicesMonthly: 100, maxInvoicesMonthly: null },
   },
   enterprise: {
@@ -30,8 +30,8 @@ export const PLAN_REGISTRY = {
     rank: 2,
     monthlyPrice: null,
     trialDays: null,
-    includedTokos: null,
-    additionalTokoPrice: null,
+    includedStores: null,
+    additionalStorePrice: null,
     limits: { maxTokos: null, maxStaff: null, maxTechnicians: null, maxServicesMonthly: null, maxInvoicesMonthly: null },
   },
 } as const;
@@ -56,24 +56,24 @@ export function getPlanMonthlyPrice(plan: string | null | undefined): number | n
   return PLAN_REGISTRY[normalizePlan(plan)].monthlyPrice;
 }
 
-export function getPlanIncludedTokos(plan: string | null | undefined): number | null {
-  return PLAN_REGISTRY[normalizePlan(plan)].includedTokos;
+export function getPlanIncludedStores(plan: string | null | undefined): number | null {
+  return PLAN_REGISTRY[normalizePlan(plan)].includedStores;
 }
 
-export function getPlanAdditionalTokoPrice(plan: string | null | undefined): number | null {
-  return PLAN_REGISTRY[normalizePlan(plan)].additionalTokoPrice;
+export function getPlanAdditionalStorePrice(plan: string | null | undefined): number | null {
+  return PLAN_REGISTRY[normalizePlan(plan)].additionalStorePrice;
 }
 
-export function calculateMonthlyPlanAmount(plan: string | null | undefined, tokoCount: number): number | null {
+export function calculateMonthlyPlanAmount(plan: string | null | undefined, storeCount: number): number | null {
   const normalizedPlan = normalizePlan(plan);
   const monthlyPrice = getPlanMonthlyPrice(normalizedPlan);
   if (monthlyPrice === null) return null;
 
-  const includedTokos = getPlanIncludedTokos(normalizedPlan) ?? tokoCount;
-  const additionalTokoPrice = getPlanAdditionalTokoPrice(normalizedPlan) ?? 0;
-  const additionalTokos = Math.max(0, tokoCount - includedTokos);
+  const includedStores = getPlanIncludedStores(normalizedPlan) ?? storeCount;
+  const additionalStorePrice = getPlanAdditionalStorePrice(normalizedPlan) ?? 0;
+  const additionalStores = Math.max(0, storeCount - includedStores);
 
-  return monthlyPrice + additionalTokos * additionalTokoPrice;
+  return monthlyPrice + additionalStores * additionalStorePrice;
 }
 
 export function getPlanOptions() {
@@ -82,7 +82,7 @@ export function getPlanOptions() {
     label: PLAN_REGISTRY[plan].label,
     rank: PLAN_REGISTRY[plan].rank,
     monthlyPrice: PLAN_REGISTRY[plan].monthlyPrice,
-    includedTokos: PLAN_REGISTRY[plan].includedTokos,
-    additionalTokoPrice: PLAN_REGISTRY[plan].additionalTokoPrice,
+    includedStores: PLAN_REGISTRY[plan].includedStores,
+    additionalStorePrice: PLAN_REGISTRY[plan].additionalStorePrice,
   }));
 }

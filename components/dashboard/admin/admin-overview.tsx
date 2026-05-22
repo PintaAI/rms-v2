@@ -40,7 +40,7 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
 
   const tableServices = recentServices.map((service) => ({
     id: service.id,
-    hpCatalogId: service.hpCatalog.id,
+    deviceModelId: service.deviceModel.id,
     customerName: service.customerName,
     noWa: service.noWa,
     complaint: service.complaint,
@@ -51,7 +51,7 @@ export function AdminOverview({ data, tokoId, currentToko }: AdminOverviewProps)
     doneAt: service.doneAt,
     warrantyUntil: service.warrantyUntil,
     checkoutAt: service.checkoutAt,
-    hpCatalog: service.hpCatalog,
+    deviceModel: service.deviceModel,
     technician: service.technician,
     invoice: service.invoice,
     createdBy: service.createdBy ?? undefined,

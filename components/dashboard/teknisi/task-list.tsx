@@ -51,12 +51,12 @@ export function TaskList({
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground ring-1 ring-inset ring-border/60">
-              {getBrandIcon(service.hpCatalog.brand.name)}
+              {getBrandIcon(service.deviceModel.brand.name)}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="truncate font-semibold leading-tight">
-                  {service.hpCatalog.brand.name} {service.hpCatalog.modelName}
+                  {service.deviceModel.brand.name} {service.deviceModel.modelName}
                 </p>
                 <Badge
                   variant={kind === "takeover" ? "secondary" : "outline"}

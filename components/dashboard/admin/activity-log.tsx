@@ -203,9 +203,9 @@ function getDeletedServiceSummary(payload: Prisma.JsonValue | null): {
   }
 
   const summary = deletedService as Record<string, Prisma.JsonValue>;
-  const hpCatalog = summary.hpCatalog;
-  const deletedDevice = hpCatalog && typeof hpCatalog === "object" && !Array.isArray(hpCatalog)
-    ? hpCatalog as Record<string, Prisma.JsonValue>
+  const deviceModel = summary.deviceModel;
+  const deletedDevice = deviceModel && typeof deviceModel === "object" && !Array.isArray(deviceModel)
+    ? deviceModel as Record<string, Prisma.JsonValue>
     : null;
   const brandName = typeof deletedDevice?.brandName === "string" ? deletedDevice.brandName : null;
   const modelName = typeof deletedDevice?.modelName === "string" ? deletedDevice.modelName : null;
@@ -219,10 +219,10 @@ function getDeletedServiceSummary(payload: Prisma.JsonValue | null): {
 
 function getServiceTarget(
   activity: AdminOverviewActivityItem,
-  serviceSummary: NonNullable<AdminOverviewActivityItem["service"]> | ReturnType<typeof getDeletedServiceSummary>
+  serviceSummary: NonNullable<AdminOverviewActivityItem["repairOrder"]> | ReturnType<typeof getDeletedServiceSummary>
 ) {
-  if (activity.service) {
-    return `${activity.service.hpCatalog.brand.name} ${activity.service.hpCatalog.modelName}`;
+  if (activity.repairOrder) {
+    return `${activity.repairOrder.deviceModel.brand.name} ${activity.repairOrder.deviceModel.modelName}`;
   }
 
   return "deviceName" in (serviceSummary ?? {}) ? (serviceSummary as { deviceName: string | null }).deviceName : serviceSummary?.customerName ?? activity.title;
@@ -274,7 +274,7 @@ export function ActivityLog({ activities }: ActivityLogProps) {
                   backgroundClass: "bg-muted/30",
                 };
                 const deletedService = getDeletedServiceSummary(activity.payload);
-                const serviceSummary = activity.service ?? deletedService;
+                const serviceSummary = activity.repairOrder ?? deletedService;
                 const ActivityIcon = typeConfig.icon;
                 const targetLabel = getServiceTarget(activity, serviceSummary);
                 const ownerName = serviceSummary?.customerName;

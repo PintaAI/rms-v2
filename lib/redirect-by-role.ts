@@ -1,12 +1,12 @@
-export function getRoleRedirectPath(tokoId: string, role: string) {
+export function getRoleRedirectPath(storeId: string, role: string) {
   if (role === "superuser") {
     return "/superuser";
   }
 
   const basePath = role === "admin"
-    ? `/${tokoId}/admin`
+    ? `/${storeId}/admin`
     : role === "staff"
-      ? `/${tokoId}/staff`
-      : `/${tokoId}/teknisi`;
+      ? `/${storeId}/staff`
+      : `/${storeId}/teknisi`;
   return basePath;
 }

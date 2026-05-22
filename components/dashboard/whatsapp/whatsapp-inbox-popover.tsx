@@ -261,7 +261,7 @@ export function WhatsappInboxPopover() {
   );
   const whatsappStateQueryKey = React.useMemo(() => ["whatsapp", "state", tokoId] as const, [tokoId]);
 
-  const { realtime: whatsappRealtime, openChatRequest, setInboxOpen } = useDashboardWhatsappRealtime();
+  const { realtime: whatsappRealtime, openChatRequest, setInboxOpen, markChatRead, isChatRead } = useDashboardWhatsappRealtime();
   const latestRealtimeEvent = whatsappRealtime.eventHistory[0];
 
   React.useEffect(() => {
@@ -333,6 +333,7 @@ export function WhatsappInboxPopover() {
   });
 
   const chats = React.useMemo(() => uniqueBy(chatsQuery.data?.pages.flatMap((page) => page.items) ?? [], getChatIdentityKey), [chatsQuery.data]);
+  const displayChats = React.useMemo(() => chats.map((chat) => isChatRead(chat) ? { ...chat, unreadCount: 0 } : chat), [chats, isChatRead]);
   const messages = React.useMemo(() => uniqueBy(messagesQuery.data?.pages.flatMap((page) => page.items) ?? [], (message) => message.id)
     .sort((a, b) => (a.timestamp ?? "").localeCompare(b.timestamp ?? "")), [messagesQuery.data]);
   const isLoadingChats = chatsQuery.isLoading || chatsQuery.isFetchingNextPage;
@@ -341,7 +342,7 @@ export function WhatsappInboxPopover() {
   React.useEffect(() => {
     if (!canView || !openChatRequest) return;
 
-    const targetChat = chats.find((chat) => {
+    const targetChat = displayChats.find((chat) => {
       const targetJids = [openChatRequest.remoteJid, openChatRequest.alternateJid].filter(Boolean);
       return targetJids.includes(chat.remoteJid) || Boolean(chat.alternateJid && targetJids.includes(chat.alternateJid));
     });
@@ -350,7 +351,7 @@ export function WhatsappInboxPopover() {
       setOpen(true);
       if (targetChat) setSelectedChat(targetChat);
     });
-  }, [canView, chats, openChatRequest]);
+  }, [canView, displayChats, openChatRequest]);
 
   const scheduleRealtimeRefresh = React.useCallback((eventLabel: string, payload: unknown) => {
     recordDebug(eventLabel, payload);
@@ -462,6 +463,7 @@ export function WhatsappInboxPopover() {
       }
 
       recordDebug("markMessageAsRead response", result.data?.raw ?? null);
+      markChatRead(selectedChat);
       setSelectedChat((current) => current && getChatIdentityKey(current) === getChatIdentityKey(selectedChat) ? { ...current, unreadCount: 0 } : current);
       queryClient.setQueryData<InfiniteData<WhatsappInboxChatsResponse>>(chatsQueryKey, (current) => {
         if (!current) return current;
@@ -477,7 +479,7 @@ export function WhatsappInboxPopover() {
     };
 
     void markRead();
-  }, [chatsQueryKey, isLoadingMessages, messages, open, queryClient, recordDebug, selectedChat, tokoId]);
+  }, [chatsQueryKey, isLoadingMessages, markChatRead, messages, open, queryClient, recordDebug, selectedChat, tokoId]);
 
   React.useEffect(() => {
     const viewport = messagesScrollAreaRef.current?.querySelector<HTMLElement>("[data-slot='scroll-area-viewport']");
@@ -593,7 +595,7 @@ export function WhatsappInboxPopover() {
           {whatsappRealtime.status === "connected" && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-emerald-500" />}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(54rem,calc(100vw-1rem))] p-0 sm:min-w-[54rem]" onOpenAutoFocus={(event) => event.preventDefault()}>
+      <PopoverContent align="end" className="w-[min(54rem,calc(100vw-1rem))] p-0 shadow-[0_12px_48px_rgba(0,0,0,0.15),0_6px_24px_rgba(0,0,0,0.1),0_2px_8px_rgba(0,0,0,0.06)] sm:min-w-[54rem]" onOpenAutoFocus={(event) => event.preventDefault()}>
         <div className="flex h-[40rem] max-h-[calc(100vh-6rem)] flex-col overflow-hidden">
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden sm:grid-cols-[18rem_1fr]">
           <aside className="flex min-h-0 flex-col border-b sm:border-b-0 sm:border-r">
@@ -638,7 +640,7 @@ export function WhatsappInboxPopover() {
                   </div>
                 ) : chats.length === 0 ? (
                   <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Belum ada chat WhatsApp.</div>
-                ) : chats.map((chat) => (
+                ) : displayChats.map((chat) => (
                   <button
                     key={getChatIdentityKey(chat)}
                     type="button"

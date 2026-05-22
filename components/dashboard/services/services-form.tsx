@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { createService, updateService } from "@/actions";
-import type { ServiceListItem as ServiceListItemType } from "@/actions";
+import type { ServiceListItem } from "@/actions";
 import type { ServiceTableItem } from "@/components/dashboard/services/service-table";
 import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
@@ -20,13 +20,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { PatternLock } from "@/components/shared/pattern-lock";
-import { DeviceInput, type HpCatalogOption } from "@/components/shared/device-input";
+import { DeviceInput, type DeviceModelOption } from "@/components/shared/device-input";
 import { formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils";
 import { RiUserLine, RiToolsLine, RiTicketLine, RiWhatsappLine, RiBox3Line, RiAddLine, RiDeleteBinLine, RiCloseLine, RiMessage3Line } from "@remixicon/react";
 
 interface ServiceFormData {
   id: string;
-  hpCatalogId: string;
+  deviceModelId: string;
   customerName: string | null;
   noWa: string;
   complaint: string;
@@ -34,7 +34,7 @@ interface ServiceFormData {
   includedItems?: string[];
   passwordPattern: string | null;
   imei: string | null;
-  hpCatalog: {
+  deviceModel: {
     modelName: string;
     brand: {
       name: string;
@@ -46,19 +46,19 @@ interface ServicesFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (result?: { serviceId?: string; action: "created" | "updated"; serviceLabel?: string; serviceBrand?: string; reason?: string }) => void;
-  editData?: ServiceFormData | ServiceListItemType | ServiceTableItem | null;
+  editData?: ServiceFormData | ServiceListItem | ServiceTableItem | null;
   tokoId?: string;
-  onOptimisticCreate?: (tempService: ServiceListItemType) => void;
-  onOptimisticUpdate?: (updatedService: ServiceListItemType) => void;
+  onOptimisticCreate?: (tempService: ServiceListItem) => void;
+  onOptimisticUpdate?: (updatedService: ServiceListItem) => void;
   onRevertCreate?: (tempId: string) => void;
-  onRevertUpdate?: (originalService: ServiceListItemType) => void;
+  onRevertUpdate?: (originalService: ServiceListItem) => void;
 }
 
 const INCLUDED_ITEM_PRESETS = ["1 HP", "Charger", "Kabel USB", "Adaptor", "Softcase", "SIM Card", "Memory Card", "Box"];
 
 type FormSnapshot = {
   isEditMode: boolean;
-  selectedDevice: HpCatalogOption | null;
+  selectedDevice: DeviceModelOption | null;
   customerName: string;
   noWa: string;
   complaint: string;
@@ -71,7 +71,7 @@ type FormSnapshot = {
   dpAmount: string;
 };
 
-function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | ServiceTableItem | null): FormSnapshot {
+function getInitialFormState(editData?: ServiceFormData | ServiceListItem | ServiceTableItem | null): FormSnapshot {
   if (!editData) {
     return {
       isEditMode: false,
@@ -95,9 +95,9 @@ function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | 
   return {
     isEditMode: true,
     selectedDevice: {
-      id: editData.hpCatalogId || "",
-      modelName: editData.hpCatalog.modelName,
-      brandName: editData.hpCatalog.brand.name,
+      id: editData.deviceModelId || "",
+      modelName: editData.deviceModel.modelName,
+      brandName: editData.deviceModel.brand.name,
     },
     customerName: editData.customerName || "",
     noWa: editData.noWa || "",
@@ -112,7 +112,7 @@ function getInitialFormState(editData?: ServiceFormData | ServiceListItemType | 
   };
 }
 
-function getRealtimeLabel(customerName: string, device: HpCatalogOption) {
+function getRealtimeLabel(customerName: string, device: DeviceModelOption) {
   const deviceName = `${device.brandName} ${device.modelName}`;
   const name = customerName.trim();
   return name ? `${name} - ${deviceName}` : deviceName;
@@ -127,7 +127,7 @@ function normalizeDpAmount(value: string) {
   return !isNaN(amount) && amount > 0 ? String(amount) : "";
 }
 
-function getEditReason(initialState: FormSnapshot, selectedDevice: HpCatalogOption, values: {
+function getEditReason(initialState: FormSnapshot, selectedDevice: DeviceModelOption, values: {
   customerName: string;
   noWa: string;
   complaint: string;
@@ -167,7 +167,7 @@ function ServicesFormContent({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deviceError, setDeviceError] = useState<string | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<HpCatalogOption | null>(initialState.selectedDevice);
+  const [selectedDevice, setSelectedDevice] = useState<DeviceModelOption | null>(initialState.selectedDevice);
   const [customerName, setCustomerName] = useState(initialState.customerName);
   const [noWa, setNoWa] = useState(initialState.noWa);
   const [complaint, setComplaint] = useState(initialState.complaint);
@@ -181,7 +181,7 @@ function ServicesFormContent({
   const [dpAmount, setDpAmount] = useState(initialState.dpAmount);
   const [patternError, setPatternError] = useState(false);
   const [patternResetKey, setPatternResetKey] = useState(0);
-  const [devices, setDevices] = useState<HpCatalogOption[]>([]);
+  const [devices, setDevices] = useState<DeviceModelOption[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(true);
   const formattedDpAmount = formatCurrencyInput(dpAmount);
 
@@ -220,7 +220,7 @@ function ServicesFormContent({
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
-  const handleDeviceCreated = useCallback((device: HpCatalogOption) => {
+  const handleDeviceCreated = useCallback((device: DeviceModelOption) => {
     setDevices((prev) => {
       const next = prev.some((item) => item.id === device.id)
         ? prev.map((item) => (item.id === device.id ? device : item))
@@ -288,7 +288,7 @@ function ServicesFormContent({
     const passwordPatternValue = showPatternLock && pattern.length > 0 ? patternToString(pattern) : passwordPatternText;
     const dpAmountNum = parseInt(dpAmount, 10);
     const payload = {
-      hpCatalogId: selectedDevice.id,
+      deviceModelId: selectedDevice.id,
       customerName: customerName || undefined,
       noWa: noWa.trim(),
       complaint,
@@ -305,7 +305,7 @@ function ServicesFormContent({
     if (!initialState.isEditMode && onOptimisticCreate) {
       onOptimisticCreate({
         id: tempId,
-        hpCatalogId: selectedDevice.id,
+        deviceModelId: selectedDevice.id,
         customerName: customerName || null,
         noWa: noWa.trim(),
         complaint,
@@ -319,7 +319,7 @@ function ServicesFormContent({
         checkoutAt: null,
         passwordPattern: passwordPatternValue || null,
         imei: imei || null,
-        hpCatalog: {
+        deviceModel: {
           id: selectedDevice.id,
           modelName: selectedDevice.modelName,
           brand: { name: selectedDevice.brandName },
@@ -332,10 +332,10 @@ function ServicesFormContent({
     }
 
     if (initialState.isEditMode && editData && onOptimisticUpdate) {
-      const existingData = editData as ServiceListItemType;
+      const existingData = editData as ServiceListItem;
       onOptimisticUpdate({
         id: editData.id,
-        hpCatalogId: selectedDevice.id,
+        deviceModelId: selectedDevice.id,
         customerName: customerName || null,
         noWa: noWa.trim(),
         complaint,
@@ -349,7 +349,7 @@ function ServicesFormContent({
         checkoutAt: existingData.checkoutAt || null,
         passwordPattern: passwordPatternValue || null,
         imei: imei || null,
-        hpCatalog: {
+        deviceModel: {
           id: selectedDevice.id,
           modelName: selectedDevice.modelName,
           brand: { name: selectedDevice.brandName },
@@ -392,7 +392,7 @@ function ServicesFormContent({
       onRevertCreate(tempId);
     }
     if (initialState.isEditMode && editData && onRevertUpdate) {
-      onRevertUpdate(editData as ServiceListItemType);
+      onRevertUpdate(editData as ServiceListItem);
     }
     toast.error(result.error || `Gagal ${initialState.isEditMode ? "memperbarui" : "membuat"} service`);
     setError(result.error || `Gagal ${initialState.isEditMode ? "memperbarui" : "membuat"} service`);

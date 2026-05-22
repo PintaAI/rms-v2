@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth/request-user";
-import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
+import type { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 import { withScope } from "@/lib/auth/wrapper";
 import { assertPermission } from "@/lib/auth/request-scope";
 import {
@@ -28,29 +28,29 @@ import type {
 } from "./service-types";
 
 export async function getServiceList(
-  tokoId?: string,
+  storeId?: string,
   timeFilter?: TimeFilter,
   page: number = 1,
   pageSize: number = 15,
-  statusFilter?: ServiceStatus[]
+  statusFilter?: RepairOrderStatus[]
 ): Promise<ActionResultWithData<PaginatedResult<ServiceListItem>>> {
-  if (!tokoId) {
+  if (!storeId) {
     const user = await getRequestUser();
     if (!user) return { success: false, error: "Tidak memiliki akses" };
-    tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
+    storeId = user.storeIds[0];
+    if (!storeId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "service.view");
 
     const timeFilterCondition = buildTimeFilter(timeFilter);
     const statusCondition = statusFilter?.length ? { status: { in: statusFilter } } : {};
 
     const [totalCount, services] = await Promise.all([
-      prisma.service.count({ where: { tokoId, ...timeFilterCondition, ...statusCondition } }),
-      prisma.service.findMany({
-        where: { tokoId, ...timeFilterCondition, ...statusCondition },
+      prisma.repairOrder.count({ where: { storeId, ...timeFilterCondition, ...statusCondition } }),
+      prisma.repairOrder.findMany({
+        where: { storeId, ...timeFilterCondition, ...statusCondition },
         orderBy: { checkinAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -69,20 +69,20 @@ export async function getServiceList(
 }
 
 export async function getService(
-  serviceId: string
+  repairOrderId: string
 ): Promise<ActionResultWithData<ServiceDetail>> {
-  const service = await prisma.service.findUnique({
-    where: { id: serviceId },
+  const service = await prisma.repairOrder.findUnique({
+    where: { id: repairOrderId },
     select: {
       ...serviceSelectBase,
-      tokoId: true,
+      storeId: true,
       items: { select: serviceItemSelect },
     },
   });
 
   if (!service) return { success: false, error: "Service tidak ditemukan" };
 
-  return withScope(service.tokoId, {}, async (scope) => {
+  return withScope(service.storeId, {}, async (scope) => {
     assertPermission(scope, "service.view");
 
     if (isTechnicianRole(scope.user.role)) {
@@ -93,71 +93,71 @@ export async function getService(
 
     return {
       ...mapServiceToListItem(service),
-      tokoId: service.tokoId,
+      storeId: service.storeId,
       items: service.items,
     };
   });
 }
 
 export async function getAvailableTasks(
-  tokoId?: string,
+  storeId?: string,
   limit: number = technicianTaskListLimit
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
-  if (!tokoId) {
+  if (!storeId) {
     const user = await getRequestUser();
     if (!user) return { success: false, error: "Tidak memiliki akses" };
-    tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
+    storeId = user.storeIds[0];
+    if (!storeId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
-  return withScope(tokoId, { feature: "technician.workflow" }, async (scope) => {
+  return withScope(storeId, { feature: "technician.workflow" }, async (scope) => {
     assertPermission(scope, "service.view");
 
-    const services = await getAvailableTaskRecords(tokoId, scope.user.id, limit);
+    const services = await getAvailableTaskRecords(storeId, scope.user.id, limit);
     return services.map(mapServiceToListItem);
   });
 }
 
 export async function getMyTasks(
-  tokoId: string,
-  statuses: ServiceStatus[] = technicianAvailableStatuses,
+  storeId: string,
+  statuses: RepairOrderStatus[] = technicianAvailableStatuses,
   limit: number = technicianTaskListLimit
 ): Promise<ActionResultWithData<ServiceListItem[]>> {
-  return withScope(tokoId, { feature: "technician.workflow" }, async (scope) => {
+  return withScope(storeId, { feature: "technician.workflow" }, async (scope) => {
     assertPermission(scope, "service.view");
 
-    const services = await getMyTaskRecords(tokoId, scope.user.id, statuses, limit);
+    const services = await getMyTaskRecords(storeId, scope.user.id, statuses, limit);
     return services.map(mapServiceToListItem);
   });
 }
 
 export async function getTechnicianDashboard(
-  tokoId?: string
+  storeId?: string
 ): Promise<ActionResultWithData<TechnicianDashboardData>> {
-  if (!tokoId) {
+  if (!storeId) {
     const user = await getRequestUser();
     if (!user) return { success: false, error: "Tidak memiliki akses" };
-    tokoId = user.tokoIds[0];
-    if (!tokoId) return { success: false, error: "Toko tidak ditemukan" };
+    storeId = user.storeIds[0];
+    if (!storeId) return { success: false, error: "Toko tidak ditemukan" };
   }
 
-  return withScope(tokoId, { feature: "technician.workflow" }, async (scope) => {
+  return withScope(storeId, { feature: "technician.workflow" }, async (scope) => {
     assertPermission(scope, "service.view");
 
     const monthlyStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const [monthlyAssigned, availableCount, inProgressCount, doneCount, availableServices, myTasks] =
       await Promise.all([
-        prisma.service.count({
-          where: { tokoId, technicianId: scope.user.id, assignedAt: { gte: monthlyStart } },
+        prisma.repairOrder.count({
+          where: { storeId, technicianId: scope.user.id, assignedAt: { gte: monthlyStart } },
         }),
-        prisma.service.count({
-          where: { tokoId, status: { in: technicianAvailableStatuses }, OR: [{ technicianId: null }, { technicianId: { not: scope.user.id } }] },
+        prisma.repairOrder.count({
+          where: { storeId, status: { in: technicianAvailableStatuses }, OR: [{ technicianId: null }, { technicianId: { not: scope.user.id } }] },
         }),
-        prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "repairing" } }),
-        prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "done", isPickedUp: false } }),
-        getAvailableTaskRecords(tokoId, scope.user.id, 10),
-        getMyTaskRecords(tokoId, scope.user.id, technicianAvailableStatuses, 10, true),
+        prisma.repairOrder.count({ where: { storeId, technicianId: scope.user.id, status: "repairing" } }),
+        prisma.repairOrder.count({ where: { storeId, technicianId: scope.user.id, status: "done", isPickedUp: false } }),
+        getAvailableTaskRecords(storeId, scope.user.id, 10),
+        getMyTaskRecords(storeId, scope.user.id, technicianAvailableStatuses, 10, true),
       ]);
 
     return {
@@ -165,7 +165,7 @@ export async function getTechnicianDashboard(
       availableServices: availableServices.map(mapServiceToListItem),
       myTasks: myTasks.map((service) => ({
         ...mapServiceToListItem(service),
-        tokoId,
+        storeId,
         items: service.items,
       })),
     };
@@ -173,13 +173,13 @@ export async function getTechnicianDashboard(
 }
 
 export async function getTechniciansByToko(
-  tokoId: string
+  storeId: string
 ): Promise<ActionResultWithData<{ id: string; name: string; email: string }[]>> {
-  return withScope(tokoId, { feature: "service.technicianAssignment" }, async (scope) => {
+  return withScope(storeId, { feature: "service.technicianAssignment" }, async (scope) => {
     assertPermission(scope, "service.assignTechnician");
 
-    const technicians = await prisma.userToko.findMany({
-      where: { tokoId, user: { role: "technician" } },
+    const technicians = await prisma.userStore.findMany({
+      where: { storeId, user: { role: "technician" } },
       select: { user: { select: { id: true, name: true, email: true } } },
       orderBy: { user: { name: "asc" } },
     });
@@ -187,21 +187,21 @@ export async function getTechniciansByToko(
   });
 }
 
-export async function getServiceStats(tokoId: string): Promise<ActionResultWithData<ServiceStats>> {
-  return withScope(tokoId, {}, async (scope) => {
+export async function getServiceStats(storeId: string): Promise<ActionResultWithData<ServiceStats>> {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "service.view");
 
     const [serviceStatusCounts, pickedUp, total] = await Promise.all([
-      prisma.service.groupBy({
+      prisma.repairOrder.groupBy({
         by: ["status"],
-        where: { tokoId, isPickedUp: false },
+        where: { storeId, isPickedUp: false },
         _count: { status: true },
       }),
-      prisma.service.count({ where: { tokoId, isPickedUp: true } }),
-      prisma.service.count({ where: { tokoId } }),
+      prisma.repairOrder.count({ where: { storeId, isPickedUp: true } }),
+      prisma.repairOrder.count({ where: { storeId } }),
     ]);
 
-    const statusMap: Partial<Record<ServiceStatus, number>> = {};
+    const statusMap: Partial<Record<RepairOrderStatus, number>> = {};
     for (const row of serviceStatusCounts) statusMap[row.status] = row._count.status;
 
     const received = statusMap.received ?? 0;
@@ -215,20 +215,20 @@ export async function getServiceStats(tokoId: string): Promise<ActionResultWithD
 }
 
 export async function getTechnicianTaskStats(
-  tokoId: string
+  storeId: string
 ): Promise<ActionResultWithData<TechnicianTaskStats>> {
-  return withScope(tokoId, {}, async (scope) => {
+  return withScope(storeId, {}, async (scope) => {
     assertPermission(scope, "service.view");
 
     const [tersedia, repairing, selesai, gagal, history, total] = await Promise.all([
-      prisma.service.count({
-        where: { tokoId, status: { in: technicianAvailableStatuses }, OR: [{ technicianId: null }, { technicianId: { not: scope.user.id } }] },
+      prisma.repairOrder.count({
+        where: { storeId, status: { in: technicianAvailableStatuses }, OR: [{ technicianId: null }, { technicianId: { not: scope.user.id } }] },
       }),
-      prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "repairing" } }),
-      prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "done", isPickedUp: false } }),
-      prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: "failed", isPickedUp: false } }),
-      prisma.service.count({ where: { tokoId, technicianId: scope.user.id, status: { in: ["done", "failed"] } } }),
-      prisma.service.count({ where: { tokoId, technicianId: scope.user.id } }),
+      prisma.repairOrder.count({ where: { storeId, technicianId: scope.user.id, status: "repairing" } }),
+      prisma.repairOrder.count({ where: { storeId, technicianId: scope.user.id, status: "done", isPickedUp: false } }),
+      prisma.repairOrder.count({ where: { storeId, technicianId: scope.user.id, status: "failed", isPickedUp: false } }),
+      prisma.repairOrder.count({ where: { storeId, technicianId: scope.user.id, status: { in: ["done", "failed"] } } }),
+      prisma.repairOrder.count({ where: { storeId, technicianId: scope.user.id } }),
     ]);
 
     return { tersedia, repairing, selesai, gagal, history, total };

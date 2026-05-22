@@ -23,8 +23,8 @@ const getSupplierReturnsFiltersSchema = z.object({
 }).optional()
 
 const createSupplierReturnSchema = z.object({
-  tokoId: z.string().min(1),
-  sparepartId: z.string().min(1),
+  storeId: z.string().min(1),
+  inventoryItemId: z.string().min(1),
   qty: z.number().int().min(1),
   reason: z.string().trim().min(3, "Alasan retur wajib diisi"),
   warrantyClaimId: z.string().min(1).optional(),
@@ -44,7 +44,7 @@ export type SupplierReturnRow = {
   id: string
   createdAt: Date
   status: SupplierReturnStatus
-  sparepart: { id: string; name: string }
+  inventoryItem: { id: string; name: string }
   qty: number
   supplierName: string | null
   reason: string
@@ -54,7 +54,7 @@ export type SupplierReturnRow = {
     id: string
     status: string
     reason: string
-    serviceId: string
+    repairOrderId: string
     customerName: string | null
     deviceName: string
   } | null
@@ -97,14 +97,14 @@ function getMonthRange(date = new Date()) {
   }
 }
 
-function revalidateSupplierReturnPaths(tokoId: string) {
-  revalidatePath(`/${tokoId}/inventory/supplier-returns`)
+function revalidateSupplierReturnPaths(storeId: string) {
+  revalidatePath(`/${storeId}/inventory/supplier-returns`)
 }
 
-function revalidateAfterSupplierReturnMutation(tokoId: string, serviceId?: string | null) {
-  revalidateInventoryPaths(tokoId)
-  revalidateSupplierReturnPaths(tokoId)
-  if (serviceId) revalidateServicePaths(tokoId)
+function revalidateAfterSupplierReturnMutation(storeId: string, repairOrderId?: string | null) {
+  revalidateInventoryPaths(storeId)
+  revalidateSupplierReturnPaths(storeId)
+  if (repairOrderId) revalidateServicePaths(storeId)
 }
 
 async function getSupplierReturnForMutation(id: string) {
@@ -112,28 +112,28 @@ async function getSupplierReturnForMutation(id: string) {
     where: { id },
     select: {
       id: true,
-      tokoId: true,
+      storeId: true,
       status: true,
       qty: true,
       supplierName: true,
       reason: true,
       note: true,
       warrantyClaimId: true,
-      sparepartId: true,
-      sparepart: { select: { id: true, name: true, stock: true, purchasePrice: true, defaultPrice: true } },
-      warrantyClaim: { select: { serviceId: true } },
+      inventoryItemId: true,
+      inventoryItem: { select: { id: true, name: true, stock: true, purchasePrice: true, defaultPrice: true } },
+      warrantyClaim: { select: { repairOrderId: true } },
     },
   })
 }
 
 export async function getSupplierReturns(
-  tokoId: string,
+  storeId: string,
   filters?: SupplierReturnFilters
 ): Promise<ActionResultWithData<SupplierReturnsResult>> {
   const validated = getSupplierReturnsFiltersSchema.safeParse(filters)
   if (!validated.success) return { success: false, error: validated.error.issues[0].message }
 
-  return withScope(tokoId, { feature: "inventory.management" }, async (scope) => {
+  return withScope(storeId, { feature: "inventory.management" }, async (scope) => {
     assertPermission(scope, "supplier_returns.view")
 
     const normalized = validated.data ?? {}
@@ -144,7 +144,7 @@ export async function getSupplierReturns(
     const to = parseDateEnd(normalized.to)
 
     const where: Prisma.SupplierReturnWhereInput = {
-      tokoId,
+      storeId,
       ...(normalized.status && normalized.status !== "all" ? { status: normalized.status } : {}),
       ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
       ...(query
@@ -152,11 +152,11 @@ export async function getSupplierReturns(
             OR: [
               { id: { contains: query, mode: "insensitive" as const } },
               { supplierName: { contains: query, mode: "insensitive" as const } },
-              { sparepart: { name: { contains: query, mode: "insensitive" as const } } },
+              { inventoryItem: { name: { contains: query, mode: "insensitive" as const } } },
               { warrantyClaim: { is: { reason: { contains: query, mode: "insensitive" as const } } } },
-              { warrantyClaim: { is: { service: { customerName: { contains: query, mode: "insensitive" as const } } } } },
-              { warrantyClaim: { is: { service: { hpCatalog: { modelName: { contains: query, mode: "insensitive" as const } } } } } },
-              { warrantyClaim: { is: { service: { hpCatalog: { brand: { name: { contains: query, mode: "insensitive" as const } } } } } } },
+              { warrantyClaim: { is: { repairOrder: { customerName: { contains: query, mode: "insensitive" as const } } } } },
+              { warrantyClaim: { is: { repairOrder: { deviceModel: { modelName: { contains: query, mode: "insensitive" as const } } } } } },
+              { warrantyClaim: { is: { repairOrder: { deviceModel: { brand: { name: { contains: query, mode: "insensitive" as const } } } } } } },
             ],
           }
         : {}),
@@ -182,17 +182,17 @@ export async function getSupplierReturns(
           refundAmount: true,
           sentAt: true,
           resolvedAt: true,
-          sparepart: { select: { id: true, name: true } },
+          inventoryItem: { select: { id: true, name: true } },
           warrantyClaim: {
             select: {
               id: true,
               status: true,
               reason: true,
-              serviceId: true,
-              service: {
+              repairOrderId: true,
+              repairOrder: {
                 select: {
                   customerName: true,
-                  hpCatalog: { select: { modelName: true, brand: { select: { name: true } } } },
+                  deviceModel: { select: { modelName: true, brand: { select: { name: true } } } },
                 },
               },
             },
@@ -201,18 +201,18 @@ export async function getSupplierReturns(
           resolvedBy: { select: { id: true, name: true } },
         },
       }),
-      prisma.supplierReturn.count({ where: { tokoId, status: "pending" } }),
-      prisma.supplierReturn.count({ where: { tokoId, status: "sent" } }),
+      prisma.supplierReturn.count({ where: { storeId, status: "pending" } }),
+      prisma.supplierReturn.count({ where: { storeId, status: "sent" } }),
       prisma.supplierReturn.count({
         where: {
-          tokoId,
+          storeId,
           status: "replaced",
           resolvedAt: { gte: monthRange.start, lt: monthRange.end },
         },
       }),
       prisma.supplierReturn.aggregate({
         where: {
-          tokoId,
+          storeId,
           status: "refunded",
           resolvedAt: { gte: monthRange.start, lt: monthRange.end },
         },
@@ -225,7 +225,7 @@ export async function getSupplierReturns(
         id: item.id,
         createdAt: item.createdAt,
         status: item.status,
-        sparepart: item.sparepart,
+        inventoryItem: item.inventoryItem,
         qty: item.qty,
         supplierName: item.supplierName,
         reason: item.reason,
@@ -236,9 +236,9 @@ export async function getSupplierReturns(
               id: item.warrantyClaim.id,
               status: item.warrantyClaim.status,
               reason: item.warrantyClaim.reason,
-              serviceId: item.warrantyClaim.serviceId,
-              customerName: item.warrantyClaim.service.customerName,
-              deviceName: `${item.warrantyClaim.service.hpCatalog.brand.name} ${item.warrantyClaim.service.hpCatalog.modelName}`,
+              repairOrderId: item.warrantyClaim.repairOrderId,
+              customerName: item.warrantyClaim.repairOrder.customerName,
+              deviceName: `${item.warrantyClaim.repairOrder.deviceModel.brand.name} ${item.warrantyClaim.repairOrder.deviceModel.modelName}`,
             }
           : null,
         createdBy: item.createdBy,
@@ -266,30 +266,30 @@ export async function createSupplierReturn(
   const validated = createSupplierReturnSchema.safeParse(input)
   if (!validated.success) return { success: false, error: validated.error.issues[0].message }
 
-  const sparepart = await prisma.sparepart.findFirst({
-    where: { id: validated.data.sparepartId, tokoId: validated.data.tokoId, kind: "sparepart" },
+  const inventoryItem = await prisma.inventoryItem.findFirst({
+    where: { id: validated.data.inventoryItemId, storeId: validated.data.storeId, type: "repair_part" },
     select: { id: true, name: true },
   })
-  if (!sparepart) return { success: false, error: "Sparepart tidak ditemukan" }
+  if (!inventoryItem) return { success: false, error: "Sparepart tidak ditemukan" }
 
-  let warrantyClaim: { id: string; serviceId: string } | null = null
+  let warrantyClaim: { id: string; repairOrderId: string } | null = null
   if (validated.data.warrantyClaimId) {
     warrantyClaim = await prisma.warrantyClaim.findFirst({
-      where: { id: validated.data.warrantyClaimId, tokoId: validated.data.tokoId },
-      select: { id: true, serviceId: true },
+      where: { id: validated.data.warrantyClaimId, storeId: validated.data.storeId },
+      select: { id: true, repairOrderId: true },
     })
     if (!warrantyClaim) return { success: false, error: "Klaim garansi tidak ditemukan" }
   }
 
-  return withScope(validated.data.tokoId, { feature: "inventory.management" }, async (scope) => {
+  return withScope(validated.data.storeId, { feature: "inventory.management" }, async (scope) => {
     assertPermission(scope, "supplier_returns.create")
 
     const created = await prisma.$transaction(async (tx) => {
       const supplierReturn = await tx.supplierReturn.create({
         data: {
-          tokoId: scope.tokoId,
+          storeId: scope.storeId,
           warrantyClaimId: warrantyClaim?.id ?? null,
-          sparepartId: sparepart.id,
+          inventoryItemId: inventoryItem.id,
           qty: validated.data.qty,
           supplierName: validated.data.supplierName || null,
           reason: validated.data.reason,
@@ -300,16 +300,16 @@ export async function createSupplierReturn(
       })
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId: warrantyClaim?.serviceId ?? null,
+        repairOrderId: warrantyClaim?.repairOrderId ?? null,
         type: "supplier_return_created",
         title: "Supplier return created",
         payload: {
           supplierReturnId: supplierReturn.id,
           warrantyClaimId: warrantyClaim?.id ?? null,
-          sparepartId: sparepart.id,
-          sparepartName: sparepart.name,
+          inventoryItemId: inventoryItem.id,
+          inventoryItemName: inventoryItem.name,
           qty: validated.data.qty,
           supplierName: validated.data.supplierName || null,
           reason: validated.data.reason,
@@ -319,7 +319,7 @@ export async function createSupplierReturn(
       return supplierReturn
     })
 
-    revalidateAfterSupplierReturnMutation(scope.tokoId, warrantyClaim?.serviceId)
+    revalidateAfterSupplierReturnMutation(scope.storeId, warrantyClaim?.repairOrderId)
     return created
   })
 }
@@ -332,7 +332,7 @@ export async function markSupplierReturnSent(id: string): Promise<ActionResult> 
   if (!supplierReturn) return { success: false, error: "Retur supplier tidak ditemukan" }
   if (supplierReturn.status !== "pending") return { success: false, error: supplierReturn.status === "sent" ? "Retur supplier sudah dikirim" : "Retur supplier sudah selesai" }
 
-  return withScope(supplierReturn.tokoId, { feature: "inventory.management" }, async (scope) => {
+  return withScope(supplierReturn.storeId, { feature: "inventory.management" }, async (scope) => {
     assertPermission(scope, "supplier_returns.update")
 
     const sentAt = new Date()
@@ -344,19 +344,19 @@ export async function markSupplierReturnSent(id: string): Promise<ActionResult> 
       if (updated.count !== 1) return false
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId: supplierReturn.warrantyClaim?.serviceId ?? null,
+        repairOrderId: supplierReturn.warrantyClaim?.repairOrderId ?? null,
         type: "supplier_return_sent",
         title: "Supplier return sent",
-        payload: { supplierReturnId: supplierReturn.id, sparepartId: supplierReturn.sparepartId, qty: supplierReturn.qty, sentAt: sentAt.toISOString() },
+        payload: { supplierReturnId: supplierReturn.id, inventoryItemId: supplierReturn.inventoryItemId, qty: supplierReturn.qty, sentAt: sentAt.toISOString() },
       })
 
       return true
     })
     if (!updated) return { success: false, error: "Retur supplier sudah selesai" }
 
-    revalidateAfterSupplierReturnMutation(scope.tokoId, supplierReturn.warrantyClaim?.serviceId)
+    revalidateAfterSupplierReturnMutation(scope.storeId, supplierReturn.warrantyClaim?.repairOrderId)
     return { success: true }
   })
 }
@@ -369,7 +369,7 @@ export async function markSupplierReturnReplaced(id: string): Promise<ActionResu
   if (!supplierReturn) return { success: false, error: "Retur supplier tidak ditemukan" }
   if (supplierReturn.status !== "pending" && supplierReturn.status !== "sent") return { success: false, error: "Retur supplier sudah selesai" }
 
-  return withScope(supplierReturn.tokoId, { feature: "inventory.management" }, async (scope) => {
+  return withScope(supplierReturn.storeId, { feature: "inventory.management" }, async (scope) => {
     assertPermission(scope, "supplier_returns.resolve")
 
     const resolvedAt = new Date()
@@ -380,22 +380,22 @@ export async function markSupplierReturnReplaced(id: string): Promise<ActionResu
       })
       if (updatedReturn.count !== 1) return false
 
-      const updatedSparepart = await tx.sparepart.update({
-        where: { id: supplierReturn.sparepartId },
+      const updatedSparepart = await tx.inventoryItem.update({
+        where: { id: supplierReturn.inventoryItemId },
         data: { stock: { increment: supplierReturn.qty } },
         select: { stock: true },
       })
 
-      await tx.stockMovement.create({
+      await tx.inventoryMovement.create({
         data: {
-          tokoId: scope.tokoId,
-          sparepartId: supplierReturn.sparepartId,
+          storeId: scope.storeId,
+          inventoryItemId: supplierReturn.inventoryItemId,
           type: "supplier_return_replacement",
           qtyChange: supplierReturn.qty,
           stockBefore: updatedSparepart.stock - supplierReturn.qty,
           stockAfter: updatedSparepart.stock,
-          unitCostSnapshot: supplierReturn.sparepart.purchasePrice,
-          unitPriceSnapshot: supplierReturn.sparepart.defaultPrice,
+          unitCostSnapshot: supplierReturn.inventoryItem.purchasePrice,
+          unitPriceSnapshot: supplierReturn.inventoryItem.defaultPrice,
           referenceType: "supplier_return",
           referenceId: supplierReturn.id,
           note: "Supplier return replacement received",
@@ -404,15 +404,15 @@ export async function markSupplierReturnReplaced(id: string): Promise<ActionResu
       })
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId: supplierReturn.warrantyClaim?.serviceId ?? null,
+        repairOrderId: supplierReturn.warrantyClaim?.repairOrderId ?? null,
         type: "supplier_return_replaced",
         title: "Supplier return replaced",
         payload: {
           supplierReturnId: supplierReturn.id,
-          sparepartId: supplierReturn.sparepartId,
-          sparepartName: supplierReturn.sparepart.name,
+          inventoryItemId: supplierReturn.inventoryItemId,
+          inventoryItemName: supplierReturn.inventoryItem.name,
           qty: supplierReturn.qty,
           resolvedAt: resolvedAt.toISOString(),
         },
@@ -423,7 +423,7 @@ export async function markSupplierReturnReplaced(id: string): Promise<ActionResu
 
     if (!updated) return { success: false, error: "Retur supplier sudah selesai" }
 
-    revalidateAfterSupplierReturnMutation(scope.tokoId, supplierReturn.warrantyClaim?.serviceId)
+    revalidateAfterSupplierReturnMutation(scope.storeId, supplierReturn.warrantyClaim?.repairOrderId)
     return { success: true }
   })
 }
@@ -436,7 +436,7 @@ export async function markSupplierReturnRefunded(id: string, refundAmount: numbe
   if (!supplierReturn) return { success: false, error: "Retur supplier tidak ditemukan" }
   if (supplierReturn.status !== "pending" && supplierReturn.status !== "sent") return { success: false, error: "Retur supplier sudah selesai" }
 
-  return withScope(supplierReturn.tokoId, { feature: "inventory.management" }, async (scope) => {
+  return withScope(supplierReturn.storeId, { feature: "inventory.management" }, async (scope) => {
     assertPermission(scope, "supplier_returns.update")
 
     const resolvedAt = new Date()
@@ -448,14 +448,14 @@ export async function markSupplierReturnRefunded(id: string, refundAmount: numbe
       if (updated.count !== 1) return false
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId: supplierReturn.warrantyClaim?.serviceId ?? null,
+        repairOrderId: supplierReturn.warrantyClaim?.repairOrderId ?? null,
         type: "supplier_return_refunded",
         title: "Supplier return refunded",
         payload: {
           supplierReturnId: supplierReturn.id,
-          sparepartId: supplierReturn.sparepartId,
+          inventoryItemId: supplierReturn.inventoryItemId,
           qty: supplierReturn.qty,
           refundAmount: validated.data.refundAmount,
           resolvedAt: resolvedAt.toISOString(),
@@ -467,7 +467,7 @@ export async function markSupplierReturnRefunded(id: string, refundAmount: numbe
 
     if (!updated) return { success: false, error: "Retur supplier sudah selesai" }
 
-    revalidateAfterSupplierReturnMutation(scope.tokoId, supplierReturn.warrantyClaim?.serviceId)
+    revalidateAfterSupplierReturnMutation(scope.storeId, supplierReturn.warrantyClaim?.repairOrderId)
     return { success: true }
   })
 }
@@ -480,7 +480,7 @@ export async function markSupplierReturnRejected(id: string, note?: string): Pro
   if (!supplierReturn) return { success: false, error: "Retur supplier tidak ditemukan" }
   if (supplierReturn.status !== "pending" && supplierReturn.status !== "sent") return { success: false, error: "Retur supplier sudah selesai" }
 
-  return withScope(supplierReturn.tokoId, { feature: "inventory.management" }, async (scope) => {
+  return withScope(supplierReturn.storeId, { feature: "inventory.management" }, async (scope) => {
     assertPermission(scope, "supplier_returns.update")
 
     const resolvedAt = new Date()
@@ -493,14 +493,14 @@ export async function markSupplierReturnRejected(id: string, note?: string): Pro
       if (updated.count !== 1) return false
 
       await createActivityLog(tx, {
-        tokoId: scope.tokoId,
+        storeId: scope.storeId,
         userId: scope.user.id,
-        serviceId: supplierReturn.warrantyClaim?.serviceId ?? null,
+        repairOrderId: supplierReturn.warrantyClaim?.repairOrderId ?? null,
         type: "supplier_return_rejected",
         title: "Supplier return rejected",
         payload: {
           supplierReturnId: supplierReturn.id,
-          sparepartId: supplierReturn.sparepartId,
+          inventoryItemId: supplierReturn.inventoryItemId,
           qty: supplierReturn.qty,
           note: nextNote || null,
           resolvedAt: resolvedAt.toISOString(),
@@ -512,7 +512,7 @@ export async function markSupplierReturnRejected(id: string, note?: string): Pro
 
     if (!updated) return { success: false, error: "Retur supplier sudah selesai" }
 
-    revalidateAfterSupplierReturnMutation(scope.tokoId, supplierReturn.warrantyClaim?.serviceId)
+    revalidateAfterSupplierReturnMutation(scope.storeId, supplierReturn.warrantyClaim?.repairOrderId)
     return { success: true }
   })
 }

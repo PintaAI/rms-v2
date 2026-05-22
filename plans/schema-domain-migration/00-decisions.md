@@ -19,6 +19,7 @@ Every row below must end with one of these states before implementation starts: 
 | `mobileApiId` | Keep for now | Current field is provider-specific; generic `externalId` should wait for a second provider or identity model. |
 | `noWa` | Keep for now | WhatsApp behavior depends on it and user-facing wording is Indonesian. |
 | `ActivityType` values | Keep for now | Historical audit events should not be rewritten during the structural rename. |
+| Subscription invoice `toko*` snapshot fields | Rename to `store*` now | These are typed schema fields, not historical free-form payloads; keeping old field names would leak the old domain into the target Prisma API. |
 | User-facing labels | Keep Indonesian/product labels unless misleading | Internal schema clarity does not require changing UI language. |
 
 ## Decision Record Template
@@ -36,6 +37,7 @@ Use this checklist in the implementation PR or migration notes.
 | `noWa` stays | accepted | WhatsApp behavior unchanged. |
 | WhatsApp behavior stays | accepted | Only store-scoped table/model/FK names are affected. |
 | `ActivityType` values stay | accepted | Historical audit values unchanged. |
+| Subscription invoice store-count fields are renamed | accepted | Rename Prisma and physical columns from `toko*` to `store*`; preserve values. |
 
 ## Must Not Change In First Migration
 
@@ -47,6 +49,7 @@ Use this checklist in the implementation PR or migration notes.
 - WhatsApp connection, inbox, templates, instance naming, and notification behavior.
 - Historical `ActivityLog.type` enum values.
 - Existing `referenceType` string values unless a specific runtime path needs the new name.
+- Subscription billing behavior, prices, invoice meanings, and historical invoice row values.
 
 ## Open Decisions For Later Migrations
 

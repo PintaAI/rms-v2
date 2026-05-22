@@ -24,12 +24,14 @@ Exit criteria:
 - Split or rename `ItemType` explicitly for repair order items and repair invoice items.
 - Add `InventoryItem.deviceModelId` as nullable.
 - Add `InventoryItemType.phone_unit`.
+- Rename typed subscription invoice snapshot fields from `toko*` to `store*` while preserving values and billing behavior.
 - Keep `noWa`, `mobileApiId`, routes, permission keys, feature keys, and activity event values stable.
 
 Exit criteria:
 
 - `prisma/schema.prisma` describes the target schema without old delegate names.
 - All required column mappings are represented with target field names.
+- Relation fields listed in `01-schema-mapping.md` are renamed or explicitly documented if intentionally stable.
 - `@@map` and `@map` usage is intentional. Do not hide old physical names behind maps unless the first migration explicitly chooses a temporary compatibility phase.
 - Generated files are not edited manually.
 

@@ -5,13 +5,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 import { RiCalendarLine, RiFilter3Line } from "@remixicon/react";
 import type { AdminAnalyticsFilters } from "@/actions/analytics";
-import type { ServiceStatus } from "@/prisma/generated/prisma/enums";
+import type { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type StatusFilter = ServiceStatus | "all";
+type StatusFilter = RepairOrderStatus | "all";
 
 interface AnalyticsFilterProps {
   filters: AdminAnalyticsFilters;
@@ -30,7 +30,7 @@ interface PresetOption {
   getRange: () => DateRange;
 }
 
-const statusLabels: Record<ServiceStatus, string> = {
+const statusLabels: Record<RepairOrderStatus, string> = {
   received: "Masuk",
   repairing: "Proses",
   done: "Selesai",
@@ -249,7 +249,7 @@ export function AnalyticsFilter({ filters }: AnalyticsFilterProps) {
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value="all">Semua status</SelectItem>
-                  {(Object.keys(statusLabels) as ServiceStatus[]).map((status) => (
+                  {(Object.keys(statusLabels) as RepairOrderStatus[]).map((status) => (
                     <SelectItem key={status} value={status}>
                       {statusLabels[status]}
                     </SelectItem>
