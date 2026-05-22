@@ -1,7 +1,7 @@
 "use client"
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type MouseEvent } from "react"
-import { createSalesOrder, getRetailCheckoutItems, getSalesOrder, type RetailCheckoutItem, type SalesOrderDetail } from "@/actions/retail"
+import { createSalesOrder, getPhoneUnitsForCheckout, getRetailCheckoutItems, getSalesOrder, type PhoneUnitCheckoutItem, type RetailCheckoutItem, type SalesOrderDetail } from "@/actions/retail"
 import { RetailSaleDetailDrawer } from "@/components/dashboard/retail/retail-sale-detail-drawer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerTitle } f
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { getBrandIcon } from "@/lib/brand-icons"
 import { formatCurrency, formatCurrencyInput, getCurrencyInputDigits } from "@/lib/utils"
 import {
   RiAddLine,
@@ -23,11 +24,13 @@ import {
   RiDiscountPercentLine,
   RiLoader4Line,
   RiMoneyDollarCircleLine,
+  RiShoppingBag3Line,
   RiPriceTag3Line,
   RiQrCodeLine,
   RiRefund2Line,
   RiSearchLine,
   RiShoppingCartLine,
+  RiToolsLine,
   RiSubtractLine,
   RiWallet3Line,
 } from "@remixicon/react"
@@ -71,6 +74,62 @@ function FieldLabelIcon({ icon: Icon }: { icon: typeof RiWallet3Line }) {
   return <Icon className="size-3.5 text-muted-foreground" />
 }
 
+function getDeviceImageSrc(imageB64?: string | null) {
+  if (!imageB64) return null
+  if (imageB64.startsWith("data:") || imageB64.startsWith("http")) return imageB64
+  return `data:image/jpeg;base64,${imageB64}`
+}
+
+function PhoneUnitVisual({ item }: { item: RetailCheckoutItem }) {
+  const imageSrc = getDeviceImageSrc(item.deviceImageB64)
+
+  return (
+    <div className={`flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-sm border text-muted-foreground ${imageSrc ? "border-border bg-white" : "border-primary/15 bg-primary/5"}`}>
+      {imageSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageSrc} alt={item.name} className="size-full object-contain p-1.5" />
+      ) : item.deviceBrandName ? (
+        <div className="scale-125">{getBrandIcon(item.deviceBrandName)}</div>
+      ) : (
+        <RiShoppingCartLine className="size-5" />
+      )}
+    </div>
+  )
+}
+
+function InventoryItemVisual({ kind }: { kind: RetailCheckoutItem["kind"] }) {
+  if (kind === "phone_unit") return null
+  const Icon = kind === "retail_product" ? RiShoppingBag3Line : RiToolsLine
+
+  return (
+    <div className="flex size-14 shrink-0 items-center justify-center rounded-sm border border-border/70 bg-muted/40 text-muted-foreground">
+      <Icon className="size-5" />
+    </div>
+  )
+}
+
+function phoneUnitToCheckoutItem(unit: PhoneUnitCheckoutItem): RetailCheckoutItem {
+  return {
+    id: unit.id,
+    barcode: unit.imei || unit.serialNumber || unit.id,
+    name: `${unit.deviceBrandName} ${unit.deviceModelName}`,
+    kind: "phone_unit",
+    defaultPrice: unit.sellingPrice,
+    purchasePrice: unit.purchasePrice,
+    warrantyDays: unit.warrantyDays,
+    stock: 1,
+    categoryName: unit.condition,
+    deviceBrandName: unit.deviceBrandName,
+    deviceImageB64: unit.deviceImageB64,
+  }
+}
+
+function itemKindLabel(kind: RetailCheckoutItem["kind"]) {
+  if (kind === "retail_product") return "Retail"
+  if (kind === "phone_unit") return "Phone"
+  return "Sparepart"
+}
+
 export function RetailCheckout({ tokoId, initialItems, readOnly = false }: RetailCheckoutProps) {
   const [items, setItems] = useState(initialItems)
   const [cart, setCart] = useState<CartLine[]>([])
@@ -102,9 +161,14 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
 
     const loadItems = async () => {
       setIsLoadingItems(true)
-      const result = await getRetailCheckoutItems(tokoId, deferredSearch)
+      const [result, phoneResult] = await Promise.all([
+        getRetailCheckoutItems(tokoId, deferredSearch),
+        getPhoneUnitsForCheckout(tokoId, deferredSearch),
+      ])
       if (!active) return
-      if (result.success && result.data) setItems(result.data)
+      const nextItems = result.success && result.data ? result.data : []
+      const nextPhoneUnits = phoneResult.success && phoneResult.data ? phoneResult.data.map(phoneUnitToCheckoutItem) : []
+      setItems([...nextItems, ...nextPhoneUnits])
       setIsLoadingItems(false)
     }
 
@@ -240,8 +304,13 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
       setCustomerName("")
       setCustomerPhone("")
       setCartOpen(false)
-      const freshItems = await getRetailCheckoutItems(tokoId, deferredSearch)
-      if (freshItems.success && freshItems.data) setItems(freshItems.data)
+      const [freshItems, freshPhoneUnits] = await Promise.all([
+        getRetailCheckoutItems(tokoId, deferredSearch),
+        getPhoneUnitsForCheckout(tokoId, deferredSearch),
+      ])
+      const nextItems = freshItems.success && freshItems.data ? freshItems.data : []
+      const nextPhoneUnits = freshPhoneUnits.success && freshPhoneUnits.data ? freshPhoneUnits.data.map(phoneUnitToCheckoutItem) : []
+      setItems([...nextItems, ...nextPhoneUnits])
       toast.success("Penjualan retail berhasil")
       setIsCheckingOut(false)
     })()
@@ -310,12 +379,18 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                   className="flex min-h-40 flex-col justify-between rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm transition hover:border-primary/40 hover:bg-muted/30 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{item.name}</div>
-                      <div className="text-xs text-muted-foreground">{item.barcode}</div>
+                    <div className="flex min-w-0 items-start gap-3">
+                      {item.kind === "phone_unit" ? <PhoneUnitVisual item={item} /> : <InventoryItemVisual kind={item.kind} />}
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">{item.barcode}</div>
+                        {item.kind === "phone_unit" && item.categoryName ? (
+                          <div className="mt-1 text-xs font-medium text-primary">{item.categoryName.replaceAll("_", " ")}</div>
+                        ) : null}
+                      </div>
                     </div>
-                    <Badge variant={item.kind === "retail_product" ? "secondary" : "outline"}>
-                      {item.kind === "retail_product" ? "Retail" : "Sparepart"}
+                    <Badge variant={item.kind === "retail_product" ? "secondary" : item.kind === "phone_unit" ? "default" : "outline"}>
+                      {itemKindLabel(item.kind)}
                     </Badge>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3 text-sm">
@@ -323,7 +398,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                     <span className="text-muted-foreground">Stok {item.stock}</span>
                   </div>
                   {item.warrantyDays ? <div className="mt-1 text-xs font-medium text-primary">Garansi {item.warrantyDays} hari</div> : null}
-                  {item.categoryName ? <div className="mt-1 text-xs text-muted-foreground">{item.categoryName}</div> : null}
+                  {item.categoryName && item.kind !== "phone_unit" ? <div className="mt-1 text-xs text-muted-foreground">{item.categoryName}</div> : null}
                   <Button className="mt-4 w-full" onClick={(event) => handleAddToCart(event, item)} disabled={readOnly || item.stock <= 0}>
                     <RiAddLine data-icon="inline-start" />
                     Tambah
@@ -391,7 +466,7 @@ export function RetailCheckout({ tokoId, initialItems, readOnly = false }: Retai
                           {cart.map((item) => (
                             <TableRow key={item.id}>
                               <TableCell>
-                                <Badge variant="outline">{item.kind === "retail_product" ? "Retail" : "Sparepart"}</Badge>
+                                <Badge variant="outline">{itemKindLabel(item.kind)}</Badge>
                               </TableCell>
                               <TableCell className="font-medium">{item.name}</TableCell>
                               <TableCell>{item.warrantyDays ? `${item.warrantyDays} hari` : "-"}</TableCell>

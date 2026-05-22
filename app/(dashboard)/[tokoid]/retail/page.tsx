@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { getRetailCheckoutItems } from "@/actions/retail";
+import { getPhoneUnitsForCheckout, getRetailCheckoutItems, type PhoneUnitCheckoutItem, type RetailCheckoutItem } from "@/actions/retail";
 import { RetailCheckout } from "@/components/dashboard/retail/retail-checkout";
 import { assertPermission, can, getRequestScope } from "@/lib/auth/request-scope";
 import prisma from "@/lib/prisma";
@@ -14,20 +14,39 @@ export default async function SharedRetailPage({ params }: SharedRetailPageProps
   const scope = await getRequestScope(tokoid);
   assertPermission(scope, "retail.view");
 
-  const [toko, itemsResult] = await Promise.all([
+  const [toko, itemsResult, phoneUnitsResult] = await Promise.all([
     prisma.store.findUnique({ where: { id: tokoid }, select: { id: true, name: true, logoUrl: true } }),
     getRetailCheckoutItems(tokoid),
+    getPhoneUnitsForCheckout(tokoid),
   ]);
+
+  const phoneItems = (phoneUnitsResult.data ?? []).map(phoneUnitToCheckoutItem);
 
   return (
     <RetailPageShell
       tokoId={tokoid}
       tokoName={toko?.name ?? "Toko"}
       logoUrl={toko?.logoUrl}
-      items={itemsResult.data ?? []}
+      items={[...(itemsResult.data ?? []), ...phoneItems]}
       readOnly={!can(scope, "retail.sell")}
     />
   );
+}
+
+function phoneUnitToCheckoutItem(unit: PhoneUnitCheckoutItem): RetailCheckoutItem {
+  return {
+    id: unit.id,
+    barcode: unit.imei || unit.serialNumber || unit.id,
+    name: `${unit.deviceBrandName} ${unit.deviceModelName}`,
+    kind: "phone_unit",
+    defaultPrice: unit.sellingPrice,
+    purchasePrice: unit.purchasePrice,
+    warrantyDays: unit.warrantyDays,
+    stock: 1,
+    categoryName: unit.condition,
+    deviceBrandName: unit.deviceBrandName,
+    deviceImageB64: unit.deviceImageB64,
+  };
 }
 
 function RetailPageShell({

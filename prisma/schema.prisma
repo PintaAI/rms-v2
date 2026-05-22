@@ -259,7 +259,6 @@ model Store {
 
   userAssignments        UserStore[]
   inventoryItems         InventoryItem[]
-  inventoryUnits         InventoryUnit[]
   inventoryCategories    InventoryCategory[]
   serviceCatalogItems    ServiceCatalogItem[]
   repairOrders           RepairOrder[]
@@ -646,7 +645,6 @@ model DeviceModel {
   brand           DeviceBrand         @relation(fields: [brandId], references: [id])
   repairOrders    RepairOrder[]
   inventoryItems  InventoryItem[]
-  inventoryUnits  InventoryUnit[]
   compatibilities PartCompatibility[]
 
   @@unique([brandId, modelName])
@@ -667,6 +665,7 @@ model InventoryItem {
   warrantyDays  Int?
   isUniversal   Boolean           @default(false)
   type          InventoryItemType @default(repair_part)
+  metadata      Json?
   storeId       String
   deviceModelId String?
 
@@ -681,55 +680,12 @@ model InventoryItem {
   inventoryMovements  InventoryMovement[]
   salesOrderItems     SalesOrderItem[]
 
-  @@unique([storeId, name])
+  @@index([storeId, name])
   @@unique([storeId, barcode])
   @@index([storeId])
   @@index([categoryId])
   @@index([deviceModelId])
   @@map("inventory_item")
-}
-
-model InventoryUnit {
-  id              String                 @id @default(uuid())
-  deviceModelId   String
-  storeId         String
-
-  imei            String?
-  serialNumber    String?
-
-  condition       InventoryUnitCondition @default(used_good)
-  status          InventoryUnitStatus    @default(available)
-
-  purchasePrice   Int
-  sellingPrice    Int
-
-  warrantyDays    Int?
-  warrantyUntil   DateTime?
-
-  notes           String?
-
-  acquiredAt      DateTime               @default(now())
-  soldAt          DateTime?
-  returnedAt      DateTime?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-
-  store        Store                   @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  deviceModel  DeviceModel             @relation(fields: [deviceModelId], references: [id], onDelete: Cascade)
-  movements    InventoryMovement[]
-  salesOrderItem SalesOrderItem?         @relation("InventoryUnitSoldInSalesOrderItem")
-
-  @@unique([imei])
-  @@unique([serialNumber])
-  @@index([storeId])
-  @@index([deviceModelId])
-  @@index([status])
-  @@index([condition])
-  @@index([imei])
-  @@index([serialNumber])
-  @@index([acquiredAt])
-  @@index([storeId, status])
-  @@map("inventory_unit")
 }
 
 model InventoryCategory {
@@ -971,7 +927,6 @@ model SalesOrderItem {
   id                   String            @id @default(uuid())
   salesOrderId         String
   inventoryItemId      String?
-  inventoryUnitId      String?            @unique
   name                 String
   barcode              String?
   kind                 InventoryItemType
@@ -985,11 +940,9 @@ model SalesOrderItem {
 
   salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
-  inventoryUnit InventoryUnit? @relation("InventoryUnitSoldInSalesOrderItem", fields: [inventoryUnitId], references: [id], onDelete: SetNull)
 
   @@index([salesOrderId])
   @@index([inventoryItemId])
-  @@index([inventoryUnitId])
   @@index([kind])
   @@map("sales_order_item")
 }
@@ -1136,7 +1089,6 @@ model InventoryMovement {
   id                String            @id @default(uuid())
   storeId           String
   inventoryItemId   String?
-  inventoryUnitId   String?
   type              InventoryMovementType
   qtyChange         Int
   stockBefore       Int
@@ -1151,18 +1103,15 @@ model InventoryMovement {
 
   store         Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
-  inventoryUnit InventoryUnit? @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
   createdBy     User          @relation(fields: [createdById], references: [id])
 
   @@index([storeId])
   @@index([inventoryItemId])
-  @@index([inventoryUnitId])
   @@index([createdById])
   @@index([type])
   @@index([createdAt])
   @@index([storeId, createdAt])
   @@index([storeId, inventoryItemId, createdAt])
-  @@index([storeId, inventoryUnitId, createdAt])
   @@index([referenceType, referenceId])
   @@map("inventory_movement")
 }

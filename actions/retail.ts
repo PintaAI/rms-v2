@@ -17,12 +17,15 @@ export type RetailCheckoutItem = {
   warrantyDays: number | null
   stock: number
   categoryName: string | null
+  deviceBrandName?: string | null
+  deviceImageB64?: string | null
 }
 
 export type PhoneUnitCheckoutItem = {
   id: string
   deviceModelName: string
   deviceBrandName: string
+  deviceImageB64: string | null
   imei: string | null
   serialNumber: string | null
   condition: string
@@ -120,6 +123,27 @@ export type CreateSalesOrderInput = z.infer<typeof createSalesOrderSchema>
 
 class RetailCheckoutError extends Error {}
 
+const phoneMetadataSchema = z.object({
+  imei: z.string().nullable().optional(),
+  serialNumber: z.string().nullable().optional(),
+  condition: z.string().default("used_good"),
+  status: z.string().default("available"),
+  notes: z.string().nullable().optional(),
+  acquiredAt: z.string().nullable().optional(),
+  soldAt: z.string().nullable().optional(),
+  returnedAt: z.string().nullable().optional(),
+})
+
+function parsePhoneMetadata(metadata: unknown) {
+  return phoneMetadataSchema.parse(metadata ?? {})
+}
+
+function getDeviceImageB64(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object") return null
+  const imageB64 = (metadata as Record<string, unknown>).imageB64
+  return typeof imageB64 === "string" && imageB64.trim() ? imageB64 : null
+}
+
 async function assertRetailAccess(storeId: string, permission: PermissionKey) {
   const scope = await getRequestScope(storeId)
   assertPermission(scope, permission)
@@ -206,6 +230,7 @@ export async function getRetailCheckoutItems(
     const items = await prisma.inventoryItem.findMany({
       where: {
         storeId,
+        type: { not: "phone_unit" },
         stock: { gt: 0 },
         ...(search
           ? {
@@ -259,34 +284,26 @@ export async function getPhoneUnitsForCheckout(
     await assertRetailAccess(storeId, "retail.view")
 
     const search = query?.trim()
-    const units = await prisma.inventoryUnit.findMany({
+    const units = await prisma.inventoryItem.findMany({
       where: {
         storeId,
-        status: "available",
-        ...(search
-          ? {
-              OR: [
-                { imei: { contains: search, mode: "insensitive" as const } },
-                { serialNumber: { contains: search, mode: "insensitive" as const } },
-                { deviceModel: { modelName: { contains: search, mode: "insensitive" as const } } },
-                { deviceModel: { brand: { name: { contains: search, mode: "insensitive" as const } } } },
-              ],
-            }
-          : {}),
+        type: "phone_unit",
+        stock: { gt: 0 },
       },
-      orderBy: { acquiredAt: "desc" },
+      orderBy: { name: "asc" },
       take: 50,
       select: {
         id: true,
-        imei: true,
-        serialNumber: true,
-        condition: true,
-        sellingPrice: true,
+        barcode: true,
+        name: true,
+        metadata: true,
+        defaultPrice: true,
         purchasePrice: true,
         warrantyDays: true,
         deviceModel: {
           select: {
             modelName: true,
+            metadata: true,
             brand: { select: { name: true } },
           },
         },
@@ -295,17 +312,27 @@ export async function getPhoneUnitsForCheckout(
 
     return {
       success: true,
-      data: units.map((unit) => ({
-        id: unit.id,
-        deviceModelName: unit.deviceModel.modelName,
-        deviceBrandName: unit.deviceModel.brand.name,
-        imei: unit.imei,
-        serialNumber: unit.serialNumber,
-        condition: unit.condition,
-        sellingPrice: unit.sellingPrice,
-        purchasePrice: unit.purchasePrice,
-        warrantyDays: unit.warrantyDays,
-      })),
+      data: units
+        .map((unit) => ({ unit, metadata: parsePhoneMetadata(unit.metadata) }))
+        .filter(({ unit, metadata }) => {
+          if (metadata.status !== "available") return false
+          if (!search) return true
+          const normalizedSearch = search.toLowerCase()
+          return [unit.barcode, unit.name, metadata.imei, metadata.serialNumber, unit.deviceModel?.modelName, unit.deviceModel?.brand.name]
+            .some((value) => value?.toLowerCase().includes(normalizedSearch))
+        })
+        .map(({ unit, metadata }) => ({
+          id: unit.id,
+          deviceModelName: unit.deviceModel?.modelName ?? "Unknown",
+          deviceBrandName: unit.deviceModel?.brand.name ?? "Unknown",
+          deviceImageB64: getDeviceImageB64(unit.deviceModel?.metadata),
+          imei: metadata.imei ?? null,
+          serialNumber: metadata.serialNumber ?? null,
+          condition: metadata.condition,
+          sellingPrice: unit.defaultPrice,
+          purchasePrice: unit.purchasePrice ?? 0,
+          warrantyDays: unit.warrantyDays,
+        })),
     }
   } catch (error) {
     return actionError(error) as ActionResultWithData<PhoneUnitCheckoutItem[]>
@@ -341,133 +368,19 @@ export async function createPhoneUnitSalesOrder(
 ): Promise<ActionResultWithData<SalesOrderResult>> {
   try {
     const validated = createPhoneUnitSalesOrderSchema.parse(input)
-    const scope = await assertRetailAccess(validated.storeId, "retail.sell")
-
-    const sale = await prisma.$transaction(async (tx) => {
-      const units = await tx.inventoryUnit.findMany({
-        where: {
-          id: { in: validated.inventoryUnitIds },
-          storeId: scope.storeId,
-          status: "available",
-        },
-        select: {
-          id: true,
-          deviceModelId: true,
-          imei: true,
-          serialNumber: true,
-          condition: true,
-          sellingPrice: true,
-          purchasePrice: true,
-          warrantyDays: true,
-          deviceModel: {
-            select: {
-              modelName: true,
-              brand: { select: { name: true } },
-            },
-          },
-        },
-      })
-
-      if (units.length !== validated.inventoryUnitIds.length) {
-        throw new RetailCheckoutError("Ada unit yang tidak ditemukan atau sudah terjual")
-      }
-
-      for (const unit of units) {
-        if (unit.sellingPrice <= 0) {
-          throw new RetailCheckoutError(`Unit ${unit.deviceModel.brand.name} ${unit.deviceModel.modelName} belum punya harga jual`)
-        }
-      }
-
-      let subtotal = units.reduce((sum, unit) => sum + unit.sellingPrice, 0)
-
-      const discountAmount = validated.discountType === "percent"
-        ? Math.floor(subtotal * ((validated.discountPercent ?? 0) / 100))
-        : validated.discountAmount ?? 0
-
-      if (discountAmount > subtotal) throw new RetailCheckoutError("Diskon tidak boleh melebihi subtotal")
-
-      const grandTotal = subtotal - discountAmount
-      const paidAt = new Date()
-      let cashReceived: number | null = null
-      let changeAmount: number | null = null
-
-      if (validated.paymentMethod === "cash") {
-        cashReceived = validated.cashReceived ?? 0
-        changeAmount = cashReceived - grandTotal
-      }
-
-      if (cashReceived !== null && cashReceived < grandTotal) {
-        throw new RetailCheckoutError("Uang diterima kurang dari total belanja")
-      }
-
-      const createdSale = await tx.salesOrder.create({
-        data: {
-          storeId: scope.storeId,
-          createdById: scope.user.id,
-          customerName: normalizeOptionalText(validated.customerName),
-          customerPhone: normalizeOptionalText(validated.customerPhone),
-          subtotal,
-          discountAmount,
-          grandTotal,
-          paymentMethod: validated.paymentMethod,
-          cashReceived,
-          changeAmount,
-          paidAt,
-          items: {
-            create: units.map((unit) => ({
-              inventoryItemId: null,
-              inventoryUnitId: unit.id,
-              name: `${unit.deviceModel.brand.name} ${unit.deviceModel.modelName}`,
-              barcode: unit.imei || unit.serialNumber || null,
-              kind: "phone_unit",
-              qty: 1,
-              unitPrice: unit.sellingPrice,
-              unitCostSnapshot: unit.purchasePrice,
-              warrantyDaysSnapshot: unit.warrantyDays,
-              warrantyUntil: unit.warrantyDays ? addDays(paidAt, unit.warrantyDays) : null,
-              lineTotal: unit.sellingPrice,
-            })),
-          },
-        },
-        select: { id: true, grandTotal: true, paidAt: true },
-      })
-
-      for (const unit of units) {
-        await tx.inventoryUnit.update({
-          where: { id: unit.id },
-          data: {
-            status: "sold",
-            soldAt: paidAt,
-          },
-        })
-
-        await tx.inventoryMovement.create({
-          data: {
-            storeId: scope.storeId,
-            inventoryItemId: null,
-            inventoryUnitId: unit.id,
-            type: "unit_sold",
-            qtyChange: -1,
-            stockBefore: 1,
-            stockAfter: 0,
-            unitCostSnapshot: unit.purchasePrice,
-            unitPriceSnapshot: unit.sellingPrice,
-            referenceType: "sales_order",
-            referenceId: createdSale.id,
-            createdById: scope.user.id,
-          },
-        })
-      }
-
-      return createdSale
+    return createSalesOrder({
+      storeId: validated.storeId,
+      customerName: validated.customerName,
+      customerPhone: validated.customerPhone,
+      items: validated.inventoryUnitIds.map((inventoryItemId) => ({ inventoryItemId, qty: 1 })),
+      discountType: validated.discountType,
+      discountAmount: validated.discountAmount,
+      discountPercent: validated.discountPercent,
+      paymentMethod: validated.paymentMethod,
+      cashReceived: validated.cashReceived,
     })
-
-    revalidateRetailPaths(scope.storeId)
-
-    return { success: true, data: sale }
   } catch (error) {
     if (error instanceof z.ZodError) return { success: false, error: error.issues[0].message }
-    if (error instanceof RetailCheckoutError) return { success: false, error: error.message }
     return actionError(error) as ActionResultWithData<SalesOrderResult>
   }
 }
@@ -633,6 +546,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Ac
           purchasePrice: true,
           warrantyDays: true,
           stock: true,
+          metadata: true,
         },
       })
 
@@ -643,6 +557,11 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Ac
       let subtotal = 0
       for (const item of inventoryItems) {
         const qty = qtyBySparepartId.get(item.id) ?? 0
+        if (item.type === "phone_unit") {
+          const metadata = parsePhoneMetadata(item.metadata)
+          if (qty !== 1) throw new RetailCheckoutError(`${item.name} hanya bisa dijual 1 unit per transaksi`)
+          if (metadata.status !== "available") throw new RetailCheckoutError(`${item.name} tidak tersedia untuk dijual`)
+        }
         if (item.stock < qty) throw new RetailCheckoutError(`Stok ${item.name} tidak cukup`)
         if (item.defaultPrice <= 0) throw new RetailCheckoutError(`${item.name} belum punya harga jual`)
         subtotal += item.defaultPrice * qty
@@ -711,7 +630,12 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Ac
             storeId: scope.storeId,
             stock: { gte: qty },
           },
-          data: { stock: { decrement: qty } },
+          data: {
+            stock: { decrement: qty },
+            ...(item.type === "phone_unit"
+              ? { metadata: { ...parsePhoneMetadata(item.metadata), status: "sold", soldAt: paidAt.toISOString() } }
+              : {}),
+          },
         })
 
         if (updated.count !== 1) throw new RetailCheckoutError(`Stok ${item.name} tidak cukup`)
@@ -720,7 +644,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Ac
           data: {
             storeId: scope.storeId,
             inventoryItemId: item.id,
-            type: "sales_order",
+            type: item.type === "phone_unit" ? "unit_sold" : "sales_order",
             qtyChange: -qty,
             stockBefore: item.stock,
             stockAfter: item.stock - qty,

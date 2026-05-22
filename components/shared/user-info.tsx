@@ -16,9 +16,11 @@ import { RiLogoutBoxRLine, RiUserLine, RiSettings3Line, RiPaletteLine, RiArrowRi
 import { ModeToggle } from "@/components/shared/theme-toggle";
 import { UserSettings } from "@/components/ui/user-settings";
 import type { SettingsTab } from "@/components/ui/user-settings";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/components/auth/auth-provider";
 import { normalizePlan, type SubscriptionPlan } from "@/lib/features";
-import { useState } from "react";
+import { getThemeMode, onThemeModeChange, setThemeMode, type ThemeMode } from "@/lib/theme-preference";
+import { useEffect, useState } from "react";
 
 const planLabels: Record<SubscriptionPlan, string> = {
   free: "Free",
@@ -42,7 +44,13 @@ export function UserInfo() {
   const settingsParam = searchParams.get("settings");
   const initialTab = isSettingsTab(settingsParam) ? settingsParam : null;
   const [manualSettingsOpen, setManualSettingsOpen] = useState(false);
+  const [dynamicTheme, setDynamicTheme] = useState<ThemeMode>(() => getThemeMode());
   const settingsOpen = manualSettingsOpen || Boolean(initialTab);
+
+  useEffect(() => {
+    setDynamicTheme(getThemeMode());
+    return onThemeModeChange(setDynamicTheme);
+  }, []);
 
   const handleClose = (open: boolean) => {
     setManualSettingsOpen(open);
@@ -83,6 +91,12 @@ export function UserInfo() {
   const handleSignOut = async () => {
     await signOut();
     router.push("/auth");
+  };
+
+  const handleDynamicThemeChange = (checked: boolean) => {
+    const nextMode: ThemeMode = checked ? "dynamic" : "default";
+    setDynamicTheme(nextMode);
+    setThemeMode(nextMode);
   };
 
   return (
@@ -137,9 +151,21 @@ export function UserInfo() {
               <div className="size-6 rounded-md bg-muted/50 flex items-center justify-center">
                 <RiPaletteLine className="size-3.5" />
               </div>
-              <span>Tema</span>
+              <span>Mode terang/gelap</span>
             </div>
             <ModeToggle />
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(event) => event.preventDefault()}
+            className="cursor-pointer flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2">
+              <div className="size-6 rounded-md bg-muted/50 flex items-center justify-center">
+                <RiPaletteLine className="size-3.5" />
+              </div>
+              <span>Tema dinamis</span>
+            </div>
+            <Switch checked={dynamicTheme === "dynamic"} onCheckedChange={handleDynamicThemeChange} />
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => router.push("/user-manual")}

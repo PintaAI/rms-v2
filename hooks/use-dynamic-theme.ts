@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getSwatchesSync, type Color, type SwatchMap } from "colorthief";
 import { generateThemeColorsFromPalette, type ThemeColors } from "@/lib/color-utils";
-import { getThemeMode } from "@/lib/theme-preference";
+import { getThemeMode, onThemeModeChange } from "@/lib/theme-preference";
 import {
   setDebugLoading,
   setDebugLogoUrl,
@@ -125,11 +125,9 @@ export function useDynamicTheme(logoUrl: string | null | undefined): void {
 
   // Listen for preference changes — increment refreshKey to trigger main effect.
   useEffect(() => {
-    const handlePreferenceChange = () => {
+    return onThemeModeChange(() => {
       setRefreshKey((k) => k + 1);
-    };
-    window.addEventListener("theme-mode-change", handlePreferenceChange);
-    return () => window.removeEventListener("theme-mode-change", handlePreferenceChange);
+    });
   }, []);
 
   useEffect(() => {
@@ -137,7 +135,6 @@ export function useDynamicTheme(logoUrl: string | null | undefined): void {
 
     // Always record the latest desired URL immediately.
     currentLogoUrlRef.current = normalizedLogoUrl;
-
     // Check user preference — if "default", remove dynamic styles and skip extraction.
     const themeMode = getThemeMode();
     if (themeMode === "default") {
