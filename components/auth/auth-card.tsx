@@ -5,7 +5,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Image from "next/image";
 import { signIn, signUp } from "@/lib/auth-client";
-import { attachPendingReferralToCurrentUser, attachReferralToCurrentUser, storePendingReferralCode, type ReferralCodePreview } from "@/actions/affiliate";
+import { attachPendingReferralToCurrentUser, attachReferralToCurrentUser, clearPendingReferralCode, storePendingReferralCode, type ReferralCodePreview } from "@/actions/affiliate";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { RiGoogleFill, RiMailLine, RiLockPasswordLine, RiUserLine, RiEyeLine, RiEyeOffLine, RiLoader4Line } from "@remixicon/react";
 
 const AUTH_REDIRECT_CONTROLLER_PATH = "/auth";
+const AFFILIATE_NEW_USER_CALLBACK_PATH = "/auth?affiliate_new=1";
 
 // Validation utilities
 interface ValidationErrors {
@@ -219,6 +220,8 @@ export function AuthCard({
         return;
       }
 
+      await clearPendingReferralCode();
+
       if (onLoginSuccess) {
         onLoginSuccess();
       } else {
@@ -290,6 +293,7 @@ export function AuthCard({
       const result = await signIn.social({
         provider: "google",
         callbackURL: redirectAfterLogin,
+        newUserCallbackURL: referralCode.trim() ? AFFILIATE_NEW_USER_CALLBACK_PATH : undefined,
       });
 
       if (result.error) {

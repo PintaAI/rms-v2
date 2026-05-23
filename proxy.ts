@@ -211,7 +211,11 @@ export async function proxy(request: NextRequest) {
     }
 
     const destination = getPostAuthDestination(user);
-    const shouldClearPendingReferral = await attachPendingReferralFromProxy(request, user);
+    const hasPendingReferral = Boolean(request.cookies.get(AFFILIATE_PENDING_REFERRAL_COOKIE)?.value);
+    const shouldAttachPendingReferral = isAuthRoute && request.nextUrl.searchParams.get("affiliate_new") === "1";
+    const shouldClearPendingReferral = shouldAttachPendingReferral
+      ? await attachPendingReferralFromProxy(request, user)
+      : hasPendingReferral;
 
     if (isPublicRoute || isDashboardLandingRoute) {
       const response = NextResponse.redirect(new URL(destination, request.url));

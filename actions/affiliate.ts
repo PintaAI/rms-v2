@@ -715,6 +715,11 @@ async function clearPendingReferralCookie() {
   cookieStore.delete(AFFILIATE_PENDING_REFERRAL_COOKIE);
 }
 
+export async function clearPendingReferralCode(): Promise<ActionResultWithData<null>> {
+  await clearPendingReferralCookie();
+  return { success: true, data: null };
+}
+
 export async function attachPendingReferralToCurrentUser(): Promise<ActionResultWithData<{ referralId: string } | null>> {
   const cookieStore = await cookies();
   const code = decodePendingReferralCookie(cookieStore.get(AFFILIATE_PENDING_REFERRAL_COOKIE)?.value);
@@ -934,6 +939,40 @@ export async function updateReferralRegistrationCommission(input: {
     unstable_rethrow(error);
     console.error("Failed to update referral registration commission:", error);
     return { success: false, error: "Failed to update referral registration commission" };
+  }
+}
+
+export async function rejectAndUnlinkReferral(referralId: string): Promise<ActionResultWithData<{ referralId: string }>> {
+  try {
+    await requireSuperuser();
+
+    const referral = await prisma.referral.findUnique({
+      where: { id: referralId },
+      select: {
+        id: true,
+        referralCode: true,
+        commissions: { select: { id: true, status: true } },
+      },
+    });
+    if (!referral) return { success: false, error: "Referral not found" };
+
+    const hasPaidCommission = referral.commissions.some((commission) => commission.status === "paid");
+    if (hasPaidCommission) {
+      return { success: false, error: "Cannot unlink referral with paid commission" };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.affiliateCommission.deleteMany({ where: { referralId } });
+      await tx.referral.delete({ where: { id: referralId } });
+    });
+
+    revalidatePath("/superuser");
+    revalidatePath(`/affiliate/portal/${encodeURIComponent(referral.referralCode)}`);
+    return { success: true, data: { referralId } };
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Failed to reject and unlink referral:", error);
+    return { success: false, error: "Failed to reject and unlink referral" };
   }
 }
 

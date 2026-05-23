@@ -7,6 +7,7 @@ import {
   createUserAffiliator,
   deleteAffiliator,
   regenerateAffiliatorPortalToken,
+  rejectAndUnlinkReferral,
   updateAffiliateCommissionStatus,
   updateAffiliator,
   updateAffiliatorStatus,
@@ -184,6 +185,19 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
         return;
       }
       toast.success("Registration commission updated");
+    });
+  };
+
+  const unlinkReferral = (referral: AffiliateDashboardData["referrals"][number]) => {
+    if (!window.confirm(`Reject and unlink ${referral.customerName} from ${referral.affiliatorName}? Unpaid affiliate commissions for this referral will be removed.`)) return;
+
+    startTransition(async () => {
+      const result = await rejectAndUnlinkReferral(referral.id);
+      if (!result.success) {
+        toast.error(result.error || "Failed to unlink referral");
+        return;
+      }
+      toast.success("Referral rejected and unlinked");
     });
   };
 
@@ -420,7 +434,10 @@ export function AffiliateManagement({ data }: AffiliateManagementProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" variant="outline" disabled={isPending} onClick={() => saveReferralAmount(referral.id)}>Save</Button>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" disabled={isPending} onClick={() => saveReferralAmount(referral.id)}>Save</Button>
+                        <Button size="sm" variant="ghost" disabled={isPending} onClick={() => unlinkReferral(referral)}>Reject & Unlink</Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
