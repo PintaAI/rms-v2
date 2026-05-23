@@ -186,6 +186,14 @@ const activityTypeConfig: Record<
     borderClass: "border-amber-500/30",
     backgroundClass: "bg-amber-500/5",
   },
+  user_login: {
+    label: "Login",
+    actionLabel: "login",
+    icon: RiLoginCircleLine,
+    badgeVariant: "accent",
+    borderClass: "border-sky-500/30",
+    backgroundClass: "bg-sky-500/5",
+  },
 };
 
 function getDeletedServiceSummary(payload: Prisma.JsonValue | null): {

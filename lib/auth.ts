@@ -98,6 +98,27 @@ export const auth = betterAuth({
         }
       }
 
+      if (ctx.path === "/sign-in/email") {
+        const userId = returned.user.id;
+        ctx.context.runInBackground(
+          (async () => {
+            const stores = await prisma.userStore.findMany({
+              where: { userId },
+              select: { storeId: true },
+            });
+
+            await prisma.activityLog.createMany({
+              data: stores.map((store) => ({
+                storeId: store.storeId,
+                userId,
+                type: "user_login",
+                title: "User logged in",
+              })),
+            });
+          })()
+        );
+      }
+
       const subscription = await prisma.subscription.findUnique({
         where: { userId: returned.user.id },
         select: {
