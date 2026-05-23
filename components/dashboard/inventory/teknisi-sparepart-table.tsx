@@ -36,7 +36,7 @@ export function TeknisiSparepartTable({ tokoId, initialSearchQuery = "" }: Tekni
 
     const load = async () => {
       setIsLoadingSpareparts(true);
-      const result = await getInventoryItems(tokoId);
+      const result = await getInventoryItems(tokoId, "repair_part");
       if (!active) return;
       if (result.success && result.data) {
         setSpareparts(result.data);

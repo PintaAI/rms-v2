@@ -59,7 +59,7 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     isUniversal: false,
     type: "repair_part",
     storeId: "mock",
-    category: { id: "mock-cat-lcd", name: "LCD", storeId: "mock" },
+    category: { id: "mock-cat-lcd", name: "LCD", storeId: "mock", kind: "repair_part" },
     compatibilities: [
       { deviceModelId: "mock-hp-1", deviceModel: { id: "mock-hp-1", modelName: "iPhone 11", brand: { name: "Apple" } } },
     ],
@@ -78,7 +78,7 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     isUniversal: false,
     type: "repair_part",
     storeId: "mock",
-    category: { id: "mock-cat-battery", name: "Baterai", storeId: "mock" },
+    category: { id: "mock-cat-battery", name: "Baterai", storeId: "mock", kind: "repair_part" },
     compatibilities: [
       { deviceModelId: "mock-hp-2", deviceModel: { id: "mock-hp-2", modelName: "Galaxy A50", brand: { name: "Samsung" } } },
     ],
@@ -97,7 +97,7 @@ export const MOCK_SPAREPARTS: SparepartWithCompatibilities[] = [
     isUniversal: true,
     type: "repair_part",
     storeId: "mock",
-    category: { id: "mock-cat-connector", name: "Konektor", storeId: "mock" },
+    category: { id: "mock-cat-connector", name: "Konektor", storeId: "mock", kind: "repair_part" },
     compatibilities: [],
   },
 ];
@@ -117,7 +117,7 @@ export const MOCK_RETAIL_ITEMS: SparepartWithCompatibilities[] = [
     isUniversal: true,
     type: "retail_product",
     storeId: "mock",
-    category: { id: "mock-cat-accessory", name: "Aksesoris", storeId: "mock" },
+    category: { id: "mock-cat-accessory", name: "Aksesoris", storeId: "mock", kind: "retail_product" },
     compatibilities: [],
   },
   {
@@ -134,7 +134,7 @@ export const MOCK_RETAIL_ITEMS: SparepartWithCompatibilities[] = [
     isUniversal: true,
     type: "retail_product",
     storeId: "mock",
-    category: { id: "mock-cat-cable", name: "Kabel", storeId: "mock" },
+    category: { id: "mock-cat-cable", name: "Kabel", storeId: "mock", kind: "retail_product" },
     compatibilities: [],
   },
   {
@@ -151,7 +151,7 @@ export const MOCK_RETAIL_ITEMS: SparepartWithCompatibilities[] = [
     isUniversal: false,
     type: "retail_product",
     storeId: "mock",
-    category: { id: "mock-cat-case", name: "Casing", storeId: "mock" },
+    category: { id: "mock-cat-case", name: "Casing", storeId: "mock", kind: "retail_product" },
     compatibilities: [],
   },
 ];
@@ -249,6 +249,15 @@ export const MOCK_STAFF_OVERVIEW_DATA: StaffOverviewData = {
     },
     inventory: {
       lowStockCount: 5,
+    },
+    retail: {
+      itemCount: 5,
+      lowStockCount: 2,
+      dailySales: 3,
+      weeklySales: 15,
+      dailyRevenue: 250000,
+      weeklyRevenue: 1250000,
+      canViewHistory: true,
     },
   },
   recentServices: [
@@ -397,6 +406,28 @@ export const FEATURE_PREVIEW_INFO: Partial<
       "Activity log terbaru ikut refresh otomatis",
       "Mengurangi refresh manual saat operasional ramai",
       "Status koneksi realtime terlihat di header dashboard",
+    ],
+    previewType: "revenue",
+  },
+  "inventory.supplierReturns": {
+    title: "Retur Supplier",
+    description: "Kelola retur supplier dari klaim garansi, pengiriman kembali, dan penggantian stok.",
+    benefits: [
+      "Buat retur supplier dari klaim garansi atau pengembalian barang",
+      "Pantau status pengiriman, refund, dan penolakan retur",
+      "Penggantian stok otomatis saat retur diselesaikan",
+      "Riwayat retur supplier lengkap untuk laporan",
+    ],
+    previewType: "revenue",
+  },
+  "inventory.supplierDebts": {
+    title: "Hutang Supplier",
+    description: "Catat dan kelola hutang supplier, cicilan pembayaran, dan riwayat pelunasan.",
+    benefits: [
+      "Catat nota supplier yang belum lunas",
+      "Bayar hutang secara cicilan atau lunas",
+      "Tracking status hutang per supplier",
+      "Laporan hutang supplier untuk akuntansi toko",
     ],
     previewType: "revenue",
   },

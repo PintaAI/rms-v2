@@ -19,7 +19,9 @@ export type FeatureKey =
   | "realtime.mobileScanner"
   | "whatsapp.integration"
   | "analytics.revenue"
-  | "inventory.audit";
+  | "inventory.audit"
+  | "inventory.supplierReturns"
+  | "inventory.supplierDebts";
 
 export type FeatureLockReason = "role_denied" | "plan_required" | "disabled_by_toko";
 
@@ -156,6 +158,24 @@ export const FEATURE_REGISTRY = {
     label: "Analytics",
     description: "Pantau performa pendapatan, service, teknisi, dan inventory toko.",
     category: "analytics",
+    allowedRoles: ["admin", "staff", "technician"],
+    minimumPlan: "premium",
+    configurable: true,
+  },
+  "inventory.supplierReturns": {
+    key: "inventory.supplierReturns",
+    label: "Retur Supplier",
+    description: "Kelola retur supplier dari klaim garansi, pengiriman kembali, dan penggantian stok.",
+    category: "inventory",
+    allowedRoles: ["admin", "staff", "technician"],
+    minimumPlan: "enterprise",
+    configurable: true,
+  },
+  "inventory.supplierDebts": {
+    key: "inventory.supplierDebts",
+    label: "Hutang Supplier",
+    description: "Catat dan kelola hutang supplier, cicilan pembayaran, dan riwayat pelunasan.",
+    category: "inventory",
     allowedRoles: ["admin", "staff", "technician"],
     minimumPlan: "enterprise",
     configurable: true,

@@ -335,6 +335,8 @@ export function buildStaffNav({
   const inventoryEnabled = canUsePermission(permissionAccess, "inventory.view");
   const retailEnabled = canUsePermission(permissionAccess, "retail.view");
   const retailHistoryEnabled = canUsePermission(permissionAccess, "retail.viewHistory");
+  const retailInventoryEnabled = canUsePermission(permissionAccess, "inventory.manageRetail");
+  const phoneUnitInventoryEnabled = canUsePermission(permissionAccess, "inventory.managePhoneUnits");
 
   if (isFeatureDisabled("staff.workflow")) {
     return [];
@@ -452,7 +454,14 @@ export function buildStaffNav({
       }
       );
     }
-  } else if (workflowEnabled && !isFeatureDisabled("retail.sales") && canUsePermission(permissionAccess, "inventory.manageRetail")) {
+  } else if (workflowEnabled && !isFeatureDisabled("retail.sales") && retailInventoryEnabled) {
+    inventoryItems.push({
+      href: `/${tokoid}/inventory`,
+      icon: "archive",
+      label: "Inventory",
+      isLocked: false,
+    });
+  } else if (workflowEnabled && !isFeatureDisabled("inventory.management") && phoneUnitInventoryEnabled) {
     inventoryItems.push({
       href: `/${tokoid}/inventory`,
       icon: "archive",

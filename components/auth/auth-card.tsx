@@ -14,6 +14,8 @@ import { Field, FieldLabel, FieldDescription, FieldError, FieldGroup, FieldConte
 import { Separator } from "@/components/ui/separator";
 import { RiGoogleFill, RiMailLine, RiLockPasswordLine, RiUserLine, RiEyeLine, RiEyeOffLine, RiLoader4Line } from "@remixicon/react";
 
+const AUTH_REDIRECT_CONTROLLER_PATH = "/auth";
+
 // Validation utilities
 interface ValidationErrors {
   email?: string;
@@ -77,8 +79,8 @@ export function AuthCard({
   defaultTab = "login",
   onLoginSuccess,
   onRegisterSuccess,
-  redirectAfterLogin = "/dashboard",
-  redirectAfterRegister = "/dashboard",
+  redirectAfterLogin = AUTH_REDIRECT_CONTROLLER_PATH,
+  redirectAfterRegister = AUTH_REDIRECT_CONTROLLER_PATH,
   showGoogleAuth = true,
   className,
 }: AuthCardProps) {

@@ -47,6 +47,8 @@ const optionalFeatureKeys: FeatureKey[] = [
   "realtime.mobileScanner",
   "analytics.revenue",
   "inventory.audit",
+  "inventory.supplierReturns",
+  "inventory.supplierDebts",
 ];
 
 export function getOnboardingPlanRecommendation(

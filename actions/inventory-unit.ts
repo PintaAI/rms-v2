@@ -16,6 +16,8 @@ export type InventoryUnitItem = {
   deviceModelId: string
   deviceModelName: string
   deviceBrandName: string
+  categoryId: string | null
+  categoryName: string | null
   imei: string | null
   serialNumber: string | null
   condition: InventoryUnitCondition
@@ -49,6 +51,7 @@ export type InventoryUnitsResult = {
 
 export type CreateInventoryUnitInput = {
   deviceModelId: string
+  categoryName?: string | null
   imei?: string | null
   serialNumber?: string | null
   condition?: InventoryUnitCondition
@@ -60,6 +63,7 @@ export type CreateInventoryUnitInput = {
 
 export type UpdateInventoryUnitInput = {
   id: string
+  categoryName?: string | null
   imei?: string | null
   serialNumber?: string | null
   condition?: InventoryUnitCondition
@@ -85,6 +89,7 @@ type PhoneMetadata = z.infer<typeof phoneMetadataSchema>
 
 const createInventoryUnitSchema = z.object({
   deviceModelId: z.string().min(1, "Model perangkat wajib dipilih"),
+  categoryName: z.string().trim().max(100).optional().nullable(),
   imei: z.string().trim().max(50).optional().nullable(),
   serialNumber: z.string().trim().max(50).optional().nullable(),
   condition: z.enum(["new", "used_good", "used_fair", "refurbished", "damaged"]).optional(),
@@ -96,6 +101,7 @@ const createInventoryUnitSchema = z.object({
 
 const updateInventoryUnitSchema = z.object({
   id: z.string().min(1, "ID unit wajib diisi"),
+  categoryName: z.string().trim().max(100).optional().nullable(),
   imei: z.string().trim().max(50).optional().nullable(),
   serialNumber: z.string().trim().max(50).optional().nullable(),
   condition: z.enum(["new", "used_good", "used_fair", "refurbished", "damaged"]).optional(),
@@ -142,6 +148,22 @@ function barcodeForUnit(id: string, imei: string | null | undefined, serialNumbe
   return imei || serialNumber || `UNIT-${id}`
 }
 
+async function findOrCreatePhoneUnitCategory(storeId: string, categoryName?: string | null) {
+  const name = categoryName?.trim()
+  if (!name) return null
+
+  const existing = await prisma.inventoryCategory.findFirst({
+    where: { storeId, kind: "phone_unit", name: { equals: name, mode: "insensitive" } },
+    select: { id: true },
+  })
+  if (existing) return existing
+
+  return prisma.inventoryCategory.create({
+    data: { storeId, kind: "phone_unit", name },
+    select: { id: true },
+  })
+}
+
 function buildPhoneMetadata(input: {
   imei?: string | null
   serialNumber?: string | null
@@ -167,6 +189,7 @@ function buildPhoneMetadata(input: {
 function mapItemToUnit(item: {
   id: string
   deviceModelId: string | null
+  categoryId: string | null
   purchasePrice: number | null
   defaultPrice: number
   warrantyDays: number | null
@@ -175,6 +198,7 @@ function mapItemToUnit(item: {
     modelName: string
     brand: { name: string }
   } | null
+  category: { name: string } | null
 }): InventoryUnitItem {
   const metadata = parsePhoneMetadata(item.metadata)
   const acquiredAt = nullableDate(metadata.acquiredAt) ?? new Date()
@@ -183,6 +207,8 @@ function mapItemToUnit(item: {
     deviceModelId: item.deviceModelId ?? "",
     deviceModelName: item.deviceModel?.modelName ?? "Unknown",
     deviceBrandName: item.deviceModel?.brand.name ?? "Unknown",
+    categoryId: item.categoryId,
+    categoryName: item.category?.name ?? null,
     imei: metadata.imei ?? null,
     serialNumber: metadata.serialNumber ?? null,
     condition: metadata.condition,
@@ -221,7 +247,7 @@ export async function getInventoryUnits(
   filters?: InventoryUnitFilters
 ): Promise<ActionResultWithData<InventoryUnitsResult>> {
   try {
-    await assertInventoryUnitAccess(storeId, "inventory.view")
+    await assertInventoryUnitAccess(storeId, "inventory.managePhoneUnits")
 
     const normalized = normalizeInventoryUnitFilters(filters)
     const items = await prisma.inventoryItem.findMany({
@@ -235,6 +261,7 @@ export async function getInventoryUnits(
         id: true,
         deviceModelId: true,
         purchasePrice: true,
+        categoryId: true,
         defaultPrice: true,
         warrantyDays: true,
         metadata: true,
@@ -244,6 +271,7 @@ export async function getInventoryUnits(
             brand: { select: { name: true } },
           },
         },
+        category: { select: { name: true } },
       },
     })
 
@@ -278,7 +306,7 @@ export async function getInventoryUnit(
   unitId: string
 ): Promise<ActionResultWithData<InventoryUnitItem>> {
   try {
-    await assertInventoryUnitAccess(storeId, "inventory.view")
+    await assertInventoryUnitAccess(storeId, "inventory.managePhoneUnits")
 
     const item = await prisma.inventoryItem.findFirst({
       where: { id: unitId, storeId, type: "phone_unit" },
@@ -286,6 +314,7 @@ export async function getInventoryUnit(
         id: true,
         deviceModelId: true,
         purchasePrice: true,
+        categoryId: true,
         defaultPrice: true,
         warrantyDays: true,
         metadata: true,
@@ -295,6 +324,7 @@ export async function getInventoryUnit(
             brand: { select: { name: true } },
           },
         },
+        category: { select: { name: true } },
       },
     })
 
@@ -313,15 +343,33 @@ export async function getAvailablePhoneUnits(
   try {
     await assertInventoryUnitAccess(storeId, "retail.view")
 
-    const result = await getInventoryUnits(storeId, {
-      deviceModelId,
-      status: "available",
-      page: 1,
-      pageSize: 100,
+    const items = await prisma.inventoryItem.findMany({
+      where: {
+        storeId,
+        type: "phone_unit",
+        ...(deviceModelId ? { deviceModelId } : {}),
+      },
+      orderBy: { name: "asc" },
+      take: 100,
+      select: {
+        id: true,
+        deviceModelId: true,
+        purchasePrice: true,
+        categoryId: true,
+        defaultPrice: true,
+        warrantyDays: true,
+        metadata: true,
+        deviceModel: {
+          select: {
+            modelName: true,
+            brand: { select: { name: true } },
+          },
+        },
+        category: { select: { name: true } },
+      },
     })
 
-    if (!result.success) return { success: false, error: result.error }
-    return { success: true, data: result.data?.items ?? [] }
+    return { success: true, data: items.map(mapItemToUnit).filter((unit) => unit.status === "available") }
   } catch (error) {
     return actionError(error) as ActionResultWithData<InventoryUnitItem[]>
   }
@@ -333,7 +381,7 @@ export async function createInventoryUnit(
 ): Promise<ActionResultWithData<InventoryUnitItem>> {
   try {
     const validated = createInventoryUnitSchema.parse(input)
-    const scope = await assertInventoryUnitAccess(storeId, "inventory.create")
+    const scope = await assertInventoryUnitAccess(storeId, "inventory.managePhoneUnits")
 
     const deviceModel = await prisma.deviceModel.findUnique({
       where: { id: validated.deviceModelId },
@@ -349,6 +397,7 @@ export async function createInventoryUnit(
     }
 
     const id = randomUUID()
+    const category = await findOrCreatePhoneUnitCategory(scope.storeId, validated.categoryName)
     const metadata = buildPhoneMetadata({
       imei: validated.imei,
       serialNumber: validated.serialNumber,
@@ -363,6 +412,7 @@ export async function createInventoryUnit(
           id,
           storeId: scope.storeId,
           deviceModelId: validated.deviceModelId,
+          categoryId: category?.id ?? null,
           barcode: barcodeForUnit(id, validated.imei, validated.serialNumber),
           name: `${deviceModel.brand.name} ${deviceModel.modelName}`,
           type: "phone_unit",
@@ -377,6 +427,7 @@ export async function createInventoryUnit(
           id: true,
           deviceModelId: true,
           purchasePrice: true,
+          categoryId: true,
           defaultPrice: true,
           warrantyDays: true,
           metadata: true,
@@ -386,6 +437,7 @@ export async function createInventoryUnit(
               brand: { select: { name: true } },
             },
           },
+          category: { select: { name: true } },
         },
       })
 
@@ -423,7 +475,7 @@ export async function updateInventoryUnit(
 ): Promise<ActionResultWithData<InventoryUnitItem>> {
   try {
     const validated = updateInventoryUnitSchema.parse(input)
-    const scope = await assertInventoryUnitAccess(storeId, "inventory.update")
+    const scope = await assertInventoryUnitAccess(storeId, "inventory.managePhoneUnits")
 
     const existingItem = await prisma.inventoryItem.findFirst({
       where: { id: validated.id, storeId, type: "phone_unit" },
@@ -445,6 +497,9 @@ export async function updateInventoryUnit(
     }
 
     const nextStatus = validated.status ?? existingMetadata.status
+    const category = validated.categoryName === undefined
+      ? undefined
+      : await findOrCreatePhoneUnitCategory(scope.storeId, validated.categoryName)
     const nextMetadata = {
       ...existingMetadata,
       ...(validated.imei !== undefined ? { imei: validated.imei || null } : {}),
@@ -463,6 +518,7 @@ export async function updateInventoryUnit(
           ? { barcode: barcodeForUnit(validated.id, nextMetadata.imei, nextMetadata.serialNumber) }
           : {}),
         ...(validated.purchasePrice !== undefined ? { purchasePrice: validated.purchasePrice } : {}),
+        ...(validated.categoryName !== undefined ? { categoryId: category?.id ?? null } : {}),
         ...(validated.sellingPrice !== undefined ? { defaultPrice: validated.sellingPrice } : {}),
         ...(validated.warrantyDays !== undefined ? { warrantyDays: validated.warrantyDays ?? null } : {}),
         ...(validated.status ? { stock: stockForStatus(nextStatus) } : {}),
@@ -472,6 +528,7 @@ export async function updateInventoryUnit(
         id: true,
         deviceModelId: true,
         purchasePrice: true,
+        categoryId: true,
         defaultPrice: true,
         warrantyDays: true,
         metadata: true,
@@ -481,6 +538,7 @@ export async function updateInventoryUnit(
             brand: { select: { name: true } },
           },
         },
+        category: { select: { name: true } },
       },
     })
 
@@ -498,7 +556,7 @@ export async function deleteInventoryUnit(
   unitId: string
 ): Promise<ActionResult> {
   try {
-    const scope = await assertInventoryUnitAccess(storeId, "inventory.delete")
+    const scope = await assertInventoryUnitAccess(storeId, "inventory.managePhoneUnits")
 
     const item = await prisma.inventoryItem.findFirst({
       where: { id: unitId, storeId, type: "phone_unit" },
@@ -524,7 +582,7 @@ export async function searchInventoryUnitByImei(
   imei: string
 ): Promise<ActionResultWithData<InventoryUnitItem | null>> {
   try {
-    await assertInventoryUnitAccess(storeId, "inventory.view")
+    await assertInventoryUnitAccess(storeId, "inventory.managePhoneUnits")
 
     const result = await getInventoryUnits(storeId, { q: imei, page: 1, pageSize: 100 })
     if (!result.success) return { success: false, error: result.error }

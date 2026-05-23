@@ -222,7 +222,7 @@ export function AffiliateProductKnowledge(props: AffiliateProductKnowledgeProps)
           <p className="text-sm font-medium text-muted-foreground">
             {isAffiliate ? "Product Knowledge" : "Program Afiliasi"}{" "}&middot;{" "}Product Knowledge
           </p>
-          <h1 className="text-3xl font-black tracking-tight">RMS Product Knowlage</h1>
+          <h1 className="text-3xl font-black tracking-tight">RMS Product Knowledge</h1>
           {isAffiliate ? (
             <p className="max-w-2xl text-sm text-muted-foreground">
               Selamat datang, {props.affiliatorName}. Halaman ini membantu Anda memahami produk RMS secara mendalam — dari alur kerja,

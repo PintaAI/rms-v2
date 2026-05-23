@@ -17,6 +17,7 @@ import {
   type InventoryUnitItem,
   type InventoryUnitCondition,
 } from "@/actions/inventory-unit";
+import { getInventoryCategories, type InventoryCategory } from "@/actions/inventory";
 import { DeviceInput, type DeviceModelOption } from "@/components/shared/device-input";
 import { loadDeviceCatalog, refreshDeviceCatalogIfStale } from "@/lib/device-catalog-cache";
 import { formatCurrencyInput, getCurrencyInputDigits, formatCurrency } from "@/lib/utils";
@@ -53,9 +54,11 @@ export function PhoneUnitFormDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [devices, setDevices] = useState<DeviceModelOption[]>([]);
+  const [categories, setCategories] = useState<InventoryCategory[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(true);
 
   const [selectedDevice, setSelectedDevice] = useState<DeviceModelOption | null>(null);
+  const [categoryName, setCategoryName] = useState(unit?.categoryName ?? "");
   const [imei, setImei] = useState(unit?.imei ?? "");
   const [serialNumber, setSerialNumber] = useState(unit?.serialNumber ?? "");
   const [condition, setCondition] = useState<InventoryUnitCondition>(unit?.condition ?? "used_good");
@@ -83,10 +86,17 @@ export function PhoneUnitFormDialog({
         setIsLoadingDevices(false);
       });
 
+    getInventoryCategories(tokoId, "phone_unit")
+      .then((result) => {
+        if (!active) return;
+        if (result.success && result.data) setCategories(result.data);
+      })
+      .catch(() => undefined);
+
     return () => {
       active = false;
     };
-  }, []);
+  }, [tokoId]);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -122,6 +132,7 @@ export function PhoneUnitFormDialog({
         brandName: unit.deviceBrandName,
       });
       setImei(unit.imei ?? "");
+      setCategoryName(unit.categoryName ?? "");
       setSerialNumber(unit.serialNumber ?? "");
       setCondition(unit.condition);
       setPurchasePrice(unit.purchasePrice.toString());
@@ -131,6 +142,7 @@ export function PhoneUnitFormDialog({
     } else {
       setSelectedDevice(null);
       setImei("");
+      setCategoryName("");
       setSerialNumber("");
       setCondition("used_good");
       setPurchasePrice("");
@@ -162,6 +174,7 @@ export function PhoneUnitFormDialog({
       if (isEditing) {
         const result = await updateInventoryUnit(tokoId, {
           id: unit.id,
+          categoryName: categoryName || null,
           imei: imei || null,
           serialNumber: serialNumber || null,
           condition,
@@ -180,6 +193,7 @@ export function PhoneUnitFormDialog({
       } else {
         const result = await createInventoryUnit(tokoId, {
           deviceModelId: selectedDevice.id,
+          categoryName: categoryName || null,
           imei: imei || null,
           serialNumber: serialNumber || null,
           condition,
@@ -261,6 +275,22 @@ export function PhoneUnitFormDialog({
                 placeholder="SN123456"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phoneCategoryName">Kategori</Label>
+            <Input
+              id="phoneCategoryName"
+              value={categoryName}
+              onChange={(e) => setCategoryName(e.target.value)}
+              placeholder="Contoh: HP Second, Baru, Refurbished"
+              list="phone-unit-categories"
+            />
+            <datalist id="phone-unit-categories">
+              {categories.map((category) => (
+                <option key={category.id} value={category.name} />
+              ))}
+            </datalist>
           </div>
 
           <div className="space-y-2">

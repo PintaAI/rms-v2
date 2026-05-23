@@ -175,7 +175,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
       setIsLoadingPricelists(true);
 
       const [sparepartsResult, pricelistsResult] = await Promise.all([
-        getInventoryItems(tokoId),
+        getInventoryItems(tokoId, "repair_part"),
         getServicePricelists(tokoId),
       ]);
 
@@ -294,7 +294,7 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
 
   const handleImportSuccess = async () => {
     setIsLoadingSpareparts(true);
-    const result = await getInventoryItems(tokoId);
+    const result = await getInventoryItems(tokoId, "repair_part");
     if (result.success && result.data) {
       setSpareparts(result.data);
     }
@@ -396,13 +396,13 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
         {permissions.canManageRetail && (
           <TabsTrigger value="retail" className="gap-1.5">
             <RiShoppingBag3Line className="h-4 w-4" />
-            Barang Retail
+            Aksesoris
           </TabsTrigger>
         )}
         {permissions.canManagePhoneUnits && (
           <TabsTrigger value="phone_unit" className="gap-1.5">
             <RiSmartphoneLine className="h-4 w-4" />
-            Unit Phone
+            Katalog HP
           </TabsTrigger>
         )}
       </TabsList>
@@ -980,9 +980,9 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
           <PhoneUnitTable
             tokoId={tokoId}
             readOnly={readOnly}
-            canCreate={permissions.canCreateSparepart}
-            canUpdate={permissions.canUpdateSparepart}
-            canDelete={permissions.canDeleteSparepart}
+            canCreate={permissions.canManagePhoneUnits}
+            canUpdate={permissions.canManagePhoneUnits}
+            canDelete={permissions.canManagePhoneUnits}
           />
         </TabsContent>
       )}

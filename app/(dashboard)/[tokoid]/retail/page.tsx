@@ -43,7 +43,7 @@ function phoneUnitToCheckoutItem(unit: PhoneUnitCheckoutItem): RetailCheckoutIte
     purchasePrice: unit.purchasePrice,
     warrantyDays: unit.warrantyDays,
     stock: 1,
-    categoryName: unit.condition,
+    categoryName: unit.categoryName ?? unit.condition,
     deviceBrandName: unit.deviceBrandName,
     deviceImageB64: unit.deviceImageB64,
   };

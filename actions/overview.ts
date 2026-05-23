@@ -2,7 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { getRequestUser } from "@/lib/auth/request-user";
-import { assertPermission } from "@/lib/auth/request-scope";
+import { assertPermission, can } from "@/lib/auth/request-scope";
 import { withScope } from "@/lib/auth/wrapper";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 import type { PaymentStatus } from "@/prisma/generated/prisma/enums";
@@ -102,11 +102,48 @@ export interface StaffOverviewStats {
   inventory: {
     lowStockCount: number;
   };
+  retail: {
+    itemCount: number;
+    lowStockCount: number;
+    dailySales: number;
+    weeklySales: number;
+    dailyRevenue: number;
+    weeklyRevenue: number;
+    canViewHistory: boolean;
+  };
 }
 
 export interface StaffOverviewData {
   stats: StaffOverviewStats;
   recentServices: AdminOverviewRecentService[];
+}
+
+const emptyServiceStats = {
+  total: 0,
+  repairing: 0,
+  done: 0,
+  daily: 0,
+  weekly: 0,
+};
+
+const emptyRetailStats = {
+  itemCount: 0,
+  lowStockCount: 0,
+  dailySales: 0,
+  weeklySales: 0,
+  dailyRevenue: 0,
+  weeklyRevenue: 0,
+  canViewHistory: false,
+};
+
+function getOverviewDateRanges() {
+  const now = new Date();
+  const dailyStart = new Date(now);
+  dailyStart.setHours(0, 0, 0, 0);
+  const weeklyStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const monthlyStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  return { dailyStart, weeklyStart, monthlyStart };
 }
 
 const recentServiceSelect = {
@@ -181,11 +218,7 @@ interface SharedOverviewData {
 }
 
 async function getSharedOverviewData(targetStoreId: string): Promise<ActionResultWithData<SharedOverviewData>> {
-  const now = new Date();
-  const dailyStart = new Date(now);
-  dailyStart.setHours(0, 0, 0, 0);
-  const weeklyStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const monthlyStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const { dailyStart, weeklyStart, monthlyStart } = getOverviewDateRanges();
 
   const serviceStatusCounts = await prisma.repairOrder.groupBy({
     by: ["status"],
@@ -380,17 +413,57 @@ export async function getStaffOverview(
   return withScope(storeId, { feature: "staff.workflow" }, async (scope) => {
     assertPermission(scope, "dashboard.view");
 
-    const shared = await getSharedOverviewData(storeId);
-    if (!shared.success || !shared.data) throw new Error(shared.error ?? "Failed to fetch overview data");
+    const canViewService = can(scope, "service.view");
+    const canViewRetail = can(scope, "retail.view");
+    const canViewRetailHistory = can(scope, "retail.viewHistory");
+    const { dailyStart, weeklyStart } = getOverviewDateRanges();
 
-    const { statusMap, dailyCount, weeklyCount, lowStockCount, recentServices, total } = shared.data;
+    const [shared, retailItemCount, retailLowStockCount, dailyRetailSales, weeklyRetailSales] = await Promise.all([
+      canViewService ? getSharedOverviewData(storeId) : Promise.resolve(null),
+      canViewRetail
+        ? prisma.inventoryItem.count({ where: { storeId, type: "retail_product" } })
+        : Promise.resolve(0),
+      canViewRetail
+        ? prisma.$queryRaw<{ count: number }[]>`
+            SELECT COUNT(*)::int AS count
+            FROM "inventory_item"
+            WHERE "storeId" = ${storeId}
+              AND "type" = 'retail_product'
+              AND "stock" <= "criticalStock"
+          `
+        : Promise.resolve([{ count: 0 }]),
+      canViewRetailHistory
+        ? prisma.salesOrder.aggregate({ where: { storeId, status: "paid", paidAt: { gte: dailyStart } }, _count: { id: true }, _sum: { grandTotal: true } })
+        : Promise.resolve({ _count: { id: 0 }, _sum: { grandTotal: 0 } }),
+      canViewRetailHistory
+        ? prisma.salesOrder.aggregate({ where: { storeId, status: "paid", paidAt: { gte: weeklyStart } }, _count: { id: true }, _sum: { grandTotal: true } })
+        : Promise.resolve({ _count: { id: 0 }, _sum: { grandTotal: 0 } }),
+    ]);
+
+    if (shared && (!shared.success || !shared.data)) throw new Error(shared.error ?? "Failed to fetch overview data");
+
+    const sharedData = shared?.data;
+    const statusMap = sharedData?.statusMap ?? {};
 
     return {
       stats: {
-        services: { total, repairing: statusMap["repairing"] || 0, done: statusMap["done"] || 0, daily: dailyCount, weekly: weeklyCount },
-        inventory: { lowStockCount },
+        services: sharedData
+          ? { total: sharedData.total, repairing: statusMap["repairing"] || 0, done: statusMap["done"] || 0, daily: sharedData.dailyCount, weekly: sharedData.weeklyCount }
+          : emptyServiceStats,
+        inventory: { lowStockCount: sharedData?.lowStockCount ?? 0 },
+        retail: canViewRetail
+          ? {
+              itemCount: retailItemCount,
+              lowStockCount: retailLowStockCount[0]?.count ?? 0,
+              dailySales: dailyRetailSales._count.id,
+              weeklySales: weeklyRetailSales._count.id,
+              dailyRevenue: dailyRetailSales._sum.grandTotal ?? 0,
+              weeklyRevenue: weeklyRetailSales._sum.grandTotal ?? 0,
+              canViewHistory: canViewRetailHistory,
+            }
+          : emptyRetailStats,
       },
-      recentServices,
+      recentServices: sharedData?.recentServices ?? [],
     };
   });
 }

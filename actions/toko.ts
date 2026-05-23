@@ -54,6 +54,12 @@ interface TokoDetail {
   updatedAt: Date;
 }
 
+export interface TokoHeaderData {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+}
+
 interface UpdateTokoInput {
   name?: string;
   address?: string;
@@ -299,6 +305,15 @@ export async function getTokoById(storeId: string): Promise<{ success: boolean; 
     if (!toko) throw new AuthError("forbidden", "Toko not found");
 
     return toko;
+  });
+}
+
+export async function getTokoHeader(storeId: string): Promise<{ success: boolean; data?: TokoHeaderData | null; error?: string }> {
+  return withScope(storeId, {}, async () => {
+    return prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true, name: true, logoUrl: true },
+    });
   });
 }
 

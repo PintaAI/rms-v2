@@ -1,6 +1,6 @@
 import { getAffiliatePortalData } from "@/actions/affiliate";
 import { AffiliatePortal } from "@/components/affiliate/affiliate-portal";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InvalidPortalLink } from "@/components/affiliate/invalid-portal-link";
 
 interface AffiliatePortalPageProps {
   params: Promise<{ code: string }>;
@@ -11,18 +11,7 @@ export default async function AffiliatePortalPage({ params, searchParams }: Affi
   const [{ code }, { token }] = await Promise.all([params, searchParams]);
   const result = await getAffiliatePortalData({ code, token: token || "" });
 
-  if (!result.success || !result.data) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background p-6">
-        <Card className="max-w-md">
-          <CardHeader><CardTitle>Link tracking tidak valid</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Link tracking tidak valid atau sudah diperbarui. Hubungi tim RMS untuk mendapatkan link terbaru.
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
+  if (!result.success || !result.data) return <InvalidPortalLink />;
 
   return <AffiliatePortal data={result.data} token={token || ""} />;
 }

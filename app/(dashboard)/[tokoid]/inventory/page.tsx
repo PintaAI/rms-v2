@@ -1,11 +1,11 @@
 import { getInventoryItems, getServicePricelists } from "@/actions/inventory";
+import { getTokoHeader } from "@/actions/toko";
 import { InventoryTabs, type InventoryActionPermissions } from "@/components/dashboard/inventory/inventory-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { assertFeature, can, getPermissionLockReason, getRequestScope } from "@/lib/auth/request-scope";
 import type { PermissionLockReason } from "@/lib/permissions";
-import prisma from "@/lib/prisma";
 import { RiLock2Line, RiStore2Line } from "@remixicon/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -60,7 +60,7 @@ export default async function SharedInventoryPage({ params, searchParams }: Shar
   const scope = await getRequestScope(tokoid);
   const canViewInventory = can(scope, "inventory.view");
   const canManageRetail = can(scope, "inventory.manageRetail");
-  const canManagePhoneUnits = can(scope, "inventory.view") && can(scope, "inventory.create");
+  const canManagePhoneUnits = can(scope, "inventory.managePhoneUnits");
 
   if (!canViewInventory && !canManageRetail && !canManagePhoneUnits) {
     return <InventoryPermissionLocked reason={getPermissionLockReason(scope, "inventory.view")} />;
@@ -95,13 +95,11 @@ export default async function SharedInventoryPage({ params, searchParams }: Shar
   };
 
   const [toko, sparepartsResult, pricelistsResult] = await Promise.all([
-    prisma.store.findUnique({
-      where: { id: tokoid },
-      select: { id: true, name: true, logoUrl: true },
-    }),
-    canViewInventory ? getInventoryItems(tokoid) : Promise.resolve({ success: true as const, data: [] }),
+    getTokoHeader(tokoid),
+    canViewInventory ? getInventoryItems(tokoid, "repair_part") : Promise.resolve({ success: true as const, data: [] }),
     canViewInventory ? getServicePricelists(tokoid) : Promise.resolve({ success: true as const, data: [] }),
   ]);
+  const tokoHeader = toko.success ? toko.data : null;
 
   return (
     <div className="space-y-8">
@@ -110,10 +108,10 @@ export default async function SharedInventoryPage({ params, searchParams }: Shar
           <h1 className="text-3xl font-black tracking-tight">Inventory</h1>
           <div className="h-6 w-1 rounded-full bg-primary" />
           <div className="flex items-center gap-2">
-            {toko?.logoUrl ? (
+            {tokoHeader?.logoUrl ? (
               <Image
-                src={toko.logoUrl}
-                alt={toko.name}
+                src={tokoHeader.logoUrl}
+                alt={tokoHeader.name}
                 width={20}
                 height={20}
                 className="h-5 w-5 rounded-md object-cover"
@@ -123,7 +121,7 @@ export default async function SharedInventoryPage({ params, searchParams }: Shar
                 <RiStore2Line className="h-3 w-3 text-muted-foreground" />
               </div>
             )}
-            <span className="text-sm font-medium text-muted-foreground">{toko?.name || "Toko"}</span>
+            <span className="text-sm font-medium text-muted-foreground">{tokoHeader?.name || "Toko"}</span>
           </div>
         </div>
         <p className="text-sm text-muted-foreground/70">Kelola sparepart, jasa service, dan barang retail berdasarkan permission akun.</p>

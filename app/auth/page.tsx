@@ -1,16 +1,11 @@
-"use client";
-
 import { AuthCard } from "@/components/auth/auth-card";
 import { Card, CardContent } from "@/components/ui/card";
-import { useSession } from "@/lib/auth-client";
 import {
   RiShieldCheckLine,
   RiSmartphoneLine,
   RiStore2Line,
   RiTeamLine,
 } from "@remixicon/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 const highlights = [
   {
@@ -31,21 +26,6 @@ const highlights = [
 ];
 
 export default function AuthPage() {
-  const { data: session, isPending } = useSession();
-  const router = useRouter();
-
-  // Redirect to dashboard if already authenticated
-  useEffect(() => {
-    if (!isPending && session) {
-      router.replace("/dashboard");
-    }
-  }, [session, isPending, router]);
-
-  // Don't render auth card if already authenticated (will redirect)
-  if (session) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.16),transparent_36rem),linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)))] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-6xl items-center gap-6 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.08fr_0.92fr] lg:gap-10">
@@ -89,8 +69,6 @@ export default function AuthPage() {
 
         <div className="w-full max-w-md justify-self-center lg:justify-self-end">
           <AuthCard
-            redirectAfterLogin="/dashboard"
-            redirectAfterRegister="/dashboard"
             showGoogleAuth={true}
             className="shadow-2xl shadow-foreground/5"
           />

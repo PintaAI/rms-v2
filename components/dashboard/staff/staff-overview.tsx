@@ -19,10 +19,14 @@ import {
   RiArchiveLine,
   RiCheckDoubleLine,
   RiInboxLine,
+  RiMoneyDollarCircleLine,
+  RiShoppingCartLine,
+  RiStore2Line,
   RiToolsLine,
 } from "@remixicon/react";
 import { StaffOverviewActions } from "./staff-overview-actions";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/utils";
 
 interface CurrentToko {
   id: string;
@@ -63,7 +67,9 @@ function mapRecentServiceToTableItem(service: StaffOverviewData["recentServices"
 export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps) {
   const { stats, recentServices } = data;
   const router = useRouter();
-  const { featureAccess } = useDashboardScope();
+  const { featureAccess, permissionAccess } = useDashboardScope();
+  const canViewService = permissionAccess["service.view"]?.allowed === true;
+  const canViewRetail = permissionAccess["retail.view"]?.allowed === true && featureAccess["retail.sales"] === true;
   const technicianAssignmentEnabled = featureAccess["service.technicianAssignment"] ?? false;
 
   const [tableServices, setTableServices] = useState<ServiceTableItem[]>(() => recentServices.map(mapRecentServiceToTableItem));
@@ -106,62 +112,112 @@ export function StaffOverview({ data, tokoId, currentToko }: StaffOverviewProps)
       <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
         <TokoHeader role="Staff" tokoName={currentToko?.name} tokoLogoUrl={currentToko?.logoUrl} />
 
-        <StaffOverviewActions tokoId={tokoId} />
+        {canViewService && <StaffOverviewActions tokoId={tokoId} />}
       </div>
 
-      <section className="space-y-4">
-        <OverviewSectionHeader title="Status Service" colorClass="bg-primary" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <OverviewStatsCard
-            title="Total Service"
-            value={stats.services.total}
-            icon={<RiInboxLine className="h-4 w-4" />}
-            description={`${stats.services.daily} masuk hari ini`}
-            variant="primary"
-          />
-          <OverviewStatsCard
-            title="Sedang Diperbaiki"
-            value={stats.services.repairing}
-            icon={<RiToolsLine className="h-4 w-4" />}
-            variant="accent"
-          />
-          <OverviewStatsCard
-            title="Selesai"
-            value={stats.services.done}
-            icon={<RiCheckDoubleLine className="h-4 w-4" />}
-            variant="success"
-          />
-          <OverviewStatsCard
-            title="Low Stock Items"
-            value={stats.inventory.lowStockCount}
-            icon={<RiArchiveLine className="h-4 w-4" />}
-            variant={stats.inventory.lowStockCount > 0 ? "warning" : "default"}
-          />
-        </div>
-      </section>
+      {canViewService ? (
+        <>
+          <section className="space-y-4">
+            <OverviewSectionHeader title="Status Service" colorClass="bg-primary" />
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <OverviewStatsCard
+                title="Total Service"
+                value={stats.services.total}
+                icon={<RiInboxLine className="h-4 w-4" />}
+                description={`${stats.services.daily} masuk hari ini`}
+                variant="primary"
+              />
+              <OverviewStatsCard
+                title="Sedang Diperbaiki"
+                value={stats.services.repairing}
+                icon={<RiToolsLine className="h-4 w-4" />}
+                variant="accent"
+              />
+              <OverviewStatsCard
+                title="Selesai"
+                value={stats.services.done}
+                icon={<RiCheckDoubleLine className="h-4 w-4" />}
+                variant="success"
+              />
+              <OverviewStatsCard
+                title="Low Stock Items"
+                value={stats.inventory.lowStockCount}
+                icon={<RiArchiveLine className="h-4 w-4" />}
+                variant={stats.inventory.lowStockCount > 0 ? "warning" : "default"}
+              />
+            </div>
+          </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <OverviewPeriodCard label="Hari Ini" value={stats.services.daily} sub="service masuk" />
-        <OverviewPeriodCard label="7 Hari" value={stats.services.weekly} sub="service masuk" />
-      </section>
+          <section className="grid gap-4 md:grid-cols-2">
+            <OverviewPeriodCard label="Hari Ini" value={stats.services.daily} sub="service masuk" />
+            <OverviewPeriodCard label="7 Hari" value={stats.services.weekly} sub="service masuk" />
+          </section>
 
-      <section>
-        <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
-          <CardContent className="p-0">
-            <ServiceTable
-              services={tableServices}
-              role="staff"
-              headerTitle="Service Terbaru"
-              headerDescription="Service terbaru yang masuk ke toko"
-              headerBadge={tableServices.length}
-              emptyMessage="Tidak ada service"
-              tokoId={tokoId}
-              hideTechnicianColumn={!technicianAssignmentEnabled}
-              onAssignTech={technicianAssignmentEnabled ? handleAssignTech : undefined}
-            />
-          </CardContent>
-        </Card>
-      </section>
+          <section>
+            <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
+              <CardContent className="p-0">
+                <ServiceTable
+                  services={tableServices}
+                  role="staff"
+                  headerTitle="Service Terbaru"
+                  headerDescription="Service terbaru yang masuk ke toko"
+                  headerBadge={tableServices.length}
+                  emptyMessage="Tidak ada service"
+                  tokoId={tokoId}
+                  hideTechnicianColumn={!technicianAssignmentEnabled}
+                  onAssignTech={technicianAssignmentEnabled ? handleAssignTech : undefined}
+                />
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      ) : canViewRetail ? (
+        <>
+          <section className="space-y-4">
+            <OverviewSectionHeader title="Overview Retail" colorClass="bg-primary" />
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <OverviewStatsCard
+                title="Barang Retail"
+                value={stats.retail.itemCount}
+                icon={<RiStore2Line className="h-4 w-4" />}
+                description="item tersedia untuk kasir"
+                variant="primary"
+              />
+              <OverviewStatsCard
+                title="Low Stock Retail"
+                value={stats.retail.lowStockCount}
+                icon={<RiArchiveLine className="h-4 w-4" />}
+                variant={stats.retail.lowStockCount > 0 ? "warning" : "default"}
+              />
+              {stats.retail.canViewHistory && (
+                <>
+                  <OverviewStatsCard
+                    title="Transaksi Hari Ini"
+                    value={stats.retail.dailySales}
+                    icon={<RiShoppingCartLine className="h-4 w-4" />}
+                    description={formatCurrency(stats.retail.dailyRevenue)}
+                    variant="accent"
+                  />
+                  <OverviewStatsCard
+                    title="Revenue 7 Hari"
+                    value={formatCurrency(stats.retail.weeklyRevenue)}
+                    icon={<RiMoneyDollarCircleLine className="h-4 w-4" />}
+                    description={`${stats.retail.weeklySales} transaksi`}
+                    variant="success"
+                  />
+                </>
+              )}
+            </div>
+          </section>
+
+          {stats.retail.canViewHistory && (
+            <section className="grid gap-4 md:grid-cols-2">
+              <OverviewPeriodCard label="Hari Ini" value={stats.retail.dailySales} sub="transaksi retail" />
+              <OverviewPeriodCard label="7 Hari" value={stats.retail.weeklySales} sub="transaksi retail" />
+            </section>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }

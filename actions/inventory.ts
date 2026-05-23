@@ -35,6 +35,7 @@ export type InventoryItemKind = "repair_part" | "retail_product" | "phone_unit"
 export type InventoryCategory = {
   id: string
   name: string
+  kind: InventoryItemKind
   storeId: string
 }
 
@@ -384,6 +385,9 @@ async function getInventoryUser(
     if (type === "retail_product") {
       assertFeature(scope, "retail.sales")
       assertPermission(scope, "inventory.manageRetail")
+    } else if (type === "phone_unit") {
+      assertFeature(scope, "inventory.management")
+      assertPermission(scope, "inventory.managePhoneUnits")
     } else {
       assertFeature(scope, feature)
       assertPermission(scope, permissionKey)
@@ -417,32 +421,33 @@ type InventoryCategoryClient = typeof prisma | Prisma.TransactionClient
 async function findOrCreateInventoryCategory(
   client: InventoryCategoryClient,
   storeId: string,
+  kind: InventoryItemKind,
   categoryName?: string | null
 ) {
   const name = categoryName?.trim()
   if (!name) return null
 
   const existing = await client.inventoryCategory.findFirst({
-    where: { storeId, name: { equals: name, mode: "insensitive" } },
+    where: { storeId, kind, name: { equals: name, mode: "insensitive" } },
     select: { id: true },
   })
   if (existing) return existing
 
   return client.inventoryCategory.create({
-    data: { storeId, name },
+    data: { storeId, kind, name },
     select: { id: true },
   })
 }
 
-export async function getInventoryCategories(storeId: string): Promise<ActionResultWithData<InventoryCategory[]>> {
+export async function getInventoryCategories(storeId: string, kind: InventoryItemKind = "repair_part"): Promise<ActionResultWithData<InventoryCategory[]>> {
   try {
-    const access = await getInventoryUser(storeId)
+    const access = await getInventoryUser(storeId, "inventory.view", "inventory.management", kind)
     if (!access.success) return access
 
     const categories = await prisma.inventoryCategory.findMany({
-      where: { storeId },
+      where: { storeId, kind },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, storeId: true },
+      select: { id: true, name: true, kind: true, storeId: true },
     })
 
     return { success: true, data: categories }
@@ -525,16 +530,16 @@ export async function createInventoryItem(data: z.infer<typeof createInventoryIt
     const access = await getCreateInventoryItemUser(validated.storeId, validated.type)
     if (!access.success) return access
 
+    const type = validated.type ?? "repair_part"
     const existing = await prisma.inventoryItem.findFirst({
-      where: { storeId: validated.storeId, name: validated.name },
+      where: { storeId: validated.storeId, type, name: validated.name },
     })
 
     if (existing) {
       return { success: false, error: "Sparepart dengan nama ini sudah ada" }
     }
 
-    const category = await findOrCreateInventoryCategory(prisma, validated.storeId, validated.categoryName)
-    const type = validated.type ?? "repair_part"
+    const category = await findOrCreateInventoryCategory(prisma, validated.storeId, type, validated.categoryName)
     const isRetailItem = type === "retail_product"
 
     const inventoryItem = await prisma.inventoryItem.create({
@@ -628,9 +633,9 @@ export async function updateInventoryItem(data: z.infer<typeof updateInventoryIt
       }
     }
 
-    const category = await findOrCreateInventoryCategory(prisma, inventoryItem.storeId, validated.categoryName)
     const type = validated.type ?? inventoryItem.type
     const isRetailItem = type === "retail_product"
+    const category = await findOrCreateInventoryCategory(prisma, inventoryItem.storeId, type, validated.categoryName)
 
     const updated = await prisma.inventoryItem.update({
       where: { id: validated.id },
@@ -709,7 +714,8 @@ export async function importInventoryItems(data: z.infer<typeof importInventoryI
     const validRows: Array<z.infer<typeof importInventoryItemRowSchema>> = []
 
     for (const row of validated.rows) {
-      const normalizedName = row.name.trim().toLowerCase()
+      const rowType = row.type ?? "repair_part"
+      const normalizedName = `${rowType}:${row.name.trim().toLowerCase()}`
       const duplicateRow = seenNames.get(normalizedName)
 
       if (duplicateRow) {
@@ -736,10 +742,10 @@ export async function importInventoryItems(data: z.infer<typeof importInventoryI
         storeId: validated.storeId,
         name: { in: validRows.map((row) => row.name) },
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, type: true },
     })
-    const existingByName = new Map(existingSpareparts.map((inventoryItem) => [inventoryItem.name, inventoryItem]))
-    const rowsToCreate = validRows.filter((row) => !existingByName.has(row.name))
+    const existingByName = new Map(existingSpareparts.map((inventoryItem) => [`${inventoryItem.type}:${inventoryItem.name}`, inventoryItem]))
+    const rowsToCreate = validRows.filter((row) => !existingByName.has(`${row.type ?? "repair_part"}:${row.name}`))
     const barcodes = await generateInventoryItemBarcodes(validated.storeId, rowsToCreate.length)
     let barcodeIndex = 0
     let created = 0
@@ -747,8 +753,9 @@ export async function importInventoryItems(data: z.infer<typeof importInventoryI
 
     await prisma.$transaction(async (tx) => {
       for (const row of validRows) {
-        const existing = existingByName.get(row.name)
-        const category = await findOrCreateInventoryCategory(tx, validated.storeId, row.categoryName)
+        const type = row.type ?? "repair_part"
+        const existing = existingByName.get(`${type}:${row.name}`)
+        const category = await findOrCreateInventoryCategory(tx, validated.storeId, type, row.categoryName)
 
         if (existing) {
           await tx.inventoryItem.update({
@@ -760,10 +767,10 @@ export async function importInventoryItems(data: z.infer<typeof importInventoryI
               categoryId: category?.id ?? null,
               stock: row.stock,
               criticalStock: row.criticalStock ?? 5,
-              warrantyDays: row.type === "retail_product" ? row.warrantyDays ?? null : null,
-              isUniversal: row.type === "retail_product" ? true : row.isUniversal ?? true,
-              type: row.type ?? "repair_part",
-              ...(row.type === "retail_product" ? { compatibilities: { deleteMany: {} } } : {}),
+              warrantyDays: type === "retail_product" ? row.warrantyDays ?? null : null,
+              isUniversal: type === "retail_product" ? true : row.isUniversal ?? true,
+              type,
+              ...(type === "retail_product" ? { compatibilities: { deleteMany: {} } } : {}),
             },
           })
           updated += 1
@@ -780,9 +787,9 @@ export async function importInventoryItems(data: z.infer<typeof importInventoryI
             categoryId: category?.id ?? null,
             stock: row.stock,
             criticalStock: row.criticalStock ?? 5,
-            warrantyDays: row.type === "retail_product" ? row.warrantyDays ?? null : null,
-            isUniversal: row.type === "retail_product" ? true : row.isUniversal ?? true,
-            type: row.type ?? "repair_part",
+            warrantyDays: type === "retail_product" ? row.warrantyDays ?? null : null,
+            isUniversal: type === "retail_product" ? true : row.isUniversal ?? true,
+            type,
             storeId: validated.storeId,
           },
         })

@@ -115,7 +115,7 @@ function SparepartFormContent({
   useEffect(() => {
     let active = true;
 
-    getInventoryCategories(tokoId)
+    getInventoryCategories(tokoId, mode)
       .then((result) => {
         if (!active) return;
         if (result.success && result.data) setCategories(result.data);
@@ -139,7 +139,7 @@ function SparepartFormContent({
     return () => {
       active = false;
     };
-  }, [tokoId]);
+  }, [mode, tokoId]);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -233,6 +233,7 @@ function SparepartFormContent({
       ? existingCategory ?? {
           id: `temp-category-${Date.now()}`,
           name: finalCategoryName,
+          kind: mode,
           storeId: tokoId,
         }
       : null;

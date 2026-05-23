@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { getCurrentUserAffiliateDashboard, type AffiliatePortalData } from "@/actions/affiliate";
 import { DEFAULT_ENTERPRISE_COMMISSION_PERCENT, DEFAULT_PRO_RECURRING_COMMISSION_PERCENT, DEFAULT_REGISTER_COMMISSION } from "@/lib/affiliate";
 import { formatCurrency } from "@/lib/utils";
+import { AffiliateStatCard } from "@/components/affiliate/affiliate-stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -127,15 +128,15 @@ function AffiliateDashboard({ data }: { data: AffiliatePortalData }) {
       </Card>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <AffiliateStat title="Referral" value={data.stats.totalReferrals} />
-        <AffiliateStat title="Konversi" value={data.stats.paidConversions} />
-        <AffiliateStat title="Conversion Rate" value={`${data.stats.conversionRate}%`} />
+        <AffiliateStatCard title="Referral" value={data.stats.totalReferrals} size="sm" />
+        <AffiliateStatCard title="Konversi" value={data.stats.paidConversions} size="sm" />
+        <AffiliateStatCard title="Conversion Rate" value={`${data.stats.conversionRate}%`} size="sm" />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <AffiliateStat title="Pending" value={formatCurrency(data.stats.pendingAmount)} />
-        <AffiliateStat title="Approved" value={formatCurrency(data.stats.approvedAmount)} />
-        <AffiliateStat title="Paid" value={formatCurrency(data.stats.paidAmount)} />
+        <AffiliateStatCard title="Pending" value={formatCurrency(data.stats.pendingAmount)} size="sm" />
+        <AffiliateStatCard title="Approved" value={formatCurrency(data.stats.approvedAmount)} size="sm" />
+        <AffiliateStatCard title="Paid" value={formatCurrency(data.stats.paidAmount)} size="sm" />
       </div>
 
       <Card>
@@ -207,15 +208,4 @@ function AffiliateDashboard({ data }: { data: AffiliatePortalData }) {
   );
 }
 
-function AffiliateStat({ title, value }: { title: string; value: string | number }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-xs font-medium text-muted-foreground">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
+

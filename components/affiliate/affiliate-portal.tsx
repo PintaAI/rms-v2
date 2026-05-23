@@ -1,6 +1,8 @@
 import type { AffiliatePortalData } from "@/actions/affiliate";
 import { AffiliateGrantTrialButton } from "@/components/affiliate/affiliate-grant-trial-button";
 import { AffiliateCopyLinkButton } from "@/components/affiliate/affiliate-copy-link-button";
+import { AffiliateStatCard } from "@/components/affiliate/affiliate-stat-card";
+import { commissionKindLabel, planLabel } from "@/lib/affiliate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,16 +59,16 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
         </Card>
 
         <div className="grid gap-4 md:grid-cols-4">
-          <PortalStat title="Referral" value={data.stats.totalReferrals} />
-          <PortalStat title="Konversi paid" value={data.stats.paidConversions} />
-          <PortalStat title="Conversion rate" value={`${data.stats.conversionRate}%`} />
-          <PortalStat title="Commission paid" value={formatCurrency(data.stats.paidAmount)} />
+          <AffiliateStatCard title="Referral" value={data.stats.totalReferrals} />
+          <AffiliateStatCard title="Konversi paid" value={data.stats.paidConversions} />
+          <AffiliateStatCard title="Conversion rate" value={`${data.stats.conversionRate}%`} />
+          <AffiliateStatCard title="Commission paid" value={formatCurrency(data.stats.paidAmount)} />
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <PortalStat title="Pending" value={formatCurrency(data.stats.pendingAmount)} />
-          <PortalStat title="Approved" value={formatCurrency(data.stats.approvedAmount)} />
-          <PortalStat title="Rejected" value={formatCurrency(data.stats.rejectedAmount)} />
+          <AffiliateStatCard title="Pending" value={formatCurrency(data.stats.pendingAmount)} />
+          <AffiliateStatCard title="Approved" value={formatCurrency(data.stats.approvedAmount)} />
+          <AffiliateStatCard title="Rejected" value={formatCurrency(data.stats.rejectedAmount)} />
         </div>
 
         <Card>
@@ -158,23 +160,4 @@ export function AffiliatePortal({ data, token }: { data: AffiliatePortalData; to
   );
 }
 
-function commissionKindLabel(kind: AffiliatePortalData["commissions"][number]["type"]) {
-  if (kind === "registration_bonus") return "Bonus registrasi";
-  if (kind === "pro_recurring") return "Pro monthly";
-  return "Enterprise one-time";
-}
 
-function planLabel(plan: AffiliatePortalData["commissions"][number]["plan"]) {
-  if (plan === "free") return "Registrasi";
-  if (plan === "premium") return "Pro";
-  return "Enterprise";
-}
-
-function PortalStat({ title, value }: { title: string; value: string | number }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle></CardHeader>
-      <CardContent><div className="text-2xl font-bold">{value}</div></CardContent>
-    </Card>
-  );
-}

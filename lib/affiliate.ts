@@ -82,3 +82,17 @@ export function buildAffiliateLinks(code: string, portalToken: string) {
     trackingLink: getTrackingLink(code, portalToken),
   };
 }
+
+type AffiliateCommissionKind = "registration_bonus" | "pro_recurring" | "enterprise_one_time";
+
+export function commissionKindLabel(kind: AffiliateCommissionKind) {
+  if (kind === "registration_bonus") return "Bonus registrasi";
+  if (kind === "pro_recurring") return "Pro monthly";
+  return "Enterprise one-time";
+}
+
+export function planLabel(plan: string) {
+  if (plan === "free") return "Registrasi";
+  if (plan === "premium") return "Pro";
+  return "Enterprise";
+}

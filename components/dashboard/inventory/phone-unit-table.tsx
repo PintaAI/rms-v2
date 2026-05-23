@@ -276,6 +276,7 @@ export function PhoneUnitTable({
                             <div className="flex flex-col">
                               <span className="font-medium">{unit.deviceBrandName}</span>
                               <span className="text-xs text-muted-foreground">{unit.deviceModelName}</span>
+                              {unit.categoryName ? <span className="text-xs font-medium text-primary">{unit.categoryName}</span> : null}
                             </div>
                           </div>
                         </TableCell>

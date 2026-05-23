@@ -26,6 +26,7 @@ export type PhoneUnitCheckoutItem = {
   deviceModelName: string
   deviceBrandName: string
   deviceImageB64: string | null
+  categoryName: string | null
   imei: string | null
   serialNumber: string | null
   condition: string
@@ -300,6 +301,7 @@ export async function getPhoneUnitsForCheckout(
         defaultPrice: true,
         purchasePrice: true,
         warrantyDays: true,
+        category: { select: { name: true } },
         deviceModel: {
           select: {
             modelName: true,
@@ -326,6 +328,7 @@ export async function getPhoneUnitsForCheckout(
           deviceModelName: unit.deviceModel?.modelName ?? "Unknown",
           deviceBrandName: unit.deviceModel?.brand.name ?? "Unknown",
           deviceImageB64: getDeviceImageB64(unit.deviceModel?.metadata),
+          categoryName: unit.category?.name ?? null,
           imei: metadata.imei ?? null,
           serialNumber: metadata.serialNumber ?? null,
           condition: metadata.condition,

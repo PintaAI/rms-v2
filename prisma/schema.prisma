@@ -691,6 +691,7 @@ model InventoryItem {
 model InventoryCategory {
   id        String   @id @default(uuid())
   name      String
+  kind      InventoryItemType @default(repair_part)
   storeId   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -698,8 +699,9 @@ model InventoryCategory {
   store          Store           @relation(fields: [storeId], references: [id])
   inventoryItems InventoryItem[]
 
-  @@unique([storeId, name])
+  @@unique([storeId, kind, name])
   @@index([storeId])
+  @@index([storeId, kind])
   @@map("inventory_category")
 }
 
