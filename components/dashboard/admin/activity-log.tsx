@@ -15,6 +15,7 @@ import {
   RiEdit2Line,
   RiFileList3Line,
   RiLoader4Line,
+  RiLoginCircleLine,
   RiMoneyDollarCircleLine,
   RiPulseLine,
   RiShoppingBag3Line,
