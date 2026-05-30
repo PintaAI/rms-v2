@@ -286,7 +286,7 @@ const importInventoryItemRowSchema = z.object({
 
 const importInventoryItemsSchema = z.object({
   storeId: z.string(),
-  rows: z.array(importInventoryItemRowSchema).min(1, "Tidak ada data untuk diimport").max(100, "Maksimal 100 baris per import"),
+  rows: z.array(importInventoryItemRowSchema).min(1, "Tidak ada data untuk diimport").max(1000, "Maksimal 1000 baris per import"),
 })
 
 const importServicePricelistRowSchema = z.object({
@@ -297,7 +297,7 @@ const importServicePricelistRowSchema = z.object({
 
 const importServicePricelistsSchema = z.object({
   storeId: z.string(),
-  rows: z.array(importServicePricelistRowSchema).min(1, "Tidak ada data untuk diimport").max(100, "Maksimal 100 baris per import"),
+  rows: z.array(importServicePricelistRowSchema).min(1, "Tidak ada data untuk diimport").max(1000, "Maksimal 1000 baris per import"),
 })
 
 const updateInventoryItemSchema = z.object({

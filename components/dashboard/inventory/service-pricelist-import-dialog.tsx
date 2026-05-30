@@ -25,7 +25,7 @@ import {
 import { importServicePricelists, type ImportServicePricelistInput } from "@/actions/inventory";
 import { RiDownload2Line, RiLoader4Line, RiUpload2Line } from "@remixicon/react";
 
-const MAX_IMPORT_ROWS = 100;
+const MAX_IMPORT_ROWS = 1000;
 
 type ParsedRow = ImportServicePricelistInput & {
   error?: string;
