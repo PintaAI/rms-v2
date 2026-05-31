@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 import { getTokoInvoiceSettings } from "@/actions/toko";
 import {
   Dialog,
@@ -20,7 +19,6 @@ import {
   RiDownload2Line,
   RiPrinterLine,
 } from "@remixicon/react";
-import { getBrandIcon } from "@/lib/brand-icons";
 import { getServiceItemTypeLabel } from "@/lib/service-item-label";
 import type { ServiceTableItem } from "./types";
 import { formatCurrency, formatDate } from "./utils";
@@ -204,21 +202,6 @@ function InvoicePreviewCard({
     <div ref={invoiceRef} className="w-full min-w-[720px] rounded-2xl border border-black bg-white p-6 text-black sm:p-8">
       <div className="flex flex-col gap-6 border-b border-black pb-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-3">
-          {invoiceSettings.logoUrl ? (
-            <Image
-              src={invoiceSettings.logoUrl}
-              alt={invoiceSettings.name}
-              width={56}
-              height={56}
-              unoptimized
-              className="h-14 w-14 rounded-2xl border border-black object-cover"
-              crossOrigin="anonymous"
-            />
-          ) : (
-            <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white [&>*]:h-5 [&>*]:w-5">
-              {getBrandIcon(service.deviceModel.brand.name)}
-            </div>
-          )}
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black">{getInvoiceTitle(mode)}</p>
             <h3 className="mt-1 text-2xl font-black tracking-tight">{invoiceSettings.name}</h3>
@@ -544,21 +527,6 @@ function InvoiceLandscapePrintCard({
     <div ref={invoiceRef} className="relative h-[760px] w-[1120px] rounded-[28px] border border-black bg-white p-6 pb-10 text-black">
       <div className="flex items-start justify-between gap-8 border-b border-black pb-3">
         <div className="flex min-w-0 flex-1 items-start gap-4">
-          {invoiceSettings.logoUrl ? (
-            <Image
-              src={invoiceSettings.logoUrl}
-              alt={invoiceSettings.name}
-              width={56}
-              height={56}
-              unoptimized
-              className="h-14 w-14 rounded-2xl border border-black object-cover"
-              crossOrigin="anonymous"
-            />
-          ) : (
-            <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-white [&>*]:h-5 [&>*]:w-5">
-              {getBrandIcon(service.deviceModel.brand.name)}
-            </div>
-          )}
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-black">{getInvoiceTitle(mode)}</p>
             <h3 className="mt-1 text-2xl font-black leading-none tracking-tight">{invoiceSettings.name}</h3>
