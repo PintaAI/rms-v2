@@ -475,7 +475,7 @@ export async function getInventoryItems(storeId: string, type: InventoryItemKind
         },
       },
       orderBy: { name: "asc" },
-      take: 500,
+      take: 1000,
     })
 
     return { success: true, data: inventoryItems }
