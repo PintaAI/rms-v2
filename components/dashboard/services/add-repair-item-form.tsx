@@ -79,8 +79,9 @@ export function AddRepairItemForm({
   const [searchQuery, setSearchQuery] = useState("");
   const [sparepartFormOpen, setSparepartFormOpen] = useState(false);
   const [pricelistFormOpen, setPricelistFormOpen] = useState(false);
+  const { user, manualItemsEnabled, staffCreateSparepartEnabled } = useDashboardScope();
 
-  const isManualFilled = manualName.trim().length > 0 && !!manualPrice && parseInt(manualPrice, 10) >= 0;
+  const isManualFilled = manualItemsEnabled && manualName.trim().length > 0 && !!manualPrice && parseInt(manualPrice, 10) >= 0;
   const hasSparepartsSelected = Object.values(sparepartQtys).some((q) => q > 0);
   const hasServicesSelected = Object.values(serviceQtys).some((q) => q > 0);
   const hasItemsSelected = hasSparepartsSelected || hasServicesSelected;
@@ -124,7 +125,6 @@ export function AddRepairItemForm({
     }
   }, [spareparts]);
 
-  const { user, manualItemsEnabled, staffCreateSparepartEnabled } = useDashboardScope();
   const canCreateSparepart = user.role !== "staff" || staffCreateSparepartEnabled;
   const scanner = useScannerPairing({ tokoId, onScan: handleMobileScan });
 
@@ -192,7 +192,7 @@ export function AddRepairItemForm({
 
     const selectedSpareparts = spareparts
       .filter((sp) => (sparepartQtys[sp.id] ?? 0) > 0)
-      .map((sp) => ({ type: "inventory_item" as const, ...sp, qty: sparepartQtys[sp.id] }));
+      .map((sp) => ({ ...sp, type: "inventory_item" as const, qty: sparepartQtys[sp.id] }));
     const selectedServices = servicePricelists
       .filter((sp) => (serviceQtys[sp.id] ?? 0) > 0)
       .map((sp) => ({ type: "service_catalog_item" as const, ...sp, qty: serviceQtys[sp.id] }));

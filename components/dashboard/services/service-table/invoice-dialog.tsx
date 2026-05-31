@@ -21,6 +21,7 @@ import {
   RiPrinterLine,
 } from "@remixicon/react";
 import { getBrandIcon } from "@/lib/brand-icons";
+import { getServiceItemTypeLabel } from "@/lib/service-item-label";
 import type { ServiceTableItem } from "./types";
 import { formatCurrency, formatDate } from "./utils";
 import { toPng } from "html-to-image";
@@ -354,7 +355,7 @@ function InvoicePreviewCard({
             {items.map((item, index) => (
               <tr key={item.id || `${item.name}-${index}`} className="border-t border-black">
                 <td className="px-4 py-3 font-medium text-black">{item.name}</td>
-                <td className="px-4 py-3 text-black">{item.type || "Item"}</td>
+                <td className="px-4 py-3 text-black">{getServiceItemTypeLabel(item.type)}</td>
                 <td className="px-4 py-3 text-center text-black">{item.qty}</td>
                 <td className="px-4 py-3 text-right text-black">{formatCurrency(item.price)}</td>
                 <td className="px-4 py-3 text-right font-semibold text-black">{formatCurrency(item.qty * item.price)}</td>
@@ -507,6 +508,236 @@ function InvoicePreviewCard({
   );
 }
 
+function InvoiceLandscapePrintCard({
+  service,
+  invoiceSettings,
+  invoiceRef,
+  serviceDetailUrl,
+}: {
+  service: InvoicePreviewService;
+  invoiceSettings: InvoiceSettings;
+  invoiceRef: React.RefObject<HTMLDivElement | null>;
+  serviceDetailUrl: string;
+}) {
+  const items = getInvoiceItems(service);
+  const mode = getInvoiceNoteMode(service);
+  const hasInvoice = Boolean(service.invoice);
+  const hasDetailedItems = Boolean(service.invoice?.items?.length);
+  const paymentStatus = service.invoice?.paymentStatus;
+  const isDp = paymentStatus === "dp";
+  const isPaid = paymentStatus === "paid";
+  const grandTotal = service.invoice?.grandTotal || 0;
+  const dpAmount = service.invoice?.dpAmount || 0;
+  const discountAmount = service.invoice?.discountAmount || 0;
+  const finalTotal = Math.max(0, grandTotal - dpAmount - discountAmount);
+  const resolvedClaims = getResolvedClaims(service);
+  const refundClaims = getRefundClaims(service);
+  const totalRefund = refundClaims.reduce((sum, claim) => sum + claim.refundAmount, 0);
+  const netTotal = Math.max(0, finalTotal - totalRefund);
+  const warrantyUntil = service.warrantyUntil ? new Date(service.warrantyUntil) : null;
+
+  return (
+    <div ref={invoiceRef} className="h-[760px] w-[1120px] rounded-[28px] border border-black bg-white p-7 text-black">
+      <div className="flex items-start justify-between gap-8 border-b border-black pb-4">
+        <div className="flex min-w-0 flex-1 items-start gap-4">
+          {invoiceSettings.logoUrl ? (
+            <Image
+              src={invoiceSettings.logoUrl}
+              alt={invoiceSettings.name}
+              width={56}
+              height={56}
+              unoptimized
+              className="h-14 w-14 rounded-2xl border border-black object-cover"
+              crossOrigin="anonymous"
+            />
+          ) : (
+            <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-white [&>*]:h-5 [&>*]:w-5">
+              {getBrandIcon(service.deviceModel.brand.name)}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-black">{getInvoiceTitle(mode)}</p>
+            <h3 className="mt-1 text-2xl font-black leading-none tracking-tight">{invoiceSettings.name}</h3>
+            {(invoiceSettings.address || invoiceSettings.phone) && (
+              <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] leading-4 text-black">
+                {invoiceSettings.address && <p>{invoiceSettings.address}</p>}
+                {invoiceSettings.phone && <p>{invoiceSettings.phone}</p>}
+              </div>
+            )}
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-black">{getInvoiceDescription(mode)}</p>
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-start gap-3">
+          <div className="rounded-2xl border border-black bg-white px-4 py-3 text-right text-xs">
+            <p className="font-semibold text-black">{!hasInvoice ? "Nota Service" : isPaid ? "Lunas" : isDp ? `DP ${dpAmount ? formatCurrency(dpAmount) : ""}` : "Nota Pengambilan"}</p>
+            <p className="mt-1 text-[11px] font-medium text-black">
+              {!hasInvoice
+                ? "Invoice belum dibuat"
+                : isPaid
+                  ? totalRefund > 0
+                    ? `Net ${formatCurrency(netTotal)}`
+                    : `Dibayar ${formatInvoiceDate(service.invoice?.paidAt ?? service.checkoutAt)}`
+                  : isDp
+                    ? `Sisa ${formatCurrency(finalTotal)}`
+                    : "Tagihan belum lunas"}
+            </p>
+          </div>
+          {serviceDetailUrl && (
+            <div className="rounded-xl border border-black bg-white p-2">
+              <QRCodeSVG value={serviceDetailUrl} size={86} bgColor="#ffffff" fgColor="#000000" level="M" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[1.05fr_1.05fr_0.9fr] gap-4 py-4">
+        <div className="space-y-2 rounded-2xl border border-black bg-white p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">{mode === "pickup-note" ? "Nota Pengambilan" : "Invoice"}</p>
+          <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs text-black">
+            <span>Nomor</span>
+            <span className="text-right font-semibold text-black">{getInvoiceNumber(service)}</span>
+            <span>Dibuat</span>
+            <span className="text-right font-semibold text-black">{formatInvoiceDate(service.invoice?.createdAt ?? service.checkinAt)}</span>
+            {service.checkoutAt && (
+              <>
+                <span>Checkout</span>
+                <span className="text-right font-semibold text-black">{formatInvoiceDate(service.checkoutAt)}</span>
+              </>
+            )}
+            <span>Ticket</span>
+            <span className="text-right font-semibold text-black">{service.id.slice(0, 8).toUpperCase()}</span>
+          </div>
+        </div>
+
+        <div className="space-y-2 rounded-2xl border border-black bg-white p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Pelanggan</p>
+          <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs text-black">
+            <span>Nama</span>
+            <span className="text-right font-semibold text-black">{service.customerName || "Pelanggan"}</span>
+            <span>No. WhatsApp</span>
+            <span className="text-right font-semibold text-black">{service.noWa}</span>
+            <span>Device</span>
+            <span className="text-right font-semibold text-black">{service.deviceModel.brand.name} {service.deviceModel.modelName}</span>
+            <span>Teknisi</span>
+            <span className="text-right font-semibold text-black">{service.technician?.name || "Belum ditugaskan"}</span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-black bg-white p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Catatan Servis</p>
+          <p className="mt-2 line-clamp-4 text-xs leading-5 text-black">{service.complaint}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[1fr_330px] gap-4">
+        <div className="overflow-hidden rounded-2xl border border-black">
+          <table className="w-full text-xs">
+            <thead className="bg-white text-black">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold">Item</th>
+                <th className="px-4 py-3 text-left font-semibold">Tipe</th>
+                <th className="px-4 py-3 text-center font-semibold">Qty</th>
+                <th className="px-4 py-3 text-right font-semibold">Harga</th>
+                <th className="px-4 py-3 text-right font-semibold">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, index) => (
+                <tr key={item.id || `${item.name}-${index}`} className="border-t border-black">
+                  <td className="px-4 py-3 font-medium text-black">{item.name}</td>
+                  <td className="px-4 py-3 text-black">{getServiceItemTypeLabel(item.type)}</td>
+                  <td className="px-4 py-3 text-center text-black">{item.qty}</td>
+                  <td className="px-4 py-3 text-right text-black">{formatCurrency(item.price)}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-black">{formatCurrency(item.qty * item.price)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!hasDetailedItems && (
+            <p className="border-t border-black px-4 py-2 text-[11px] text-black">
+              {mode === "pickup-note"
+                ? "Detail item belum tersedia. Nota pengambilan menampilkan total tagihan service."
+                : hasInvoice
+                  ? "Detail item belum tersedia. Invoice menampilkan total pembayaran final."
+                  : "Invoice belum tersedia. Nota menampilkan data service yang sudah tercatat."}
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-black bg-white p-4 text-black">
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Ringkasan Pembayaran</p>
+            <div className="space-y-1.5 text-xs text-black">
+              <div className="flex items-center justify-between gap-4">
+                <span>Total sebelum diskon</span>
+                <span className="font-semibold tabular-nums text-black">{formatCurrency(grandTotal)}</span>
+              </div>
+              {dpAmount > 0 && (
+                <div className="flex items-center justify-between gap-4">
+                  <span>DP dibayar</span>
+                  <span className="font-semibold tabular-nums text-black">- {formatCurrency(dpAmount)}</span>
+                </div>
+              )}
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between gap-4">
+                  <span>Diskon</span>
+                  <span className="font-semibold tabular-nums text-black">- {formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+              {totalRefund > 0 && (
+                <div className="flex items-center justify-between gap-4">
+                  <span>Refund klaim</span>
+                  <span className="font-semibold tabular-nums text-black">- {formatCurrency(totalRefund)}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-end justify-between gap-4 border-t border-black pt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">{totalRefund > 0 ? "Net Setelah Refund" : mode === "pickup-note" ? "Total Tagihan" : "Total Bayar"}</p>
+              <p className="text-2xl font-black tracking-tight">{formatCurrency(netTotal)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {resolvedClaims.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-black bg-white p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Klaim & Refund</p>
+          <p className="mt-1 text-[11px] leading-4 text-black">
+            {resolvedClaims.map((claim) => `${formatInvoiceDate(claim.resolvedAt ?? claim.createdAt)} - ${claimResolutionLabels[claim.resolution ?? ""] || claim.resolution || "Klaim"}${claim.refundAmount > 0 ? ` (${formatCurrency(claim.refundAmount)})` : ""}`).join("; ")}
+          </p>
+        </div>
+      )}
+
+      {mode === "pickup-note" && (
+        <div className="mt-4 rounded-2xl border border-black bg-white px-4 py-2 text-xs text-black">
+          Nota ini adalah bukti pengambilan HP service, bukan bukti pembayaran lunas. Tagihan masih perlu diselesaikan.
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-[1fr_1fr_0.8fr_0.8fr] gap-4">
+        <div className="rounded-2xl border border-black bg-white p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Syarat & Ketentuan</p>
+          <p className="mt-2 line-clamp-4 whitespace-pre-line text-[11px] leading-4 text-black">{invoiceSettings.invoiceTerms}</p>
+        </div>
+        <div className="rounded-2xl border border-black bg-white p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Garansi Service</p>
+          {warrantyUntil && <p className="mt-2 text-xs font-semibold text-black">Berlaku sampai {formatWarrantyDate(warrantyUntil)}</p>}
+          <p className="mt-1 line-clamp-3 whitespace-pre-line text-[11px] leading-4 text-black">{invoiceSettings.invoiceWarranty}</p>
+        </div>
+        <div className="rounded-2xl border border-black p-4 text-center">
+          <p className="text-xs font-semibold text-black">Toko</p>
+          <div className="mt-16 border-t border-black pt-2 text-[11px] text-black">{invoiceSettings.name}</div>
+        </div>
+        <div className="rounded-2xl border border-black p-4 text-center">
+          <p className="text-xs font-semibold text-black">Customer</p>
+          <div className="mt-16 border-t border-black pt-2 text-[11px] text-black">{service.customerName || "Pelanggan"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function InvoiceDialog({
   service,
   tokoId,
@@ -522,6 +753,7 @@ export function InvoiceDialog({
   const [activePrint, setActivePrint] = React.useState<boolean>(false);
   const [invoiceSettings, setInvoiceSettings] = React.useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
   const invoiceCardRef = React.useRef<HTMLDivElement>(null);
+  const invoicePrintRef = React.useRef<HTMLDivElement>(null);
   const mode = service ? getInvoiceNoteMode(service) : null;
   const effectiveInvoiceSettings = tokoId ? invoiceSettings : DEFAULT_INVOICE_SETTINGS;
   const serviceDetailUrl = React.useMemo(() => {
@@ -586,48 +818,53 @@ export function InvoiceDialog({
         return;
       }
 
-      const dataUrl = await renderInvoiceToPng(invoiceCardRef.current);
+      const dataUrl = await renderInvoiceToPng(invoicePrintRef.current ?? invoiceCardRef.current);
 
       printWindow.document.write(`<!doctype html>
         <html>
           <head>
             <title>${getInvoiceNumber(service)}</title>
             <style>
-              @page { size: A5 landscape; margin: 8mm; }
+              @page { size: 210mm 148mm; margin: 6mm; }
               html,
               body {
                 margin: 0;
                 width: 210mm;
-                min-height: 148mm;
+                height: 148mm;
                 background: #fff;
               }
               body {
                 display: flex;
-                align-items: flex-start;
+                align-items: center;
+                justify-content: center;
+              }
+              .page {
+                width: 198mm;
+                height: 136mm;
+                display: flex;
+                align-items: center;
                 justify-content: center;
               }
               img {
                 display: block;
                 width: 100%;
-                height: auto;
-                max-width: 210mm;
+                height: 100%;
                 object-fit: contain;
               }
               @media print {
+                html,
                 body {
-                  width: auto;
-                  min-height: auto;
+                  width: 210mm;
+                  height: 148mm;
                   background: #fff;
-                }
-                img {
-                  max-width: 100%;
-                  max-height: calc(148mm - 16mm);
                 }
               }
             </style>
           </head>
           <body>
-            <img src="${dataUrl}" alt="Nota service" onload="window.focus(); window.print();" />
+            <div class="page">
+              <img src="${dataUrl}" alt="Nota service" onload="window.focus(); window.print();" />
+            </div>
           </body>
         </html>`);
       printWindow.document.close();
@@ -703,6 +940,16 @@ export function InvoiceDialog({
           </>
         )}
       </DialogContent>
+      {service && (
+        <div aria-hidden="true" className="fixed left-[-10000px] top-0 bg-white">
+          <InvoiceLandscapePrintCard
+            service={service}
+            invoiceSettings={effectiveInvoiceSettings}
+            invoiceRef={invoicePrintRef}
+            serviceDetailUrl={serviceDetailUrl}
+          />
+        </div>
+      )}
     </Dialog>
   );
 }

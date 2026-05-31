@@ -87,6 +87,7 @@ import { useDashboardScope } from "@/components/dashboard/layout/dashboard-scope
 import { ActionTile } from "@/components/shared/action-tile";
 import { useOptimisticMutation } from "@/hooks/use-optimistic-mutation";
 import { type Role, roleToneClasses } from "@/lib/role-tone";
+import { getServiceItemTypeLabel } from "@/lib/service-item-label";
 import type { PublishServiceRealtimeEvent } from "@/lib/realtime/service-realtime-types";
 import { getServiceRealtimeMeta } from "@/lib/realtime/service-realtime-label";
 import { cn, formatCurrency, formatCurrencyInput, formatDate, getCurrencyInputDigits, parseCurrencyInput } from "@/lib/utils";
@@ -1121,7 +1122,7 @@ export function ServiceDetailCard({
                       <div className="flex min-w-0 items-start justify-between gap-3">
                         <div className="min-w-0 space-y-1">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge variant="outline">{item.type}</Badge>
+                            <Badge variant="outline">{getServiceItemTypeLabel(item.type)}</Badge>
                             {item.isPending && (
                               <Badge variant="secondary" className="text-[10px] font-normal">
                                 Menyimpan...
@@ -1173,7 +1174,7 @@ export function ServiceDetailCard({
                         <TableRow key={item.id} className={item.isPending ? "opacity-70" : undefined}>
                           <TableCell>
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <Badge variant="outline">{item.type}</Badge>
+                              <Badge variant="outline">{getServiceItemTypeLabel(item.type)}</Badge>
                               {item.isPending && (
                                 <Badge variant="secondary" className="text-[10px] font-normal">
                                   Menyimpan...

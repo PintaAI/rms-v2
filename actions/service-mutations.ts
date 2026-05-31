@@ -10,6 +10,7 @@ import { syncWhatsappIdentityFromPhone } from "@/lib/whatsapp-identity";
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
 import { getRequestUser } from "@/lib/auth/request-user";
 import { withScope } from "@/lib/auth/wrapper";
+import { AuthError } from "@/lib/auth/authorization";
 import { assertFeature, assertPermission, type RequestScope } from "@/lib/auth/request-scope";
 import type { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 import type { Prisma } from "@/prisma/generated/prisma/client";
@@ -690,10 +691,10 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           },
         },
       });
-      if (!inventoryItem || inventoryItem.storeId !== service.storeId) throw new Error("Sparepart not found");
-      if (inventoryItem.type !== "repair_part") throw new Error("Barang retail tidak bisa dipakai sebagai sparepart service");
+      if (!inventoryItem || inventoryItem.storeId !== service.storeId) throw new AuthError("forbidden", "Sparepart tidak ditemukan");
+      if (inventoryItem.type !== "repair_part") throw new AuthError("forbidden", "Barang retail tidak bisa dipakai sebagai sparepart service");
       if (!inventoryItem.isUniversal && inventoryItem.compatibilities.length === 0) {
-        throw new Error("Sparepart is not compatible with this device");
+        throw new AuthError("forbidden", "Sparepart tidak kompatibel dengan perangkat ini");
       }
 
       await prisma.$transaction(async (tx) => {
@@ -701,7 +702,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           where: { id: inventoryItemId, storeId: service.storeId, stock: { gte: validated.data.qty } },
           data: { stock: { decrement: validated.data.qty } },
         });
-        if (stockUpdate.count !== 1) throw new Error(`Insufficient stock. Available: ${inventoryItem.stock}`);
+        if (stockUpdate.count !== 1) throw new AuthError("forbidden", `Stok tidak cukup. Tersedia: ${inventoryItem.stock}`);
 
         const updatedSparepart = await tx.inventoryItem.findUniqueOrThrow({
           where: { id: inventoryItemId },
@@ -744,21 +745,34 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
           payload: { inventoryItemId, inventoryItemName: inventoryItem.name, qty: validated.data.qty, price: inventoryItem.defaultPrice },
         });
       });
+    } else if (validated.data.type === "service_catalog_item" && validated.data.serviceCatalogItemId) {
+      const pricelist = await prisma.serviceCatalogItem.findUnique({
+        where: { id: validated.data.serviceCatalogItemId },
+        select: { title: true, defaultPrice: true, storeId: true },
+      });
+      if (!pricelist || pricelist.storeId !== service.storeId) {
+        throw new AuthError("forbidden", "Pricelist jasa tidak ditemukan");
+      }
+
+      await prisma.$transaction(async (tx) => {
+        createdItem = await tx.repairOrderItem.create({
+          data: {
+            repairOrderId: validated.data.repairOrderId,
+            type: validated.data.type,
+            name: pricelist.title,
+            qty: validated.data.qty,
+            price: pricelist.defaultPrice,
+            referenceId: validated.data.serviceCatalogItemId,
+          },
+        });
+
+        await promoteServiceOnFirstItem(tx, validated.data.repairOrderId, service.status, service.technicianId, scope.user.id, actorTechnicianId, scope.storeId);
+      });
     } else {
       assertFeature(scope, "service.manualItems");
 
       let itemName = validated.data.name;
       let itemPrice = validated.data.price;
-
-      if (validated.data.type === "service_catalog_item" && validated.data.serviceCatalogItemId) {
-        const pricelist = await prisma.serviceCatalogItem.findUnique({
-          where: { id: validated.data.serviceCatalogItemId },
-          select: { title: true, defaultPrice: true, storeId: true },
-        });
-        if (!pricelist || pricelist.storeId !== service.storeId) throw new Error("Pricelist jasa tidak ditemukan");
-        itemName = pricelist.title;
-        itemPrice = pricelist.defaultPrice;
-      }
 
       await prisma.$transaction(async (tx) => {
         createdItem = await tx.repairOrderItem.create({

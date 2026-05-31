@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatCurrencyInput, getCurrencyInputDigits, parseCurrencyInput } from "@/lib/utils";
+import { getServiceItemTypeLabel } from "@/lib/service-item-label";
 import {
   RiBankCardLine,
   RiCashLine,
@@ -137,7 +138,7 @@ export function PaymentDialog({
                   {items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <Badge variant="outline">{item.type}</Badge>
+                        <Badge variant="outline">{getServiceItemTypeLabel(item.type)}</Badge>
                       </TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.qty}</TableCell>
