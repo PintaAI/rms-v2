@@ -504,6 +504,10 @@ function InvoicePreviewCard({
         </div>
       </div>
 
+      <p className="mt-6 text-center text-sm font-bold uppercase tracking-[0.18em] text-black">
+        TERIMAKASIH ATAS KEPERCAYAAN ANDA, KEPUASAN KONSUMEN ADALAH PRIORITAS KAMI
+      </p>
+
     </div>
   );
 }
@@ -537,8 +541,8 @@ function InvoiceLandscapePrintCard({
   const warrantyUntil = service.warrantyUntil ? new Date(service.warrantyUntil) : null;
 
   return (
-    <div ref={invoiceRef} className="h-[760px] w-[1120px] rounded-[28px] border border-black bg-white p-7 text-black">
-      <div className="flex items-start justify-between gap-8 border-b border-black pb-4">
+    <div ref={invoiceRef} className="relative h-[760px] w-[1120px] rounded-[28px] border border-black bg-white p-6 pb-10 text-black">
+      <div className="flex items-start justify-between gap-8 border-b border-black pb-3">
         <div className="flex min-w-0 flex-1 items-start gap-4">
           {invoiceSettings.logoUrl ? (
             <Image
@@ -591,8 +595,8 @@ function InvoiceLandscapePrintCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-[1.05fr_1.05fr_0.9fr] gap-4 py-4">
-        <div className="space-y-2 rounded-2xl border border-black bg-white p-4">
+      <div className="grid grid-cols-[1.05fr_1.05fr_0.9fr] gap-4 py-3">
+        <div className="space-y-2 rounded-2xl border border-black bg-white p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">{mode === "pickup-note" ? "Nota Pengambilan" : "Invoice"}</p>
           <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs text-black">
             <span>Nomor</span>
@@ -610,7 +614,7 @@ function InvoiceLandscapePrintCard({
           </div>
         </div>
 
-        <div className="space-y-2 rounded-2xl border border-black bg-white p-4">
+        <div className="space-y-2 rounded-2xl border border-black bg-white p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Pelanggan</p>
           <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs text-black">
             <span>Nama</span>
@@ -624,7 +628,7 @@ function InvoiceLandscapePrintCard({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-black bg-white p-4">
+        <div className="rounded-2xl border border-black bg-white p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Catatan Servis</p>
           <p className="mt-2 line-clamp-4 text-xs leading-5 text-black">{service.complaint}</p>
         </div>
@@ -665,7 +669,7 @@ function InvoiceLandscapePrintCard({
           )}
         </div>
 
-        <div className="rounded-2xl border border-black bg-white p-4 text-black">
+        <div className="rounded-2xl border border-black bg-white p-3 text-black">
           <div className="space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Ringkasan Pembayaran</p>
             <div className="space-y-1.5 text-xs text-black">
@@ -701,7 +705,7 @@ function InvoiceLandscapePrintCard({
       </div>
 
       {resolvedClaims.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-black bg-white p-3">
+        <div className="mt-3 rounded-2xl border border-black bg-white p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Klaim & Refund</p>
           <p className="mt-1 text-[11px] leading-4 text-black">
             {resolvedClaims.map((claim) => `${formatInvoiceDate(claim.resolvedAt ?? claim.createdAt)} - ${claimResolutionLabels[claim.resolution ?? ""] || claim.resolution || "Klaim"}${claim.refundAmount > 0 ? ` (${formatCurrency(claim.refundAmount)})` : ""}`).join("; ")}
@@ -710,30 +714,36 @@ function InvoiceLandscapePrintCard({
       )}
 
       {mode === "pickup-note" && (
-        <div className="mt-4 rounded-2xl border border-black bg-white px-4 py-2 text-xs text-black">
+        <div className="mt-3 rounded-2xl border border-black bg-white px-4 py-2 text-xs text-black">
           Nota ini adalah bukti pengambilan HP service, bukan bukti pembayaran lunas. Tagihan masih perlu diselesaikan.
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-[1fr_1fr_0.8fr_0.8fr] gap-4">
-        <div className="rounded-2xl border border-black bg-white p-4">
+      <div className="mt-3 grid grid-cols-[0.95fr_1.35fr_220px] gap-4">
+        <div className="rounded-2xl border border-black bg-white p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Syarat & Ketentuan</p>
-          <p className="mt-2 line-clamp-4 whitespace-pre-line text-[11px] leading-4 text-black">{invoiceSettings.invoiceTerms}</p>
+          <p className="mt-2 whitespace-pre-line text-[13px] leading-[1.45] text-black">{invoiceSettings.invoiceTerms}</p>
         </div>
-        <div className="rounded-2xl border border-black bg-white p-4">
+        <div className="rounded-2xl border border-black bg-white p-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Garansi Service</p>
           {warrantyUntil && <p className="mt-2 text-xs font-semibold text-black">Berlaku sampai {formatWarrantyDate(warrantyUntil)}</p>}
-          <p className="mt-1 line-clamp-3 whitespace-pre-line text-[11px] leading-4 text-black">{invoiceSettings.invoiceWarranty}</p>
+          <p className="mt-1 whitespace-pre-line text-[10px] leading-[1.35] text-black">{invoiceSettings.invoiceWarranty}</p>
         </div>
-        <div className="rounded-2xl border border-black p-4 text-center">
-          <p className="text-xs font-semibold text-black">Toko</p>
-          <div className="mt-16 border-t border-black pt-2 text-[11px] text-black">{invoiceSettings.name}</div>
-        </div>
-        <div className="rounded-2xl border border-black p-4 text-center">
-          <p className="text-xs font-semibold text-black">Customer</p>
-          <div className="mt-16 border-t border-black pt-2 text-[11px] text-black">{service.customerName || "Pelanggan"}</div>
+        <div className="grid gap-3">
+          <div className="rounded-2xl border border-black p-3 text-center">
+            <p className="text-xs font-semibold text-black">Toko</p>
+            <div className="mt-10 border-t border-black pt-2 text-[11px] text-black">{invoiceSettings.name}</div>
+          </div>
+          <div className="rounded-2xl border border-black p-3 text-center">
+            <p className="text-xs font-semibold text-black">Customer</p>
+            <div className="mt-10 border-t border-black pt-2 text-[11px] text-black">{service.customerName || "Pelanggan"}</div>
+          </div>
         </div>
       </div>
+
+      <p className="absolute inset-x-6 bottom-3 text-center text-[14px] font-bold uppercase tracking-[0.18em] text-black">
+        TERIMAKASIH ATAS KEPERCAYAAN ANDA, KEPUASAN KONSUMEN ADALAH PRIORITAS KAMI
+      </p>
     </div>
   );
 }
