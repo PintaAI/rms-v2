@@ -178,12 +178,14 @@ export async function getAdminAnalytics(
         select: {
           grandTotal: true,
           dpAmount: true,
+          discountAmount: true,
           paymentStatus: true,
           createdAt: true,
           paidAt: true,
           items: {
-            where: { type: "inventory_item" },
             select: {
+              repairOrderItemId: true,
+              type: true,
               referenceId: true,
               name: true,
               qty: true,
@@ -221,6 +223,8 @@ export async function getAdminAnalytics(
             },
             select: {
               id: true,
+              subtotal: true,
+              discountAmount: true,
               grandTotal: true,
               paymentMethod: true,
               paidAt: true,
@@ -244,6 +248,33 @@ export async function getAdminAnalytics(
     }
 
     const lowStockTotal = lowStockCount[0]?.count ?? 0;
+    const paidServiceItemIds = invoices.flatMap((invoice) =>
+      invoice.paymentStatus === "paid"
+        ? invoice.items
+            .map((item) => item.repairOrderItemId)
+            .filter((id): id is string => Boolean(id))
+        : []
+    );
+    const serviceItemCostSnapshots =
+      paidServiceItemIds.length > 0
+        ? await prisma.inventoryMovement.findMany({
+            where: {
+              storeId,
+              type: "repair_usage",
+              referenceType: "service_item",
+              referenceId: { in: paidServiceItemIds },
+            },
+            select: {
+              referenceId: true,
+              unitCostSnapshot: true,
+            },
+          })
+        : [];
+    const serviceItemCostMap = new Map(
+      serviceItemCostSnapshots
+        .filter((movement) => movement.referenceId)
+        .map((movement) => [movement.referenceId!, movement.unitCostSnapshot ?? 0])
+    );
 
     const trendMap = Object.fromEntries(
       buckets.map((bucket) => [
@@ -299,6 +330,7 @@ export async function getAdminAnalytics(
     }
 
     let paidRevenue = 0;
+    let serviceNetRevenue = 0;
     let pendingRevenue = 0;
     let paidInvoices = 0;
 
@@ -312,6 +344,17 @@ export async function getAdminAnalytics(
           trendMap[bucketKey].revenue += invoice.grandTotal;
 
           for (const item of invoice.items) {
+            const lineRevenue = item.qty * item.price;
+
+            if (item.type === "inventory_item") {
+              const unitCost = item.repairOrderItemId ? serviceItemCostMap.get(item.repairOrderItemId) ?? 0 : 0;
+              serviceNetRevenue += lineRevenue - unitCost * item.qty;
+            } else {
+              serviceNetRevenue += lineRevenue;
+            }
+
+            if (item.type !== "inventory_item") continue;
+
             const inventoryItemKey = item.referenceId ?? item.name;
             const current = inventoryItemMap.get(inventoryItemKey) ?? {
               id: inventoryItemKey,
@@ -323,6 +366,8 @@ export async function getAdminAnalytics(
             current.revenue += item.qty * item.price;
             inventoryItemMap.set(inventoryItemKey, current);
           }
+
+          serviceNetRevenue -= invoice.discountAmount;
         }
         continue;
       }
@@ -340,6 +385,7 @@ export async function getAdminAnalytics(
       if (!claim.resolvedAt) continue;
       const bucketKey = getBucketKey(claim.resolvedAt, bucketMode);
       paidRevenue -= claim.refundAmount;
+      serviceNetRevenue -= claim.refundAmount;
       if (trendMap[bucketKey]) {
         trendMap[bucketKey].revenue -= claim.refundAmount;
       }
@@ -355,6 +401,7 @@ export async function getAdminAnalytics(
 
     for (const sale of salesOrders) {
       retailRevenue += sale.grandTotal;
+      let saleCost = 0;
       const retailTrend = retailTrendMap[getBucketKey(sale.paidAt, bucketMode)];
       if (retailTrend) {
         retailTrend.revenue += sale.grandTotal;
@@ -372,7 +419,10 @@ export async function getAdminAnalytics(
       retailPaymentMap.set(sale.paymentMethod, payment);
 
       for (const item of sale.items) {
-        const itemGrossMargin = item.lineTotal - (item.unitCostSnapshot ?? 0) * item.qty;
+        const itemCost = (item.unitCostSnapshot ?? 0) * item.qty;
+        const discountShare = sale.subtotal > 0 ? Math.round(sale.discountAmount * (item.lineTotal / sale.subtotal)) : 0;
+        const itemNetRevenue = item.lineTotal - discountShare;
+        const itemGrossMargin = itemNetRevenue - itemCost;
         const itemKey = item.inventoryItemId ?? item.name;
         const current = retailItemMap.get(itemKey) ?? {
           id: itemKey,
@@ -383,12 +433,14 @@ export async function getAdminAnalytics(
           grossMargin: 0,
         };
         current.qty += item.qty;
-        current.revenue += item.lineTotal;
+        current.revenue += itemNetRevenue;
         current.grossMargin += itemGrossMargin;
         retailTotalQty += item.qty;
-        retailGrossMargin += itemGrossMargin;
+        saleCost += itemCost;
         retailItemMap.set(itemKey, current);
       }
+
+      retailGrossMargin += sale.grandTotal - saleCost;
     }
 
     const retailItems = Array.from(retailItemMap.values());
@@ -402,7 +454,7 @@ export async function getAdminAnalytics(
       periodLabel,
       summary: {
         totalRevenue: paidRevenue + retailRevenue,
-        estimatedNetRevenue: paidRevenue + retailGrossMargin,
+        estimatedNetRevenue: serviceNetRevenue + retailGrossMargin,
         paidRevenue,
         retailRevenue,
         retailGrossMargin,
