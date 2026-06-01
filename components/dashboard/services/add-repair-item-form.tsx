@@ -73,6 +73,7 @@ export function AddRepairItemForm({
   const [itemType, setItemType] = useState<RepairItemType>("inventory_item");
   const [sparepartQtys, setSparepartQtys] = useState<Record<string, number>>({});
   const [serviceQtys, setServiceQtys] = useState<Record<string, number>>({});
+  const [servicePrices, setServicePrices] = useState<Record<string, string>>({});
   const [manualName, setManualName] = useState("");
   const [manualPrice, setManualPrice] = useState("");
   const [manualQty, setManualQty] = useState("1");
@@ -98,7 +99,10 @@ export function AddRepairItemForm({
     .reduce((sum, sp) => sum + sp.defaultPrice * (sparepartQtys[sp.id] ?? 0), 0);
   const servicesTotal = servicePricelists
     .filter((sp) => (serviceQtys[sp.id] ?? 0) > 0)
-    .reduce((sum, sp) => sum + sp.defaultPrice * (serviceQtys[sp.id] ?? 0), 0);
+    .reduce((sum, sp) => {
+      const price = parseInt(servicePrices[sp.id] ?? String(sp.defaultPrice), 10) || 0;
+      return sum + price * (serviceQtys[sp.id] ?? 0);
+    }, 0);
   const manualTotal = isManualFilled
     ? parseInt(manualPrice, 10) * (parseInt(manualQty, 10) || 1)
     : 0;
@@ -132,6 +136,7 @@ export function AddRepairItemForm({
     setItemType("inventory_item");
     setSparepartQtys({});
     setServiceQtys({});
+    setServicePrices({});
     setManualName("");
     setManualPrice("");
     setManualQty("1");
@@ -162,6 +167,58 @@ export function AddRepairItemForm({
     }
 
     incrementQty(sparepart.id, setSparepartQtys);
+  }
+
+  function toggleSparepart(sparepart: SparepartOption) {
+    const isSelected = (sparepartQtys[sparepart.id] ?? 0) > 0;
+
+    if (isSelected) {
+      setSparepartQtys((prev) => {
+        const rest = { ...prev };
+        delete rest[sparepart.id];
+        return rest;
+      });
+      return;
+    }
+
+    if (sparepart.stock <= 0) {
+      toast.error(`Stok sparepart "${sparepart.name}" habis`);
+      return;
+    }
+
+    setSparepartQtys((prev) => ({ ...prev, [sparepart.id]: 1 }));
+  }
+
+  function incrementServiceQty(service: AddRepairItemFormProps["servicePricelists"][number]) {
+    setServicePrices((prev) => ({
+      ...prev,
+      [service.id]: prev[service.id] ?? String(service.defaultPrice),
+    }));
+    incrementQty(service.id, setServiceQtys);
+  }
+
+  function toggleService(service: AddRepairItemFormProps["servicePricelists"][number]) {
+    const isSelected = (serviceQtys[service.id] ?? 0) > 0;
+
+    if (isSelected) {
+      setServiceQtys((prev) => {
+        const rest = { ...prev };
+        delete rest[service.id];
+        return rest;
+      });
+      setServicePrices((prev) => {
+        const rest = { ...prev };
+        delete rest[service.id];
+        return rest;
+      });
+      return;
+    }
+
+    setServicePrices((prev) => ({
+      ...prev,
+      [service.id]: prev[service.id] ?? String(service.defaultPrice),
+    }));
+    setServiceQtys((prev) => ({ ...prev, [service.id]: 1 }));
   }
 
   function decrementQty(
@@ -195,7 +252,12 @@ export function AddRepairItemForm({
       .map((sp) => ({ ...sp, type: "inventory_item" as const, qty: sparepartQtys[sp.id] }));
     const selectedServices = servicePricelists
       .filter((sp) => (serviceQtys[sp.id] ?? 0) > 0)
-      .map((sp) => ({ type: "service_catalog_item" as const, ...sp, qty: serviceQtys[sp.id] }));
+      .map((sp) => ({
+        type: "service_catalog_item" as const,
+        ...sp,
+        defaultPrice: parseInt(servicePrices[sp.id] ?? String(sp.defaultPrice), 10) || 0,
+        qty: serviceQtys[sp.id],
+      }));
 
     const itemsToAdd = [...manualItems, ...selectedSpareparts, ...selectedServices];
     const pendingItems = itemsToAdd.map((item) => {
@@ -432,8 +494,8 @@ export function AddRepairItemForm({
                                 key={sp.id}
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => incrementSparepartQty(sp)}
-                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") incrementSparepartQty(sp); }}
+                                onClick={() => toggleSparepart(sp)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleSparepart(sp); }}
                                 className={cn(
                                    "flex cursor-pointer flex-col gap-2 rounded-md border px-3 py-2 transition-all sm:flex-row sm:items-center sm:justify-between",
                                   qty > 0
@@ -577,13 +639,14 @@ export function AddRepairItemForm({
                         <div className="space-y-1.5 pr-1">
                           {filteredServicePricelists.map((sp) => {
                             const qty = serviceQtys[sp.id] ?? 0;
+                            const servicePrice = servicePrices[sp.id] ?? String(sp.defaultPrice);
                             return (
                               <div
                                 key={sp.id}
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => incrementQty(sp.id, setServiceQtys)}
-                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") incrementQty(sp.id, setServiceQtys); }}
+                                onClick={() => toggleService(sp)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleService(sp); }}
                                 className={cn(
                                   "flex cursor-pointer flex-col gap-2 rounded-md border px-3 py-2 transition-all sm:flex-row sm:items-center sm:justify-between",
                                   qty > 0
@@ -610,15 +673,28 @@ export function AddRepairItemForm({
                                   </span>
                                 </div>
                                 <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-3">
-                                  <span className={cn(
-                                    "text-xs font-semibold",
-                                    qty > 0 ? "text-primary" : "text-muted-foreground"
-                                  )}>
-                                    {formatCurrency(sp.defaultPrice)}
-                                  </span>
+                                  {qty > 0 ? (
+                                    <Input
+                                      type="text"
+                                      inputMode="numeric"
+                                      value={formatCurrencyInput(servicePrice)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onKeyDown={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        const value = getCurrencyInputDigits(e.target.value);
+                                        setServicePrices((prev) => ({ ...prev, [sp.id]: value }));
+                                      }}
+                                      className="h-8 w-28 text-right text-xs font-semibold"
+                                      aria-label={`Harga ${sp.title}`}
+                                    />
+                                  ) : (
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                      {formatCurrency(sp.defaultPrice)}
+                                    </span>
+                                  )}
                                   <QtyStepper
                                     qty={qty}
-                                    onIncrement={() => incrementQty(sp.id, setServiceQtys)}
+                                    onIncrement={() => incrementServiceQty(sp)}
                                     onDecrement={() => decrementQty(sp.id, setServiceQtys)}
                                   />
                                 </div>

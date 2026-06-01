@@ -761,7 +761,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
             type: validated.data.type,
             name: pricelist.title,
             qty: validated.data.qty,
-            price: pricelist.defaultPrice,
+            price: validated.data.price,
             referenceId: null,
           },
         });
