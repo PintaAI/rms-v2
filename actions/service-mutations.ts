@@ -762,7 +762,7 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
             name: pricelist.title,
             qty: validated.data.qty,
             price: pricelist.defaultPrice,
-            referenceId: validated.data.serviceCatalogItemId,
+            referenceId: null,
           },
         });
 
@@ -771,8 +771,8 @@ export async function addItem(data: z.infer<typeof addItemSchema>): Promise<Acti
     } else {
       assertFeature(scope, "service.manualItems");
 
-      let itemName = validated.data.name;
-      let itemPrice = validated.data.price;
+      const itemName = validated.data.name;
+      const itemPrice = validated.data.price;
 
       await prisma.$transaction(async (tx) => {
         createdItem = await tx.repairOrderItem.create({
