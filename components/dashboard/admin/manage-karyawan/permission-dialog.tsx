@@ -106,6 +106,7 @@ const SERVICE_ONLY_PERMISSION_KEYS = new Set<PermissionKey>([
   "service.createInvoice",
   "service.manageItems",
   "service.manageInvoice",
+  "inventory.managePhoneUnits",
   "inventory.view",
   "warranty.create",
   "warranty.resolve",

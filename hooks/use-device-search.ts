@@ -5,6 +5,7 @@ import { createDevice, importMobileApiDevice, searchMobileApiDevices, type Mobil
 import { upsertStoredDevice } from "@/lib/device-catalog-cache";
 import { fuzzyScore } from "@/lib/fuzzy-search";
 import type { DeviceModelOption } from "@/components/shared/device-input";
+import { toast } from "sonner";
 
 function parseDeviceName(deviceQuery: string) {
   const parts = deviceQuery.trim().split(/\s+/);
@@ -24,6 +25,10 @@ interface UseDeviceSearchOptions {
 
 const EMPTY_EXCLUDE_IDS: string[] = [];
 const EMPTY_DEVICES: DeviceModelOption[] = [];
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 export function useDeviceSearch({
   devices,
@@ -179,8 +184,8 @@ export function useDeviceSearch({
       upsertStoredDevice(device);
       onDeviceCreated?.(device);
       selectDevice(device);
-    } catch {
-      // Silently fail - user can retry
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Gagal membuat perangkat"));
     } finally {
       setIsCreating(false);
     }
@@ -194,8 +199,8 @@ export function useDeviceSearch({
       upsertStoredDevice(device);
       onDeviceCreated?.(device);
       selectDevice(device);
-    } catch {
-      // Silently fail - user can retry or create a local device manually.
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Gagal mengimpor perangkat"));
     } finally {
       setIsCreating(false);
     }

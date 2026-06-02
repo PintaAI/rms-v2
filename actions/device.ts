@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma"
 import { getRequestUser } from "@/lib/auth/request-user"
+import { assertFeature, assertPermission, getRequestScope } from "@/lib/auth/request-scope"
 import { revalidatePath, cacheLife, cacheTag, updateTag } from "next/cache"
 import { z } from "zod"
 
@@ -44,17 +45,39 @@ export interface DeviceCatalogPayload {
 async function getDeviceWriteUser() {
   const user = await getRequestUser()
   if (!user) throw new Error("Unauthorized")
-  if (user.role !== "admin") throw new Error("Only admins can manage device data")
+
+  const storeId = user.storeIds[0]
+  if (!storeId) throw new Error("Toko tidak ditemukan")
+
+  const scope = await getRequestScope(storeId)
+  assertFeature(scope, "inventory.management")
+  assertPermission(scope, "inventory.managePhoneUnits")
+
+  return user
+}
+
+async function getDeviceCreateUser() {
+  const user = await getRequestUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const storeId = user.storeIds[0]
+  if (!storeId) throw new Error("Toko tidak ditemukan")
+
+  const scope = await getRequestScope(storeId)
+
+  try {
+    assertFeature(scope, "inventory.management")
+    assertPermission(scope, "inventory.managePhoneUnits")
+  } catch {
+    assertFeature(scope, "service.management")
+    assertPermission(scope, "service.create")
+  }
+
   return user
 }
 
 async function getDeviceImportUser() {
-  const user = await getRequestUser()
-  if (!user) throw new Error("Unauthorized")
-  if (!["admin", "staff", "superuser"].includes(user.role)) {
-    throw new Error("Only staff can import device data")
-  }
-  return user
+  return getDeviceCreateUser()
 }
 
 function stripBrandPrefix(name: string, brandName: string) {
@@ -440,7 +463,7 @@ const createDeviceSchema = z.object({
 export async function createDevice(
   data: z.infer<typeof createDeviceSchema>
 ): Promise<DeviceListItem> {
-  await getDeviceWriteUser()
+  await getDeviceCreateUser()
 
   const validated = createDeviceSchema.parse(data)
 
