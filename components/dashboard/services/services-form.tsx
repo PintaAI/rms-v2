@@ -274,7 +274,8 @@ function ServicesFormContent({
       return;
     }
 
-    const whatsappValidation = validateIndonesianWhatsappNumber(noWa);
+    const trimmedNoWa = noWa.trim();
+    const whatsappValidation = trimmedNoWa ? validateIndonesianWhatsappNumber(trimmedNoWa) : { valid: true, error: null };
     if (!whatsappValidation.valid) {
       setError(whatsappValidation.error);
       return;
@@ -290,7 +291,7 @@ function ServicesFormContent({
     const payload = {
       deviceModelId: selectedDevice.id,
       customerName: customerName || undefined,
-      noWa: noWa.trim(),
+      noWa: trimmedNoWa,
       complaint,
       handlingNote: handlingNote.trim() || undefined,
       includedItems: includedItems.length > 0 ? includedItems : undefined,
@@ -307,7 +308,7 @@ function ServicesFormContent({
         id: tempId,
         deviceModelId: selectedDevice.id,
         customerName: customerName || null,
-        noWa: noWa.trim(),
+        noWa: trimmedNoWa,
         complaint,
         handlingNote: handlingNote.trim() || null,
         includedItems: includedItems.length > 0 ? includedItems : null,
@@ -337,7 +338,7 @@ function ServicesFormContent({
         id: editData.id,
         deviceModelId: selectedDevice.id,
         customerName: customerName || null,
-        noWa: noWa.trim(),
+        noWa: trimmedNoWa,
         complaint,
         handlingNote: handlingNote.trim() || null,
         includedItems: includedItems.length > 0 ? includedItems : null,
@@ -442,12 +443,11 @@ function ServicesFormContent({
               <div className="flex items-center gap-1.5">
                 <Label htmlFor="noWa" className="flex items-center gap-1.5 text-sm">
                   <RiWhatsappLine className="size-3.5" />
-                  WhatsApp
+                  WhatsApp (opsional)
                 </Label>
-                <span className="text-sm leading-none text-destructive">*</span>
               </div>
               <Input id="noWa" placeholder="08123456789 atau 6281234567890" disabled={isLoading} value={noWa} onChange={(e) => setNoWa(e.target.value)} inputMode="tel" />
-              <p className="text-xs text-muted-foreground">Format didukung: 08..., 628..., atau +628....</p>
+              <p className="text-xs text-muted-foreground">Kosongkan jika tidak ada. Format didukung: 08..., 628..., atau +628....</p>
             </div>
           </div>
         </div>

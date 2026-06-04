@@ -56,7 +56,7 @@ async function promoteServiceOnFirstItem(
 const createServiceSchema = z.object({
   deviceModelId: z.string().min(1),
   customerName: z.string().optional(),
-  noWa: z.string().min(1).refine((value) => validateIndonesianWhatsappNumber(value).valid, {
+  noWa: z.string().trim().optional().refine((value) => !value || validateIndonesianWhatsappNumber(value).valid, {
     message: "Format WhatsApp harus nomor Indonesia aktif, contoh 08123456789 atau 6281234567890",
   }),
   complaint: z.string().min(1),
@@ -143,6 +143,7 @@ export async function createService(
       where: { id: validated.data.deviceModelId },
     });
     if (!deviceModel) throw new Error("Device not found");
+    const noWa = validated.data.noWa ?? "";
 
     const service = await prisma.$transaction(async (tx) => {
       const createdService = await tx.repairOrder.create({
@@ -151,7 +152,7 @@ export async function createService(
           deviceModelId: validated.data.deviceModelId,
           createdById: scope.user.id,
           customerName: validated.data.customerName || null,
-          noWa: validated.data.noWa,
+          noWa,
           complaint: validated.data.complaint,
           handlingNote: validated.data.handlingNote || null,
           includedItems: validated.data.includedItems || undefined,
@@ -191,7 +192,7 @@ export async function createService(
         payload: {
           deviceModelId: validated.data.deviceModelId,
           customerName: validated.data.customerName || null,
-          noWa: validated.data.noWa,
+          noWa,
           complaint: validated.data.complaint,
           handlingNote: validated.data.handlingNote || null,
           includedItems: validated.data.includedItems || undefined,
@@ -203,11 +204,13 @@ export async function createService(
 
     revalidateServicePaths(scope.storeId);
 
-    syncWhatsappIdentityFromPhone({
-      storeId: scope.storeId,
-      phoneNumber: validated.data.noWa,
-      displayName: validated.data.customerName || null,
-    }).catch((error) => console.warn("[WhatsApp:identity.serviceCreate]", error));
+    if (noWa) {
+      syncWhatsappIdentityFromPhone({
+        storeId: scope.storeId,
+        phoneNumber: noWa,
+        displayName: validated.data.customerName || null,
+      }).catch((error) => console.warn("[WhatsApp:identity.serviceCreate]", error));
+    }
 
     return { id: service.id };
   });
@@ -234,6 +237,7 @@ export async function updateService(
       where: { id: validated.data.deviceModelId },
     });
     if (!deviceModel) throw new Error("Device not found");
+    const noWa = validated.data.noWa ?? "";
 
     await prisma.$transaction(async (tx) => {
       await tx.repairOrder.update({
@@ -241,7 +245,7 @@ export async function updateService(
         data: {
           deviceModelId: validated.data.deviceModelId,
           customerName: validated.data.customerName || null,
-          noWa: validated.data.noWa,
+          noWa,
           complaint: validated.data.complaint,
           handlingNote: validated.data.handlingNote || null,
           includedItems: validated.data.includedItems || undefined,
@@ -296,7 +300,7 @@ export async function updateService(
         payload: {
           deviceModelId: validated.data.deviceModelId,
           customerName: validated.data.customerName || null,
-          noWa: validated.data.noWa,
+          noWa,
           complaint: validated.data.complaint,
           handlingNote: validated.data.handlingNote || null,
           includedItems: validated.data.includedItems || undefined,
@@ -308,11 +312,13 @@ export async function updateService(
 
     revalidateServicePaths(scope.storeId);
 
-    syncWhatsappIdentityFromPhone({
-      storeId: scope.storeId,
-      phoneNumber: validated.data.noWa,
-      displayName: validated.data.customerName || null,
-    }).catch((error) => console.warn("[WhatsApp:identity.serviceUpdate]", error));
+    if (noWa) {
+      syncWhatsappIdentityFromPhone({
+        storeId: scope.storeId,
+        phoneNumber: noWa,
+        displayName: validated.data.customerName || null,
+      }).catch((error) => console.warn("[WhatsApp:identity.serviceUpdate]", error));
+    }
 
     return { success: true };
   });
