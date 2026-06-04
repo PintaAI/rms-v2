@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@better-auth/utils": "^0.4.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "@remixicon/react": "^4.9.0",
@@ -44,6 +45,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
     "html-to-image": "1.11.11",
+    "mcp-handler": "^1.1.0",
     "mermaid": "^11.14.0",
     "motion": "^12.38.0",
     "nanoid": "^5.1.9",
@@ -77,6 +79,7 @@
     "unified": "^11.0.5",
     "vaul": "^1.1.2",
     "xlsx": "^0.18.5",
+    "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
@@ -100,5 +103,11 @@
   "trustedDependencies": [
     "sharp",
     "unrs-resolver"
-  ]
+  ],
+  "resolutions": {
+    "zod": "^4.4.3"
+  },
+  "overrides": {
+    "zod": "^4.4.3"
+  }
 }

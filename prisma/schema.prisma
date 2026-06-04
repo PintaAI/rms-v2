@@ -363,9 +363,88 @@ model User {
   referredByReferral            Referral?
   affiliateCommissions          AffiliateCommission[]
   storePermissions              StoreUserPermission[]
+  oauthAuthCodes                OAuthAuthorizationCode[]
+  oauthTokens                   OAuthToken[]
+  oauthConsents                 OAuthConsent[]
 
   @@index([role])
   @@map("user")
+}
+
+model OAuthClient {
+  id             String   @id @default(cuid())
+  clientId       String   @unique
+  clientSecret   String?
+  clientName     String
+  clientUri      String?
+  logoUri        String?
+  redirectUris   String[]
+  grantTypes     String[]
+  responseTypes  String[]
+  scope          String?
+  isPublic       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  authCodes OAuthAuthorizationCode[]
+  tokens    OAuthToken[]
+  consents  OAuthConsent[]
+
+  @@map("oauth_client")
+}
+
+model OAuthAuthorizationCode {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  clientId            String
+  userId              String
+  redirectUri         String
+  codeChallenge       String?
+  codeChallengeMethod String?
+  scopes              String[]
+  resource            String?
+  expiresAt           DateTime
+  used                Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  client OAuthClient @relation(fields: [clientId], references: [clientId])
+  user   User        @relation(fields: [userId], references: [id])
+
+  @@map("oauth_authorization_code")
+}
+
+model OAuthToken {
+  id           String    @id @default(cuid())
+  accessToken  String    @unique
+  refreshToken String?   @unique
+  clientId     String
+  userId       String
+  scopes       String[]
+  resource     String?
+  tokenType    String    @default("Bearer")
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
+
+  client OAuthClient @relation(fields: [clientId], references: [clientId])
+  user   User        @relation(fields: [userId], references: [id])
+
+  @@map("oauth_token")
+}
+
+model OAuthConsent {
+  id        String   @id @default(cuid())
+  clientId  String
+  userId    String
+  scopes    String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client OAuthClient @relation(fields: [clientId], references: [clientId])
+  user   User        @relation(fields: [userId], references: [id])
+
+  @@unique([clientId, userId])
+  @@map("oauth_consent")
 }
 
 model UserStore {

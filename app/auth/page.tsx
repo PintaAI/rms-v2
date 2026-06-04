@@ -25,7 +25,14 @@ const highlights = [
   },
 ];
 
-export default function AuthPage() {
+export default async function AuthPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect?: string }>;
+}) {
+  const { redirect } = await searchParams;
+  const redirectPath = redirect?.startsWith("/") ? redirect : undefined;
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.16),transparent_36rem),linear-gradient(135deg,hsl(var(--background)),hsl(var(--muted)))] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-6xl items-center gap-6 lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.08fr_0.92fr] lg:gap-10">
@@ -70,6 +77,8 @@ export default function AuthPage() {
         <div className="w-full max-w-md justify-self-center lg:justify-self-end">
           <AuthCard
             showGoogleAuth={true}
+            redirectAfterLogin={redirectPath}
+            redirectAfterRegister={redirectPath}
             className="shadow-2xl shadow-foreground/5"
           />
         </div>

@@ -67,9 +67,13 @@ export function DeviceCatalogManagement({ data }: DeviceCatalogManagementProps) 
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
-    setBrands(data.brands);
-    setDevices(data.devices);
-    setSelectedDeviceIds((current) => new Set([...current].filter((id) => data.devices.some((device) => device.id === id))));
+    const timer = window.setTimeout(() => {
+      setBrands(data.brands);
+      setDevices(data.devices);
+      setSelectedDeviceIds((current) => new Set([...current].filter((id) => data.devices.some((device) => device.id === id))));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [data]);
 
   const filteredDevices = useMemo(() => {

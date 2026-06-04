@@ -28,7 +28,7 @@ const planLabels: Record<SubscriptionPlan, string> = {
   enterprise: "Enterprise",
 };
 
-const settingsTabs = new Set<SettingsTab>(["profile", "features", "whatsapp", "password", "billing", "premium", "appearance", "affiliate"]);
+const settingsTabs = new Set<SettingsTab>(["profile", "features", "whatsapp", "password", "billing", "premium", "appearance", "affiliate", "ai-connector"]);
 
 function isSettingsTab(value: string | null): value is SettingsTab {
   return Boolean(value && settingsTabs.has(value as SettingsTab));
@@ -48,7 +48,6 @@ export function UserInfo() {
   const settingsOpen = manualSettingsOpen || Boolean(initialTab);
 
   useEffect(() => {
-    setDynamicTheme(getThemeMode());
     return onThemeModeChange(setDynamicTheme);
   }, []);
 

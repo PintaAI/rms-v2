@@ -10,6 +10,7 @@ export * from "./karyawan";
 export * from "./superuser";
 export * from "./whatsapp";
 export * from "./billing";
+export * from "./oauth";
 export * from "./global-search";
 export * from "./retail";
 export * from "./supplier-debts";

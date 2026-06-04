@@ -125,32 +125,36 @@ export function PhoneUnitFormDialog({
   }, []);
 
   useEffect(() => {
-    if (unit) {
-      setSelectedDevice({
-        id: unit.deviceModelId,
-        modelName: unit.deviceModelName,
-        brandName: unit.deviceBrandName,
-      });
-      setImei(unit.imei ?? "");
-      setCategoryName(unit.categoryName ?? "");
-      setSerialNumber(unit.serialNumber ?? "");
-      setCondition(unit.condition);
-      setPurchasePrice(unit.purchasePrice.toString());
-      setSellingPrice(unit.sellingPrice.toString());
-      setWarrantyDays(unit.warrantyDays != null ? unit.warrantyDays.toString() : "");
-      setNotes(unit.notes ?? "");
-    } else {
-      setSelectedDevice(null);
-      setImei("");
-      setCategoryName("");
-      setSerialNumber("");
-      setCondition("used_good");
-      setPurchasePrice("");
-      setSellingPrice("");
-      setWarrantyDays("");
-      setNotes("");
-    }
-    setError(null);
+    const timer = window.setTimeout(() => {
+      if (unit) {
+        setSelectedDevice({
+          id: unit.deviceModelId,
+          modelName: unit.deviceModelName,
+          brandName: unit.deviceBrandName,
+        });
+        setImei(unit.imei ?? "");
+        setCategoryName(unit.categoryName ?? "");
+        setSerialNumber(unit.serialNumber ?? "");
+        setCondition(unit.condition);
+        setPurchasePrice(unit.purchasePrice.toString());
+        setSellingPrice(unit.sellingPrice.toString());
+        setWarrantyDays(unit.warrantyDays != null ? unit.warrantyDays.toString() : "");
+        setNotes(unit.notes ?? "");
+      } else {
+        setSelectedDevice(null);
+        setImei("");
+        setCategoryName("");
+        setSerialNumber("");
+        setCondition("used_good");
+        setPurchasePrice("");
+        setSellingPrice("");
+        setWarrantyDays("");
+        setNotes("");
+      }
+      setError(null);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [unit, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
