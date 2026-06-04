@@ -9,6 +9,7 @@ import { syncWhatsappIdentityFromPhone } from "@/lib/whatsapp-identity";
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
 import { ok, toolError, getMcpScope, assertMcpWriteScope } from "@/lib/mcp/tools/utils";
 import type { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
+import type { Prisma } from "@/prisma/generated/prisma/client";
 
 const statusSchema = z.enum(["received", "repairing", "done", "failed"]);
 const availableTaskStatuses: RepairOrderStatus[] = ["received", "repairing"];

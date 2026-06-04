@@ -103,5 +103,11 @@
   "trustedDependencies": [
     "sharp",
     "unrs-resolver"
-  ]
+  ],
+  "resolutions": {
+    "zod": "^4.4.3"
+  },
+  "overrides": {
+    "zod": "^4.4.3"
+  }
 }
