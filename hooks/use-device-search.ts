@@ -130,9 +130,11 @@ export function useDeviceSearch({
     );
 
     if (trimmed.length < 3 || hasLocalMatch) {
-      setMobileApiResults([]);
-      setIsSearchingMobileApi(false);
-      return;
+      const resetTimeout = setTimeout(() => {
+        setMobileApiResults([]);
+        setIsSearchingMobileApi(false);
+      }, 0);
+      return () => clearTimeout(resetTimeout);
     }
 
     let active = true;

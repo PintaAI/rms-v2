@@ -48,7 +48,6 @@ export function UserInfo() {
   const settingsOpen = manualSettingsOpen || Boolean(initialTab);
 
   useEffect(() => {
-    setDynamicTheme(getThemeMode());
     return onThemeModeChange(setDynamicTheme);
   }, []);
 

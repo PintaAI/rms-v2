@@ -99,7 +99,8 @@ export function PhoneUnitTable({
   }, [tokoId, searchQuery, statusFilter, conditionFilter, page]);
 
   useEffect(() => {
-    void loadUnits();
+    const timer = window.setTimeout(() => void loadUnits(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadUnits]);
 
   const handleAdd = () => {

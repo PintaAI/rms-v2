@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/components/auth/auth-provider";
 import { getTokoById, updateToko, deleteToko, createToko } from "@/actions/toko";
+import { McpSettingsCard } from "@/components/dashboard/admin/mcp-settings-card";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,6 +320,8 @@ export function ManageToko({ currentTokoId: tokoid }: { currentTokoId: string })
             Add Toko
           </Button>
         </div>
+
+        <McpSettingsCard />
 
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {tokoList.map((toko) => {
