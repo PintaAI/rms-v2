@@ -8,6 +8,7 @@ import {
   RiLockPasswordLine,
   RiMoneyDollarCircleLine,
   RiPaletteLine,
+  RiRobotLine,
   RiSettings4Line,
   RiUserLine,
   RiVipCrownLine,
@@ -19,6 +20,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useOptionalDashboardScope } from "@/components/dashboard/layout/dashboard-scope-context";
 import { FeatureSettingsTab } from "@/components/dashboard/admin/feature-settings-tab";
 import { WhatsappSettingsTab } from "@/components/dashboard/admin/whatsapp-settings-tab";
+import { AiConnectorSettingsTab } from "@/components/settings/ai-connector-tab";
 import { AppearanceSettingsTab } from "@/components/settings/appearance-tab";
 import { BillingSettingsTab } from "@/components/settings/billing-tab";
 import { getParamValue } from "@/components/settings/helpers";
@@ -49,6 +51,7 @@ const baseMenuItems: { id: SettingsTab; label: string; icon: React.ReactNode }[]
   { id: "profile", label: "Profile", icon: <RiUserLine /> },
   { id: "features", label: "Pengaturan Fitur", icon: <RiSettings4Line /> },
   { id: "whatsapp", label: "WhatsApp", icon: <RiWhatsappLine /> },
+  { id: "ai-connector", label: "AI Connector", icon: <RiRobotLine /> },
   { id: "password", label: "Password", icon: <RiLockPasswordLine /> },
   { id: "appearance", label: "Tampilan", icon: <RiPaletteLine /> },
   { id: "affiliate", label: "Affiliate", icon: <RiMoneyDollarCircleLine /> },
@@ -144,6 +147,8 @@ export function UserSettings({ open, onOpenChange, user, initialTab }: UserSetti
           return <EmptyTabMessage message="Anda tidak memiliki permission untuk melihat pengaturan WhatsApp toko ini." />;
         }
         return currentTokoId ? <WhatsappSettingsTab tokoId={currentTokoId} canManageSettings={canManageWhatsapp} /> : <EmptyTabMessage message="Pilih toko untuk mengatur WhatsApp." />;
+      case "ai-connector":
+        return <AiConnectorSettingsTab />;
       case "password":
         return <PasswordSettingsTab onSuccess={() => onOpenChange(false)} />;
       case "appearance":

@@ -1,6 +1,6 @@
 import type { BillingPlanSummary, OwnerBillingSummary } from "@/actions";
 
-export type SettingsTab = "profile" | "features" | "whatsapp" | "password" | "billing" | "premium" | "appearance" | "affiliate";
+export type SettingsTab = "profile" | "features" | "whatsapp" | "password" | "billing" | "premium" | "appearance" | "affiliate" | "ai-connector";
 
 export interface SettingsUser {
   name?: string | null;
