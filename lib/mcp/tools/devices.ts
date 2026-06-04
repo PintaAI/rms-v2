@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod/v3";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { ok, toolError } from "@/lib/mcp/tools/utils";
 

@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod/v3";
+import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { assertFeature, assertPermission, can, type RequestScope } from "@/lib/auth/request-scope";
 import { ensureMonthlyActivityLimit } from "@/lib/auth/enforcement";
