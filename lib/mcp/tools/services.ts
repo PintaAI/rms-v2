@@ -7,7 +7,7 @@ import { createActivityLog, preserveDeletedServiceActivityLogs } from "@/lib/act
 import { revalidateServicePaths } from "@/lib/revalidation";
 import { syncWhatsappIdentityFromPhone } from "@/lib/whatsapp-identity";
 import { validateIndonesianWhatsappNumber } from "@/lib/whatsapp-number";
-import { ok, toolError, getMcpScope, assertMcpWriteScope } from "@/lib/mcp/tools/utils";
+import { ok, toolError, getMcpScope, assertMcpWriteScope, parseDateFilter } from "@/lib/mcp/tools/utils";
 import type { RepairOrderStatus } from "@/prisma/generated/prisma/enums";
 import type { Prisma } from "@/prisma/generated/prisma/client";
 
@@ -38,13 +38,6 @@ type RepairOrderInput = {
 };
 
 type ActivityDbClient = Parameters<typeof createActivityLog>[0];
-
-function parseDate(value?: string) {
-  if (!value) return undefined;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new Error(`Invalid date: ${value}`);
-  return date;
-}
 
 function validateRepairOrderInput(data: RepairOrderInput) {
   const whatsapp = validateIndonesianWhatsappNumber(data.noWa);
@@ -363,8 +356,8 @@ export function registerServiceTools(server: McpServer) {
       inputSchema: {
         query: z.string().trim().optional().describe("Search customer name, WhatsApp number, IMEI, complaint, notes, technician, brand, or model."),
         statuses: z.array(statusSchema).optional().describe("Filter by one or more repair statuses."),
-        from: z.string().optional().describe("Check-in start date/time. ISO or YYYY-MM-DD."),
-        to: z.string().optional().describe("Check-in end date/time. ISO or YYYY-MM-DD."),
+        from: z.string().optional().describe("Check-in start date/time. Accepts YYYY-MM-DD (interpreted as local start-of-day) or a full ISO 8601 timestamp."),
+        to: z.string().optional().describe("Check-in end date/time. Accepts YYYY-MM-DD (interpreted as local end-of-day, 23:59:59.999) or a full ISO 8601 timestamp."),
         pageSize: z.number().int().min(1).max(50).optional().describe("Items per page. Defaults to 20."),
         skip: z.number().int().min(0).optional().describe("Number of repair orders to skip. Defaults to 0."),
       },
@@ -377,8 +370,8 @@ export function registerServiceTools(server: McpServer) {
         const shouldLimitToAssignedTasks = can(scope, "service.takeOverTask") && !can(scope, "service.create");
         const trimmedQuery = query?.trim();
         const checkinAt: Prisma.DateTimeFilter = {
-          ...(from ? { gte: parseDate(from) } : {}),
-          ...(to ? { lte: parseDate(to) } : {}),
+          ...(from ? { gte: parseDateFilter(from, "start") } : {}),
+          ...(to ? { lte: parseDateFilter(to, "end") } : {}),
         };
         const where: Prisma.RepairOrderWhereInput = {
           storeId: scope.storeId,

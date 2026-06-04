@@ -48,3 +48,39 @@ export function assertMcpWriteScope() {
     throw new Error("MCP client is missing required scope: rms:write");
   }
 }
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isDateOnly(value: string): boolean {
+  if (!DATE_ONLY_RE.test(value)) return false;
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+function isFullIsoDateTime(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) && !Number.isNaN(new Date(value).getTime());
+}
+
+export function parseDateFilter(value: string | undefined, role: "start" | "end"): Date | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  if (isDateOnly(trimmed)) {
+    const [year, month, day] = trimmed.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    if (role === "end") date.setHours(23, 59, 59, 999);
+    return date;
+  }
+
+  if (isFullIsoDateTime(trimmed)) {
+    const date = new Date(trimmed);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+
+  throw new Error(
+    `Invalid date filter: ${value}. Use YYYY-MM-DD for date-only or a full ISO 8601 timestamp.`,
+  );
+}
