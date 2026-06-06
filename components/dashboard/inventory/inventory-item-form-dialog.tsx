@@ -251,6 +251,7 @@ function SparepartFormContent({
       criticalStock: criticalStockValue,
       warrantyDays: isRetailItem ? warrantyDaysValue : null,
       isUniversal: finalIsUniversal,
+      isActive: true,
       type: mode,
       storeId: tokoId,
       category: optimisticCategory,

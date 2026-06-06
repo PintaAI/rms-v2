@@ -34,6 +34,7 @@ import {
   RiPrinterLine,
 } from "@remixicon/react";
 import { formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface StaffSparepartTableProps {
   tokoId: string;
@@ -121,9 +122,12 @@ export function StaffSparepartTable({ tokoId, initialSearchQuery = "" }: StaffSp
     setIsDeletingSparepart(false);
     if (result.success) {
       setSpareparts((prev) => prev.filter((sp) => sp.id !== deletingSparepart.id));
+      toast.success("Sparepart dihapus dari daftar. Riwayat lama tetap tersimpan jika item pernah dipakai.");
+      setDeleteSparepartDialogOpen(false);
+      setDeletingSparepart(null);
+      return;
     }
-    setDeleteSparepartDialogOpen(false);
-    setDeletingSparepart(null);
+    toast.error(result.error ?? "Gagal menghapus sparepart");
   };
 
   return (

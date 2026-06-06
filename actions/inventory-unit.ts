@@ -231,7 +231,7 @@ async function findDuplicateMetadataValue(
 ) {
   if (!value) return null
   const items = await prisma.inventoryItem.findMany({
-    where: { type: "phone_unit" },
+    where: { type: "phone_unit", isActive: true },
     select: { id: true, metadata: true },
   })
 
@@ -253,6 +253,7 @@ export async function getInventoryUnits(
     const items = await prisma.inventoryItem.findMany({
       where: {
         storeId,
+        isActive: true,
         type: "phone_unit",
         ...(normalized.deviceModelId ? { deviceModelId: normalized.deviceModelId } : {}),
       },
@@ -309,7 +310,7 @@ export async function getInventoryUnit(
     await assertInventoryUnitAccess(storeId, "inventory.managePhoneUnits")
 
     const item = await prisma.inventoryItem.findFirst({
-      where: { id: unitId, storeId, type: "phone_unit" },
+      where: { id: unitId, storeId, type: "phone_unit", isActive: true },
       select: {
         id: true,
         deviceModelId: true,
@@ -346,6 +347,7 @@ export async function getAvailablePhoneUnits(
     const items = await prisma.inventoryItem.findMany({
       where: {
         storeId,
+        isActive: true,
         type: "phone_unit",
         ...(deviceModelId ? { deviceModelId } : {}),
       },

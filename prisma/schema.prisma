@@ -744,6 +744,7 @@ model InventoryItem {
   criticalStock Int               @default(5)
   warrantyDays  Int?
   isUniversal   Boolean           @default(false)
+  isActive      Boolean           @default(true)
   type          InventoryItemType @default(repair_part)
   metadata      Json?
   storeId       String

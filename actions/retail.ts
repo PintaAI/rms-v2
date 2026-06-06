@@ -231,6 +231,7 @@ export async function getRetailCheckoutItems(
     const items = await prisma.inventoryItem.findMany({
       where: {
         storeId,
+        isActive: true,
         type: { not: "phone_unit" },
         stock: { gt: 0 },
         ...(search
@@ -288,6 +289,7 @@ export async function getPhoneUnitsForCheckout(
     const units = await prisma.inventoryItem.findMany({
       where: {
         storeId,
+        isActive: true,
         type: "phone_unit",
         stock: { gt: 0 },
       },
@@ -538,6 +540,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Ac
       const inventoryItems = await tx.inventoryItem.findMany({
         where: {
           storeId: scope.storeId,
+          isActive: true,
           id: { in: Array.from(qtyBySparepartId.keys()) },
         },
         select: {
@@ -631,6 +634,7 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<Ac
           where: {
             id: item.id,
             storeId: scope.storeId,
+            isActive: true,
             stock: { gte: qty },
           },
           data: {

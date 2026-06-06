@@ -39,6 +39,7 @@ export function registerInventoryTools(server: McpServer) {
         const trimmedQuery = query?.trim();
         const where: Prisma.InventoryItemWhereInput = {
           storeId: scope.storeId,
+          isActive: true,
           type,
           ...(categoryId ? { categoryId } : {}),
           ...(trimmedQuery

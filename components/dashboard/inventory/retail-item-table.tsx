@@ -13,6 +13,7 @@ import { SparepartRestockDialog } from "@/components/dashboard/inventory/sparepa
 import { SparepartStockBadge } from "@/components/dashboard/inventory/sparepart-stock-badge";
 import { formatCurrency } from "@/lib/utils";
 import { RiAddLine, RiDeleteBinLine, RiEditLine, RiLoader4Line, RiSearchLine, RiStackLine, RiUpload2Line } from "@remixicon/react";
+import { toast } from "sonner";
 
 interface RetailItemTableProps {
   tokoId: string;
@@ -84,9 +85,14 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
     setIsDeleting(true);
     const result = await deleteInventoryItem(deletingItem.id);
     setIsDeleting(false);
-    if (result.success) setItems((prev) => prev.filter((item) => item.id !== deletingItem.id));
-    setDeleteOpen(false);
-    setDeletingItem(null);
+    if (result.success) {
+      setItems((prev) => prev.filter((item) => item.id !== deletingItem.id));
+      toast.success("Barang dihapus dari daftar. Riwayat lama tetap tersimpan jika item pernah dipakai.");
+      setDeleteOpen(false);
+      setDeletingItem(null);
+      return;
+    }
+    toast.error(result.error ?? "Gagal menghapus barang");
   };
 
   return (

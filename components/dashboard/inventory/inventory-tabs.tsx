@@ -60,6 +60,7 @@ import {
   RiSmartphoneLine,
 } from "@remixicon/react";
 import { cn, formatCurrency } from "@/lib/utils";
+import { toast } from "sonner";
 
 type ViewMode = "table" | "card";
 type StockFilter = "all" | "critical" | "out" | "safe";
@@ -313,9 +314,12 @@ export function InventoryTabs({ tokoId, readOnly = false, initialSpareparts: _in
     setIsDeletingSparepart(false);
     if (result.success) {
       setSpareparts((prev) => prev.filter((sp) => sp.id !== deletingSparepart.id));
+      toast.success("Sparepart dihapus dari daftar. Riwayat lama tetap tersimpan jika item pernah dipakai.");
+      setDeleteSparepartDialogOpen(false);
+      setDeletingSparepart(null);
+      return;
     }
-    setDeleteSparepartDialogOpen(false);
-    setDeletingSparepart(null);
+    toast.error(result.error ?? "Gagal menghapus sparepart");
   };
 
   const handleAddPricelist = () => {

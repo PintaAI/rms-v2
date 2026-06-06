@@ -199,6 +199,7 @@ export async function searchDashboard(
       const inventoryItems = await prisma.inventoryItem.findMany({
         where: {
           storeId,
+          isActive: true,
           type: "repair_part",
           OR: [
             { name: { contains: trimmedQuery, mode: "insensitive" } },
@@ -224,6 +225,7 @@ export async function searchDashboard(
       const retailItems = await prisma.inventoryItem.findMany({
         where: {
           storeId,
+          isActive: true,
           type: "retail_product",
           OR: [
             { name: { contains: trimmedQuery, mode: "insensitive" } },

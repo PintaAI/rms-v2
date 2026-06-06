@@ -23,6 +23,7 @@ export type InventoryItem = {
   criticalStock: number
   warrantyDays: number | null
   isUniversal: boolean
+  isActive: boolean
   type: InventoryItemKind
   storeId: string
 }
@@ -463,7 +464,7 @@ export async function getInventoryItems(storeId: string, type: InventoryItemKind
     if (!access.success) return access
 
     const inventoryItems = await prisma.inventoryItem.findMany({
-      where: { storeId, type },
+      where: { storeId, type, isActive: true },
       include: {
         category: true,
         compatibilities: {
@@ -490,11 +491,7 @@ export async function getCompatibleInventoryItems(storeId: string, deviceModelId
     const access = await getInventoryUser(storeId, "inventory.view", "inventory.management")
     if (!access.success) return access
 
-    const whereClause: {
-      storeId: string
-      type: InventoryItemKind
-      OR?: Array<{ isUniversal: boolean } | { compatibilities: { some: { deviceModelId: string } } }>
-    } = { storeId, type: "repair_part" }
+    const whereClause: Prisma.InventoryItemWhereInput = { storeId, type: "repair_part", isActive: true }
 
     if (deviceModelId) {
       whereClause.OR = [
@@ -532,7 +529,7 @@ export async function createInventoryItem(data: z.infer<typeof createInventoryIt
 
     const type = validated.type ?? "repair_part"
     const existing = await prisma.inventoryItem.findFirst({
-      where: { storeId: validated.storeId, type, name: validated.name },
+      where: { storeId: validated.storeId, type, name: validated.name, isActive: true },
     })
 
     if (existing) {
@@ -626,6 +623,7 @@ export async function updateInventoryItem(data: z.infer<typeof updateInventoryIt
           storeId: inventoryItem.storeId,
           name: validated.name,
           id: { not: validated.id },
+          isActive: true,
         },
       })
       if (existing) {
@@ -740,6 +738,7 @@ export async function importInventoryItems(data: z.infer<typeof importInventoryI
     const existingSpareparts = await prisma.inventoryItem.findMany({
       where: {
         storeId: validated.storeId,
+        isActive: true,
         name: { in: validRows.map((row) => row.name) },
       },
       select: { id: true, name: true, type: true },
@@ -899,11 +898,14 @@ export async function restockInventoryItem(data: z.infer<typeof restockInventory
 
     const inventoryItem = await prisma.inventoryItem.findUnique({
       where: { id: validated.id },
-      select: { storeId: true, barcode: true, name: true, stock: true, purchasePrice: true, type: true },
+      select: { storeId: true, barcode: true, name: true, stock: true, purchasePrice: true, type: true, isActive: true },
     })
 
     if (!inventoryItem) {
       return { success: false, error: "Sparepart tidak ditemukan" }
+    }
+    if (!inventoryItem.isActive) {
+      return { success: false, error: "Sparepart sudah diarsipkan" }
     }
 
     const access = await getInventoryUser(inventoryItem.storeId, "inventory.restock")
@@ -994,7 +996,7 @@ export async function restockInventoryItemsWithDebt(
     }
 
     const existingSpareparts = await prisma.inventoryItem.findMany({
-      where: { id: { in: inventoryItemIds }, storeId: validated.storeId },
+      where: { id: { in: inventoryItemIds }, storeId: validated.storeId, isActive: true },
       select: { id: true, barcode: true, name: true, stock: true, purchasePrice: true, type: true },
     })
     const inventoryItemById = new Map(existingSpareparts.map((inventoryItem) => [inventoryItem.id, inventoryItem]))
@@ -1141,6 +1143,7 @@ export async function searchInventoryItems(storeId: string, query: string, type:
     const inventoryItems = await prisma.inventoryItem.findMany({
       where: {
         storeId,
+        isActive: true,
         type,
         OR: [
           { barcode: { equals: query, mode: "insensitive" } },
@@ -1359,7 +1362,7 @@ export async function getInventoryReport(
 
     const [inventoryItems, supplierReturns] = await Promise.all([
       prisma.inventoryItem.findMany({
-        where: { storeId, ...(filters.type ? { type: filters.type } : {}) },
+        where: { storeId, isActive: true, ...(filters.type ? { type: filters.type } : {}) },
         include: { category: true },
         orderBy: { name: "asc" },
       }),
@@ -1516,7 +1519,7 @@ export async function deleteInventoryItem(id: string): Promise<ActionResult> {
   try {
     const inventoryItem = await prisma.inventoryItem.findUnique({
       where: { id },
-      select: { storeId: true, name: true, type: true },
+      select: { storeId: true, name: true, type: true, isActive: true },
     })
 
     if (!inventoryItem) {
@@ -1526,18 +1529,29 @@ export async function deleteInventoryItem(id: string): Promise<ActionResult> {
     const access = await getInventoryUser(inventoryItem.storeId, "inventory.delete", "inventory.management", inventoryItem.type)
     if (!access.success) return access
 
-    const usedInServices = await prisma.repairOrderItem.findFirst({
-      where: { referenceId: id },
-    })
+    if (!inventoryItem.isActive) return { success: true }
 
-    if (usedInServices) {
-      return { success: false, error: "Tidak dapat menghapus sparepart yang digunakan dalam service" }
-    }
-
-    await prisma.$transaction([
-      prisma.partCompatibility.deleteMany({ where: { inventoryItemId: id } }),
-      prisma.inventoryItem.delete({ where: { id } }),
+    const [serviceUsage, salesUsage, warrantyUsage, supplierReturnUsage, auditUsage, movementUsage] = await Promise.all([
+      prisma.repairOrderItem.count({ where: { referenceId: id } }),
+      prisma.salesOrderItem.count({ where: { inventoryItemId: id } }),
+      prisma.warrantyClaimItem.count({ where: { inventoryItemId: id } }),
+      prisma.supplierReturn.count({ where: { inventoryItemId: id } }),
+      prisma.inventoryAuditItem.count({ where: { inventoryItemId: id } }),
+      prisma.inventoryMovement.count({ where: { inventoryItemId: id } }),
     ])
+    const hasHistory = serviceUsage + salesUsage + warrantyUsage + supplierReturnUsage + auditUsage + movementUsage > 0
+
+    if (hasHistory) {
+      await prisma.inventoryItem.update({
+        where: { id },
+        data: { isActive: false },
+      })
+    } else {
+      await prisma.$transaction([
+        prisma.partCompatibility.deleteMany({ where: { inventoryItemId: id } }),
+        prisma.inventoryItem.delete({ where: { id } }),
+      ])
+    }
 
     revalidateInventoryPaths(inventoryItem.storeId)
 
@@ -1549,6 +1563,7 @@ export async function deleteInventoryItem(id: string): Promise<ActionResult> {
       payload: {
         inventoryItemId: id,
         name: inventoryItem.name,
+        archived: hasHistory,
       },
     })
 

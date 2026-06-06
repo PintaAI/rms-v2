@@ -287,7 +287,7 @@ export async function startInventoryAudit(
         }
 
         const inventoryItems = await tx.inventoryItem.findMany({
-          where: { storeId: validatedTokoId, type: "repair_part" },
+          where: { storeId: validatedTokoId, type: "repair_part", isActive: true },
           orderBy: { name: "asc" },
           select: {
             id: true,
