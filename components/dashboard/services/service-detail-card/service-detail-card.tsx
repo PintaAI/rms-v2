@@ -76,6 +76,7 @@ import {
   resolveWarrantyClaim,
   getWhatsappState,
   sendWhatsappInboxMessage,
+  getTechniciansByToko,
 } from "@/actions";
 import type { ServiceListItem, WarrantyClaim } from "@/actions";
 import { AddRepairItemForm } from "@/components/dashboard/services/add-repair-item-form";
@@ -137,6 +138,8 @@ const warrantyPresets = [
   { label: "2 Bulan", months: 2 },
   { label: "3 Bulan", months: 3 },
 ] as const;
+
+type TechnicianOption = { id: string; name: string; email?: string };
 
 function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
@@ -349,6 +352,7 @@ export function ServiceDetailCard({
   const isActive = variant === "active";
   const { featureAccess, permissionAccess, inventoryEnabled, user: currentUser } = useDashboardScope();
   const technicianWorkflowEnabled = featureAccess["technician.workflow"] ?? false;
+  const technicianAssignmentEnabled = featureAccess["service.technicianAssignment"] ?? false;
   const canUseWhatsappIntegration = Boolean(featureAccess["whatsapp.integration"] && permissionAccess["whatsapp.send"]);
   const canHandleCustomerHandoff = viewerRole === "admin" || viewerRole === "staff";
   const canManageWarrantyClaims = canHandleCustomerHandoff;
@@ -523,12 +527,14 @@ export function ServiceDetailCard({
   const [doneDialogOpen, setDoneDialogOpen] = useState(false);
   const [doneNote, setDoneNote] = useState("");
   const [warrantyDate, setWarrantyDate] = useState("");
+  const [selectedCompletionTechnicianId, setSelectedCompletionTechnicianId] = useState("");
+  const [completionTechnicians, setCompletionTechnicians] = useState<TechnicianOption[]>([]);
+  const [isLoadingCompletionTechnicians, setIsLoadingCompletionTechnicians] = useState(false);
   const [showDoneTakeoverWarning, setShowDoneTakeoverWarning] = useState(false);
   const [isMarkingDone, setIsMarkingDone] = useState(false);
 
   const [failedDialogOpen, setFailedDialogOpen] = useState(false);
   const [failedNote, setFailedNote] = useState("");
-  const [failedTakeOwnership, setFailedTakeOwnership] = useState(false);
   const [isMarkingFailed, setIsMarkingFailed] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [isPayingInvoice, setIsPayingInvoice] = useState(false);
@@ -592,7 +598,6 @@ export function ServiceDetailCard({
   const showCustomerHandoffActions = canHandleCustomerHandoff && hasCompletedStatus && (Boolean(localService.noWa) || canPayInvoice || canMarkPickedUp || Boolean(localService.invoice));
   const warrantyUntilDate = localService.warrantyUntil ? new Date(localService.warrantyUntil) : null;
   const warrantyExpired = warrantyUntilDate ? warrantyUntilDate < new Date() : false;
-  const adminCompletingUnassignedService = technicianWorkflowEnabled && viewerRole === "admin" && !localService.technician;
   const adminCompletingAssignedService = technicianWorkflowEnabled && viewerRole === "admin" && Boolean(localService.technician);
   const adminCompletingAssignedToOther = technicianWorkflowEnabled && viewerRole === "admin" && Boolean(localService.technician) && localService.technician?.id !== currentUser.id;
   const warrantyClaims = localService.warrantyClaims ?? [];
@@ -602,6 +607,31 @@ export function ServiceDetailCard({
   const selectedSupplierReturnSparepart = spareparts.find((sparepart) => sparepart.id === claimSupplierReturnSparepartId);
   const claimSparepartStockInsufficient = claimResolution === "replace_part" && Boolean(selectedClaimSparepart) && claimSparepartQty > (selectedClaimSparepart?.stock ?? 0);
   const supplierReturnInvalid = claimResolution === "replace_part" && claimSupplierReturnEnabled && (!claimSupplierReturnSparepartId || claimSupplierReturnReason.trim().length < 3);
+  const completionTechnicianOptions = useMemo(() => {
+    const options = new Map<string, TechnicianOption>();
+    for (const technician of completionTechnicians) options.set(technician.id, technician);
+    if (localService.technician) options.set(localService.technician.id, localService.technician);
+    if (viewerRole === "technician") options.set(currentUser.id, { id: currentUser.id, name: currentUser.name });
+    return Array.from(options.values());
+  }, [completionTechnicians, localService.technician, viewerRole, currentUser.id, currentUser.name]);
+  const selectedCompletionTechnician = completionTechnicianOptions.find((technician) => technician.id === selectedCompletionTechnicianId) ?? null;
+
+  async function loadCompletionTechnicians() {
+    if (viewerRole === "technician" || !technicianAssignmentEnabled) return;
+    setIsLoadingCompletionTechnicians(true);
+    try {
+      const result = await getTechniciansByToko(localServiceRef.current.storeId);
+      if (!result.success || !result.data) {
+        toast.error(result.error || "Gagal memuat daftar teknisi");
+        return;
+      }
+      setCompletionTechnicians(result.data);
+    } catch {
+      toast.error("Gagal memuat daftar teknisi");
+    } finally {
+      setIsLoadingCompletionTechnicians(false);
+    }
+  }
 
   function openDoneDialog() {
     if (localService.items.length === 0) {
@@ -611,12 +641,19 @@ export function ServiceDetailCard({
 
     setDoneNote("");
     setWarrantyDate(getPresetWarrantyDate(warrantyPresets[1]));
+    setSelectedCompletionTechnicianId(localService.technician?.id ?? (viewerRole === "technician" ? currentUser.id : ""));
     setShowDoneTakeoverWarning(false);
     setDoneDialogOpen(true);
+    void loadCompletionTechnicians();
   }
 
   async function handleMarkDone() {
-    if (adminCompletingAssignedToOther && !showDoneTakeoverWarning) {
+    if (!selectedCompletionTechnicianId) {
+      toast.error("Pilih teknisi yang menangani service ini.");
+      return;
+    }
+
+    if (adminCompletingAssignedToOther && selectedCompletionTechnicianId === currentUser.id && !showDoneTakeoverWarning) {
       setShowDoneTakeoverWarning(true);
       return;
     }
@@ -625,16 +662,14 @@ export function ServiceDetailCard({
     const doneNoteValue = doneNote.trim();
     const warrantyUntil = parseDateInputValue(warrantyDate);
     const currentService = localServiceRef.current;
-    const takeOwnership = technicianWorkflowEnabled
-      && viewerRole === "admin"
-      && (!currentService.technician || currentService.technician.id !== currentUser.id);
     const doneAt = new Date();
+    const technician = selectedCompletionTechnician ?? currentService.technician;
     const patch: Partial<Omit<ServiceListItem, "id">> = {
       status: "done" as ServiceListItem["status"],
       doneAt,
       warrantyUntil,
       note: doneNoteValue || currentService.note,
-      technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : currentService.technician,
+      technician,
     };
     onOptimisticStatusChange?.(currentService.id, patch);
     await mutate({
@@ -643,9 +678,9 @@ export function ServiceDetailCard({
         status: "done",
         doneAt,
         warrantyUntil,
-        technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : prev.technician,
+        technician,
       }),
-      action: () => updateStatus(localServiceRef.current.id, "done", doneNoteValue || undefined, warrantyUntil, { takeOwnership }),
+      action: () => updateStatus(localServiceRef.current.id, "done", doneNoteValue || undefined, warrantyUntil, { technicianId: selectedCompletionTechnicianId }),
       onSuccess: () => { onOptimisticStatusSuccess?.(currentService.id, "done"); setDoneDialogOpen(false); setShowDoneTakeoverWarning(false); onRefresh?.(); onStatusChange?.("done"); },
       onError: () => onOptimisticStatusError?.(currentService.id),
     });
@@ -654,23 +689,29 @@ export function ServiceDetailCard({
 
   function openFailedDialog() {
     setFailedNote("");
-    setFailedTakeOwnership(false);
+    setSelectedCompletionTechnicianId(localService.technician?.id ?? (viewerRole === "technician" ? currentUser.id : ""));
     setFailedDialogOpen(true);
+    void loadCompletionTechnicians();
   }
 
   async function handleMarkFailed() {
     if (!failedNote.trim()) return;
+    if (!selectedCompletionTechnicianId) {
+      toast.error("Pilih teknisi yang menangani service ini.");
+      return;
+    }
+
     setIsMarkingFailed(true);
     const failedNoteValue = failedNote.trim();
-    const takeOwnership = adminCompletingUnassignedService && failedTakeOwnership;
     const currentService = localServiceRef.current;
     const doneAt = new Date();
+    const technician = selectedCompletionTechnician ?? currentService.technician;
     const patch: Partial<Omit<ServiceListItem, "id">> = {
       status: "failed" as ServiceListItem["status"],
       doneAt,
       warrantyUntil: null,
       note: failedNoteValue,
-      technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : currentService.technician,
+      technician,
     };
     onOptimisticStatusChange?.(currentService.id, patch);
     await mutate({
@@ -679,9 +720,9 @@ export function ServiceDetailCard({
         status: "failed",
         doneAt,
         warrantyUntil: null,
-        technician: takeOwnership ? { id: currentUser.id, name: currentUser.name } : prev.technician,
+        technician,
       }),
-      action: () => updateStatus(localServiceRef.current.id, "failed", failedNoteValue || undefined, undefined, { takeOwnership }),
+      action: () => updateStatus(localServiceRef.current.id, "failed", failedNoteValue || undefined, undefined, { technicianId: selectedCompletionTechnicianId }),
       onSuccess: () => { onOptimisticStatusSuccess?.(currentService.id, "failed"); setFailedDialogOpen(false); onRefresh?.(); onStatusChange?.("failed"); },
       onError: () => onOptimisticStatusError?.(currentService.id),
     });
@@ -1408,6 +1449,30 @@ export function ServiceDetailCard({
                 Service ini sedang ditangani oleh {localService.technician?.name}. Jika dilanjutkan, service akan di-take over dan penanggung jawab berubah ke {currentUser.name}.
               </div>
             )}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="done-technician">Teknisi</Label>
+              <Select
+                value={selectedCompletionTechnicianId}
+                onValueChange={setSelectedCompletionTechnicianId}
+                disabled={isMarkingDone || isLoadingCompletionTechnicians || viewerRole === "technician"}
+              >
+                <SelectTrigger id="done-technician" className="w-full">
+                  <SelectValue placeholder={isLoadingCompletionTechnicians ? "Memuat teknisi..." : "Pilih teknisi"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {completionTechnicianOptions.map((technician) => (
+                      <SelectItem key={technician.id} value={technician.id}>
+                        {technician.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Pilih teknisi yang benar-benar menangani service ini.
+              </p>
+            </div>
             <div>
               <Label htmlFor="done-note">Service Note (optional)</Label>
               <textarea
@@ -1472,7 +1537,7 @@ export function ServiceDetailCard({
             </Button>
             <Button
               onClick={handleMarkDone}
-              disabled={isMarkingDone}
+              disabled={isMarkingDone || isLoadingCompletionTechnicians || !selectedCompletionTechnicianId}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               {isMarkingDone ? "Marking Done..." : showDoneTakeoverWarning ? "Continue" : "Confirm Done"}
@@ -1493,24 +1558,33 @@ export function ServiceDetailCard({
           <div className="space-y-4">
             {adminCompletingAssignedService && (
               <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300">
-                Service ini sedang ditangani oleh {localService.technician?.name}. Menandai gagal tidak akan mengubah penanggung jawab.
+                Service ini sedang ditangani oleh {localService.technician?.name}. Pastikan pilihan teknisi di bawah sudah benar sebelum menandai gagal.
               </div>
             )}
-            {adminCompletingUnassignedService && (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="failed-take-ownership"
-                    checked={failedTakeOwnership}
-                    onCheckedChange={(checked) => setFailedTakeOwnership(checked === true)}
-                    className="mt-0.5"
-                  />
-                  <Label htmlFor="failed-take-ownership" className="cursor-pointer leading-relaxed">
-                    Saya yang menangani service ini. Dengan melanjutkan, service akan diassign ke {currentUser.name}.
-                  </Label>
-                </div>
-              </div>
-            )}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="failed-technician">Teknisi</Label>
+              <Select
+                value={selectedCompletionTechnicianId}
+                onValueChange={setSelectedCompletionTechnicianId}
+                disabled={isMarkingFailed || isLoadingCompletionTechnicians || viewerRole === "technician"}
+              >
+                <SelectTrigger id="failed-technician" className="w-full">
+                  <SelectValue placeholder={isLoadingCompletionTechnicians ? "Memuat teknisi..." : "Pilih teknisi"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {completionTechnicianOptions.map((technician) => (
+                      <SelectItem key={technician.id} value={technician.id}>
+                        {technician.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Pilih teknisi yang menangani pengecekan sampai dinyatakan gagal.
+              </p>
+            </div>
             <div>
               <Label htmlFor="failed-note">Service Note</Label>
               <textarea
@@ -1531,7 +1605,7 @@ export function ServiceDetailCard({
             <Button
               variant="destructive"
               onClick={handleMarkFailed}
-              disabled={isMarkingFailed || !failedNote.trim() || (adminCompletingUnassignedService && !failedTakeOwnership)}
+              disabled={isMarkingFailed || isLoadingCompletionTechnicians || !failedNote.trim() || !selectedCompletionTechnicianId}
             >
               {isMarkingFailed ? "Marking Failed..." : "Confirm Failed"}
             </Button>

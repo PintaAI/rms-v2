@@ -469,7 +469,7 @@ export async function updateStatus(
   status: RepairOrderStatus,
   note?: string,
   warrantyUntil?: Date | null,
-  options?: { takeOwnership?: boolean }
+  options?: { takeOwnership?: boolean; technicianId?: string | null }
 ): Promise<ActionResult> {
   const service = await prisma.repairOrder.findUnique({
     where: { id: repairOrderId },
@@ -498,15 +498,32 @@ export async function updateStatus(
     const changedAt = new Date();
 
     const isCompleting = isCompletingStatus(status);
-    const shouldAssignActor =
-      isCompleting &&
-      (isTechnicianRole(scope.user.role) ||
-        (scope.user.role === "admin" && options?.takeOwnership === true && (!service.technicianId || status === "done")));
+    let completionTechnicianId = service.technicianId;
 
-    if (isCompleting && scope.user.role === "admin" && !service.technicianId && !options?.takeOwnership) {
+    if (isCompleting && isTechnicianRole(scope.user.role)) {
+      completionTechnicianId = scope.user.id;
+    } else if (isCompleting && options?.technicianId) {
+      if (options.technicianId !== service.technicianId) {
+        assertFeature(scope, "service.technicianAssignment");
+        const technician = await prisma.user.findUnique({
+          where: { id: options.technicianId },
+          select: { role: true, storeAssignments: { select: { storeId: true } } },
+        });
+        if (!technician || technician.role !== "technician") throw new Error("Invalid technician");
+        const technicianStoreIds = technician.storeAssignments.map((assignment) => assignment.storeId);
+        if (!technicianStoreIds.includes(scope.storeId)) throw new Error("Technician does not belong to this toko");
+      }
+      completionTechnicianId = options.technicianId;
+    } else if (isCompleting && scope.user.role === "admin" && options?.takeOwnership === true && (!service.technicianId || status === "done")) {
+      completionTechnicianId = scope.user.id;
+    }
+
+    const shouldAssignTechnician = isCompleting && Boolean(completionTechnicianId) && completionTechnicianId !== service.technicianId;
+
+    if (isCompleting && !completionTechnicianId) {
       return {
         success: false,
-        error: "Service belum memiliki penanggung jawab. Centang konfirmasi bahwa Anda yang menangani service ini.",
+        error: "Service belum memiliki penanggung jawab. Pilih teknisi sebelum menyelesaikan service.",
       };
     }
 
@@ -518,8 +535,8 @@ export async function updateStatus(
           doneAt: isCompleting ? changedAt : null,
           warrantyUntil: status === "done" ? warrantyDate : null,
           ...(note !== undefined ? { note } : {}),
-          ...(shouldAssignActor
-            ? { technicianId: scope.user.id, assignedAt: changedAt }
+          ...(shouldAssignTechnician
+            ? { technicianId: completionTechnicianId!, assignedAt: changedAt }
             : {}),
         },
       });
@@ -536,8 +553,8 @@ export async function updateStatus(
           previousTechnicianId: service.technicianId,
           note: note ?? null,
           warrantyUntil: warrantyDate?.toISOString() ?? null,
-          assignedActor: shouldAssignActor,
-          technicianId: shouldAssignActor ? scope.user.id : service.technicianId,
+          assignedActor: shouldAssignTechnician,
+          technicianId: completionTechnicianId,
         },
       });
     });
