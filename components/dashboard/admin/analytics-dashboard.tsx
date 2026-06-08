@@ -126,7 +126,7 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
         <AnalyticsMetricCard
           title="Total Pendapatan"
           value={formatCurrency(data.summary.totalRevenue)}
-          description="Service lunas + retail paid"
+          description="Pelunasan service + retail paid"
           icon={<RiMoneyDollarCircleLine className="size-4" />}
           variant="success"
         />
@@ -140,7 +140,7 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
         <AnalyticsMetricCard
           title="Pendapatan Service"
           value={formatCurrency(data.summary.paidRevenue)}
-          description={`${data.summary.paidInvoices} invoice lunas`}
+          description={`${data.summary.paidInvoices} invoice setelah DP & diskon`}
           icon={<RiToolsLine className="size-4" />}
           variant="default"
         />
@@ -164,14 +164,14 @@ export function AdminAnalyticsDashboard({ data }: AdminAnalyticsDashboardProps) 
         <AnalyticsMetricCard
           title="Pendapatan Lunas"
           value={formatCurrency(data.summary.paidRevenue)}
-          description={`${data.summary.paidInvoices} invoice lunas`}
+          description={`${data.summary.paidInvoices} invoice setelah DP & diskon`}
           icon={<RiMoneyDollarCircleLine className="size-4" />}
           variant="success"
         />
         <AnalyticsMetricCard
           title="Pendapatan Tertunda"
           value={formatCurrency(data.summary.pendingRevenue)}
-          description="Sisa tagihan belum lunas / DP"
+          description="Sisa tagihan belum lunas"
           icon={<RiTimeLine className="size-4" />}
           variant="warning"
         />

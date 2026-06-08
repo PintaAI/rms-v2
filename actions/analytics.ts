@@ -144,9 +144,13 @@ export async function getAdminAnalytics(
       checkinAt: { gte: periodStart, lt: periodEnd },
       ...(normalizedFilters.status ? { status: normalizedFilters.status } : {}),
     };
+    const invoiceRepairOrderWhere = {
+      storeId,
+      ...(normalizedFilters.status ? { status: normalizedFilters.status } : {}),
+    };
 
     const retailEnabled = scope.featureAccess["retail.sales"] ?? false;
-    const [toko, services, invoices, refundClaims, inventoryItemCount, lowStockCount, stockAggregate, salesOrders] = await Promise.all([
+    const [toko, services, paidInvoices, pendingInvoices, refundClaims, inventoryItemCount, lowStockCount, stockAggregate, salesOrders] = await Promise.all([
       prisma.store.findUnique({
         where: { id: storeId },
         select: { id: true, name: true, logoUrl: true },
@@ -158,22 +162,13 @@ export async function getAdminAnalytics(
           status: true,
           checkinAt: true,
           technician: { select: { id: true, name: true } },
-          invoice: {
-            select: {
-              grandTotal: true,
-              paymentStatus: true,
-              paidAt: true,
-            },
-          },
         },
       }),
       prisma.repairInvoice.findMany({
         where: {
-          repairOrder: serviceWhere,
-          OR: [
-            { createdAt: { gte: periodStart, lt: periodEnd } },
-            { paidAt: { gte: periodStart, lt: periodEnd } },
-          ],
+          repairOrder: invoiceRepairOrderWhere,
+          paymentStatus: "paid",
+          paidAt: { gte: periodStart, lt: periodEnd },
         },
         select: {
           grandTotal: true,
@@ -192,6 +187,23 @@ export async function getAdminAnalytics(
               price: true,
             },
           },
+          repairOrder: {
+            select: {
+              technician: { select: { id: true, name: true } },
+            },
+          },
+        },
+      }),
+      prisma.repairInvoice.findMany({
+        where: {
+          repairOrder: invoiceRepairOrderWhere,
+          paymentStatus: { in: ["unpaid", "dp"] },
+          createdAt: { gte: periodStart, lt: periodEnd },
+        },
+        select: {
+          grandTotal: true,
+          dpAmount: true,
+          createdAt: true,
         },
       }),
       prisma.warrantyClaim.findMany({
@@ -248,12 +260,10 @@ export async function getAdminAnalytics(
     }
 
     const lowStockTotal = lowStockCount[0]?.count ?? 0;
-    const paidServiceItemIds = invoices.flatMap((invoice) =>
-      invoice.paymentStatus === "paid"
-        ? invoice.items
-            .map((item) => item.repairOrderItemId)
-            .filter((id): id is string => Boolean(id))
-        : []
+    const paidServiceItemIds = paidInvoices.flatMap((invoice) =>
+      invoice.items
+        .map((item) => item.repairOrderItemId)
+        .filter((id): id is string => Boolean(id))
     );
     const serviceItemCostSnapshots =
       paidServiceItemIds.length > 0
@@ -322,56 +332,67 @@ export async function getAdminAnalytics(
           revenue: 0,
         };
         current.completedServices += 1;
-        if (service.invoice?.paymentStatus === "paid") {
-          current.revenue += service.invoice.grandTotal;
-        }
         technicianMap.set(service.technician.id, current);
       }
     }
 
     let paidRevenue = 0;
+    let paidInvoiceRevenue = 0;
     let serviceNetRevenue = 0;
     let pendingRevenue = 0;
-    let paidInvoices = 0;
+    let paidInvoiceCount = 0;
 
-    for (const invoice of invoices) {
-      if (invoice.paymentStatus === "paid") {
-        const paidDate = invoice.paidAt ?? invoice.createdAt;
-        const bucketKey = getBucketKey(paidDate, bucketMode);
-        if (trendMap[bucketKey]) {
-          paidRevenue += invoice.grandTotal;
-          paidInvoices += 1;
-          trendMap[bucketKey].revenue += invoice.grandTotal;
-
-          for (const item of invoice.items) {
-            const lineRevenue = item.qty * item.price;
-
-            if (item.type === "inventory_item") {
-              const unitCost = item.repairOrderItemId ? serviceItemCostMap.get(item.repairOrderItemId) ?? 0 : 0;
-              serviceNetRevenue += lineRevenue - unitCost * item.qty;
-            } else {
-              serviceNetRevenue += lineRevenue;
-            }
-
-            if (item.type !== "inventory_item") continue;
-
-            const inventoryItemKey = item.referenceId ?? item.name;
-            const current = inventoryItemMap.get(inventoryItemKey) ?? {
-              id: inventoryItemKey,
-              name: item.name,
-              qty: 0,
-              revenue: 0,
-            };
-            current.qty += item.qty;
-            current.revenue += item.qty * item.price;
-            inventoryItemMap.set(inventoryItemKey, current);
-          }
-
-          serviceNetRevenue -= invoice.discountAmount;
-        }
-        continue;
+    for (const invoice of paidInvoices) {
+      const paidAmount = getPaidInvoiceAmount(invoice.grandTotal, invoice.dpAmount, invoice.discountAmount);
+      const paidDate = invoice.paidAt ?? invoice.createdAt;
+      const bucketKey = getBucketKey(paidDate, bucketMode);
+      paidRevenue += paidAmount;
+      paidInvoiceRevenue += paidAmount;
+      paidInvoiceCount += 1;
+      if (trendMap[bucketKey]) {
+        trendMap[bucketKey].revenue += paidAmount;
       }
 
+      for (const item of invoice.items) {
+        const lineRevenue = item.qty * item.price;
+
+        if (item.type === "inventory_item") {
+          const unitCost = item.repairOrderItemId ? serviceItemCostMap.get(item.repairOrderItemId) ?? 0 : 0;
+          serviceNetRevenue += lineRevenue - unitCost * item.qty;
+        } else {
+          serviceNetRevenue += lineRevenue;
+        }
+
+        if (item.type !== "inventory_item") continue;
+
+        const inventoryItemKey = item.referenceId ?? item.name;
+        const current = inventoryItemMap.get(inventoryItemKey) ?? {
+          id: inventoryItemKey,
+          name: item.name,
+          qty: 0,
+          revenue: 0,
+        };
+        current.qty += item.qty;
+        current.revenue += item.qty * item.price;
+        inventoryItemMap.set(inventoryItemKey, current);
+      }
+
+      serviceNetRevenue -= invoice.dpAmount + invoice.discountAmount;
+
+      const technician = invoice.repairOrder.technician;
+      if (technician) {
+        const current = technicianMap.get(technician.id) ?? {
+          id: technician.id,
+          name: technician.name,
+          completedServices: 0,
+          revenue: 0,
+        };
+        current.revenue += paidAmount;
+        technicianMap.set(technician.id, current);
+      }
+    }
+
+    for (const invoice of pendingInvoices) {
       const pendingAmount = Math.max(invoice.grandTotal - invoice.dpAmount, 0);
       pendingRevenue += pendingAmount;
 
@@ -459,8 +480,8 @@ export async function getAdminAnalytics(
         retailRevenue,
         retailGrossMargin,
         pendingRevenue,
-        paidInvoices,
-        averagePaidInvoice: paidInvoices > 0 ? Math.round(paidRevenue / paidInvoices) : 0,
+        paidInvoices: paidInvoiceCount,
+        averagePaidInvoice: paidInvoiceCount > 0 ? Math.round(paidInvoiceRevenue / paidInvoiceCount) : 0,
         totalServices,
         completionRate,
         totalSpareparts: inventoryItemCount,
@@ -594,6 +615,10 @@ function isDateKey(value: string) {
 
 function isRepairOrderStatus(value: unknown): value is RepairOrderStatus {
   return value === "received" || value === "repairing" || value === "done" || value === "failed";
+}
+
+function getPaidInvoiceAmount(grandTotal: number, dpAmount: number, discountAmount: number) {
+  return Math.max(grandTotal - dpAmount - discountAmount, 0);
 }
 
 function getPaymentMethodLabel(method: AdminRetailAnalyticsPaymentPoint["method"]) {

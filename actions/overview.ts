@@ -318,14 +318,14 @@ export async function getAdminOverview(
       recentActivities,
     ] = await Promise.all([
       canViewRevenueAnalytics
-        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
-        : Promise.resolve({ _sum: { grandTotal: 0 } }),
+        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: "paid", paidAt: { gte: monthlyStart } }, _sum: { grandTotal: true, dpAmount: true, discountAmount: true } })
+        : Promise.resolve({ _sum: { grandTotal: 0, dpAmount: 0, discountAmount: 0 } }),
       canViewRevenueAnalytics
-        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: { in: ["unpaid", "dp"] }, createdAt: { gte: monthlyStart } }, _sum: { grandTotal: true } })
-        : Promise.resolve({ _sum: { grandTotal: 0 } }),
+        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: { in: ["unpaid", "dp"] }, createdAt: { gte: monthlyStart } }, _sum: { grandTotal: true, dpAmount: true } })
+        : Promise.resolve({ _sum: { grandTotal: 0, dpAmount: 0 } }),
       canViewRevenueAnalytics
-        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: "paid", paidAt: { gte: dailyStart } }, _sum: { grandTotal: true } })
-        : Promise.resolve({ _sum: { grandTotal: 0 } }),
+        ? prisma.repairInvoice.aggregate({ where: { repairOrder: { storeId }, paymentStatus: "paid", paidAt: { gte: dailyStart } }, _sum: { grandTotal: true, dpAmount: true, discountAmount: true } })
+        : Promise.resolve({ _sum: { grandTotal: 0, dpAmount: 0, discountAmount: 0 } }),
       canViewRevenueAnalytics
         ? prisma.warrantyClaim.aggregate({ where: { storeId, status: "resolved", refundAmount: { gt: 0 }, resolvedAt: { gte: monthlyStart } }, _sum: { refundAmount: true } })
         : Promise.resolve({ _sum: { refundAmount: 0 } }),
@@ -358,8 +358,9 @@ export async function getAdminOverview(
         : Promise.resolve([]),
     ]);
 
-    const monthlyPaidNet = Math.max((monthlyPaidRevenue._sum.grandTotal || 0) - (monthlyRefunds._sum.refundAmount || 0), 0);
-    const dailyRevenueNet = Math.max((dailyRevenue._sum.grandTotal || 0) - (dailyRefunds._sum.refundAmount || 0), 0);
+    const monthlyPaidNet = Math.max((monthlyPaidRevenue._sum.grandTotal || 0) - (monthlyPaidRevenue._sum.dpAmount || 0) - (monthlyPaidRevenue._sum.discountAmount || 0) - (monthlyRefunds._sum.refundAmount || 0), 0);
+    const monthlyPendingNet = Math.max((monthlyPendingRevenue._sum.grandTotal || 0) - (monthlyPendingRevenue._sum.dpAmount || 0), 0);
+    const dailyRevenueNet = Math.max((dailyRevenue._sum.grandTotal || 0) - (dailyRevenue._sum.dpAmount || 0) - (dailyRevenue._sum.discountAmount || 0) - (dailyRefunds._sum.refundAmount || 0), 0);
     const retailRevenueMonth = monthlyRetailRevenue._sum.grandTotal || 0;
     const monthlyIncome = monthlyPaidNet + retailRevenueMonth;
     const supplierDebtRemaining = Math.max((supplierDebtTotals._sum.totalAmount || 0) - (supplierDebtTotals._sum.paidAmount || 0), 0);
@@ -376,7 +377,7 @@ export async function getAdminOverview(
         services: { total, repairing: statusMap["repairing"] || 0, done: statusMap["done"] || 0, failed: statusMap["failed"] || 0, daily: dailyCount, weekly: weeklyCount },
         revenue: {
           monthlyPaid: monthlyPaidNet,
-          monthlyPending: monthlyPendingRevenue._sum.grandTotal || 0,
+          monthlyPending: monthlyPendingNet,
           dailyRevenue: dailyRevenueNet,
           monthlyIncome,
           supplierDebtRemaining,
