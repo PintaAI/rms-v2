@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InventoryItemFormDialog } from "@/components/dashboard/inventory/inventory-item-form-dialog";
 import { SparepartImportDialog } from "@/components/dashboard/inventory/sparepart-import-dialog";
@@ -27,6 +28,7 @@ interface RetailItemTableProps {
 export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems, readOnly = false, canRestock = !readOnly, canImport = !readOnly }: RetailItemTableProps) {
   const [items, setItems] = useState<InventoryItemWithCompatibilities[]>(initialItems ?? []);
   const [search, setSearch] = useState(initialSearchQuery);
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(!initialItems);
   const [formOpen, setFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItemWithCompatibilities | null>(null);
@@ -56,12 +58,20 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
   }, [initialItems, tokoId]);
 
   const normalizedSearch = search.toLowerCase();
+  const categories = Array.from(
+    new Map(
+      items
+        .filter((item) => item.category)
+        .map((item) => [item.category!.id, item.category!])
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
   const filteredItems = items.filter(
     (item) =>
-      item.name.toLowerCase().includes(normalizedSearch) ||
-      item.barcode.toLowerCase().includes(normalizedSearch) ||
-      (item.category?.name.toLowerCase().includes(normalizedSearch) ?? false) ||
-      (item.supplierName?.toLowerCase().includes(normalizedSearch) ?? false)
+      (categoryFilter === "all" || item.categoryId === categoryFilter) &&
+      (item.name.toLowerCase().includes(normalizedSearch) ||
+        item.barcode.toLowerCase().includes(normalizedSearch) ||
+        (item.category?.name.toLowerCase().includes(normalizedSearch) ?? false) ||
+        (item.supplierName?.toLowerCase().includes(normalizedSearch) ?? false))
   );
 
   const handleSuccess = (item?: InventoryItemWithCompatibilities) => {
@@ -128,9 +138,22 @@ export function RetailItemTable({ tokoId, initialSearchQuery = "", initialItems,
         </div> : null}
       </div>
 
-      <div className="relative">
-        <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari barang retail..." className="pl-9" />
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="relative">
+          <RiSearchLine className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari barang retail..." className="pl-9" />
+        </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="h-9 w-full">
+            <SelectValue placeholder="Filter kategori" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua kategori</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Card className="overflow-hidden border-border/50 py-0 shadow-lg shadow-black/5 transition-all duration-300 hover:shadow-xl hover:shadow-black/10">
