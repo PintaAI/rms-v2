@@ -133,10 +133,10 @@ const undoTargetStatus = "repairing" as const;
 const newWarrantyClaimDialogId = "__new_warranty_claim__";
 
 const warrantyPresets = [
-  { label: "1 Minggu", days: 7 },
-  { label: "1 Bulan", months: 1 },
-  { label: "2 Bulan", months: 2 },
+  { label: "2 Minggu", days: 14 },
   { label: "3 Bulan", months: 3 },
+  { label: "6 Bulan", months: 6 },
+  { label: "12 Bulan", months: 12 },
 ] as const;
 
 type TechnicianOption = { id: string; name: string; email?: string };
@@ -523,6 +523,13 @@ export function ServiceDetailCard({
     (sum, item) => sum + item.price * item.qty,
     0
   );
+  const invoiceGrandTotal = localService.invoice?.grandTotal ?? totalAmount;
+  const invoiceDpAmount = localService.invoice?.dpAmount ?? 0;
+  const invoiceDiscountAmount = localService.invoice?.discountAmount ?? 0;
+  const invoiceDisplayTotal = localService.invoice
+    ? Math.max(0, invoiceGrandTotal - invoiceDpAmount - invoiceDiscountAmount)
+    : totalAmount;
+  const hasInvoiceAdjustments = invoiceDpAmount > 0 || invoiceDiscountAmount > 0;
 
   const [doneDialogOpen, setDoneDialogOpen] = useState(false);
   const [doneNote, setDoneNote] = useState("");
@@ -640,7 +647,7 @@ export function ServiceDetailCard({
     }
 
     setDoneNote("");
-    setWarrantyDate(getPresetWarrantyDate(warrantyPresets[1]));
+    setWarrantyDate("");
     setSelectedCompletionTechnicianId(localService.technician?.id ?? (viewerRole === "technician" ? currentUser.id : ""));
     setShowDoneTakeoverWarning(false);
     setDoneDialogOpen(true);
@@ -957,7 +964,7 @@ export function ServiceDetailCard({
                     }
                     className="text-xs font-normal"
                   >
-                    {isActive ? "Invoice" : formatCurrency(localService.invoice.grandTotal)} • {localService.invoice.paymentStatus === "paid" ? "Paid" : localService.invoice.paymentStatus === "dp" ? `DP ${localService.invoice.dpAmount ? formatCurrency(localService.invoice.dpAmount) : ""}` : "Unpaid"}
+                    {isActive ? "Invoice" : formatCurrency(invoiceDisplayTotal)} • {localService.invoice.paymentStatus === "paid" ? "Paid" : localService.invoice.paymentStatus === "dp" ? `DP ${localService.invoice.dpAmount ? formatCurrency(localService.invoice.dpAmount) : ""}` : "Unpaid"}
                   </Badge>
                 )}
               </div>
@@ -1263,9 +1270,31 @@ export function ServiceDetailCard({
             )}
 
             {localService.items.length > 0 && (
-              <div className="flex justify-between items-center pt-2 border-t">
-                <span className="font-medium">Total</span>
-                <span className="font-bold">{formatCurrency(totalAmount)}</span>
+              <div className="space-y-1 pt-2 border-t">
+                {hasInvoiceAdjustments && (
+                  <>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Total sebelum potongan</span>
+                      <span>{formatCurrency(invoiceGrandTotal)}</span>
+                    </div>
+                    {invoiceDpAmount > 0 && (
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>DP dibayar</span>
+                        <span>- {formatCurrency(invoiceDpAmount)}</span>
+                      </div>
+                    )}
+                    {invoiceDiscountAmount > 0 && (
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>Diskon</span>
+                        <span>- {formatCurrency(invoiceDiscountAmount)}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">{hasInvoiceAdjustments ? "Total setelah potongan" : "Total"}</span>
+                  <span className="font-bold">{formatCurrency(invoiceDisplayTotal)}</span>
+                </div>
               </div>
             )}
 
@@ -1493,6 +1522,16 @@ export function ServiceDetailCard({
                 onChange={(event) => setWarrantyDate(event.target.value)}
               />
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <Button
+                  type="button"
+                  variant={warrantyDate === "" ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={warrantyDate === ""}
+                  className="w-full"
+                  onClick={() => setWarrantyDate("")}
+                >
+                  Tanpa garansi
+                </Button>
                 {warrantyPresets.map((preset) => {
                   const presetDate = getPresetWarrantyDate(preset);
                   const isSelected = warrantyDate === presetDate;
@@ -1511,16 +1550,6 @@ export function ServiceDetailCard({
                     </Button>
                   );
                 })}
-                <Button
-                  type="button"
-                  variant={warrantyDate === "" ? "default" : "outline"}
-                  size="sm"
-                  aria-pressed={warrantyDate === ""}
-                  className="w-full"
-                  onClick={() => setWarrantyDate("")}
-                >
-                  Tanpa garansi
-                </Button>
               </div>
             </div>
           </div>
