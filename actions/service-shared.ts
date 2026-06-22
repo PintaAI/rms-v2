@@ -1,6 +1,6 @@
 import prisma from "@/lib/prisma";
 import type { Prisma } from "@/prisma/generated/prisma/client";
-import type { PaymentStatus, RepairOrderStatus } from "@/prisma/generated/prisma/enums";
+import type { PaymentStatus, RepairOrderStatus, SalesPaymentMethod } from "@/prisma/generated/prisma/enums";
 import type { JsonValue } from "@/prisma/generated/prisma/internal/prismaNamespace";
 import type { RepairOrderItem, ServiceListItem, TimeFilter } from "./service-types";
 
@@ -41,6 +41,7 @@ export const serviceSelectBase = {
       id: true,
       grandTotal: true,
       paymentStatus: true,
+      paymentMethod: true,
       dpAmount: true,
       discountAmount: true,
       paidAt: true,
@@ -128,6 +129,7 @@ export type ServiceWithSelectBase = {
     id: string;
     grandTotal: number;
     paymentStatus: PaymentStatus;
+    paymentMethod: SalesPaymentMethod | null;
     dpAmount: number;
     discountAmount: number;
     paidAt: Date | null;

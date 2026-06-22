@@ -129,6 +129,13 @@ const supplierReturnStatusLabels: Record<string, string> = {
   rejected: "ditolak",
 };
 
+const paymentMethodLabels: Record<"cash" | "transfer" | "qris" | "debit", string> = {
+  cash: "Cash",
+  transfer: "Transfer",
+  qris: "QRIS",
+  debit: "Debit",
+};
+
 const undoTargetStatus = "repairing" as const;
 const newWarrantyClaimDialogId = "__new_warranty_claim__";
 
@@ -223,6 +230,7 @@ export interface ServiceDetailCardItem {
     id: string;
     grandTotal: number;
     paymentStatus: string;
+    paymentMethod?: "cash" | "transfer" | "qris" | "debit" | null;
     dpAmount?: number;
     discountAmount?: number;
     invoiceNumber?: string | null;
@@ -811,6 +819,7 @@ export function ServiceDetailCard({
         invoice: {
           ...prev.invoice,
           paymentStatus: "paid",
+          paymentMethod: payment.paymentMethod,
           discountAmount: payment.discountAmount,
           paidAt,
         },
@@ -1289,7 +1298,19 @@ export function ServiceDetailCard({
                         <span>- {formatCurrency(invoiceDiscountAmount)}</span>
                       </div>
                     )}
+                    {localService.invoice?.paymentMethod && (
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>Metode pembayaran</span>
+                        <span>{paymentMethodLabels[localService.invoice.paymentMethod]}</span>
+                      </div>
+                    )}
                   </>
+                )}
+                {!hasInvoiceAdjustments && localService.invoice?.paymentMethod && (
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Metode pembayaran</span>
+                    <span>{paymentMethodLabels[localService.invoice.paymentMethod]}</span>
+                  </div>
                 )}
                 <div className="flex justify-between items-center">
                   <span className="font-medium">{hasInvoiceAdjustments ? "Total setelah potongan" : "Total"}</span>

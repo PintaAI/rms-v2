@@ -1,4 +1,4 @@
-import type { RepairOrderItemType, PaymentStatus, RepairOrderStatus, SupplierReturnStatus, WarrantyClaimResolution, WarrantyClaimStatus } from "@/prisma/generated/prisma/enums";
+import type { RepairOrderItemType, PaymentStatus, RepairOrderStatus, SalesPaymentMethod, SupplierReturnStatus, WarrantyClaimResolution, WarrantyClaimStatus } from "@/prisma/generated/prisma/enums";
 
 export type TimeFilter = "daily" | "weekly" | "monthly" | "all";
 
@@ -39,6 +39,7 @@ export interface ServiceListItem {
     id: string;
     grandTotal: number;
     paymentStatus: PaymentStatus;
+    paymentMethod: SalesPaymentMethod | null;
     dpAmount: number;
     discountAmount: number;
     paidAt: Date | null;

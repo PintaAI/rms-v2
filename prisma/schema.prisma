@@ -947,6 +947,7 @@ model RepairInvoice {
 
   grandTotal     Int
   paymentStatus  PaymentStatus @default(unpaid)
+  paymentMethod  SalesPaymentMethod?
   dpAmount       Int           @default(0)
   discountAmount Int           @default(0)
   paidAt         DateTime?

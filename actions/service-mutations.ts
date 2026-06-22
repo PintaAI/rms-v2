@@ -910,7 +910,7 @@ export async function payInvoice(repairInvoiceId: string, data: z.infer<typeof p
     await prisma.$transaction(async (tx) => {
       await tx.repairInvoice.update({
         where: { id: repairInvoiceId },
-        data: { paymentStatus: "paid", paidAt, discountAmount },
+        data: { paymentStatus: "paid", paymentMethod, paidAt, discountAmount },
       });
 
       if (shouldCheckoutOnPayment) {

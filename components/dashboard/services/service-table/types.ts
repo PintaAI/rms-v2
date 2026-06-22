@@ -38,6 +38,7 @@ export interface ServiceTableItem {
     id: string;
     grandTotal: number;
     paymentStatus: PaymentStatusKey | string;
+    paymentMethod?: "cash" | "transfer" | "qris" | "debit" | null;
     dpAmount?: number;
     discountAmount?: number;
     invoiceNumber?: string | null;
