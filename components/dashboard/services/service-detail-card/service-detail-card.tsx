@@ -535,8 +535,9 @@ export function ServiceDetailCard({
   const invoiceDpAmount = localService.invoice?.dpAmount ?? 0;
   const invoiceDiscountAmount = localService.invoice?.discountAmount ?? 0;
   const invoiceDisplayTotal = localService.invoice
-    ? Math.max(0, invoiceGrandTotal - invoiceDpAmount - invoiceDiscountAmount)
+    ? Math.max(0, invoiceGrandTotal - invoiceDiscountAmount)
     : totalAmount;
+  const invoiceRemainingTotal = Math.max(0, invoiceDisplayTotal - invoiceDpAmount);
   const hasInvoiceAdjustments = invoiceDpAmount > 0 || invoiceDiscountAmount > 0;
 
   const [doneDialogOpen, setDoneDialogOpen] = useState(false);
@@ -1283,7 +1284,7 @@ export function ServiceDetailCard({
                 {hasInvoiceAdjustments && (
                   <>
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>Total sebelum potongan</span>
+                      <span>Total invoice</span>
                       <span>{formatCurrency(invoiceGrandTotal)}</span>
                     </div>
                     {invoiceDpAmount > 0 && (
@@ -1313,9 +1314,15 @@ export function ServiceDetailCard({
                   </div>
                 )}
                 <div className="flex justify-between items-center">
-                  <span className="font-medium">{hasInvoiceAdjustments ? "Total setelah potongan" : "Total"}</span>
+                  <span className="font-medium">{invoiceDiscountAmount > 0 ? "Total setelah diskon" : "Total invoice"}</span>
                   <span className="font-bold">{formatCurrency(invoiceDisplayTotal)}</span>
                 </div>
+                {invoiceDpAmount > 0 && (
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Sisa tagihan</span>
+                    <span>{formatCurrency(invoiceRemainingTotal)}</span>
+                  </div>
+                )}
               </div>
             )}
 

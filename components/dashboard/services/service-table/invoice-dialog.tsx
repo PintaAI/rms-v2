@@ -191,11 +191,12 @@ function InvoicePreviewCard({
   const grandTotal = service.invoice?.grandTotal || 0;
   const dpAmount = service.invoice?.dpAmount || 0;
   const discountAmount = service.invoice?.discountAmount || 0;
-  const finalTotal = Math.max(0, grandTotal - dpAmount - discountAmount);
+  const invoiceTotal = Math.max(0, grandTotal - discountAmount);
+  const remainingTotal = Math.max(0, invoiceTotal - dpAmount);
   const resolvedClaims = getResolvedClaims(service);
   const refundClaims = getRefundClaims(service);
   const totalRefund = refundClaims.reduce((sum, claim) => sum + claim.refundAmount, 0);
-  const netTotal = Math.max(0, finalTotal - totalRefund);
+  const netTotal = Math.max(0, invoiceTotal - totalRefund);
   const warrantyUntil = service.warrantyUntil ? new Date(service.warrantyUntil) : null;
 
   return (
@@ -233,7 +234,7 @@ function InvoicePreviewCard({
                 DP {dpAmount ? formatCurrency(dpAmount) : ""}
               </div>
               <p className="mt-1 text-xs font-medium text-black">
-                Sisa: {formatCurrency(finalTotal)}
+                Sisa: {formatCurrency(remainingTotal)}
               </p>
             </div>
           ) : isPaid ? (
@@ -424,7 +425,7 @@ function InvoicePreviewCard({
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black">Ringkasan Pembayaran</p>
               <div className="space-y-1 text-sm text-black">
                 <div className="flex items-center justify-between gap-4">
-                  <span>Total sebelum diskon</span>
+                  <span>Total invoice</span>
                   <span className="font-semibold tabular-nums text-black">{formatCurrency(grandTotal)}</span>
                 </div>
                 {dpAmount > 0 && (
@@ -445,9 +446,15 @@ function InvoicePreviewCard({
                     <span className="font-semibold tabular-nums text-black">- {formatCurrency(totalRefund)}</span>
                   </div>
                 )}
+                {dpAmount > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Sisa tagihan</span>
+                    <span className="font-semibold tabular-nums text-black">{formatCurrency(remainingTotal)}</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-end justify-between gap-4 border-t border-black pt-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black">{totalRefund > 0 ? "Net Setelah Refund" : mode === "pickup-note" ? "Total Tagihan" : "Total Bayar"}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black">{totalRefund > 0 ? "Net Setelah Refund" : mode === "pickup-note" ? "Total Tagihan" : "Total Invoice"}</p>
                 <p className="text-2xl font-black tracking-tight">{formatCurrency(netTotal)}</p>
               </div>
             </div>
@@ -516,11 +523,12 @@ function InvoiceLandscapePrintCard({
   const grandTotal = service.invoice?.grandTotal || 0;
   const dpAmount = service.invoice?.dpAmount || 0;
   const discountAmount = service.invoice?.discountAmount || 0;
-  const finalTotal = Math.max(0, grandTotal - dpAmount - discountAmount);
+  const invoiceTotal = Math.max(0, grandTotal - discountAmount);
+  const remainingTotal = Math.max(0, invoiceTotal - dpAmount);
   const resolvedClaims = getResolvedClaims(service);
   const refundClaims = getRefundClaims(service);
   const totalRefund = refundClaims.reduce((sum, claim) => sum + claim.refundAmount, 0);
-  const netTotal = Math.max(0, finalTotal - totalRefund);
+  const netTotal = Math.max(0, invoiceTotal - totalRefund);
   const warrantyUntil = service.warrantyUntil ? new Date(service.warrantyUntil) : null;
 
   return (
@@ -551,7 +559,7 @@ function InvoiceLandscapePrintCard({
                     ? `Net ${formatCurrency(netTotal)}`
                     : `Dibayar ${formatInvoiceDate(service.invoice?.paidAt ?? service.checkoutAt)}`
                   : isDp
-                    ? `Sisa ${formatCurrency(finalTotal)}`
+                    ? `Sisa ${formatCurrency(remainingTotal)}`
                     : "Tagihan belum lunas"}
             </p>
           </div>
@@ -642,7 +650,7 @@ function InvoiceLandscapePrintCard({
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">Ringkasan Pembayaran</p>
             <div className="space-y-1.5 text-xs text-black">
               <div className="flex items-center justify-between gap-4">
-                <span>Total sebelum diskon</span>
+                <span>Total invoice</span>
                 <span className="font-semibold tabular-nums text-black">{formatCurrency(grandTotal)}</span>
               </div>
               {dpAmount > 0 && (
@@ -663,9 +671,15 @@ function InvoiceLandscapePrintCard({
                   <span className="font-semibold tabular-nums text-black">- {formatCurrency(totalRefund)}</span>
                 </div>
               )}
+              {dpAmount > 0 && (
+                <div className="flex items-center justify-between gap-4">
+                  <span>Sisa tagihan</span>
+                  <span className="font-semibold tabular-nums text-black">{formatCurrency(remainingTotal)}</span>
+                </div>
+              )}
             </div>
             <div className="flex items-end justify-between gap-4 border-t border-black pt-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">{totalRefund > 0 ? "Net Setelah Refund" : mode === "pickup-note" ? "Total Tagihan" : "Total Bayar"}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black">{totalRefund > 0 ? "Net Setelah Refund" : mode === "pickup-note" ? "Total Tagihan" : "Total Invoice"}</p>
               <p className="text-2xl font-black tracking-tight">{formatCurrency(netTotal)}</p>
             </div>
           </div>

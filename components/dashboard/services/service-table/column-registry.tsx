@@ -48,7 +48,8 @@ function getInvoiceDisplayTotal(service: ServiceTableItem) {
 
   return {
     originalTotal: grandTotal,
-    netTotal: Math.max(0, grandTotal - dpAmount - discountAmount - totalRefund),
+    netTotal: Math.max(0, grandTotal - discountAmount - totalRefund),
+    remainingTotal: Math.max(0, grandTotal - discountAmount - dpAmount),
     totalRefund,
   };
 }
@@ -299,6 +300,9 @@ export const columnRegistry: Record<string, ColumnDef> = {
           {invoiceTotal.totalRefund > 0 && (
             <span className="text-[0.6rem] text-muted-foreground">Asli {formatCurrency(invoiceTotal.originalTotal)}</span>
           )}
+          {isDp && service.invoice.dpAmount ? (
+            <span className="text-[0.6rem] text-muted-foreground">Sisa {formatCurrency(invoiceTotal.remainingTotal)}</span>
+          ) : null}
         </div>
           <div className="flex items-center gap-1">
             {isPaid && <RiCheckLine className="h-3 w-3 text-chart-1" />}
