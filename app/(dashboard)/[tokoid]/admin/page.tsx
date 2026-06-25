@@ -1,5 +1,5 @@
 import { getAdminOverview } from "@/actions/overview";
-import { getAuthProviderData } from "@/actions/user";
+import { getTokoHeader } from "@/actions/toko";
 import { AdminOverview } from "@/components/dashboard/admin/admin-overview";
 
 export default async function AdminOverviewPage({
@@ -8,9 +8,9 @@ export default async function AdminOverviewPage({
   params: Promise<{ tokoid: string }>;
 }) {
   const { tokoid } = await params;
-  const [result, { tokoList }] = await Promise.all([
+  const [result, toko] = await Promise.all([
     getAdminOverview(tokoid),
-    getAuthProviderData(),
+    getTokoHeader(tokoid),
   ]);
 
   if (!result.success || !result.data) {
@@ -24,7 +24,7 @@ export default async function AdminOverviewPage({
     );
   }
 
-  const currentToko = tokoList.find((toko) => toko.id === tokoid);
+  const currentToko = toko.success ? toko.data ?? undefined : undefined;
 
   return <AdminOverview data={result.data} tokoId={tokoid} currentToko={currentToko} />;
 }

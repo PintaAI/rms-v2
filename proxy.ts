@@ -197,7 +197,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const shouldResolveUser = sessionToken && (isPublicRoute || isProtectedRoute);
+  const needsPostAuthRedirect =
+    isPublicRoute ||
+    isDashboardLandingRoute ||
+    isOnboardRoute ||
+    isSuperuserRoute ||
+    pathname.startsWith(noStoreAccessRoute);
+  const shouldAttachPendingReferral = isAuthRoute && request.nextUrl.searchParams.get("affiliate_new") === "1";
+  const shouldResolveUser = sessionToken && (needsPostAuthRedirect || shouldAttachPendingReferral);
 
   if (shouldResolveUser) {
     const user = await getProxyAuthUser(request);
@@ -212,7 +219,6 @@ export async function proxy(request: NextRequest) {
 
     const destination = getPostAuthDestination(user);
     const hasPendingReferral = Boolean(request.cookies.get(AFFILIATE_PENDING_REFERRAL_COOKIE)?.value);
-    const shouldAttachPendingReferral = isAuthRoute && request.nextUrl.searchParams.get("affiliate_new") === "1";
     const shouldClearPendingReferral = shouldAttachPendingReferral
       ? await attachPendingReferralFromProxy(request, user)
       : hasPendingReferral;
